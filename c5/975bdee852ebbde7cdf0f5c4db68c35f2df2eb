@@ -1,0 +1,24 @@
+docs/app/views/docs/pages/draft_rows_new_parent.rb
+  s_c93dd485cbe58f::t_9dd54a0156d8fd 268
+docs/Gemfile
+  s_c93dd485cbe58f::t_a3f83c64257ed2 11-22
+  s_c93dd485cbe58f::t_4f81b4e5c5ce10 93-100
+docs/Gemfile.lock
+  ai_agent 4,217,307,525,532,621,665-666
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c5975bdee852ebbde7cdf0f5c4db68c35f2df2eb",
+  "prompts": {},
+  "sessions": {
+    "s_c93dd485cbe58f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd273750-8633-449f-ad30-e99430de62f0",
+        "model": "claude-opus-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
