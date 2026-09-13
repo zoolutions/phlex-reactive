@@ -1,0 +1,31 @@
+spec/phlex/reactive/settles_spec.rb
+  s_81b00580f73cfa::t_e403942f230741 412
+  s_81b00580f73cfa::t_2ae86d79d2904e 373-411,413-418
+CHANGELOG.md
+  s_81b00580f73cfa::t_0911d8d6e586fb 10-30
+docs/app/views/docs/pages/async_actions.rb
+  s_81b00580f73cfa::t_ffa91d1b112b1a 185-196
+README.md
+  s_81b00580f73cfa::t_62e4d268a51ce4 2594-2604
+spec/requests/pending_settle_spec.rb
+  s_81b00580f73cfa::t_da866e08173ca6 182-229
+lib/phlex/reactive/settles.rb
+  s_81b00580f73cfa::t_460114dbbba345 64-89,91
+  s_81b00580f73cfa::t_4ccdbf97a5ff80 30-35,37-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "580fba0662bef807ecfcb9a8b61b05fd2f5e09f4",
+  "prompts": {},
+  "sessions": {
+    "s_81b00580f73cfa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "42e72467-ce90-4236-9f62-4f467bd6d98d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
