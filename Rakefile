@@ -243,6 +243,35 @@ task :release, %i[version force] do |_t, args|
     end
   end
 
+  # Step 0b: PREFLIGHT the lockfiles — read and validate every one BEFORE a
+  # single file is written. Validating inside Step 1b (after version.rb is
+  # already bumped, and after an earlier lockfile may already be rewritten)
+  # would abort into a DIRTY tree, which the clean-tree guard above then blocks
+  # on the next run — a half-done release that cannot be retried without manual
+  # cleanup. That is exactly the state v0.13.1's first attempt left behind, so
+  # the check that can fail runs while failing is still free.
+  #
+  # Zero matches is not "already current": it means the file does not pin the
+  # gem the way we think it does (a renamed gem, a changed lockfile format, a
+  # file that never belonged in the list). Proceeding would ship version.rb
+  # bumped against a lockfile still naming the old version — the stale-lockfile
+  # release #247 exists to prevent, only silent.
+  #
+  # Matches the PATH-source spec ("    phlex-reactive (X.Y.Z)") and the
+  # CHECKSUMS pin ("  phlex-reactive (X.Y.Z)"), leaving everything else
+  # untouched. The DEPENDENCIES entry is the version-less "phlex-reactive!",
+  # which carries no version and so is deliberately not matched.
+  pin_pattern = /^(\s+phlex-reactive) \(([^)]*)\)$/
+  lockfiles = %w[Gemfile.lock docs/Gemfile.lock].select { File.exist?(it) }
+  locks = lockfiles.to_h { [it, File.read(it)] }
+  locks.each do |lockfile, content|
+    next unless content.scan(pin_pattern).empty?
+
+    abort "\e[31mAborting: #{lockfile} contains no `phlex-reactive (X.Y.Z)` pin to bump.\e[0m\n" \
+          "Either the lockfile format changed or this file does not pin the gem — fix it (or drop " \
+          "it from the list in the release task) before releasing. Nothing has been modified."
+  end
+
   # Step 1: Update version file
   header "Version"
   if new_version == current
@@ -280,31 +309,12 @@ task :release, %i[version force] do |_t, args|
   # PATH spec line plus the CHECKSUMS line. Committed alongside the bump in
   # Step 3. Any OTHER tracked lockfile pinning the gem belongs in this list.
   header "Lockfiles"
-  # Matches the PATH-source spec ("    phlex-reactive (X.Y.Z)") and the
-  # CHECKSUMS pin ("  phlex-reactive (X.Y.Z)"), leaving everything else
-  # untouched. The DEPENDENCIES entry is the version-less "phlex-reactive!",
-  # which carries no version and so is deliberately not matched.
-  pin_pattern = /^(\s+phlex-reactive) \(([^)]*)\)$/
-  lockfiles = %w[Gemfile.lock docs/Gemfile.lock].select { File.exist?(it) }
-  lockfiles.each do |lockfile|
-    content = File.read(lockfile)
+  locks.each do |lockfile, content|
     pins = content.scan(pin_pattern)
-
-    # ZERO matches is not "already current" — it means this file does not pin
-    # the gem the way we think it does (a renamed gem, a changed lockfile
-    # format, a file that never belonged in the list above). Treating that as a
-    # no-op would ship version.rb bumped against a lockfile still naming the old
-    # version — exactly the stale-lockfile release #247 exists to prevent, only
-    # now silent. Abort instead: a release is cheap to re-run, a bad one is not.
-    if pins.empty?
-      abort "\e[31mAborting: #{lockfile} contains no `phlex-reactive (X.Y.Z)` pin to bump.\e[0m\n" \
-            "Either the lockfile format changed or this file does not pin the gem — " \
-            "fix it (or drop it from the list in Step 1b) before releasing."
-    end
-
     if pins.all? { |_prefix, version| version == new_version }
       # A genuine re-run after a partial failure: the pins ARE there and already
-      # current. Distinguishable from the zero-match case only because we counted.
+      # current. Distinguishable from the zero-pin case (which aborted in the
+      # preflight) only because we counted rather than comparing strings.
       skip "#{lockfile} — #{pins.size} pin(s) already #{new_version}"
       next
     end
@@ -312,7 +322,7 @@ task :release, %i[version force] do |_t, args|
     File.write(lockfile, content.gsub(pin_pattern, "\\1 (#{new_version})"))
     success "Bumped #{pins.size} phlex-reactive pin(s) in #{lockfile}"
   end
-  skip "No tracked lockfiles" if lockfiles.empty?
+  skip "No tracked lockfiles" if locks.empty?
 
   # Step 2: Verify gem builds cleanly
   header "Build verification"

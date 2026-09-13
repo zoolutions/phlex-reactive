@@ -6,29 +6,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Fixed
-
-- **`rake release` bumps the pin in every tracked lockfile (#247, #253).** Since
-  #246 the gem root's `Gemfile.lock` is committed alongside `docs/Gemfile.lock`,
-  and both pin `phlex-reactive` by local path — so a version bump that left them
-  alone shipped a stale lockfile, and the Release workflow's frozen
-  `bundle install` refused it (v0.13.0's first attempt).
-
-  The task now bumps that pin **with a text edit**, not `bundle lock`. #247's
-  first cut used `bundle lock --local`, which is a full re-resolve — and a
-  re-resolve trips over constraints that have nothing to do with this gem:
-  `docs/Gemfile.lock` declares Linux platforms for the Kamal deploy, and
-  resolving `thruster` for those against a Mac's installed gems fails ("Could
-  not find gems matching 'thruster' valid for all resolution platforms"), which
-  aborted v0.13.1's first attempt mid-release with `version.rb` already bumped.
-  A re-resolve also silently folds unrelated dependency drift into the release
-  commit the moment a Gemfile is out of sync with its lock. The only line a
-  version bump changes is the path-gem pin, so the task edits exactly that (the
-  `PATH` spec + the `CHECKSUMS` entry) in place — deterministic on any machine,
-  no network, no installed gems, the same 2-line diff bundler produced. A
-  lockfile that names no pin at all now **aborts** the release rather than
-  reporting itself already current. pgbus's release task made the same call
-  after the same failure.
 
 ### Added
 
@@ -463,6 +440,30 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     to settle.
 
 ### Fixed
+
+- **`rake release` bumps the pin in every tracked lockfile (#247, #253).** Since
+  #246 the gem root's `Gemfile.lock` is committed alongside `docs/Gemfile.lock`,
+  and both pin `phlex-reactive` by local path — so a version bump that left them
+  alone shipped a stale lockfile, and the Release workflow's frozen
+  `bundle install` refused it (v0.13.0's first attempt).
+
+  The task now bumps that pin **with a text edit**, not `bundle lock`. #247's
+  first cut used `bundle lock --local`, which is a full re-resolve — and a
+  re-resolve trips over constraints that have nothing to do with this gem:
+  `docs/Gemfile.lock` declares Linux platforms for the Kamal deploy, and
+  resolving `thruster` for those against a Mac's installed gems fails ("Could
+  not find gems matching 'thruster' valid for all resolution platforms"), which
+  aborted v0.13.1's first attempt mid-release with `version.rb` already bumped.
+  A re-resolve also silently folds unrelated dependency drift into the release
+  commit the moment a Gemfile is out of sync with its lock. The only line a
+  version bump changes is the path-gem pin, so the task edits exactly that (the
+  `PATH` spec + the `CHECKSUMS` entry) in place — deterministic on any machine,
+  no network, no installed gems, the same 2-line diff bundler produced. A
+  lockfile that names no pin at all now **aborts** the release rather than
+  reporting itself already current — and that check runs in a PREFLIGHT, before
+  `version.rb` or any lockfile is written, so the abort leaves a clean tree
+  instead of a half-bumped one the clean-tree guard would then block on retry.
+  pgbus's release task made the same call after the same failure.
 
 - **`Component::Action` renamed `ActionDefinition` — it shadowed a host kit
   component named `Action` under dev autoloading (#233).** The mixin sits in
