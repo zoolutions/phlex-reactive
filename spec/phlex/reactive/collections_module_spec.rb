@@ -116,6 +116,70 @@ RSpec.describe Phlex::Reactive::Collections, type: :request do
     end
   end
 
+  describe "resolving the size ONCE per delta" do
+    # The resolver is usually a DB count. Evaluating it twice per delta is an
+    # extra query AND a correctness hazard: a concurrent write landing between
+    # the two reads would ship a count companion that disagrees with the
+    # empty-state toggle beside it.
+    it "evaluates the size resolver exactly once for an add" do
+      calls = 0
+      counter = lambda {
+        calls += 1
+        1
+      }
+      klass = Class.new(container_class) do
+        def self.name = "CollModSpecCounted"
+      end
+      klass.reactive_collection :todos,
+        item: row_component, container: "collmod-list",
+        count: "collmod-count", empty: empty_component, size: counter
+
+      container = klass.new
+      described_class.add_streams(described_class.definition!(container, :todos), container, todo, :append)
+
+      expect(calls).to eq(1)
+    end
+
+    it "evaluates the size resolver exactly once for a remove" do
+      calls = 0
+      counter = lambda {
+        calls += 1
+        0
+      }
+      klass = Class.new(container_class) do
+        def self.name = "CollModSpecCountedRemove"
+      end
+      klass.reactive_collection :todos,
+        item: row_component, container: "collmod-list",
+        count: "collmod-count", empty: empty_component, size: counter
+
+      container = klass.new
+      described_class.remove_streams(described_class.definition!(container, :todos), container, todo)
+
+      expect(calls).to eq(1)
+    end
+
+    it "passes the SAME size to the count companion and the empty-state boundary" do
+      sizes = [1, 99] # a second evaluation would return a different number
+      klass = Class.new(container_class) do
+        def self.name = "CollModSpecDrifting"
+      end
+      klass.reactive_collection :todos,
+        item: row_component, container: "collmod-list",
+        count: "collmod-count", empty: empty_component, size: -> { sizes.shift }
+
+      container = klass.new
+      streams = described_class.add_streams(
+        described_class.definition!(container, :todos), container, todo, :append
+      ).join
+
+      # size 1 => count reads "1" AND the 0->1 empty-state clear fires. If the
+      # resolver ran twice, the toggle would have seen 99 and stayed silent.
+      expect(streams).to include(">1<")
+      expect(streams).to include('action="remove"', 'target="collmod-empty"')
+    end
+  end
+
   describe ".count_streams" do
     it "emits only the count companion update" do
       container = container_class.new(size: 7)

@@ -131,12 +131,25 @@ module Phlex
         handle.count.to_i <= 1
       end
 
-      # The teardown: clear the container's pending markers, then remove the
-      # client's <pgbus-stream-source> by its deterministic id — its
-      # disconnectedCallback closes the SSE, so the subscription tears itself
-      # down with the content it delivered.
+      # The teardown: clear the pending markers from EVERY target this handle
+      # owns as well as the container, then remove the client's
+      # <pgbus-stream-source> by its deterministic id — its disconnectedCallback
+      # closes the SSE, so the subscription tears itself down with the content it
+      # delivered.
+      #
+      # Clearing the targets (not just the anchor) is load-bearing: a settle that
+      # only flashes — "could not re-execute", say — emits no row stream at all,
+      # so nothing swaps that row's node and its markers would otherwise sit
+      # there forever. Clearing an id whose node WAS replaced or removed is a
+      # harmless no-op (the client op resolves to nothing).
       def finish_streams(handle)
-        clear_pending_js(handle.anchor).to_s + source_teardown(handle.anchor)
+        clear_pending_streams(handle.target_ids + [handle.anchor]) + source_teardown(handle.anchor)
+      end
+
+      # One reactive:js clear per id, concatenated. html_safe by construction —
+      # each piece is a SafeBuffer from js_stream.
+      def clear_pending_streams(ids)
+        ids.uniq.map { clear_pending_js(it).to_s }.join.html_safe
       end
 
       def source_teardown(anchor)
@@ -153,10 +166,37 @@ module Phlex
         Phlex::Reactive::Response.js_stream(ops, target:)
       end
 
-      # The failure path: clear the container's pending state so the UI stops
-      # lying, WITHOUT tearing the subscription down.
+      # The failure path: clear the pending state so the UI stops lying, WITHOUT
+      # tearing the subscription down (a retry must still be able to reach the
+      # actor).
+      #
+      # ATTRIBUTION is the constraint. A handle that owns exactly ONE target —
+      # which is every job the `job:`/`args:` sugar enqueues, since it narrows
+      # the handle per record — unambiguously identifies the row that just
+      # failed, so both it and the container are cleared. A handle that owns
+      # MANY (the block form, where the gem cannot map an arbitrary enqueue back
+      # to a record) cannot: clearing all of them would un-dim 176 rows that are
+      # still legitimately working, and clearing the container alone would claim
+      # the whole batch is done. So that case clears nothing and says so — the
+      # fan-out's own `finish: true` is what sweeps it up.
       def broadcast_settle_cleanup(handle)
-        broadcast_settle_payload(handle, clear_pending_js(handle.anchor).to_s)
+        unless handle.target_ids.one?
+          warn_unattributable_failure(handle)
+          return
+        end
+
+        broadcast_settle_payload(handle, clear_pending_streams(handle.target_ids + [handle.anchor]))
+      end
+
+      def warn_unattributable_failure(handle)
+        return unless defined?(::Rails) && ::Rails.respond_to?(:logger) && ::Rails.logger
+
+        ::Rails.logger.warn(
+          "[phlex-reactive] a settle failed for a #{handle.count}-target reply.pending — the gem " \
+          "cannot tell WHICH target this job owned (the enqueue used the block form), so no " \
+          "pending marker was cleared. Those markers clear when a settle calls " \
+          "reactive_settle(finish: true)."
+        )
       end
 
       # Durable is load-bearing: pgbus's since-id replay only covers
@@ -172,19 +212,60 @@ module Phlex
       # them. Sent AFTER the actor's message — the actor paid for the click and
       # should not wait behind a fan-out of channel calls. `exclude:` is the
       # actor's connection id, so they never get the delta twice.
+      # Peer delivery is BEST EFFORT and never fails the job. The actor's durable
+      # message has already been sent by the time we get here; re-raising would
+      # hand the job to the retry policy, and the retry would re-run `perform`
+      # and send the ACTOR's settle a second time — duplicating the pieces that
+      # are not idempotent (a flash, an empty-state append). A peer who missed a
+      # cross-tab courtesy is a far smaller problem than an actor who sees the
+      # flash twice, and every other broadcast in the gem is best-effort too.
       def deliver_peers(handle, settle)
         return if handle.peers.nil? || settle.peer_ops.empty?
 
         keys = handle.peers.map { it.is_a?(Hash) ? GlobalID::Locator.locate(it["gid"]) : it }
         container = settle.container
 
-        settle.peer_ops.each do |name, action, model|
-          container.class.broadcast_collection_to(
-            *keys, container:, in: name, action => model,
-            exclude: handle.connection_id,
-            coalesce: Phlex::Reactive.settle_coalesce_window_ms
+        settle.peer_ops.each { deliver_peer_op(container, keys, handle, it) }
+      rescue ::StandardError => e
+        log_peer_failure(e)
+      end
+
+      # ONE peer op. A collection delta (append/prepend/remove) goes through
+      # broadcast_collection_to so peers get the count companion and the
+      # empty-state toggle too; a REPLACE moves no boundary, so it rides the
+      # ordinary row broadcast. A nil name means the settle handed us a built
+      # component, which self-targets.
+      def deliver_peer_op(container, keys, handle, peer_op)
+        name, action, model, row_kwargs = peer_op
+        return broadcast_peer_component(keys, handle, model) if name.nil?
+
+        if action == :replace
+          definition = Phlex::Reactive::Collections.definition!(container, name)
+          return definition.item.broadcast_to(
+            *keys, replace: definition.item.send(:build, model, row_kwargs || {}),
+            exclude: handle.connection_id
           )
         end
+
+        container.class.broadcast_collection_to(
+          *keys, container:, in: name, action => model, row: row_kwargs || {},
+          exclude: handle.connection_id,
+          coalesce: Phlex::Reactive.settle_coalesce_window_ms
+        )
+      end
+
+      def broadcast_peer_component(keys, handle, component)
+        component.class.broadcast_to(*keys, replace: component, exclude: handle.connection_id)
+      end
+
+      def log_peer_failure(error)
+        return unless defined?(::Rails) && ::Rails.respond_to?(:logger) && ::Rails.logger
+
+        ::Rails.logger.warn(
+          "[phlex-reactive] a settle's PEER broadcast failed (#{error.class}: #{error.message}) — " \
+          "the actor's settle already landed, so the job is NOT failed: retrying it would deliver " \
+          "the actor's settle (and its flash) a second time."
+        )
       end
     end
   end

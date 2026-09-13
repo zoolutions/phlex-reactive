@@ -51,11 +51,19 @@ module Phlex
       def replace(model, morph: false, effect: nil, **row_kwargs)
         if model.is_a?(Phlex::Reactive::Streamable)
           @streams << model.to_stream_replace(morph:, effect:)
+          # A built component carries its own identity, so peers can be handed
+          # the same instance — no definition needed.
+          @peer_ops << [nil, :replace, model, {}] if @handle.peers
           return self
         end
 
         definition = definition!(nil)
         @streams.concat(Phlex::Reactive::Collections.replace_streams(definition, model, effect:, **row_kwargs))
+        # A replace is NOT a collection delta (it moves no boundary), but peers
+        # still need it: without this, a failed re-execution goes back to
+        # actionable for the actor while every other operator keeps the stale
+        # row. It rides the ordinary row broadcast, not broadcast_collection_to.
+        peer(definition, :replace, model, row_kwargs)
         self
       end
 
@@ -65,7 +73,7 @@ module Phlex
       def remove(model, from: nil, effect: nil)
         definition = definition!(from)
         @streams.concat(Phlex::Reactive::Collections.remove_streams(definition, @container, model, effect:))
-        peer(definition, :remove, model)
+        peer(definition, :remove, model, {})
         self
       end
 
@@ -130,7 +138,7 @@ module Phlex
         @streams.concat(
           Phlex::Reactive::Collections.add_streams(definition, @container, model, action, row_kwargs, effect:)
         )
-        peer(definition, action, model)
+        peer(definition, action, model, row_kwargs)
         self
       end
 
@@ -148,11 +156,14 @@ module Phlex
         Phlex::Reactive::Collections.definition!(@container, resolved)
       end
 
-      # Record a peer delta (only when reply.pending asked for peers:).
-      def peer(definition, action, model)
+      # Record a peer delta (only when reply.pending asked for peers:). The row
+      # kwargs ride along: a peer whose row component has a required init kwarg
+      # would otherwise raise, and one with an optional kwarg would render
+      # different markup than the actor got.
+      def peer(definition, action, model, row_kwargs)
         return unless @handle.peers
 
-        @peer_ops << [definition.name, action, model]
+        @peer_ops << [definition.name, action, model, row_kwargs]
       end
     end
   end

@@ -63,14 +63,19 @@ module Phlex
         :container_payload, # its reactive_identity_payload, for from_identity
         :anchor,            # the container's DOM id: subscription + teardown target
         :collection,        # the declared reactive_collection name, or nil
-        :count,             # how many targets this call marked pending
+        :target_ids,        # the DOM ids THIS handle is responsible for un-pending
         :peers,             # peer stream key parts, or nil (actor-only)
         :connection_id      # the actor's connection id, so peers exclude the echo
       ) do
+        # How many targets this handle owns — drives the `finish: :auto` default
+        # (a single-target settle tears the shared subscription down; a fan-out
+        # waits for an explicit finish).
+        def count = target_ids.size
+
         def to_h_wire
           {
             "key" => stream_key, "c" => container_class, "p" => container_payload,
-            "anchor" => anchor, "coll" => collection&.to_s, "n" => count,
+            "anchor" => anchor, "coll" => collection&.to_s, "ids" => target_ids,
             "peers" => peers, "cid" => connection_id
           }
         end
@@ -80,8 +85,8 @@ module Phlex
 
           new(
             stream_key: data["key"], container_class: data["c"], container_payload: data["p"],
-            anchor: data["anchor"], collection: data["coll"]&.to_sym, count: data["n"],
-            peers: data["peers"], connection_id: data["cid"]
+            anchor: data["anchor"], collection: data["coll"]&.to_sym,
+            target_ids: data["ids"] || [], peers: data["peers"], connection_id: data["cid"]
           )
         end
       end
@@ -115,17 +120,31 @@ module Phlex
         # enqueue with the handle installed. Returns nil when the push lane is
         # unavailable — the enqueue still ran, there is just nothing to settle.
         def build_segment(container, records, collection:, peers:, job:, args:, enqueue:)
-          targets = resolve_targets(container, records, collection)
+          # Materialize ONCE. `records` may be a lazy Enumerator or a Relation,
+          # and the targets and the enqueue both need to walk it — enumerating
+          # twice either exhausts a one-shot source (jobs silently never enqueue)
+          # or re-queries, so a concurrent write could make the marked rows and
+          # the enqueued jobs disagree.
+          list = materialize(records)
+          targets = resolve_targets(container, list, collection)
 
           unless Phlex::Reactive.settle_capable?
             warn_no_lane
-            run_enqueue(records, job, args, enqueue)
+            run_enqueue(list, job, args, enqueue, nil)
             return nil
           end
 
-          handle = build_handle(container, collection, targets.size, peers)
-          with_handle(handle) { run_enqueue(records, job, args, enqueue) }
+          handle = build_handle(container, collection, targets, peers)
+          with_handle(handle) { run_enqueue(list, job, args, enqueue, targets) }
           Segment.new(handle:, target_ids: targets)
+        end
+
+        # One record, or an enumerable of them, as an Array — never re-walked.
+        def materialize(records)
+          list = records.is_a?(Enumerable) && !records.is_a?(String) ? records.to_a : [records]
+          raise ::ArgumentError, "reply.pending needs at least one target" if list.empty?
+
+          list
         end
 
         # The wire streams for one segment, in apply order: the per-target
@@ -157,10 +176,7 @@ module Phlex
         # Each pending target, as a DOM id. With `in:` the rows resolve through
         # the collection declaration; without it every entry must already be a
         # Streamable component (its own #id is the target).
-        def resolve_targets(container, records, collection)
-          list = records.is_a?(Enumerable) && !records.is_a?(String) ? records.to_a : [records]
-          raise ::ArgumentError, "reply.pending needs at least one target" if list.empty?
-
+        def resolve_targets(container, list, collection)
           if collection
             definition = Phlex::Reactive::Collections.definition!(container, collection)
             return list.map { row_dom_id(definition, it) }
@@ -178,14 +194,14 @@ module Phlex
           end
         end
 
-        def build_handle(container, collection, count, peers)
+        def build_handle(container, collection, targets, peers)
           Handle.new(
             stream_key: one_shot_stream_key,
             container_class: container.class.name,
             container_payload: container.send(:reactive_identity_payload),
             anchor: container.id,
             collection: collection&.to_sym,
-            count:,
+            target_ids: targets,
             peers: resolve_peers(container, peers),
             connection_id: Phlex::Reactive.current_connection_id
           )
@@ -222,14 +238,23 @@ module Phlex
         # its work before calling reply.pending (the handle is then unused,
         # which is a mistake we cannot detect, so it is documented, not guessed
         # at).
-        def run_enqueue(records, job, args, enqueue)
+        #
+        # The sugar enqueues ONE job PER RECORD, so each job gets a handle
+        # NARROWED to that record's target id. That precision matters on the
+        # failure path: a job that raises (or settles with nothing but a flash)
+        # must clear ITS row's pending markers without un-dimming the other 176
+        # rows that are still legitimately working. The BLOCK form cannot be
+        # narrowed — the gem has no way to map an arbitrary enqueue back to a
+        # record — so it carries the whole target list, which is the right
+        # reading of "these jobs settle these targets as one unit".
+        def run_enqueue(list, job, args, enqueue, targets)
           return enqueue.call if enqueue
           return unless job
 
-          list = records.is_a?(Enumerable) && !records.is_a?(String) ? records.to_a : [records]
           case args
-          when nil then list.each { job.perform_later(it) }
-          when ::Proc then list.each { job.perform_later(*Array(args.call(it))) }
+          when nil then each_with_narrowed_handle(list, targets) { job.perform_later(it) }
+          when ::Proc
+            each_with_narrowed_handle(list, targets) { job.perform_later(*Array(args.call(it))) }
           else
             if list.size > 1
               raise ::ArgumentError,
@@ -237,7 +262,21 @@ module Phlex
                 "Proc (args: ->(record) { [record.id] }) so each job gets its own arguments"
             end
 
-            job.perform_later(*Array(args))
+            each_with_narrowed_handle(list, targets) { job.perform_later(*Array(args)) }
+          end
+        end
+
+        # Yield each record with the ambient handle narrowed to that record's own
+        # target id. `targets` is nil on the no-lane path (no handle is installed
+        # at all), in which case this is a plain each.
+        def each_with_narrowed_handle(list, targets)
+          return list.each { yield(it) } unless targets
+
+          handle = current_handle
+          list.each_with_index do |record, index|
+            id = targets[index]
+            narrowed = id ? handle.with(target_ids: [id]) : handle
+            with_handle(narrowed) { yield(record) }
           end
         end
 

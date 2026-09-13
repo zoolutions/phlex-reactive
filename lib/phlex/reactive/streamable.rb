@@ -541,6 +541,10 @@ module Phlex
         # `prepend:` or `remove:` (exactly one). `exclude:`/`visible_to:` thread
         # to pgbus as everywhere else.
         #
+        # `row:` is the row component's extra init kwargs (issue #186's row_kwargs
+        # on the reply side) — pass the SAME ones the actor got, or a peer whose
+        # row component has a required kwarg raises instead of rendering.
+        #
         # `coalesce:` (a window in ms, or true) applies to the AGGREGATE streams
         # only — the count companion and the empty-state toggle are idempotent
         # replaces of stable targets, so a 177-row fan-out collapses to a
@@ -551,14 +555,14 @@ module Phlex
         # (`in:` is a Ruby keyword, so it cannot be a named parameter — it is
         # pulled out of **opts, which then holds exactly the verb kwarg.)
         def broadcast_collection_to(*streamables, container:, exclude: nil, visible_to: nil,
-                                    coalesce: nil, effect: nil, **opts)
+                                    coalesce: nil, effect: nil, row: {}, **opts)
           name = opts.delete(:in) ||
                  raise(ArgumentError, "broadcast_collection_to needs in: :collection_name")
           action, model = extract_collection_verb(opts)
           definition = Phlex::Reactive::Collections.definition!(container, name)
           keys = [streamables]
 
-          broadcast_collection_row(definition, action, model, keys, exclude:, visible_to:, effect:)
+          broadcast_collection_row(definition, action, model, keys, exclude:, visible_to:, effect:, row:)
           broadcast_collection_aggregates(definition, container, action, keys, exclude:, visible_to:, coalesce:)
         end
 
@@ -601,33 +605,50 @@ module Phlex
         # The ROW leg: routed through the ordinary broadcast_to so the row is
         # built, rendered and instrumented exactly like every other broadcast.
         # Never coalesced (distinct targets; an append is not idempotent).
-        def broadcast_collection_row(definition, action, model, keys, exclude:, visible_to:, effect:)
+        #
+        # A STRING model is an already-built dom id, the same form
+        # reply.remove(id, from:) and Collections.row_remove_stream accept.
+        # Building a row component from it would hand the id to the component's
+        # initializer as if it were a record — so it short-circuits to a raw
+        # remove of that target instead.
+        def broadcast_collection_row(definition, action, model, keys, exclude:, visible_to:, effect:, row: {})
           if action == :remove
-            Phlex::Reactive::Streamable.broadcast_component(
-              definition.item, :remove, model, definition.item.send(:build, model, {}), keys,
+            if model.is_a?(::String)
+              return Phlex::Reactive::Streamable.broadcast_raw(
+                definition.item, :remove, model, nil, keys, exclude:, visible_to:
+              )
+            end
+
+            return Phlex::Reactive::Streamable.broadcast_component(
+              definition.item, :remove, model, definition.item.send(:build, model, row), keys,
               morph: false, target: nil, exclude:, visible_to:, effect:
             )
-          else
-            Phlex::Reactive::Streamable.broadcast_component(
-              definition.item, action, model, definition.item.send(:build, model, {}), keys,
-              morph: false, target: definition.container, exclude:, visible_to:, effect:
-            )
           end
+
+          Phlex::Reactive::Streamable.broadcast_component(
+            definition.item, action, model, definition.item.send(:build, model, row), keys,
+            morph: false, target: definition.container, exclude:, visible_to:, effect:
+          )
         end
 
         # The AGGREGATE leg: the count companion and the empty-state toggle,
         # both idempotent replaces of stable targets — so both carry `coalesce:`.
         def broadcast_collection_aggregates(definition, container, action, keys, exclude:, visible_to:, coalesce:)
           delta = action == :remove ? :remove : :add
+          # Resolve the size ONCE (it is usually a DB count) and hand the same
+          # value to both decisions — see Collections.size_of.
+          size = Phlex::Reactive::Collections.size_of(definition, container)
 
-          if (refresh = Phlex::Reactive::Collections.count_refresh(definition, container))
-            target, size = refresh
+          if (refresh = Phlex::Reactive::Collections.count_refresh(definition, container, size))
+            # NOT `target, size = refresh` — that would rebind `size` to the
+            # count's STRING form and hand a String to empty_toggle below.
+            count_target, count_html = refresh
             Phlex::Reactive::Streamable.broadcast_raw(
-              self, :update, target, size, keys, exclude:, visible_to:, coalesce:
+              self, :update, count_target, count_html, keys, exclude:, visible_to:, coalesce:
             )
           end
 
-          case Phlex::Reactive::Collections.empty_toggle(definition, container, delta)
+          case Phlex::Reactive::Collections.empty_toggle(definition, container, delta, size)
           when :clear
             Phlex::Reactive::Streamable.broadcast_component(
               definition.empty, :remove, nil, definition.empty.new, keys,

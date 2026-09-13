@@ -14,7 +14,7 @@ class ArchiveQueueComponent < ApplicationComponent
   include Phlex::Reactive::Component
 
   reactive_collection :queued,
-    item: NotificationRowComponent,
+    item: ArchiveRowComponent,
     container: "archive-queue",
     count: "archive-queue-count",
     empty: NotificationsEmptyComponent,
@@ -48,7 +48,7 @@ class ArchiveQueueComponent < ApplicationComponent
 
       ul(id: "archive-queue") do
         if Todo.exists?
-          Todo.order(:created_at, :id).each { render NotificationRowComponent.new(todo: it) }
+          Todo.order(:created_at, :id).each { render ArchiveRowComponent.new(todo: it) }
         else
           render NotificationsEmptyComponent.new
         end

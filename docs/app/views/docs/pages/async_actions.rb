@@ -188,10 +188,30 @@ module Views
               there. That is load-bearing: these jobs almost always have non-UI
               callers.
 
-              **A job that raises still clears the pending state.** The markers are
-              cleared and the error is *re-raised* so your retry policy sees it. The
-              subscription is deliberately **not** torn down on failure — a retry
-              must still be able to reach the actor.
+              **A job that raises still clears the pending state — when it can
+              attribute it.** The `job:`/`args:` form enqueues one job per record
+              and narrows each job's handle to *that record's* target, so a failure
+              clears exactly its row and the container, then re-raises for your
+              retry policy. The **block** form cannot be narrowed (the gem cannot
+              map an arbitrary enqueue back to a record), so a failure there clears
+              nothing and logs why — un-dimming 176 rows that are still working
+              would be a worse lie; `finish: true` sweeps them up. The subscription
+              is deliberately **not** torn down on failure — a retry must still be
+              able to reach the actor.
+
+              **Finishing clears every target, not just the container.** A settle
+              that only flashes emits no row stream, so nothing swaps that row's
+              node — the finish sweep is what removes its markers.
+
+              **One `reply.pending` per container, per reply.** Every pending
+              segment emits a directive targeting the container's id, and the client
+              keys subscriptions by target — a second call would supersede the first
+              and orphan its jobs, so it raises instead.
+
+              **Peer delivery is best effort.** If a peer broadcast fails after the
+              actor's message already went out, the job is *not* failed — retrying
+              it would re-run `perform` and send the actor's settle (and its flash)
+              a second time. The failure is logged instead.
 
               **One stream key per `reply.pending` call.** A durable broadcast to a
               never-seen key creates a real PGMQ table (reclaimed by pgbus's hourly
@@ -252,6 +272,11 @@ module Views
                 exclude: reactive_connection_id)
               ```
 
+              `row:` carries the row component's extra init kwargs — pass the same
+              ones the actor got, or a peer whose row has a required kwarg raises
+              instead of rendering. A `remove:` may be a record or an already-built
+              dom-id string, matching `reply.remove(id, from:)`.
+
               Row **plus** count companion **plus** empty-state toggle. `coalesce:`
               (default `settle_coalesce_window_ms`, 50 ms) applies to the
               **aggregate** streams only: the count and empty-state are idempotent
@@ -274,8 +299,13 @@ module Views
             md <<~MD
               | Setting | Default | What it does |
               |---|---|---|
-              | `Phlex::Reactive.settle_token_ttl` | `900` | Fallback pull-token lifetime for a settle. Distinct from `defer_token_ttl` (120) because a job can sit behind a staggered fan-out for minutes. |
               | `Phlex::Reactive.settle_coalesce_window_ms` | `50` | Window for the aggregate (count / empty-state) streams on the peers path. |
+
+              There is deliberately **no** `settle_token_ttl`. A settle has no
+              pull lane for a token to govern — the client cannot poll "is the
+              job done yet", and redeeming such a token at the defer endpoint
+              would render the *pre-job* component, i.e. the exact bug
+              `reply.pending` fixes. The settle's wait is bounded by the job.
 
               See also [Deferred rendering](/docs/deferred-rendering) — the transport
               this composes with — and [Collections](/docs/example-collections) for

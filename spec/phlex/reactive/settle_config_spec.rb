@@ -2,29 +2,25 @@
 
 require "spec_helper"
 
-# Issue #248 config: a settle rides a BACKGROUND JOB, which can sit behind a
-# staggered fan-out for minutes — so its fallback token TTL is measured in
-# minutes, not the reply->fetch gap defer_token_ttl covers.
+# Issue #248 config. NOTE what is deliberately ABSENT: the issue's sketch had a
+# `settle_token_ttl` for a fallback pull token, but a settle has no pull lane —
+# the client cannot poll "is the job done yet", and redeeming such a token at the
+# defer endpoint would render the PRE-JOB component (the exact bug reply.pending
+# fixes). A setting that cannot change behavior is worse than no setting.
 RSpec.describe Phlex::Reactive, "settle configuration (issue #248)" do
   around do
-    ttl = described_class.instance_variable_get(:@settle_token_ttl)
     window = described_class.instance_variable_get(:@settle_coalesce_window_ms)
     it.run
-    described_class.instance_variable_set(:@settle_token_ttl, ttl)
     described_class.instance_variable_set(:@settle_coalesce_window_ms, window)
   end
 
-  describe ".settle_token_ttl" do
-    it "defaults to 900 seconds — distinct from defer_token_ttl" do
-      expect(described_class.settle_token_ttl).to eq(900)
-      expect(described_class.defer_token_ttl).to eq(120)
+  describe "the absence of a settle token TTL" do
+    it "exposes no settle_token_ttl — a settle has no pull lane for a token to govern" do
+      expect(described_class).not_to respond_to(:settle_token_ttl)
     end
 
-    it "is configurable and resets to the default on nil" do
-      described_class.settle_token_ttl = 60
-      expect(described_class.settle_token_ttl).to eq(60)
-      described_class.settle_token_ttl = nil
-      expect(described_class.settle_token_ttl).to eq(900)
+    it "still exposes defer_token_ttl, which governs a lane that really exists" do
+      expect(described_class.defer_token_ttl).to eq(120)
     end
   end
 

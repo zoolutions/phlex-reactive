@@ -12,9 +12,16 @@ RSpec.describe Phlex::Reactive::Settles, type: :request do
 
       def self.name = "SettleSpecRow"
       def self.model_param_name = :todo
-      def initialize(todo:) = @todo = todo
+
+      # `badge:` is an issue-#186 row kwarg — threaded through reply.append /
+      # s.append into the row's init. The peer path must carry it too.
+      def initialize(todo:, badge: nil)
+        @todo = todo
+        @badge = badge
+      end
+
       def id = dom_id(@todo)
-      def view_template = li(id:) { @todo.title }
+      def view_template = li(id:) { plain("#{@todo.title}#{@badge}") }
     end
   end
 
@@ -54,6 +61,9 @@ RSpec.describe Phlex::Reactive::Settles, type: :request do
 
   let(:todo) { Todo.create!(title: "buy milk", done: false) }
 
+  let(:row_id) { ActionView::RecordIdentifier.dom_id(todo) }
+
+  # A single-target handle — what the job:/args: sugar installs per record.
   let(:handle) do
     Phlex::Reactive::Pending::Handle.new(
       stream_key: "prdefer_abc123",
@@ -61,11 +71,14 @@ RSpec.describe Phlex::Reactive::Settles, type: :request do
       container_payload: { "c" => container_class.name },
       anchor: "settle-root",
       collection: :todos,
-      count: 1,
+      target_ids: [row_id],
       peers: nil,
       connection_id: "conn-1"
     )
   end
+
+  # A fan-out handle — what the BLOCK form installs, covering every target.
+  let(:fanned) { handle.with(target_ids: (1..177).map { "row_#{it}" }) }
 
   # Capture what the job broadcasts on the actor's one-shot stream.
   let(:broadcasts) { [] }
@@ -154,7 +167,13 @@ RSpec.describe Phlex::Reactive::Settles, type: :request do
 
       payload = broadcasts.join
       # Ordered remove-then-append: the row is never momentarily in both lists.
-      expect(payload.index(%(target="#{todo_id}"))).to be < payload.index('target="settle-archive"')
+      # Both indexes are asserted present FIRST — a missing stream must fail with
+      # "expected not to be nil", not a bare NoMethodError on nil < Integer.
+      remove_at = payload.index(%(target="#{todo_id}"))
+      append_at = payload.index('target="settle-archive"')
+      expect(remove_at).not_to be_nil
+      expect(append_at).not_to be_nil
+      expect(remove_at).to be < append_at
       expect(payload).to include('action="append"', 'target="settle-archive"')
       # Both collections' aggregates refresh — the source list's count too.
       expect(payload).to include('target="settle-count"')
@@ -178,15 +197,23 @@ RSpec.describe Phlex::Reactive::Settles, type: :request do
       expect(payload).to include("data-reactive-pending")
     end
 
+    it "clears the pending markers off every TARGET, not just the container" do
+      # The gap this closes: a settle that only flashes emits no row stream, so
+      # nothing swaps the row's node and its markers would sit there forever.
+      job_with(handle).reactive_settle { it.flash(:alert, "could not re-execute") }
+
+      payload = broadcasts.join
+      expect(payload).to include(%(target="#{row_id}"), "remove_attr")
+      expect(payload).to include('target="settle-root"')
+    end
+
     it "does NOT tear down mid-fan-out — a shared key must outlive the first arrival" do
-      fanned = handle.with(count: 177)
       job_with(fanned).reactive_settle { it.replace(todo) }
 
       expect(broadcasts.join).not_to include('target="reactive-defer-src-settle-root"')
     end
 
     it "tears down on an explicit finish: true (the batch's on_finish callback)" do
-      fanned = handle.with(count: 177)
       job_with(fanned).reactive_settle(finish: true) { it.replace(todo) }
 
       expect(broadcasts.join).to include('target="reactive-defer-src-settle-root"')
@@ -200,14 +227,28 @@ RSpec.describe Phlex::Reactive::Settles, type: :request do
   end
 
   describe "failure safety" do
-    it "clears the target's pending markers and re-raises for the retry policy" do
+    it "clears the TARGET's pending markers (not just the container's) and re-raises" do
       expect do
         job_with(handle).reactive_settle { raise "work failed" }
       end.to raise_error("work failed")
 
       payload = broadcasts.join
-      expect(payload).to include('action="reactive:js"')
-      expect(payload).to include("remove_attr")
+      expect(payload).to include('action="reactive:js"', "remove_attr")
+      expect(payload).to include(%(target="#{row_id}"))
+      expect(payload).to include('target="settle-root"')
+    end
+
+    it "clears nothing for an UNATTRIBUTABLE fan-out failure, rather than un-dimming 176 live rows" do
+      # The block form cannot map an arbitrary enqueue back to a record, so the
+      # gem does not know which of the 177 targets this job owned. Guessing
+      # would lie in one direction or the other; the fan-out's finish: true
+      # sweeps it up instead.
+      allow(Rails.logger).to receive(:warn)
+
+      expect { job_with(fanned).reactive_settle { raise "work failed" } }.to raise_error("work failed")
+
+      expect(broadcasts).to be_empty
+      expect(Rails.logger).to have_received(:warn).with(/cannot tell WHICH target/)
     end
 
     it "does NOT tear the subscription down on failure — a retry must still reach the actor" do
@@ -252,6 +293,57 @@ RSpec.describe Phlex::Reactive::Settles, type: :request do
 
       expect(calls).not_to be_empty
       expect(excludes.uniq).to eq(["conn-1"])
+    end
+
+    it "reaches peers on a REPLACE too — otherwise other operators keep the stale row" do
+      peered = handle.with(peers: [{ "gid" => todo.to_gid.to_s }])
+      replaced = []
+      allow(Turbo::StreamsChannel).to receive(:broadcast_replace_to) { |*a, **k| replaced << [a, k] }
+
+      job_with(peered).reactive_settle { it.replace(todo) }
+
+      expect(replaced).not_to be_empty
+      expect(replaced.first.last[:html].to_s).to include("buy milk")
+    end
+
+    it "carries the row kwargs to peers — a required kwarg would otherwise raise there" do
+      peered = handle.with(peers: [{ "gid" => todo.to_gid.to_s }])
+      built = []
+      allow(container_class.reactive_collections[:todos].item)
+        .to receive(:build).and_wrap_original do |m, model, options|
+          built << options
+          m.call(model, options)
+        end
+      allow(Turbo::StreamsChannel).to receive(:broadcast_append_to)
+      allow(Turbo::StreamsChannel).to receive(:broadcast_update_to)
+
+      job_with(peered).reactive_settle { it.append(todo, to: :todos, badge: "new") }
+
+      expect(built).to include(hash_including(badge: "new"))
+    end
+
+    it "handles a dom-id STRING remove on the peer path without building a row from it" do
+      peered = handle.with(peers: [{ "gid" => todo.to_gid.to_s }])
+      removed = []
+      allow(Turbo::StreamsChannel).to receive(:broadcast_remove_to) { |*, **k| removed << k[:target] }
+      allow(Turbo::StreamsChannel).to receive(:broadcast_update_to)
+
+      expect { job_with(peered).reactive_settle { it.remove("todo_9001") } }.not_to raise_error
+
+      expect(removed).to include("todo_9001")
+    end
+
+    it "never fails the job when a peer broadcast blows up — the actor settle already landed" do
+      peered = handle.with(peers: [{ "gid" => todo.to_gid.to_s }])
+      allow(Turbo::StreamsChannel).to receive(:broadcast_remove_to).and_raise(RuntimeError, "channel down")
+      allow(Rails.logger).to receive(:warn)
+
+      expect { job_with(peered).reactive_settle { it.remove(todo) } }.not_to raise_error
+
+      # The actor's message went out BEFORE the peer leg — re-running perform to
+      # retry a peer broadcast would send it (and its flash) a second time.
+      expect(broadcasts).not_to be_empty
+      expect(Rails.logger).to have_received(:warn).with(/PEER broadcast failed/)
     end
 
     it "does not touch the channel when the handle carries no peers" do

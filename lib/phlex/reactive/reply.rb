@@ -162,7 +162,7 @@ module Phlex
       # See Phlex::Reactive::Settles for the job side.
       def pending(records, peers: false, job: nil, args: nil, **opts, &enqueue)
         Response.build_pending(
-          @component, records, collection: opts.delete(:in), peers:, job:, args:, enqueue:
+          @component, records, collection: Response.pending_collection!(opts), peers:, job:, args:, enqueue:
         )
       end
 

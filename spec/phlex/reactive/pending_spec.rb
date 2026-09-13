@@ -83,6 +83,23 @@ RSpec.describe Phlex::Reactive::Pending, type: :request do
       end
     end
 
+    it "refuses an unknown keyword rather than silently dropping it" do
+      # `in:` is a Ruby keyword, so every other kwarg lands in **opts. A dropped
+      # `jbo:` would mark the rows pending and enqueue NOTHING — a permanently
+      # shimmering row, the exact failure this feature prevents.
+      with_settle_lane do
+        expect { container.reply.pending(todo, in: :todos, jbo: fake_job) }
+          .to raise_error(ArgumentError, /unknown keyword\(s\) :jbo/)
+      end
+    end
+
+    it "refuses a SECOND pending on the same container — the client would supersede the first" do
+      with_settle_lane do
+        expect { container.reply.pending(todo, in: :todos) { nil }.pending(other, in: :todos) { nil } }
+          .to raise_error(Phlex::Reactive::Error, /called twice/)
+      end
+    end
+
     it "is dead on a redirect reply and says so" do
       with_settle_lane do
         expect { container.reply.redirect("/x").pending(todo, in: :todos) { nil } }
@@ -144,6 +161,55 @@ RSpec.describe Phlex::Reactive::Pending, type: :request do
       end
 
       expect(job.enqueued).to eq([[todo.id, :restore], [other.id, :restore]])
+    end
+
+    it "walks a one-shot Enumerable ONCE — the targets and the enqueue share it" do
+      # A lazy/one-shot source consumed while resolving target ids would leave
+      # run_enqueue with an exhausted object: markers on every row, no jobs.
+      job = fake_job
+      # rubocop:disable-next Style/ItBlockParameter -- nested blocks: `y` is the
+      # yielder and `r` the record; collapsing either to `it` shadows the other.
+      one_shot = Enumerator.new { |y| [todo, other].each { |r| y << r } }.lazy.map { it }
+
+      with_settle_lane { container.reply.pending(one_shot, in: :todos, job:) }
+
+      expect(job.enqueued).to eq([[todo], [other]])
+    end
+
+    it "resolves a Relation once, so the marked rows and the enqueued jobs cannot disagree" do
+      job = fake_job
+      relation = Todo.where(id: [todo.id, other.id]).order(:id)
+      calls = 0
+      allow(relation).to receive(:to_a).and_wrap_original do
+        calls += 1
+        it.call
+      end
+
+      with_settle_lane { container.reply.pending(relation, in: :todos, job:) }
+
+      expect(calls).to eq(1)
+      expect(job.enqueued.size).to eq(2)
+    end
+
+    it "narrows the handle to ONE target per job, so a failure can be attributed" do
+      seen = []
+      job = Class.new do
+        define_singleton_method(:perform_later) do |*|
+          seen << Phlex::Reactive::Pending.current_handle.target_ids
+        end
+      end
+      with_settle_lane { container.reply.pending([todo, other], in: :todos, job:) }
+
+      expect(seen).to eq([todo, other].map { [ActionView::RecordIdentifier.dom_id(it)] })
+    end
+
+    it "gives the BLOCK form the whole target list — an arbitrary enqueue cannot be mapped back" do
+      seen = nil
+      with_settle_lane do
+        container.reply.pending([todo, other], in: :todos) { seen = described_class.current_handle.target_ids }
+      end
+
+      expect(seen.size).to eq(2)
     end
 
     it "refuses an Array args: for a multi-record pending (ambiguous)" do

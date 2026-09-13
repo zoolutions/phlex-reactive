@@ -151,6 +151,24 @@ module Phlex
         #
         # The Response only RECORDS the segment; the ENDPOINT turns it into the
         # marker + directive streams after the transaction committed.
+        # Pull `in:` out of reply.pending's **opts and REFUSE anything left over.
+        # `in` is a Ruby keyword, so it cannot be a named parameter — which means
+        # every other keyword lands in **opts and would otherwise be silently
+        # dropped. A typo (`jbo:` for `job:`) would then mark the rows pending
+        # and enqueue NOTHING: a permanently shimmering row, the exact failure
+        # this feature exists to prevent. So it fails at the call site instead.
+        def pending_collection!(opts)
+          collection = opts.delete(:in)
+          unless opts.empty?
+            raise ArgumentError,
+              "reply.pending got unknown keyword(s) #{opts.keys.map(&:inspect).join(", ")} — " \
+              "it takes in:, job:, args:, peers: and a block. A dropped keyword would mark the " \
+              "targets pending with nothing to settle them."
+          end
+
+          collection
+        end
+
         def build_pending(component, records, collection:, peers:, job:, args:, enqueue:)
           segment = Phlex::Reactive::Pending.build_segment(
             component, records, collection:, peers:, job:, args:, enqueue:
@@ -421,8 +439,24 @@ data-reactive-ops="#{ERB::Util.html_escape(json)}"></turbo-stream>).html_safe
             "so the settle could never land"
         end
 
+        subject = pending_subject!
+        # ONE subscription per anchor. Every pending segment on the same
+        # container emits a directive targeting that container's id, and the
+        # client keys its in-flight subscriptions BY TARGET — so a second
+        # directive supersedes the first, silently orphaning the jobs the first
+        # call enqueued. Two pending calls on one container in one reply is a
+        # call-site mistake; make it a loud one.
+        if @pending_segments.any? { it.handle.anchor == subject.id }
+          raise Phlex::Reactive::Error,
+            "reply.pending was called twice for #{subject.class} (##{subject.id}) — the second " \
+            "subscription would supersede the first on the client, so the first call's jobs could " \
+            "never settle. Mark every target in ONE reply.pending call (the settle names its own " \
+            "collection: s.remove(record, from: :name))."
+        end
+
         built = self.class.build_pending(
-          pending_subject!, records, collection: opts.delete(:in), peers:, job:, args:, enqueue:
+          subject, records, collection: self.class.pending_collection!(opts),
+          peers:, job:, args:, enqueue:
         )
         self.class.new(
           streams: @streams,

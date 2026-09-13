@@ -39,13 +39,24 @@ module Phlex
 
         # --- The two shared DECISIONS -------------------------------------
 
+        # The collection's LIVE size, resolved ONCE per delta. Both decisions
+        # below read it, and both renderers pass the same value down — the
+        # resolver is usually a DB count, so evaluating it twice per delta is
+        # both an extra query AND a correctness hazard: a concurrent write
+        # landing between the two reads would emit a count companion that
+        # disagrees with the empty-state toggle it ships beside.
+        # `:__unresolved` is the "not computed yet" sentinel, distinct from a
+        # legitimately nil size (no size: declared).
+        def size_of(definition, container) = definition.size_for(container)
+
         # [count_target, size_string] when a count companion AND a size resolver
         # are both declared and the resolver returned a number; nil otherwise
         # (the count stream is simply omitted — a list with just rows works).
-        def count_refresh(definition, container)
+        # `size:` may be passed in by a caller that already resolved it.
+        def count_refresh(definition, container, size = :__unresolved)
           return nil unless definition.count
 
-          size = definition.size_for(container)
+          size = size_of(definition, container) if size == :__unresolved
           return nil if size.nil?
 
           [definition.count, size.to_s]
@@ -56,10 +67,10 @@ module Phlex
         #   :restore — the list just emptied, append the empty-state back
         # Both are edge-triggered off the LIVE size (the resolver runs after the
         # mutation), never off a client-side increment.
-        def empty_toggle(definition, container, delta)
+        def empty_toggle(definition, container, delta, size = :__unresolved)
           return nil unless definition.empty
 
-          size = definition.size_for(container)
+          size = size_of(definition, container) if size == :__unresolved
           case delta
           when :add then :clear if size == 1
           else :restore if size&.zero?
@@ -76,11 +87,12 @@ module Phlex
         # the count companion and the empty-state toggle are bookkeeping, not
         # the thing entering/leaving.
         def add_streams(definition, container, model, action, row_kwargs = {}, effect: nil)
+          size = size_of(definition, container)
           streams = [
             definition.item.public_send(action, target: definition.container, model:, effect:, **row_kwargs)
           ]
-          streams.concat(count_streams(definition, container))
-          streams << definition.empty.new.to_stream_remove if empty_toggle(definition, container, :add) == :clear
+          streams.concat(count_streams(definition, container, size))
+          streams << definition.empty.new.to_stream_remove if empty_toggle(definition, container, :add, size) == :clear
           streams
         end
 
@@ -89,9 +101,10 @@ module Phlex
         # restoring "No items yet" after the last row went. model: nil builds it
         # argument-free (an empty-state is a static view).
         def remove_streams(definition, container, model, effect: nil)
+          size = size_of(definition, container)
           streams = [row_remove_stream(definition, model, effect)]
-          streams.concat(count_streams(definition, container))
-          if empty_toggle(definition, container, :remove) == :restore
+          streams.concat(count_streams(definition, container, size))
+          if empty_toggle(definition, container, :remove, size) == :restore
             streams << definition.empty.append(target: definition.container, model: nil)
           end
           streams
@@ -101,11 +114,11 @@ module Phlex
         # refresh. Its own method (rather than an inline append) because the
         # settle path refreshes the count WITHOUT a row delta — a job that
         # neither added nor removed a row can still have changed the size.
-        def count_streams(definition, container)
-          target, size = count_refresh(definition, container)
+        def count_streams(definition, container, size = :__unresolved)
+          target, resolved = count_refresh(definition, container, size)
           return [] unless target
 
-          [Phlex::Reactive::Response.update_stream(target, size)]
+          [Phlex::Reactive::Response.update_stream(target, resolved)]
         end
 
         # Remove the row by its DOM id. Accepts the record (so dom_id is

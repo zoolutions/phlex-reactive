@@ -39,10 +39,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
   The handle rides **ActiveJob metadata**, so `perform`'s arity is untouched and
   every other caller of the same job — a nightly sweep, a webhook — runs
-  unchanged with `reactive_settle` as a no-op. A job that raises still clears
-  the pending markers before re-raising for the retry policy. No client changes:
-  the markers ride the existing `reactive:js` op lane and the subscription is
-  the `reactive:defer` push-lane wire from #165.
+  unchanged with `reactive_settle` as a no-op. The `job:`/`args:` form narrows
+  each job's handle to its own record, so a job that raises clears exactly that
+  row's markers before re-raising for the retry policy. No client changes: the
+  markers ride the existing `reactive:js` op lane and the subscription is the
+  `reactive:defer` push-lane wire from #165.
 
 - **`Phlex::Reactive::Collections` — the collection bookkeeping is now a public
   module (#248).** The count companion and the 0↔1 empty-state boundary used to
@@ -50,7 +51,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   broadcast had to re-derive them by hand and got the boundary subtly wrong.
   `Response.build_collection_*` now delegates, and the settle and broadcast
   paths read the same `count_refresh` / `empty_toggle` decisions — they cannot
-  drift. No behavior change for existing `reply.append` / `reply.remove` calls.
+  drift. No behavior change for existing `reply.append` / `reply.remove` calls,
+  except that each delta now resolves the `size:` proc **once** instead of twice
+  (one fewer query per add/remove, and the count companion can no longer
+  disagree with the empty-state toggle it ships beside when a concurrent write
+  lands between the two reads).
 
 - **`Container.broadcast_collection_to(*keys, container:, in:, append:/prepend:/remove:)`
   (#248).** The broadcast-side counterpart of `reply.append` / `reply.remove`:
@@ -62,12 +67,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   pgbus simply ignores, so it degrades to "chattier, equally correct" rather
   than breaking.
 
-- **`Phlex::Reactive.settle_token_ttl` (900) and `.settle_coalesce_window_ms`
-  (50) (#248).** The settle TTL is distinct from `defer_token_ttl` (120)
-  because a job can sit behind a staggered fan-out for minutes, where a defer
-  only covers the reply→fetch gap. `Phlex::Reactive.settle_capable?` reports
-  whether `reply.pending` has a lane at all; without one it degrades to a plain
-  enqueue (no markers, no lie) with a one-time warning.
+- **`Phlex::Reactive.settle_coalesce_window_ms` (50) and `.settle_capable?`
+  (#248).** The window governs the aggregate (count / empty-state) streams on
+  the peers path. `settle_capable?` reports whether `reply.pending` has a lane
+  at all; without one it degrades to a plain enqueue (no markers, no lie) with a
+  one-time warning. There is deliberately no `settle_token_ttl` — a settle has
+  no pull lane for a token to govern.
 
 - **`reactive_persist` drafts rich editors (#241).** A named `lexxy-editor`,
   `trix-editor` or bare `[contenteditable]` inside a `reactive_persist` root is

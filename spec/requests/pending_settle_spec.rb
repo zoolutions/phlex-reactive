@@ -25,10 +25,16 @@ RSpec.describe "async-action lifecycle (issue #248)", type: :request do
     allow(Phlex::Reactive::Defer).to receive_messages(
       one_shot_stream_key: "prdefer_deadbeef", signed_stream_src: "/pgbus/streams/signed"
     )
-    ActiveJob::Base.queue_adapter = :test
   end
 
-  after { ActiveJob::Base.queue_adapter = :test }
+  # Restore whatever the suite had, not a hardcoded :test — otherwise this spec
+  # silently leaks :test into every example that follows it.
+  around do
+    previous = ActiveJob::Base.queue_adapter
+    ActiveJob::Base.queue_adapter = :test
+    it.run
+    ActiveJob::Base.queue_adapter = previous
+  end
 
   describe "the action's reply" do
     it "marks the row pending and opens ONE subscription, without re-rendering the list" do
@@ -61,6 +67,13 @@ RSpec.describe "async-action lifecycle (issue #248)", type: :request do
       post_action(klass, act: "archive", params: { id: todo.id })
 
       expect(response.body).to include("Archiving buy milk…")
+    end
+
+    it "narrows the handle to this record's target, so a failure is attributable" do
+      post_action(klass, act: "archive", params: { id: todo.id })
+
+      handle = ArchiveTodoJob.queue_adapter.enqueued_jobs.first["phlex_reactive_settle"]
+      expect(handle["ids"]).to eq([dom_id])
     end
 
     it "enqueues the app's own job with its own arguments" do
@@ -116,8 +129,11 @@ RSpec.describe "async-action lifecycle (issue #248)", type: :request do
       post_action(klass, act: "archive_all")
 
       expect(ArchiveTodoJob.queue_adapter.enqueued_jobs.size).to eq(2)
+      ids = [todo, second].map { ActionView::RecordIdentifier.dom_id(it) }
+      # The BLOCK form cannot map an arbitrary enqueue back to a record, so every
+      # job carries the WHOLE target list — "these jobs settle these targets".
       ArchiveTodoJob.queue_adapter.enqueued_jobs.each do
-        expect(it["phlex_reactive_settle"]).to include("key" => "prdefer_deadbeef", "n" => 2)
+        expect(it["phlex_reactive_settle"]).to include("key" => "prdefer_deadbeef", "ids" => ids)
       end
     end
 

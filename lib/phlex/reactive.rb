@@ -714,15 +714,14 @@ module Phlex
 
       # --- Async-action lifecycle / settles (issue #248) -----------------
 
-      # Lifetime (seconds) of a settle's FALLBACK pull token. Distinct from
-      # defer_token_ttl (120) because a settle waits on a background JOB, which
-      # can sit behind a staggered fan-out for minutes — where a defer only has
-      # to cover the reply->fetch gap. nil resets to the default.
-      attr_writer :settle_token_ttl
-
-      def settle_token_ttl
-        @settle_token_ttl ||= 900
-      end
+      # NOTE: there is deliberately NO settle_token_ttl. Issue #248's sketch had
+      # one for a fallback PULL token, but a settle has no pull lane at all — the
+      # client cannot poll "is the job done yet", and redeeming such a token at
+      # the defer endpoint would render the PRE-JOB component, which is the exact
+      # bug reply.pending exists to fix. A setting that cannot change behavior is
+      # worse than no setting: it tells an operator they can extend a wait window
+      # that is not governed by a token in the first place. The settle's wait is
+      # bounded by the JOB, not by a TTL.
 
       # Window (ms) the AGGREGATE settle streams coalesce on — the count
       # companion, the empty-state toggle, any companion refresh. They are
