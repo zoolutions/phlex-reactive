@@ -1,0 +1,25 @@
+.claude/rules/git-workflow.md
+  ai_agent 48-60,75
+CHANGELOG.md
+  ai_agent 9-20
+CLAUDE.md
+  ai_agent 51
+bin/release
+  s_c93dd485cbe58f::t_e3a1a71169c9e5 1-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "3155d935ca7ac1f2c22cab332ca432c34e3fa1b0",
+  "prompts": {},
+  "sessions": {
+    "s_c93dd485cbe58f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd273750-8633-449f-ad30-e99430de62f0",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
