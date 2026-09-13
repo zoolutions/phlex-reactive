@@ -6,6 +6,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`bin/release` — the release front door, ported from pgbus.** Works out the
+  next version (`patch` by default, `minor`, `major`, or an explicit `X.Y.Z`
+  with an optional `v`), prints the commits since the last tag, and hands off
+  to `rake release[X.Y.Z]` after a y/N confirm. `list` and `--dry-run` are
+  read-only. It refuses to run off anything but a clean, up-to-date `main` —
+  the rake task pushes `origin main`, so starting anywhere else either fails
+  the push or ships whatever local commits happen to be sitting there — and
+  refuses an existing tag unless `--force` (which maps to `release[X.Y.Z,force]`).
+  It also warns when `version.rb` and the newest `v*` tag disagree.
+
 ### Fixed
 
 - **`rake release` re-locks the root `Gemfile.lock` too.** Since #246 the gem

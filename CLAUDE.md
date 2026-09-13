@@ -48,6 +48,7 @@ bundle exec rake bench                        # Performance micro-benches (rende
 bundle exec rake bench:request                # End-to-end request-cycle bench (derailed)
 rake build:js                                 # Rebuild the minified client (.min.js + .map) after editing reactive_controller.js
 rake build:js_check                           # CI drift guard: committed .min.js must match a fresh build
+bin/release [patch|minor|major|X.Y.Z] [-n]    # Cut a release (list / --dry-run are read-only); drives rake release
 ```
 
 ### Editing the client runtime (`reactive_controller.js` / `confirm.js` / `compute.js` / `inspect.js`)

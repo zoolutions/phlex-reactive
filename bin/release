@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+# Cut a phlex-reactive release. Works out the next version, shows what is
+# about to ship, and hands off to `rake release[X.Y.Z]`, which bumps
+# lib/phlex/reactive/version.rb + the tracked lockfile pins (root + docs/),
+# commits, pushes main, and publishes the GitHub Release that triggers the
+# RubyGems publish (trusted publishing — never `gem push` by hand).
+#
+#   bin/release            # patch bump for a bugfix  (0.13.0 -> 0.13.1)
+#   bin/release minor      # 0.13.0 -> 0.14.0
+#   bin/release major      # 0.13.0 -> 1.0.0
+#   bin/release 0.14.0     # explicit version (v-prefix optional)
+#   bin/release list       # last releases + what each bump would give
+#   bin/release --dry-run  # (-n) show version + changes, publish nothing
+#   bin/release --force    # (-f) re-create an existing tag/release
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+BUMP="patch"
+DRY_RUN=false
+FORCE=false
+LIST=false
+EXPLICIT=""
+
+for arg in "$@"; do
+  case "$arg" in
+    major|minor|patch) BUMP="$arg" ;;
+    list|--list|-l) LIST=true ;;
+    v[0-9]*|[0-9]*.[0-9]*) EXPLICIT="${arg#v}" ;;
+    --dry-run|-n) DRY_RUN=true ;;
+    --force|-f) FORCE=true ;;
+    -h|--help) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "unknown argument: $arg (try --help)" >&2; exit 1 ;;
+  esac
+done
+
+git fetch -q origin main --tags
+
+# lib/phlex/reactive/version.rb is what rake release bumps and what the gem
+# ships, so it is the source of truth; the newest v* tag should agree with it.
+CURRENT=$(ruby -e 'require "./lib/phlex/reactive/version"; puts Phlex::Reactive::VERSION')
+LAST_TAG=$(git tag --list 'v[0-9]*' --sort=-v:refname | head -n1)
+
+IFS=. read -r MAJOR MINOR PATCH <<< "$CURRENT"
+MAJOR=${MAJOR:-0}; MINOR=${MINOR:-0}; PATCH=${PATCH%%[^0-9]*}; PATCH=${PATCH:-0}
+
+next_version() {
+  case "$1" in
+    major) echo "$((MAJOR + 1)).0.0" ;;
+    minor) echo "${MAJOR}.$((MINOR + 1)).0" ;;
+    patch) echo "${MAJOR}.${MINOR}.$((PATCH + 1))" ;;
+  esac
+}
+
+if $LIST; then
+  echo "current version: $CURRENT  (lib/phlex/reactive/version.rb)"
+  echo
+  echo "last releases:"
+  git for-each-ref --sort=-v:refname --count=5 \
+    --format='  %(refname:short)  %(creatordate:short)' 'refs/tags/v[0-9]*'
+  echo
+  echo "next version:"
+  printf '  %-6s v%s\n' patch "$(next_version patch)" minor "$(next_version minor)" major "$(next_version major)"
+  exit 0
+fi
+
+if [ -n "$EXPLICIT" ]; then
+  NEXT="$EXPLICIT"; HOW="explicit"
+else
+  NEXT=$(next_version "$BUMP"); HOW="$BUMP"
+fi
+TAG="v$NEXT"
+SHA=$(git rev-parse HEAD)
+REMOTE_SHA=$(git rev-parse origin/main)
+
+echo "current:  $CURRENT  (last tag: ${LAST_TAG:-none})"
+echo "release:  $TAG  ($HOW)"
+echo "target:   $(git branch --show-current) @ ${SHA:0:8}"
+echo
+echo "changes since ${LAST_TAG:-repository start}:"
+git log --oneline --no-decorate "${LAST_TAG:+$LAST_TAG..}HEAD" | sed 's/^/  /'
+echo
+
+if [ -n "$LAST_TAG" ] && [ "$LAST_TAG" != "v$CURRENT" ]; then
+  echo "warning: lib/phlex/reactive/version.rb says $CURRENT but the newest tag is $LAST_TAG" >&2
+fi
+
+if $DRY_RUN; then
+  echo "dry run — nothing bumped or published"
+  exit 0
+fi
+
+# rake release commits the bump and pushes origin main, so it must start from
+# a clean, up-to-date main — otherwise the push either fails or ships
+# whatever local commits happen to be sitting there.
+[ "$(git branch --show-current)" = "main" ] || { echo "run bin/release from main (on $(git branch --show-current))" >&2; exit 1; }
+[ -z "$(git status --porcelain)" ] || { echo "working tree has uncommitted changes; commit or stash first" >&2; exit 1; }
+[ "$SHA" = "$REMOTE_SHA" ] || { echo "local main (${SHA:0:8}) != origin/main (${REMOTE_SHA:0:8}); run: git pull --ff-only origin main" >&2; exit 1; }
+if ! $FORCE && git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+  echo "tag $TAG already exists (pass --force to re-create it)" >&2
+  exit 1
+fi
+
+read -r -p "bump to $NEXT, push main and publish $TAG to GitHub + RubyGems? [y/N] " answer
+[[ "$answer" =~ ^[Yy]$ ]] || { echo "aborted"; exit 1; }
+
+if $FORCE; then
+  exec bundle exec rake "release[$NEXT,force]"
+else
+  exec bundle exec rake "release[$NEXT]"
+fi
