@@ -254,24 +254,46 @@ task :release, %i[version force] do |_t, args|
     success "Updated #{version_file}"
   end
 
-  # Step 1b: Re-lock every tracked Gemfile.lock that pins this gem via a local
-  # path — the root one (`gemspec` in ./Gemfile, committed since #246) and the
-  # docs site's (`path: ".."`). Both carry the version string, so bumping
-  # version.rb without re-locking leaves a committed lockfile stale: the Release
-  # workflow's frozen `bundle install` then refuses it ("gemspecs for path gems
-  # changed, but the lockfile can't be updated because frozen mode is set") and
-  # every fresh `bundle install` dirties the tree. `bundle lock --local`
-  # re-derives only from the path dep — no network, no rubygems fetch, no
-  # checksum to compute for a path gem — so it works in the release environment.
-  # Committed alongside the bump in Step 3. Any OTHER tracked lockfile pinning
-  # the gem belongs in this list.
-  lockfiles = { "Gemfile.lock" => "Gemfile", "docs/Gemfile.lock" => "docs/Gemfile" }.select { File.exist?(_1) }
+  # Step 1b: Bump the pin in every tracked Gemfile.lock that carries this gem
+  # via a local path — the root one (`gemspec` in ./Gemfile, committed since
+  # #246) and the docs site's (`path: ".."`). Both carry the version string, so
+  # bumping version.rb without them leaves a committed lockfile stale: the
+  # Release workflow's frozen `bundle install` then refuses it ("gemspecs for
+  # path gems changed, but the lockfile can't be updated because frozen mode is
+  # set") and every fresh `bundle install` dirties the tree.
+  #
+  # The ONLY thing a version bump changes in these lockfiles is the path-gem
+  # pin — so bump exactly that line, in place, with a string edit. We
+  # deliberately do NOT run `bundle lock` (with or without --local): it is a
+  # full re-resolve, and a re-resolve trips over constraints that have nothing
+  # to do with this gem. Concretely, docs/Gemfile.lock declares Linux
+  # PLATFORMS for the Kamal deploy, and `bundle lock --local` refuses to
+  # resolve a platform gem like `thruster` for those against a Mac's installed
+  # gems ("Could not find gems matching 'thruster' valid for all resolution
+  # platforms") — which aborted v0.13.1's first attempt, mid-release, with
+  # version.rb already bumped. It also re-resolves the WHOLE lock the moment a
+  # Gemfile drifted from its lock, silently folding an unrelated dependency
+  # jump into the release commit (pgbus was already stale-locked in docs/
+  # exactly this way). pgbus's release task hit the same thruster failure and
+  # made the same call. A targeted pin edit is deterministic on any machine,
+  # needs no network and no installed gems, and yields the minimal diff: the
+  # PATH spec line plus the CHECKSUMS line. Committed alongside the bump in
+  # Step 3. Any OTHER tracked lockfile pinning the gem belongs in this list.
   header "Lockfiles"
-  lockfiles.each do |lock, gemfile|
-    # BUNDLE_GEMFILE instead of Dir.chdir — no process-wide cwd change; bundle
-    # writes the lockfile in place next to the pointed-at Gemfile.
-    sh({ "BUNDLE_GEMFILE" => gemfile }, "bundle lock --local")
-    success "Re-locked #{lock} to #{new_version}"
+  lockfiles = %w[Gemfile.lock docs/Gemfile.lock].select { File.exist?(it) }
+  lockfiles.each do |lockfile|
+    content = File.read(lockfile)
+    # Matches the PATH-source spec ("    phlex-reactive (X.Y.Z)") and the
+    # CHECKSUMS pin ("  phlex-reactive (X.Y.Z)"), leaving everything else
+    # untouched. The DEPENDENCIES entry is the version-less "phlex-reactive!".
+    bumped = content.gsub(/^(\s+phlex-reactive) \([^)]*\)$/, "\\1 (#{new_version})")
+    if bumped == content
+      skip "#{lockfile} — pin already #{new_version}"
+      next
+    end
+
+    File.write(lockfile, bumped)
+    success "Bumped phlex-reactive pin in #{lockfile}"
   end
   skip "No tracked lockfiles" if lockfiles.empty?
 
@@ -286,7 +308,7 @@ task :release, %i[version force] do |_t, args|
   # when EITHER the version file OR any lockfile changed (a re-run where only a
   # lockfile drifted — like v0.13.0's first attempt — still commits).
   header "Git commit"
-  release_files = [version_file, *lockfiles.keys]
+  release_files = [version_file, *lockfiles]
   changed = release_files.any? do |f|
     !`git diff #{f}`.strip.empty? || !`git diff --cached #{f}`.strip.empty?
   end
