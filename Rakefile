@@ -280,20 +280,37 @@ task :release, %i[version force] do |_t, args|
   # PATH spec line plus the CHECKSUMS line. Committed alongside the bump in
   # Step 3. Any OTHER tracked lockfile pinning the gem belongs in this list.
   header "Lockfiles"
+  # Matches the PATH-source spec ("    phlex-reactive (X.Y.Z)") and the
+  # CHECKSUMS pin ("  phlex-reactive (X.Y.Z)"), leaving everything else
+  # untouched. The DEPENDENCIES entry is the version-less "phlex-reactive!",
+  # which carries no version and so is deliberately not matched.
+  pin_pattern = /^(\s+phlex-reactive) \(([^)]*)\)$/
   lockfiles = %w[Gemfile.lock docs/Gemfile.lock].select { File.exist?(it) }
   lockfiles.each do |lockfile|
     content = File.read(lockfile)
-    # Matches the PATH-source spec ("    phlex-reactive (X.Y.Z)") and the
-    # CHECKSUMS pin ("  phlex-reactive (X.Y.Z)"), leaving everything else
-    # untouched. The DEPENDENCIES entry is the version-less "phlex-reactive!".
-    bumped = content.gsub(/^(\s+phlex-reactive) \([^)]*\)$/, "\\1 (#{new_version})")
-    if bumped == content
-      skip "#{lockfile} — pin already #{new_version}"
+    pins = content.scan(pin_pattern)
+
+    # ZERO matches is not "already current" — it means this file does not pin
+    # the gem the way we think it does (a renamed gem, a changed lockfile
+    # format, a file that never belonged in the list above). Treating that as a
+    # no-op would ship version.rb bumped against a lockfile still naming the old
+    # version — exactly the stale-lockfile release #247 exists to prevent, only
+    # now silent. Abort instead: a release is cheap to re-run, a bad one is not.
+    if pins.empty?
+      abort "\e[31mAborting: #{lockfile} contains no `phlex-reactive (X.Y.Z)` pin to bump.\e[0m\n" \
+            "Either the lockfile format changed or this file does not pin the gem — " \
+            "fix it (or drop it from the list in Step 1b) before releasing."
+    end
+
+    if pins.all? { |_prefix, version| version == new_version }
+      # A genuine re-run after a partial failure: the pins ARE there and already
+      # current. Distinguishable from the zero-match case only because we counted.
+      skip "#{lockfile} — #{pins.size} pin(s) already #{new_version}"
       next
     end
 
-    File.write(lockfile, bumped)
-    success "Bumped phlex-reactive pin in #{lockfile}"
+    File.write(lockfile, content.gsub(pin_pattern, "\\1 (#{new_version})"))
+    success "Bumped #{pins.size} phlex-reactive pin(s) in #{lockfile}"
   end
   skip "No tracked lockfiles" if lockfiles.empty?
 
