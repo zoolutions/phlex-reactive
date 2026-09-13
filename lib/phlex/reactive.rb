@@ -712,6 +712,42 @@ module Phlex
         defined?(::ActiveJob::Base) ? true : false
       end
 
+      # --- Async-action lifecycle / settles (issue #248) -----------------
+
+      # Lifetime (seconds) of a settle's FALLBACK pull token. Distinct from
+      # defer_token_ttl (120) because a settle waits on a background JOB, which
+      # can sit behind a staggered fan-out for minutes — where a defer only has
+      # to cover the reply->fetch gap. nil resets to the default.
+      attr_writer :settle_token_ttl
+
+      def settle_token_ttl
+        @settle_token_ttl ||= 900
+      end
+
+      # Window (ms) the AGGREGATE settle streams coalesce on — the count
+      # companion, the empty-state toggle, any companion refresh. They are
+      # idempotent replaces of stable targets, so a 177-row fan-out collapses to
+      # a handful of them instead of 177. The ROW streams are never coalesced.
+      # Needs pgbus with zoolutions/pgbus#465 on the peers path; without it the
+      # window is simply ignored. nil resets to the default.
+      attr_writer :settle_coalesce_window_ms
+
+      def settle_coalesce_window_ms
+        @settle_coalesce_window_ms ||= 50
+      end
+
+      # Can reply.pending mint a settle handle at all? A settle has NO pull
+      # fallback — the client cannot poll "is the job done yet" — so it needs
+      # the defer PUSH lane (durable pgbus one-shot stream + ActiveJob). A
+      # forced defer_transport of :fetch is therefore also a no.
+      #
+      # False does NOT break anything: reply.pending degrades to a plain
+      # enqueue (no pending markers, no handle, reactive_settle no-ops in the
+      # job) — today's behavior, never a permanently pending row.
+      def settle_capable?
+        defer_push_capable? && defer_transport != :fetch
+      end
+
       # DOM id of the host-app container a Response#flash appends into.
       # Default "flash"; override to match your layout's flash region.
       def flash_target

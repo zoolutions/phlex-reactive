@@ -16,6 +16,59 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Async-action lifecycle: `reply.pending` + `reactive_settle` (#248).** An
+  action that *enqueues* work can now reply truthfully. The endpoint renders the
+  reply inside the action's transaction while the queue publishes on commit, so
+  any `reply.morph` after an enqueue is guaranteed to draw the pre-job world —
+  rows still present, buttons still live — beside the "Queued 177" flash the
+  same reply emitted. Apps worked around it with a `queued:` kwarg threaded into
+  every row component plus a second render branch; ~60 lines per screen, and the
+  page still never learned the outcome.
+
+  `reply.pending(records, in: :collection, job:, args:)` — or the block form,
+  `reply.pending(records, in: :collection) { MyService.call(...) }`, which every
+  ActiveJob enqueued inside captures — marks the targets with
+  `data-reactive-pending` + `aria-busy` (style it in one CSS rule), opens ONE
+  shared durable subscription anchored on the container, and hands the
+  fulfilment to your job. The job includes `Phlex::Reactive::Settles` and calls
+  `reactive_settle { |s| s.remove(record) }` (also `replace` / `append` /
+  `prepend` / `move(from:, to:)` / `count` / `flash` / `js` / `streams!`), which
+  emits the row **plus** the count companion **plus** the 0↔1 empty-state
+  toggle. `peers: true` broadcasts the same delta to the container's record
+  stream for a second operator watching the batch.
+
+  The handle rides **ActiveJob metadata**, so `perform`'s arity is untouched and
+  every other caller of the same job — a nightly sweep, a webhook — runs
+  unchanged with `reactive_settle` as a no-op. A job that raises still clears
+  the pending markers before re-raising for the retry policy. No client changes:
+  the markers ride the existing `reactive:js` op lane and the subscription is
+  the `reactive:defer` push-lane wire from #165.
+
+- **`Phlex::Reactive::Collections` — the collection bookkeeping is now a public
+  module (#248).** The count companion and the 0↔1 empty-state boundary used to
+  live in `Response`'s privates, reachable only from `reply.*`, so a job or a
+  broadcast had to re-derive them by hand and got the boundary subtly wrong.
+  `Response.build_collection_*` now delegates, and the settle and broadcast
+  paths read the same `count_refresh` / `empty_toggle` decisions — they cannot
+  drift. No behavior change for existing `reply.append` / `reply.remove` calls.
+
+- **`Container.broadcast_collection_to(*keys, container:, in:, append:/prepend:/remove:)`
+  (#248).** The broadcast-side counterpart of `reply.append` / `reply.remove`:
+  the row **plus** the count companion **plus** the empty-state toggle, instead
+  of the bare row `broadcast_to(append:)` emits. `coalesce:` applies to the
+  aggregate streams only (idempotent replaces of stable targets), so a 177-row
+  fan-out collapses to a handful of count refreshes; the row stream is never
+  coalesced. Needs pgbus with zoolutions/pgbus#465 — a thread-local an older
+  pgbus simply ignores, so it degrades to "chattier, equally correct" rather
+  than breaking.
+
+- **`Phlex::Reactive.settle_token_ttl` (900) and `.settle_coalesce_window_ms`
+  (50) (#248).** The settle TTL is distinct from `defer_token_ttl` (120)
+  because a job can sit behind a staggered fan-out for minutes, where a defer
+  only covers the reply→fetch gap. `Phlex::Reactive.settle_capable?` reports
+  whether `reply.pending` has a lane at all; without one it degrades to a plain
+  enqueue (no markers, no lie) with a one-time warning.
+
 - **`reactive_persist` drafts rich editors (#241).** A named `lexxy-editor`,
   `trix-editor` or bare `[contenteditable]` inside a `reactive_persist` root is
   now drafted and restored through its **own** value surface — the editor's

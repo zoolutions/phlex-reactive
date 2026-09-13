@@ -50,6 +50,10 @@ module Phlex
         prepend: "prepend", remove: "remove", js: "reactive:js"
       }.freeze
       BROADCAST_SELF_TARGETING = %i[replace remove].freeze
+      # The broadcast_collection_to verbs (issue #248) — a collection DELTA, so
+      # only the three that change the size. (A `replace:` row is an ordinary
+      # broadcast_to: it moves no boundary and needs no count refresh.)
+      COLLECTION_VERBS = %i[append prepend remove].freeze
       BROADCAST_CONTAINER = %i[update append prepend].freeze
       BROADCAST_MORPHABLE = %i[replace update].freeze
 
@@ -118,7 +122,8 @@ module Phlex
         # thread-local path (so exclude:/visible_to: reach pgbus and Action Cable
         # no-ops). Self-targeting verbs derive the target from the component's #id
         # and REQUIRE a Streamable payload; container verbs need an explicit target.
-        def broadcast_component(owner, verb, payload, component, keys, morph:, target:, exclude:, visible_to:, effect: nil)
+        def broadcast_component(owner, verb, payload, component, keys, morph:, target:, exclude:, visible_to:,
+                                effect: nil, coalesce: nil)
           if verb == :js && !effect.nil?
             raise ArgumentError,
               "broadcast_to js: takes no effect: — effects animate element streams (replace/update/" \
@@ -136,7 +141,7 @@ module Phlex
           Phlex::Reactive.instrument(
             "broadcast", { component: component_name, stream_action: BROADCAST_VERBS[verb], streamables: keys.size }
           ) do
-            with_pgbus_broadcast_opts(exclude:, visible_to:) do
+            with_pgbus_broadcast_opts(exclude:, visible_to:, coalesce:) do
               # A broadcast render NEVER inherits the actor's url_options (issue
               # #232): this call may run inside an action request (where the
               # endpoint threaded the actor's host), but subscribers can be on
@@ -146,6 +151,21 @@ module Phlex
               html = verb == :js ? nil : Phlex::Reactive.with_url_options(nil) { render_broadcast_html(component) }
               ops_json = verb == :js ? broadcast_js_ops_json(payload) : nil
               keys.each { dispatch_broadcast(verb, it, resolved_target, html, ops_json, morph, effect) }
+            end
+          end
+        end
+
+        # Broadcast ALREADY-RENDERED html (issue #248) — no component to build or
+        # render. The count companion is a plain number, not a component, so it
+        # has no render leg; everything else (instrumentation, the pgbus
+        # thread-locals, the per-key dispatch) is identical to
+        # broadcast_component.
+        def broadcast_raw(owner, verb, target, html, keys, exclude: nil, visible_to: nil, coalesce: nil)
+          Phlex::Reactive.instrument(
+            "broadcast", { component: owner.name, stream_action: BROADCAST_VERBS[verb], streamables: keys.size }
+          ) do
+            with_pgbus_broadcast_opts(exclude:, visible_to:, coalesce:) do
+              keys.each { dispatch_broadcast(verb, it, target, html, nil, false, nil) }
             end
           end
         end
@@ -189,18 +209,27 @@ module Phlex
         # instrument_broadcast uses (issue #185/#187). Duplicated at module level so
         # the shared broadcast_component owns its transport threading. On Action
         # Cable / old pgbus this is a pure `yield`.
-        def with_pgbus_broadcast_opts(exclude:, visible_to:)
+        # `coalesce:` (issue #248) rides the SAME thread-local convention. Unlike
+        # a kwarg, an unknown thread-local is silently IGNORED by a pgbus that
+        # does not forward it (pre-zoolutions/pgbus#465) — so setting it is
+        # always safe: an old pgbus just does not coalesce (more messages, same
+        # correctness), a new one does. That is why there is no capability gate
+        # here beyond the existing pgbus_streams? one.
+        def with_pgbus_broadcast_opts(exclude:, visible_to:, coalesce: nil)
           return yield unless Phlex::Reactive.pgbus_streams?
 
           prev_exclude = Thread.current[:pgbus_broadcast_exclude]
           prev_visible = Thread.current[:pgbus_broadcast_visible_to]
+          prev_coalesce = Thread.current[:pgbus_broadcast_coalesce]
           Thread.current[:pgbus_broadcast_exclude] = exclude
           Thread.current[:pgbus_broadcast_visible_to] = visible_to
+          Thread.current[:pgbus_broadcast_coalesce] = coalesce
           yield
         ensure
           if Phlex::Reactive.pgbus_streams?
             Thread.current[:pgbus_broadcast_exclude] = prev_exclude
             Thread.current[:pgbus_broadcast_visible_to] = prev_visible
+            Thread.current[:pgbus_broadcast_coalesce] = prev_coalesce
           end
         end
 
@@ -494,6 +523,45 @@ module Phlex
           )
         end
 
+        # Broadcast a collection DELTA — the row PLUS the count companion PLUS
+        # the 0<->1 empty-state toggle (issue #248), the broadcast-side
+        # counterpart of reply.append / reply.remove.
+        #
+        #   Container.broadcast_collection_to(@list, :todos,
+        #     container: @list_component, append: todo, in: :todos,
+        #     exclude: reactive_connection_id)
+        #
+        # broadcast_to(append:) deliberately emits the BARE row: it has no
+        # container instance, so it cannot resolve the declaration or run the
+        # size resolver. This verb takes that instance as `container:` and runs
+        # the SAME Phlex::Reactive::Collections decisions the reply path runs,
+        # so a peer's list stays as correct as the actor's.
+        #
+        # `in:` names the declared reactive_collection; the verb is `append:`,
+        # `prepend:` or `remove:` (exactly one). `exclude:`/`visible_to:` thread
+        # to pgbus as everywhere else.
+        #
+        # `coalesce:` (a window in ms, or true) applies to the AGGREGATE streams
+        # only — the count companion and the empty-state toggle are idempotent
+        # replaces of stable targets, so a 177-row fan-out collapses to a
+        # handful of count refreshes. The ROW stream is NEVER coalesced: an
+        # append is not idempotent and each row is a distinct target. Needs
+        # pgbus with zoolutions/pgbus#465; on anything older the thread-local is
+        # ignored and every aggregate stream simply goes out (correct, chattier).
+        # (`in:` is a Ruby keyword, so it cannot be a named parameter — it is
+        # pulled out of **opts, which then holds exactly the verb kwarg.)
+        def broadcast_collection_to(*streamables, container:, exclude: nil, visible_to: nil,
+                                    coalesce: nil, effect: nil, **opts)
+          name = opts.delete(:in) ||
+                 raise(ArgumentError, "broadcast_collection_to needs in: :collection_name")
+          action, model = extract_collection_verb(opts)
+          definition = Phlex::Reactive::Collections.definition!(container, name)
+          keys = [streamables]
+
+          broadcast_collection_row(definition, action, model, keys, exclude:, visible_to:, effect:)
+          broadcast_collection_aggregates(definition, container, action, keys, exclude:, visible_to:, coalesce:)
+        end
+
         # Define the guided-error stub for each removed broadcast method (issue
         # #185). `verb` is referenced in define_method AND the message, so the outer
         # block param must be named — `it` is illegal here.
@@ -517,6 +585,60 @@ module Phlex
           end
 
           verb.first
+        end
+
+        # The collection verb split — append:/prepend:/remove:, exactly one.
+        def extract_collection_verb(verb)
+          unless verb.size == 1 && COLLECTION_VERBS.include?(verb.keys.first)
+            raise ArgumentError,
+              "broadcast_collection_to needs exactly ONE verb kwarg " \
+              "(#{COLLECTION_VERBS.join("/")}), got #{verb.keys.inspect}"
+          end
+
+          verb.first
+        end
+
+        # The ROW leg: routed through the ordinary broadcast_to so the row is
+        # built, rendered and instrumented exactly like every other broadcast.
+        # Never coalesced (distinct targets; an append is not idempotent).
+        def broadcast_collection_row(definition, action, model, keys, exclude:, visible_to:, effect:)
+          if action == :remove
+            Phlex::Reactive::Streamable.broadcast_component(
+              definition.item, :remove, model, definition.item.send(:build, model, {}), keys,
+              morph: false, target: nil, exclude:, visible_to:, effect:
+            )
+          else
+            Phlex::Reactive::Streamable.broadcast_component(
+              definition.item, action, model, definition.item.send(:build, model, {}), keys,
+              morph: false, target: definition.container, exclude:, visible_to:, effect:
+            )
+          end
+        end
+
+        # The AGGREGATE leg: the count companion and the empty-state toggle,
+        # both idempotent replaces of stable targets — so both carry `coalesce:`.
+        def broadcast_collection_aggregates(definition, container, action, keys, exclude:, visible_to:, coalesce:)
+          delta = action == :remove ? :remove : :add
+
+          if (refresh = Phlex::Reactive::Collections.count_refresh(definition, container))
+            target, size = refresh
+            Phlex::Reactive::Streamable.broadcast_raw(
+              self, :update, target, size, keys, exclude:, visible_to:, coalesce:
+            )
+          end
+
+          case Phlex::Reactive::Collections.empty_toggle(definition, container, delta)
+          when :clear
+            Phlex::Reactive::Streamable.broadcast_component(
+              definition.empty, :remove, nil, definition.empty.new, keys,
+              morph: false, target: nil, exclude:, visible_to:, coalesce:
+            )
+          when :restore
+            Phlex::Reactive::Streamable.broadcast_component(
+              definition.empty, :append, nil, definition.empty.new, keys,
+              morph: false, target: definition.container, exclude:, visible_to:, coalesce:
+            )
+          end
         end
 
         # Coerce a verb payload into a built component: a Phlex component passes

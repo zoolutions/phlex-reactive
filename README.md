@@ -406,6 +406,8 @@ Use in controllers: `render turbo_stream: Counter.replace(counter)`.
 | `reactive_collection :name, item:, container:, count:, empty:, size:` | Declare an add/remove-row list once; actions call `reply.append`/`prepend`/`remove`. See [Reactive collections](#reactive-collections-addremove-rows--count--empty-state). |
 | `reply.replace` / `.morph` / `.update` / `.remove` / `.redirect(url)` / `.with(*)` / `.js(ops)` | Return from an action to control the reply (flash, remove, redirect, multi-stream, server-pushed client ops). See [Controlling the action's reply](#reply--controlling-the-actions-reply). |
 | `reply.append(name, model)` / `.prepend(...)` / `.remove(name, model)` | Add/remove a row in a declared `reactive_collection` (row + count + empty-state in one reply). |
+| `reply.pending(records, in:, job:) { … }` + `include Phlex::Reactive::Settles` / `reactive_settle` | For an action that **enqueues** work: mark targets pending, let your job settle them (row + count + empty-state) when it finishes. See [Async actions](#async-actions-replypending--reactive_settle). |
+| `Container.broadcast_collection_to(*keys, container:, in:, append:/prepend:/remove:)` | The broadcast-side `reply.append`/`reply.remove`: the row **plus** the count companion **plus** the empty-state toggle, to peers. |
 
 Param types: `:string` (default), `:integer`, `:float`, `:boolean`, `:file`,
 `:date`, `:datetime`, `:decimal`. Anything not in the schema is dropped before
@@ -1884,6 +1886,7 @@ def update(quantity:, price:) = (@item.update!(quantity:, price:); reply.streams
 | `reply.streams(*streams)` | **partial update** — emit exactly these streams (no full-self replace) + a tiny token-only refresh, so live inputs survive; for per-field grid editing (issue #30) |
 | `.js(ops, target: …)` | also push **client DOM ops** (focus, dispatch, class/attr toggles) over a `reactive:js` stream, applied AFTER the render — `reply.morph.js(js.focus("[name=next]"))` focuses the morphed field (issue #97) |
 | `.defer(component, placeholder:, morph:)` | take an **expensive segment off the actor's critical path** (issue #165) — the reply returns immediately and the real render streams to the SAME actor when ready; see [Deferred segments](#deferred-segments-replydefer--reactive_lazy) |
+| `reply.pending(records, in:, job:, args:, peers:) { … }` | the action **enqueues** the work: mark the targets pending now and let **your own job** settle them when the work is actually done (issue #248); see [Async actions](#async-actions-replypending--reactive_settle) |
 | `reply.with(*streams)` / `#stream(*more)` | multi-stream (self re-render still injected for the token) |
 
 `.flash`/`.stream`/`.also` are additive on a self-replace, so the component's
@@ -2449,11 +2452,213 @@ end
 - **`remove` takes the record or its `dom_id` string** — a just-destroyed
   ActiveRecord still answers `dom_id` correctly, so `reply.remove(todo, from: :items)`
   works; pass the raw id only if your row `#id` matches `ActiveRecord::RecordIdentifier`.
-- **Reply governs the actor's HTTP response only.** For a *cross-tab* live list
-  (other viewers see the row appear) keep broadcasting the row with
-  `NotificationRow.broadcast_to(..., append: model, exclude: reactive_connection_id)` —
-  `reactive_collection` is the per-actor add/remove + count + empty-state wrapper,
-  not a replacement for the broadcast.
+- **Reply governs the actor's HTTP response only.** For a *cross-tab* live list,
+  broadcast the delta with `NotificationsList.broadcast_collection_to(*keys,
+  container: self, in: :notifications, append: model, exclude: reactive_connection_id)`
+  — that emits the row **plus** the count companion **plus** the empty-state
+  toggle, through the same decisions the reply path uses. (Plain
+  `broadcast_to(append:)` still works and still emits the **bare row**: it has no
+  container instance, so it cannot resolve the declaration or run `size:`.)
+- **When the work is asynchronous**, an action that merely enqueues it cannot
+  reply with a delta at all — the reply renders before the job touches the
+  database. Use [`reply.pending`](#async-actions-replypending--reactive_settle)
+  and let the job settle the row.
+
+### Async actions (`reply.pending` + `reactive_settle`)
+
+An action that **does** the work can reply honestly. An action that
+**enqueues** the work cannot — and until issue #248 every app worked around it
+the same way.
+
+The endpoint runs your action inside a transaction and renders the reply
+*there*, while the queue adapter publishes on **commit**. So any `reply.morph`
+after an enqueue renders from a database the job has not touched yet, and is
+*guaranteed* to draw the pre-job world — rows still present, buttons still live,
+counts unchanged — sitting right beside the "Queued 177 transfers" flash the
+same reply emitted:
+
+```ruby
+def restore_all
+  count = BatchRestoreService.call(bulk_payment: @bulk_payment)   # fans out N jobs
+  reply.morph.flash(:notice, "Putting #{count} back…")            # renders the PRE-job world
+end
+```
+
+The usual fix is a `queued:` kwarg threaded into every row component with a
+second render branch, a `@queued_*` flag on the container, and the header
+button's count forced to `0` — ~60 lines of identical bookkeeping per screen.
+And it still never tells the operator the **outcome**: the page says "Queued"
+forever until someone reloads.
+
+`reply.pending` replaces all of it:
+
+```ruby
+class ReconcileQueue < ApplicationComponent
+  include Phlex::Reactive::Component
+
+  reactive_collection :unreconcilable,
+    item: TransferRow, container: "unreconcilable",
+    count: "unreconcilable-count", empty: NothingToReconcile,
+    size: -> { @bulk_payment.transfers.unreconcilable.count }
+
+  action :re_execute, params: {transfer_id: :integer}
+  action :restore_all
+
+  # ONE record — the job settles it, and the subscription tears itself down.
+  def re_execute(transfer_id:)
+    transfer = @bulk_payment.transfers.re_executable.find(transfer_id)
+    authorize! transfer, :update?
+    reply.pending(transfer, in: :unreconcilable, job: ReExecuteJob, args: [transfer.id])
+  end
+
+  # A FAN-OUT — the enqueue lives in the block, so the service object's own
+  # perform_later calls capture the settle handle too.
+  def restore_all
+    authorize! @bulk_payment, :update?
+    restorable = @bulk_payment.transfers.restorable.to_a
+    reply.pending(restorable, in: :declined, peers: true) do
+      BatchRestoreService.call(bulk_payment: @bulk_payment)
+    end.flash(:notice, "Putting #{restorable.size} back…")
+  end
+end
+```
+
+and the job settles it when the work is **actually** done:
+
+```ruby
+class ReExecuteJob < ApplicationJob
+  include Phlex::Reactive::Settles
+
+  def perform(transfer_id)            # signature UNCHANGED
+    transfer = Transfer.find(transfer_id)
+    result   = Transfers::ReExecuteService.call(transfer:)
+
+    reactive_settle do |s|
+      if result.success?
+        s.remove(transfer)                     # row + count + empty-state
+      else
+        s.replace(transfer)                    # back to actionable
+        s.flash(:alert, result.error)          # the operator learns the outcome
+      end
+    end
+  end
+end
+```
+
+and the case that motivated the whole thing — work that moves a record between
+two lists — is one call:
+
+```ruby
+reactive_settle { |s| s.move(transfer, from: :declined, to: :unreconcilable) }
+```
+
+#### What the reply actually does
+
+`reply.pending` deliberately does **NOT** re-render the container (that is the
+bug). It emits:
+
+1. a `data-reactive-pending="true"` + `aria-busy="true"` marker on every target,
+   over the existing `reactive:js` op lane — style it in one CSS rule:
+
+   ```css
+   [data-reactive-pending] { opacity: .5; pointer-events: none; }
+   ```
+
+2. **one** subscription directive, anchored on the container, opening a
+   single durable one-shot stream that **all N settles share**;
+3. an inert `reactive:token` refresh, so the container's signed token rolls
+   forward and the list is not act-once-only.
+
+| `reply.pending(...)` | |
+|---|---|
+| `records` | one record, an enumerable of records, or built Streamable components |
+| `in: :name` | the `reactive_collection` the records live in — how their row DOM ids *and* the count/empty-state bookkeeping are resolved (required for records) |
+| a block | your enqueue. **Anything ActiveJob-enqueued inside it captures the settle handle**, including from a service object |
+| `job:` / `args:` | sugar for the common case. `args:` is an Array (one record) or a Proc called per record (`args: ->(r) { [r.id] }`); omitted means `perform_later(record)` |
+| `peers: true` | also broadcast each settle to the container's record stream, so a second operator watching the same batch sees it. **Default is actor-only**, matching `reply.defer` |
+
+| `reactive_settle` yields a settle builder | |
+|---|---|
+| `s.replace(record)` | re-render the row in place (no count churn — a replace moves no boundary) |
+| `s.remove(record, from: :name)` | row + count + empty-state restore. `from:` defaults to the collection `reply.pending` named |
+| `s.append(record, to: :name)` / `s.prepend` | row + count + empty-state clear |
+| `s.move(record, from:, to:)` | ordered remove-then-append between two collections |
+| `s.count(:name)` | refresh only the count companion |
+| `s.flash(level, content)` | tell the operator the outcome |
+| `s.js(ops)` / `s.streams!(*raw)` | the `reply.js` / `reply.streams` escape hatches |
+
+#### The rules that make it safe
+
+- **The handle rides ActiveJob metadata, not `perform`'s arity.** `reply.pending`
+  installs it in a thread-local and runs your enqueue inside it;
+  `Settles#serialize` copies it into the job's metadata. So **every other caller
+  of the same job — a nightly sweep, a webhook — keeps working unchanged**, and
+  `reactive_settle` is simply a no-op there. That is load-bearing: these jobs
+  almost always have non-UI callers.
+- **A job that raises still clears the pending state.** The markers are cleared
+  and the error is *re-raised* so your retry policy sees it. The subscription is
+  deliberately **not** torn down on failure — a retry must still be able to
+  reach the actor.
+- **ONE stream key per `reply.pending` call.** A durable broadcast to a
+  never-seen key creates a real PGMQ table (reclaimed by pgbus's hourly orphan
+  sweep at a 24h threshold), so a key per record would leave 177 tables sitting
+  for a day and open 177 SSE connections. All N settles share one key and one
+  subscription.
+- **Teardown is therefore explicit.** Because the key is shared, tearing down on
+  the *first* arrival would cut off the other N−1. `reactive_settle` finishes
+  automatically when `reply.pending` marked exactly **one** target; a fan-out
+  passes `finish: true` from whatever knows it is last (a `Pgbus::Batch`
+  `on_finish` callback, or the final job of a staggered sequence). Until then
+  the subscription is superseded by the container's next `reply.pending` or
+  closed when the page unloads.
+- **`reply.pending` needs the defer PUSH lane**
+  (`Phlex::Reactive.settle_capable?` — pgbus reactive Streams + `SignedName` +
+  ActiveJob, and `defer_transport` not forced to `:fetch`). A settle has no pull
+  fallback: the client cannot poll "is the job done yet". **Without it,
+  `reply.pending` degrades rather than breaks** — your enqueue still runs, no
+  handle is installed, and **no pending markers are emitted**, so the UI shows
+  the pre-job world (today's behavior) instead of a shimmer that could never
+  resolve. A one-time warning says so.
+- **The pgbus CLIENT must be on the page too.** The server picks the push lane on
+  *server-side* capability alone. If the browser has no `<pgbus-stream-source>`
+  custom element registered, `reply.defer` degrades to its fetch token — but a
+  settle has no fetch lane, so the subscription never opens and the pending
+  markers would sit there. The client logs a loud console error naming the cause.
+  Load pgbus's client wherever you use `reply.pending`; it is the same
+  prerequisite the defer push lane already has.
+- **Authorization is still yours.** `reply.pending` signs the *container's*
+  identity so the job can rebuild it; that is not permission to act. `authorize!`
+  in the action, exactly as everywhere else.
+
+#### Broadcasting a collection delta to peers
+
+`broadcast_to(append:)` emits the **bare row** — it has no container instance,
+so it cannot resolve the declaration or run the size resolver. Its collection
+counterpart does:
+
+```ruby
+ReconcileQueue.broadcast_collection_to(@bulk_payment, :transfers,
+  container: self, in: :unreconcilable, remove: transfer,
+  exclude: reactive_connection_id)
+```
+
+Row **plus** count companion **plus** empty-state toggle, through the same
+`Phlex::Reactive::Collections` decisions the reply path uses — so the two can
+never drift. `coalesce:` (default `Phlex::Reactive.settle_coalesce_window_ms`,
+50 ms) applies to the **aggregate** streams only: the count and empty-state are
+idempotent replaces of stable targets, so a 177-row fan-out collapses to a
+handful of them. The **row** stream is never coalesced (an append is not
+idempotent). Coalescing needs pgbus with
+[zoolutions/pgbus#465](https://github.com/zoolutions/pgbus/issues/465); on
+anything older the window is ignored and every aggregate goes out — chattier,
+equally correct.
+
+#### Settle configuration
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `Phlex::Reactive.settle_token_ttl` | `900` | Fallback pull-token lifetime for a settle. Distinct from `defer_token_ttl` (120) because a job can sit behind a staggered fan-out for minutes. |
+| `Phlex::Reactive.settle_coalesce_window_ms` | `50` | Window for the aggregate (count / empty-state) streams on the peers path. |
 
 ### Effects — animate enter/exit/update (opt-in)
 

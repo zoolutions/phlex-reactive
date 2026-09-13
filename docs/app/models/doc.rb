@@ -14,6 +14,7 @@ class Doc
     { slug: 'transport-pgbus',       title: 'Transport: pgbus',        group: 'Guide',    view: 'TransportPgbus' },
     { slug: 'deferred-rendering',    title: 'Deferred rendering',      group: 'Guide',
       view: 'DeferredRendering' },
+    { slug: 'async-actions',         title: 'Async actions',           group: 'Guide',    view: 'AsyncActions' },
     { slug: 'effects',               title: 'Effects',                 group: 'Guide',    view: 'Effects' },
     { slug: 'testing',               title: 'Testing',                 group: 'Guide',    view: 'Testing' },
     { slug: 'performance',           title: 'Performance',             group: 'Guide',    view: 'Performance' },

@@ -403,7 +403,21 @@ module Phlex
             end
         end
 
-        append_deferred_streams(streams, result)
+        append_pending_streams(append_deferred_streams(streams, result), result)
+      end
+
+      # Pending segments (issue #248) ride LAST, alongside the deferred ones and
+      # for the same reason: this runs AFTER run_action returned, i.e. after the
+      # action's transaction COMMITTED — a rolled-back action takes the rescue
+      # paths, so no pending marker and no subscription directive can ever
+      # outlive a mutation that did not happen. (The ENQUEUE itself already ran
+      # inside the action, exactly like the app's own perform_later would have;
+      # its transactional behaviour is the queue adapter's, unchanged.) The
+      # common non-pending reply pays one empty? check.
+      def append_pending_streams(streams, result)
+        return streams unless result.pending?
+
+        [*streams, *result.pending_segments.flat_map { Phlex::Reactive::Pending.streams_for(it) }]
       end
 
       # Deferred segments (issue #165) ride LAST — after every render stream and

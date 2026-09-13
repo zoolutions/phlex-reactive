@@ -119,86 +119,45 @@ module Phlex
         # `effect:` (issue #215) stamps the ROW stream only — the count
         # companion and the empty-state toggle are bookkeeping, not the thing
         # entering/leaving.
+        # Issue #248: the bookkeeping BODIES moved to Phlex::Reactive::Collections
+        # so the job-side settle and the peers broadcast run the SAME code. These
+        # builders keep their exact behaviour by delegating.
         def build_collection_append(component, name, model, effect: nil, **row_kwargs)
-          definition = collection_def!(component, name)
-          new(streams: collection_add_streams(definition, component, model, :append, row_kwargs, effect:),
-            render_self: false, token_component: component)
+          definition = Phlex::Reactive::Collections.definition!(component, name)
+          new(streams: Phlex::Reactive::Collections.add_streams(definition, component, model, :append, row_kwargs,
+            effect:), render_self: false, token_component: component)
         end
 
         def build_collection_prepend(component, name, model, effect: nil, **row_kwargs)
-          definition = collection_def!(component, name)
-          new(streams: collection_add_streams(definition, component, model, :prepend, row_kwargs, effect:),
-            render_self: false, token_component: component)
+          definition = Phlex::Reactive::Collections.definition!(component, name)
+          new(streams: Phlex::Reactive::Collections.add_streams(definition, component, model, :prepend, row_kwargs,
+            effect:), render_self: false, token_component: component)
         end
 
         def build_collection_remove(component, name, model, effect: nil)
-          definition = collection_def!(component, name)
-          new(streams: collection_remove_streams(definition, component, model, effect:),
+          definition = Phlex::Reactive::Collections.definition!(component, name)
+          new(streams: Phlex::Reactive::Collections.remove_streams(definition, component, model, effect:),
             render_self: false, token_component: component)
         end
 
-        private
-
-        # Resolve the declaration off the container's class, raising a clear error
-        # for an undeclared name (a typo'd collection should fail loudly, not
-        # silently emit an empty Response).
-        def collection_def!(component, name)
-          component.class.reactive_collections[name.to_sym] ||
-            raise(Phlex::Reactive::Error, "undeclared reactive_collection :#{name} on #{component.class}")
+        # --- Async-action lifecycle (issue #248) ---
+        # Mark targets pending and hand the fulfilment to the app's own job. The
+        # reply deliberately does NOT re-render the container: re-rendering it
+        # here would draw the PRE-JOB world (the endpoint renders inside the
+        # transaction; the queue publishes on commit) — the exact bug this verb
+        # exists to fix. render_self is therefore false, with the container as
+        # token_component so the signed token still rolls forward (cosmos#1939 —
+        # without it the list is act-once-only).
+        #
+        # The Response only RECORDS the segment; the ENDPOINT turns it into the
+        # marker + directive streams after the transaction committed.
+        def build_pending(component, records, collection:, peers:, job:, args:, enqueue:)
+          segment = Phlex::Reactive::Pending.build_segment(
+            component, records, collection:, peers:, job:, args:, enqueue:
+          )
+          new(streams: [], render_self: false, token_component: component,
+            pending_segments: segment ? [segment] : NO_SEGMENTS)
         end
-
-        # Row add (append/prepend) + count + empty-state clear. The empty-state is
-        # removed only when the list just crossed 0->1 (size == 1) — appending to
-        # an already-populated list leaves it untouched.
-        def collection_add_streams(definition, component, model, action, row_kwargs = {}, effect: nil)
-          # row_kwargs (issue #186) thread to the row component's init via the class
-          # stream builder's **options passthrough (ItemRow.new(model:, **row_kwargs)).
-          streams = [definition.item.public_send(action, target: definition.container, model:, effect:, **row_kwargs)]
-          append_count_stream(streams, definition, component)
-
-          size = definition.size_for(component)
-          streams << definition.empty.new.to_stream_remove if definition.empty && size == 1
-          streams
-        end
-
-        # Row remove + count + empty-state restore. The empty-state is appended
-        # back into the container only when the list just emptied (size == 0).
-        def collection_remove_streams(definition, component, model, effect: nil)
-          streams = [collection_row_remove(definition, model, effect)]
-          append_count_stream(streams, definition, component)
-
-          size = definition.size_for(component)
-          if definition.empty && size&.zero?
-            # Render the empty-state and append it INTO the container (not its
-            # own id) — restoring "No items yet" when the last row was removed.
-            # model: nil builds it argument-free (an empty-state is a static view).
-            streams << definition.empty.append(target: definition.container, model: nil)
-          end
-          streams
-        end
-
-        # Remove the row by its DOM id. Accepts the record (so dom_id is derived)
-        # or an already-built dom-id string (e.g. the value the row used as #id).
-        def collection_row_remove(definition, model, effect = nil)
-          if model.is_a?(String)
-            Phlex::Reactive::Effects.annotate(Phlex::Reactive.stream_builder.remove(model), effect)
-          else
-            definition.item.remove(model, effect:)
-          end
-        end
-
-        # Append the count companion's update stream when a count id + a size
-        # resolver are both declared. The size is a number, HTML-escaped by Turbo.
-        def append_count_stream(streams, definition, component)
-          return unless definition.count
-
-          size = definition.size_for(component)
-          return if size.nil?
-
-          streams << update_stream(definition.count, size.to_s)
-        end
-
-        public
 
         # Partial / per-field update with a TOKEN-ONLY refresh (issue #30). Emits
         # EXACTLY the given streams — no forced full-self replace — but binds
@@ -376,13 +335,14 @@ data-reactive-ops="#{ERB::Util.html_escape(json)}"></turbo-stream>).html_safe
       NO_SEGMENTS = [].freeze
 
       def initialize(streams: [], redirect_url: nil, render_self: true, token_component: nil,
-                     subject_component: nil, deferred_segments: NO_SEGMENTS)
+                     subject_component: nil, deferred_segments: NO_SEGMENTS, pending_segments: NO_SEGMENTS)
         @streams = streams.freeze
         @redirect_url = redirect_url
         @render_self = render_self
         @token_component = token_component
         @subject_component = subject_component
         @deferred_segments = deferred_segments.freeze
+        @pending_segments = pending_segments.freeze
         freeze
       end
 
@@ -394,6 +354,13 @@ data-reactive-ops="#{ERB::Util.html_escape(json)}"></turbo-stream>).html_safe
 
       def deferred? = !@deferred_segments.empty?
 
+      # The recorded reply.pending segments (issue #248), in call order. Same
+      # contract as deferred_segments: recorded here, turned into wire streams
+      # by the endpoint AFTER the transaction committed.
+      attr_reader :pending_segments
+
+      def pending? = !@pending_segments.empty?
+
       # Append extra turbo-stream strings (a sibling component, a flash).
       # Returns a NEW Response (immutable).
       def stream(*more)
@@ -403,7 +370,8 @@ data-reactive-ops="#{ERB::Util.html_escape(json)}"></turbo-stream>).html_safe
           render_self: @render_self,
           token_component: @token_component,
           subject_component: @subject_component,
-          deferred_segments: @deferred_segments
+          deferred_segments: @deferred_segments,
+          pending_segments: @pending_segments
         )
       end
 
@@ -434,7 +402,36 @@ data-reactive-ops="#{ERB::Util.html_escape(json)}"></turbo-stream>).html_safe
           token_component: @token_component,
           subject_component: @subject_component,
           deferred_segments: @deferred_segments +
-            [Phlex::Reactive::Defer::Segment.new(component:, placeholder:, morph:)]
+            [Phlex::Reactive::Defer::Segment.new(component:, placeholder:, morph:)],
+          pending_segments: @pending_segments
+        )
+      end
+
+      # Chain reply.pending onto an existing reply (issue #248), so an action can
+      # do one synchronous thing AND mark other targets pending:
+      #
+      #   reply.replace.pending(rows, in: :declined, job: RestoreJob)
+      #
+      # Dead on a redirect, exactly like #defer: the client is navigating away,
+      # so the settle could never land.
+      def pending(records, peers: false, job: nil, args: nil, **opts, &enqueue)
+        if redirect?
+          raise Phlex::Reactive::Error,
+            "reply.pending on a redirect reply is dead — the client is navigating away, " \
+            "so the settle could never land"
+        end
+
+        built = self.class.build_pending(
+          pending_subject!, records, collection: opts.delete(:in), peers:, job:, args:, enqueue:
+        )
+        self.class.new(
+          streams: @streams,
+          redirect_url: @redirect_url,
+          render_self: @render_self,
+          token_component: @token_component || built.token_component,
+          subject_component: @subject_component,
+          deferred_segments: @deferred_segments,
+          pending_segments: @pending_segments + built.pending_segments
         )
       end
 
@@ -536,6 +533,16 @@ data-reactive-ops="#{ERB::Util.html_escape(json)}"></turbo-stream>).html_safe
       def refresh_token? = !@token_component.nil?
 
       private
+
+      # The container a chained .pending marks: the component this reply is
+      # already bound to. A subject-free reply (reply.with) has none — chaining
+      # .pending onto it is a call-site mistake, so it fails loudly.
+      def pending_subject!
+        (@subject_component || @token_component) ||
+          raise(Phlex::Reactive::Error,
+            "reply.pending needs a bound component (the container that owns the collection) — " \
+            "chain it off a component verb (reply.replace.pending(...)) or call reply.pending(...) directly")
+      end
 
       # The default `target` for #js: the bound component's id when this reply is
       # component-scoped (replace/morph/update set subject_component; .streams and

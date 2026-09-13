@@ -129,6 +129,43 @@ module Phlex
         Response.build_streams(@component).defer(component, placeholder:, morph:)
       end
 
+      # Mark targets PENDING and let the app's own job settle them (issue #248).
+      # For an action that ENQUEUES the work rather than doing it: the endpoint
+      # renders the reply inside the transaction while the queue publishes on
+      # commit, so a `reply.morph` after an enqueue is guaranteed to draw the
+      # pre-job world. This replies truthfully instead.
+      #
+      #   def re_execute(transfer_id:)
+      #     transfer = @bulk_payment.transfers.re_executable.find(transfer_id)
+      #     reply.pending(transfer, in: :unreconcilable, job: ReExecuteJob, args: [transfer.id])
+      #   end
+      #
+      #   def restore_all                       # the enqueue lives in a service
+      #     count = 0
+      #     reply.pending(restorable, in: :declined) { count = BatchRestoreService.call(...) }
+      #       .flash(:notice, "Putting #{count} back…")
+      #   end
+      #
+      # `records` is one record, an enumerable of them, or Streamable component
+      # instances. `in:` names the reactive_collection they live in (required
+      # for records — it is how their row DOM ids and the count/empty-state
+      # bookkeeping are resolved). The enqueue is a BLOCK (anything ActiveJob
+      # enqueued inside it captures the settle handle — including from a service
+      # object) or the `job:`/`args:` sugar. `peers: true` also broadcasts each
+      # settle to the container's record stream, so a second operator watching
+      # the same batch sees it; the default is actor-only, matching reply.defer.
+      #
+      # The bound component is the CONTAINER: it owns the collection declaration,
+      # the size resolver, and the subscription anchor. Its token is refreshed
+      # but it is NOT re-rendered.
+      #
+      # See Phlex::Reactive::Settles for the job side.
+      def pending(records, peers: false, job: nil, args: nil, **opts, &enqueue)
+        Response.build_pending(
+          @component, records, collection: opts.delete(:in), peers:, job:, args:, enqueue:
+        )
+      end
+
       private
 
       # Sentinel distinguishing "keyword omitted" from an explicit nil value, so
