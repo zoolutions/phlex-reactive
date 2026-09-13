@@ -1,0 +1,21 @@
+CHANGELOG.md
+  ai_agent 23-36
+Rakefile
+  s_c93dd485cbe58f::t_f5a8a4ed958bc3 257-281,283-296,311
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "1d4d520bd2ac7bdadccdcf469257c65226cab6f7",
+  "prompts": {},
+  "sessions": {
+    "s_c93dd485cbe58f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd273750-8633-449f-ad30-e99430de62f0",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
