@@ -265,7 +265,7 @@ module Views
         # interpolation syntax (the reactive runtime parses them on remove), not
         # Ruby format strings — Style/FormatStringToken's annotated-token
         # preference doesn't apply to documentation of client-side markup.
-        # rubocop:disable Style/FormatStringToken
+        # rubocop:disable-next Style/FormatStringToken
         def confirm_on_remove
           DocsUI::Section('Confirm before removing a row') do
             md <<~'MD'
@@ -333,7 +333,6 @@ module Views
             MD
           end
         end
-        # rubocop:enable Style/FormatStringToken
 
         def draft_actions
           DocsUI::Section('Bonus: real server actions on a draft parent') do

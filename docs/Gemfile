@@ -8,6 +8,18 @@ gem "thruster", require: false
 gem "bootsnap", require: false
 gem "tzinfo-data", platforms: %i[windows jruby]
 
+# json is PINNED TO 2.x on purpose. activesupport 8.1.3.1 calls
+# `JSON.parse(json, options)` with options POSITIONAL
+# (active_support/json/decoding.rb:25); json 3.0 removed that form, so under
+# json 3 every `ActiveSupport::JSON.decode` raises
+# `ArgumentError: wrong number of arguments (given 2, expected 1)` — which Rails
+# surfaces as `ActionDispatch::Http::Parameters::ParseError`, i.e. EVERY JSON
+# request 500s, including every phlex-reactive action POST. Nothing here wants
+# json 3; it only appeared because rubocop 1.91 relaxed its own constraint from
+# `~> 2.3` to `>= 2.3`, letting a re-resolve take the newest. Drop this pin only
+# once activesupport passes those options as keywords.
+gem "json", "~> 2.7"
+
 # Database. SQLite for fast local dev + CI (no Postgres needed for the default
 # suite); Postgres + pgbus in production so the DEPLOYED site dogfoods pgbus —
 # real cross-tab broadcasts over Postgres SSE, plus the pgbus dashboard.
@@ -78,7 +90,14 @@ end
 group :test do
   gem "capybara"
   gem "capybara-playwright-driver"
-  gem "playwright-ruby-client"
+  # LOCKSTEP with the Playwright CLI + browser binaries pinned in package.json /
+  # bun.lock ("playwright": "^1.61.1"). The client asserts the CLI version it
+  # talks to; a mismatch fails every system spec with the unhelpful
+  # `Playwright::Error: timeout: expected float, got undefined`. Pinned to the
+  # CLI's minor (the same generation the gem's own suite runs) so a Gemfile
+  # re-resolve cannot drift one half of the pair. To upgrade, move BOTH: bump
+  # package.json + `bun install`, then bump this.
+  gem "playwright-ruby-client", "~> 1.61.0"
   # Real-server fallback for the browser suite (CAPYBARA_SERVER=falcon): proves
   # the reactive round trip works under async (fiber-per-request), not just Puma.
   gem "falcon", require: false
