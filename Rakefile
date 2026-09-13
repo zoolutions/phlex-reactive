@@ -225,31 +225,20 @@ task :release, %i[version force] do |_t, args|
   info "New version:     #{new_version}"
   info "Pre-release:     #{prerelease}"
 
-  # Step 0: Force cleanup — delete existing release and tag
-  if force
-    header "Force cleanup"
-    if system("gh release view #{tag} >/dev/null 2>&1")
-      sh("gh release delete #{tag} --yes --cleanup-tag")
-      success "Deleted release and remote tag #{tag}"
-    else
-      skip "No release #{tag} to delete"
-    end
-
-    if system("git rev-parse #{tag} >/dev/null 2>&1")
-      sh("git tag -d #{tag}")
-      success "Deleted local tag #{tag}"
-    else
-      skip "No local tag #{tag} to delete"
-    end
-  end
-
-  # Step 0b: PREFLIGHT the lockfiles — read and validate every one BEFORE a
-  # single file is written. Validating inside Step 1b (after version.rb is
-  # already bumped, and after an earlier lockfile may already be rewritten)
-  # would abort into a DIRTY tree, which the clean-tree guard above then blocks
-  # on the next run — a half-done release that cannot be retried without manual
-  # cleanup. That is exactly the state v0.13.1's first attempt left behind, so
-  # the check that can fail runs while failing is still free.
+  # Step 0a: PREFLIGHT the lockfiles — read and validate every one BEFORE the
+  # task does ANYTHING destructive or irreversible. It must precede BOTH:
+  #
+  #   * the force cleanup below, which DELETES the GitHub release and its tag
+  #     (aborting after that has thrown away release notes and assets for a
+  #     problem we could have seen first), and
+  #   * Step 1/1b's writes — aborting after version.rb is bumped, or after the
+  #     first lockfile is rewritten, leaves a DIRTY tree that the clean-tree
+  #     guard above then blocks on the next run: a half-done release that
+  #     cannot be retried without manual cleanup. That is exactly the state
+  #     v0.13.1's first attempt left behind.
+  #
+  # It only READS files, so there is no cost to running it first — and every
+  # reason to.
   #
   # Zero matches is not "already current": it means the file does not pin the
   # gem the way we think it does (a renamed gem, a changed lockfile format, a
@@ -270,6 +259,24 @@ task :release, %i[version force] do |_t, args|
     abort "\e[31mAborting: #{lockfile} contains no `phlex-reactive (X.Y.Z)` pin to bump.\e[0m\n" \
           "Either the lockfile format changed or this file does not pin the gem — fix it (or drop " \
           "it from the list in the release task) before releasing. Nothing has been modified."
+  end
+
+  # Step 0b: Force cleanup — delete existing release and tag
+  if force
+    header "Force cleanup"
+    if system("gh release view #{tag} >/dev/null 2>&1")
+      sh("gh release delete #{tag} --yes --cleanup-tag")
+      success "Deleted release and remote tag #{tag}"
+    else
+      skip "No release #{tag} to delete"
+    end
+
+    if system("git rev-parse #{tag} >/dev/null 2>&1")
+      sh("git tag -d #{tag}")
+      success "Deleted local tag #{tag}"
+    else
+      skip "No local tag #{tag} to delete"
+    end
   end
 
   # Step 1: Update version file

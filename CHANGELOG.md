@@ -461,8 +461,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   no network, no installed gems, the same 2-line diff bundler produced. A
   lockfile that names no pin at all now **aborts** the release rather than
   reporting itself already current — and that check runs in a PREFLIGHT, before
-  `version.rb` or any lockfile is written, so the abort leaves a clean tree
-  instead of a half-bumped one the clean-tree guard would then block on retry.
+  the task does anything destructive or irreversible: before the `force`
+  cleanup that deletes the GitHub release and its tag, and before `version.rb`
+  or any lockfile is written. So an abort leaves the release intact and the tree
+  clean, rather than a deleted release or a half-bumped tree the clean-tree
+  guard would then block on retry.
   pgbus's release task made the same call after the same failure.
 
 - **`Component::Action` renamed `ActionDefinition` — it shadowed a host kit
