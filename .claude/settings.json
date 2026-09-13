@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "zoolutions": {
+      "source": {
+        "source": "github",
+        "repo": "zoolutions/claude-plugins"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "lode@zoolutions": true
+  }
+}

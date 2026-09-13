@@ -4,6 +4,13 @@ Reactive [Phlex](https://www.phlex.fun) components for Rails — Livewire-style
 actions and live cross-tab updates, without writing Stimulus controllers or
 hand-picking Turbo Stream targets.
 
+## Memory
+
+Durable project memory lives in `lode/` (index: `lode/lode-map.md`). Read it before
+exploring the code. `lode/review/` holds accepted review findings as rules about the
+system; `/lode:gate` enforces them before any push, and `/lode:learn` adds to them.
+`lode/workflow.md` is the profile the shared `/lode:*` workflow skills read.
+
 ## Tech Stack
 
 - **Ruby**: >= 3.4 | **Rails**: >= 7.1
@@ -73,27 +80,34 @@ re-sync command.
 
 | Command | Purpose |
 |---------|---------|
-| `/plan` | Fable-powered planning → GitHub issue or `docs/plans/` markdown (read-only; execute with `/lfg`) |
-| `/lfg` | Full autonomous workflow: branch → understand → explore → plan → TDD → verify → PR |
-| `/tdd` | Enforce RED → GREEN → REFACTOR |
+| `/lode:plan` | Read-only planning → GitHub issue or `docs/plans/` markdown (execute with `/lode:lfg`) |
+| `/lode:lfg` | Full autonomous workflow: branch → understand → explore → plan → TDD → verify → PR |
+| `/lode:tdd` | Enforce RED → GREEN → REFACTOR |
+| `/lode:review-pr` | Full PR pass: merge conflicts, then CI failures, then review comments (in that order) |
+| `/lode:finish-prs` | Drive a stack of open PRs to merge-ready, one at a time |
+| `/lode:debug-flaky` | Root-cause an intermittent test — evidence → repro → stress-proofed fix |
+| `/lode:gate` | Pre-PR gate: fresh-context review against the rules and `lode/review/`, loops until clean |
+| `/lode:learn` | Write accepted review findings into `lode/review/` |
+| `/lode:sync` | Keep `lode/` true to the code after a change; `audit`, `handover` |
 | `/perf` | Benchmark the branch vs main (same-machine before/after) and keep perf docs in sync |
 | `/architect` | Coordinate a change across the component → endpoint → client layers |
 | `/security` | Security audit (signed identity, default-deny, params, CSRF, connection-id) |
-| `/review-pr` | Review a PR for pattern compliance |
-| `/github-review-pr` | Full PR pass: fix CI failures, then resolve review comments (in that order) |
-| `/github-review-failures` | Fix failing CI checks until green |
-| `/github-review-comments` | Process unresolved PR review comments |
+| `/review-pr` | Review a PR for pattern compliance (this repo's own reviewer; `/lode:review-pr` is the full pass) |
 
-Commands pin a model tier via frontmatter aliases: `haiku` for mechanical/config
-work, `sonnet` for the prescriptive pattern-following passes (`/github-review-comments`,
-`/github-review-failures`), `opus` for orchestration, security, review synthesis,
-and the reasoning-heavy specialists (`/lfg`, `/architect`, `/security`, `/review-pr`,
-`/github-review-pr`, `/tdd`, `/perf`). Fable is pinned only on `/plan` — read-only
-planning that hands execution to cheaper models; otherwise choose it per-session
-with `/model` for architecture and the hardest debugging. Use the tier alias,
-never a full model ID, so commands track the latest model in each tier. When
-spawning subagents for mechanical work (file finding, pattern scans), pass a
-cheaper model explicitly rather than letting them inherit the session model.
+The `/lode:` commands come from the `lode@zoolutions` plugin (enabled in
+`.claude/settings.json`); they read `lode/workflow.md` for everything specific to
+this repository, which is why the local copies of `/lfg`, `/tdd`, `/plan` and the
+three `/github-review-*` commands were retired. The four commands that remain local
+— `/architect`, `/perf`, `/security`, `/review-pr` — have no plugin equivalent.
+
+Local commands pin a model tier via frontmatter aliases: `haiku` for
+mechanical/config work, `sonnet` for prescriptive pattern-following passes, `opus`
+for orchestration, security, review synthesis and the reasoning-heavy specialists
+(`/architect`, `/security`, `/review-pr`, `/perf`). Choose Fable per-session with
+`/model` for architecture and the hardest debugging. Use the tier alias, never a
+full model ID, so commands track the latest model in each tier. When spawning
+subagents for mechanical work (file finding, pattern scans), pass a cheaper model
+explicitly rather than letting them inherit the session model.
 
 ## Architecture
 
@@ -188,4 +202,5 @@ token signing (`reactive_token`), and param coercion. Key facts:
 See `.claude/` and `docs/`:
 - `.claude/commands/` — slash command definitions
 - `.claude/rules/` — coding style, git workflow, testing, performance, agents
+- `lode/` — durable project memory (start at `lode/lode-map.md`)
 - `docs/` — published site (architecture, security, broadcasting, transport-pgbus, testing, performance, examples)

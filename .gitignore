@@ -17,3 +17,6 @@ spec/dummy/db/*.sqlite3
 .rspec_status
 
 docs/plans/2026-07-06-api-audit-internal-evidence.md
+
+# lode scratch (gate reports, handovers) — never memory
+/lode/tmp/

@@ -1,0 +1,11 @@
+# phlex-reactive
+
+A Rails engine that makes a [Phlex](https://www.phlex.fun) component reactive: declare `action :name` in Ruby and one generic Stimulus controller turns a click or a form input into an HTTP round trip that re-renders that component and applies it back into the DOM, while a background `broadcast_to` pushes the same re-render to every other tab over Turbo Streams. Client interactivity and server-pushed live updates converge on ONE unit — the component, targeted by the stable DOM `id` it owns (`Streamable#id`, defaulting to `dom_id(record)` for a record-backed component). No per-feature Stimulus controllers, no hand-picked Turbo Stream targets.
+
+Three invariants govern every change:
+
+- **Signed identity, never state.** The DOM root carries a `MessageVerifier`-signed `{"c" => class, "gid" => …}` and/or `{"s" => declared state}` (`Component::Identity#reactive_identity_payload`), purpose-scoped to `IDENTITY_PURPOSE` and version-stamped. The endpoint re-finds the record through GlobalID; no client-supplied snapshot is ever trusted back.
+- **Default-deny, and the signature is not authorization.** Only a method declared with `action` is invokable (`ActionsController#create_action`), only declared params reach it (`ParamSchema#coerce` drops everything else), and the default-ON `verify_authorized` guard raises inside the action's transaction when nothing authorized (`Authorization.verify!`) — so a forgotten `authorize!` rolls back and surfaces as a 500, not a silent hole.
+- **pgbus is optional and runtime-detected.** Broadcasts route through `Turbo::StreamsChannel`, which [pgbus](https://github.com/zoolutions/pgbus) patches to run over Postgres SSE. Every pgbus-only feature is gated on a capability PROBE (`Phlex::Reactive.pgbus_streams?` asks whether `Stream#broadcast` accepts `:exclude`), never `defined?(::Pgbus)` alone or a version string, and degrades to the Action Cable path when absent. The same optionality rule governs the APM adapters and the `mcp` gem.
+
+The gem's runtime dependencies are railties, phlex-rails, turbo-rails, globalid and zeitwerk (`phlex-reactive.gemspec`); pgbus, the vendor APM SDKs, the `mcp` gem, Capybara and RSpec are all dev/test or absent-tolerant. Ruby >= 3.4, Rails >= 7.1 (`railties >= 7.1, < 9.0`).
