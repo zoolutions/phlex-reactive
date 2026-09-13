@@ -1,0 +1,21 @@
+CHANGELOG.md
+  s_c93dd485cbe58f::t_a6d9c1283d128b 9-32
+Rakefile
+  s_c93dd485cbe58f::t_59623b95d485d8 283-287,291-308,312-313
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e36d23d4137e55db2370378ee0c03f1c823ea704",
+  "prompts": {},
+  "sessions": {
+    "s_c93dd485cbe58f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd273750-8633-449f-ad30-e99430de62f0",
+        "model": "claude-opus-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
