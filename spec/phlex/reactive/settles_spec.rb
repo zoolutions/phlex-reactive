@@ -370,6 +370,52 @@ RSpec.describe Phlex::Reactive::Settles, type: :request do
       expect(restored.instance_variable_get(:@reactive_settle_handle).stream_key).to eq("prdefer_abc123")
     end
 
+    # Issue #254: under ActiveJob's `enqueue_after_transaction_commit = true`,
+    # Rails defers the enqueue to ActiveRecord.after_all_transactions_commit, so
+    # `serialize` runs AFTER reply.pending's with_handle block has exited. The
+    # one moment guaranteed to be inside the block is `new`.
+    describe "a DEFERRED enqueue (issue #254)" do
+      let(:deferred_class) do
+        Class.new(ActiveJob::Base) do
+          include Phlex::Reactive::Settles
+
+          def self.name = "SettleSpecDeferred"
+          def perform(*) = nil
+        end
+      end
+
+      it "captures at instantiation, so serializing outside the block still carries the handle" do
+        job = Phlex::Reactive::Pending.with_handle(handle) { deferred_class.new(1) }
+
+        expect(job.serialize["phlex_reactive_settle"]).to include("key" => "prdefer_abc123")
+      end
+
+      it "captures nothing for a job instantiated outside any pending call" do
+        expect(deferred_class.new(1).serialize).not_to have_key("phlex_reactive_settle")
+      end
+
+      it "keeps the handle across a retry re-enqueue — the same instance serializes twice" do
+        job = Phlex::Reactive::Pending.with_handle(handle) { deferred_class.new(1) }
+        job.serialize
+
+        expect(job.serialize["phlex_reactive_settle"]).to include("key" => "prdefer_abc123")
+      end
+
+      it "really defers through Rails: the enqueue lands after the block, handle intact" do
+        deferred_class.enqueue_after_transaction_commit = true
+        deferred = []
+        allow(ActiveRecord).to receive(:after_all_transactions_commit) { |&block| deferred << block }
+
+        Phlex::Reactive::Pending.with_handle(handle) { deferred_class.perform_later(1) }
+        expect(Phlex::Reactive::Pending.current_handle).to be_nil
+        serialized = nil
+        allow(ActiveJob::Base.queue_adapter).to receive(:enqueue) { serialized = it.serialize }
+        deferred.each(&:call)
+
+        expect(serialized["phlex_reactive_settle"]).to include("key" => "prdefer_abc123")
+      end
+    end
+
     it "carries no metadata key when no pending call was in flight" do
       klass = Class.new(ActiveJob::Base) do
         include Phlex::Reactive::Settles

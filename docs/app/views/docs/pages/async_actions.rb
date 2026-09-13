@@ -182,11 +182,18 @@ module Views
             md <<~MD
               **The handle rides ActiveJob metadata, not `perform`'s arity.**
               `reply.pending` installs it in a thread-local and runs your enqueue
-              inside it; `Settles#serialize` copies it into the job's metadata. So
-              **every other caller of the same job — a nightly sweep, a webhook —
-              keeps working unchanged**, and `reactive_settle` is simply a no-op
-              there. That is load-bearing: these jobs almost always have non-UI
-              callers.
+              inside it; `Settles#initialize` captures it onto the job instance and
+              `#serialize` copies it into the job's metadata. So **every other
+              caller of the same job — a nightly sweep, a webhook — keeps working
+              unchanged**, and `reactive_settle` is simply a no-op there. That is
+              load-bearing: these jobs almost always have non-UI callers.
+
+              **It works under `enqueue_after_transaction_commit = true`.** Rails
+              defers that enqueue to `ActiveRecord.after_all_transactions_commit`,
+              and the endpoint runs your action inside a transaction — so the
+              enqueue (and its `serialize`) happens *after* the block has exited.
+              The capture is therefore at job **instantiation**, which is
+              synchronous inside the block either way. Nothing to configure.
 
               **A job that raises still clears the pending state — when it can
               attribute it.** The `job:`/`args:` form enqueues one job per record

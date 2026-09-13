@@ -179,6 +179,54 @@ RSpec.describe "async-action lifecycle (issue #248)", type: :request do
     end
   end
 
+  # Issue #254: Rails' `enqueue_after_transaction_commit` (the 7.2+ recommended
+  # setting, and the default in many apps) defers `job.enqueue` to
+  # ActiveRecord.after_all_transactions_commit. The endpoint runs every action
+  # inside transaction_wrapper, so the deferral ALWAYS fires after
+  # reply.pending's with_handle block has exited — `serialize` runs there, with
+  # an empty thread-local. The only moment guaranteed to be inside the block is
+  # the job's INSTANTIATION, which is where the handle is captured.
+  describe "under enqueue_after_transaction_commit = true (issue #254)" do
+    around do
+      previous = ArchiveTodoJob.enqueue_after_transaction_commit
+      ArchiveTodoJob.enqueue_after_transaction_commit = true
+      it.run
+      ArchiveTodoJob.enqueue_after_transaction_commit = previous
+    end
+
+    it "still carries the handle through the job:/args: sugar" do
+      post_action(klass, act: "archive", params: { id: todo.id })
+
+      enqueued = ArchiveTodoJob.queue_adapter.enqueued_jobs
+      expect(enqueued.size).to eq(1)
+      expect(enqueued.first["phlex_reactive_settle"]).to include("key" => "prdefer_deadbeef", "ids" => [dom_id])
+    end
+
+    it "still carries the handle through the BLOCK form" do
+      Todo.create!(title: "walk dog")
+      post_action(klass, act: "archive_all")
+
+      enqueued = ArchiveTodoJob.queue_adapter.enqueued_jobs
+      expect(enqueued.size).to eq(2)
+      enqueued.each { expect(it["phlex_reactive_settle"]).to include("key" => "prdefer_deadbeef") }
+    end
+
+    it "settles the row instead of leaving it shimmering until someone reloads" do
+      post_action(klass, act: "archive", params: { id: todo.id })
+      perform_enqueued_jobs
+
+      payload = broadcasts.join
+      expect(payload).to include('action="remove"', %(target="#{dom_id}"))
+      expect(payload).to include("Archived buy milk")
+    end
+
+    it "leaves a job enqueued OUTSIDE any pending call carrying nothing" do
+      ArchiveTodoJob.perform_later(todo.id)
+
+      expect(ArchiveTodoJob.queue_adapter.enqueued_jobs.first).not_to have_key("phlex_reactive_settle")
+    end
+  end
+
   describe "a rolled-back action" do
     it "leaks no pending marker and no subscription directive" do
       allow(Todo).to receive(:find).and_raise(ActiveRecord::RecordNotFound)

@@ -27,15 +27,19 @@ module Phlex
     # ## The handle rides ActiveJob metadata
     #
     # `reply.pending` installs a Pending::Handle in a thread-local and runs the
-    # caller's enqueue inside it; #serialize below copies it into the job's
-    # metadata, #deserialize restores it. So `perform`'s ARITY IS UNTOUCHED and
-    # every OTHER caller of the same job — a nightly sweep, a webhook — enqueues
-    # it with no handle, in which case `reactive_settle` is a NO-OP that returns
-    # nil. That is load-bearing: these jobs almost always have non-UI callers.
+    # caller's enqueue inside it; #initialize below captures it onto the job
+    # instance, #serialize copies it into the job's metadata, #deserialize
+    # restores it. So `perform`'s ARITY IS UNTOUCHED and every OTHER caller of
+    # the same job — a nightly sweep, a webhook — builds it with no handle, in
+    # which case `reactive_settle` is a NO-OP that returns nil. That is
+    # load-bearing: these jobs almost always have non-UI callers.
     #
-    # (`perform_now` does not round-trip through serialize/deserialize, so it
-    # carries no handle either — which is the correct reading: a synchronous
-    # call has no pending UI waiting on it.)
+    # (A `perform_now` INSIDE the enqueue block does carry the handle, since the
+    # instance is built there — so it settles synchronously. That is the right
+    # reading: `reply.pending` already marked the targets, and something has to
+    # resolve the shimmer. The settle's durable message is replayed from
+    # since-id 0 when the client opens the subscription, so arriving before it
+    # exists is safe.)
     #
     # ## A rolled-back action
     #
@@ -57,12 +61,34 @@ module Phlex
       # shared namespace with every other gem in the app.
       SETTLE_METADATA_KEY = "phlex_reactive_settle"
 
-      # Capture the in-flight settle handle at ENQUEUE time. This is the same
-      # seam pgbus's own ActiveJob::CurrentAttributes integration uses, and it
-      # is adapter-agnostic: it works under :async, :test and :inline as well as
-      # a real backend, which is what app specs need.
+      # Capture the in-flight settle handle at INSTANTIATION (issue #254).
+      #
+      # `serialize` is the seam pgbus's own ActiveJob::CurrentAttributes
+      # integration uses, and it looked like the enqueue-time hook — but under
+      # Rails' `enqueue_after_transaction_commit = true` (the 7.2+ recommended
+      # setting) `job.enqueue` is deferred to
+      # ActiveRecord.after_all_transactions_commit, and the endpoint runs every
+      # action inside a transaction. So the deferral — and with it `serialize` —
+      # always fires AFTER reply.pending's `with_handle` block has exited, with
+      # an empty thread-local: no metadata key, a no-op `reactive_settle`, and a
+      # row left shimmering until someone reloads.
+      #
+      # `new` is the one moment guaranteed to be inside the block:
+      # `perform_later` → `job_or_instantiate` → `new` is synchronous, deferral
+      # or not. Pending#each_with_narrowed_handle narrows the thread-local per
+      # record BEFORE `perform_later`, so the `job:`/`args:` attribution
+      # contract is preserved.
+      def initialize(...)
+        super
+        @reactive_settle_handle ||= Phlex::Reactive::Pending.current_handle
+      end
+
+      # Prefer the captured handle; fall back to the thread-local for a job
+      # instance built outside the block and enqueued inside it. A retry
+      # re-enqueue re-serializes the SAME instance, which keeps its handle —
+      # the right reading: the pending UI is still waiting on this work.
       def serialize
-        handle = Phlex::Reactive::Pending.current_handle
+        handle = @reactive_settle_handle || Phlex::Reactive::Pending.current_handle
         return super unless handle
 
         super.merge(SETTLE_METADATA_KEY => handle.to_h_wire)

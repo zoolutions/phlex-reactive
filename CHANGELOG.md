@@ -7,6 +7,27 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 
+### Fixed
+
+- **`reply.pending` kept its settle handle under
+  `enqueue_after_transaction_commit = true` (#254).** The handle was captured in
+  `Phlex::Reactive::Settles#serialize`, which reads a thread-local that lives
+  only for the duration of `reply.pending`'s enqueue block. Under Rails'
+  `ActiveJob::Base.enqueue_after_transaction_commit = true` (the 7.2+
+  recommended setting) `job.enqueue` is deferred to
+  `ActiveRecord.after_all_transactions_commit`, and the endpoint runs every
+  action inside a transaction — so `serialize` always ran AFTER the block had
+  exited. The job serialized with no `phlex_reactive_settle` key,
+  `reactive_settle` was a no-op, and the row sat shimmering until someone
+  reloaded. The handle is now captured when the job INSTANCE is created
+  (`perform_later` → `job_or_instantiate` → `new`), which is synchronous inside
+  the block whether or not the enqueue itself is deferred; `serialize` prefers
+  the captured handle and still falls back to the thread-local. Both the
+  `job:`/`args:` sugar (narrowing per record, so failures stay attributable) and
+  the block form are covered, and a retry re-enqueue keeps its handle. Jobs
+  enqueued outside any `reply.pending` still carry nothing.
+
+
 ### Added
 
 - **`bin/release` — the release front door, ported from pgbus.** Works out the
