@@ -1,0 +1,23 @@
+CHANGELOG.md
+  s_81b00580f73cfa::t_d166b83ca3ea6e 444-460
+spec/phlex/reactive/settles_spec.rb
+  s_81b00580f73cfa::t_5fd1a5fab5704e 404-429
+lib/phlex/reactive/settles.rb
+  s_81b00580f73cfa::t_feaca89423a0a3 86-100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f88a9820e13224d18996e893e72abde59d4c5438",
+  "prompts": {},
+  "sessions": {
+    "s_81b00580f73cfa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "42e72467-ce90-4236-9f62-4f467bd6d98d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
