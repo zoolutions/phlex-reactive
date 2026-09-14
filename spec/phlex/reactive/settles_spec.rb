@@ -401,6 +401,32 @@ RSpec.describe Phlex::Reactive::Settles, type: :request do
         expect(job.serialize["phlex_reactive_settle"]).to include("key" => "prdefer_abc123")
       end
 
+      # The other half of the deferral gap: an instance built BEFORE the block
+      # never saw the thread-local at `new`, and its deferred `serialize` runs
+      # after the block. `enqueue` itself is synchronous inside the block — it
+      # is the deferral it REGISTERS that runs later — so that is the last
+      # moment the handle is visible.
+      it "captures at ENQUEUE for an instance built before the block, enqueued inside it" do
+        deferred_class.enqueue_after_transaction_commit = true
+        deferred = []
+        allow(ActiveRecord).to receive(:after_all_transactions_commit) { |&block| deferred << block }
+        job = deferred_class.new(1)
+
+        Phlex::Reactive::Pending.with_handle(handle) { job.enqueue }
+        serialized = nil
+        allow(ActiveJob::Base.queue_adapter).to receive(:enqueue) { serialized = it.serialize }
+        deferred.each(&:call)
+
+        expect(serialized["phlex_reactive_settle"]).to include("key" => "prdefer_abc123")
+      end
+
+      it "leaves an instance built and enqueued outside any pending call carrying nothing" do
+        job = deferred_class.new(1)
+        job.enqueue
+
+        expect(job.serialize).not_to have_key("phlex_reactive_settle")
+      end
+
       it "really defers through Rails: the enqueue lands after the block, handle intact" do
         deferred_class.enqueue_after_transaction_commit = true
         deferred = []

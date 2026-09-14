@@ -83,10 +83,21 @@ module Phlex
         @reactive_settle_handle ||= Phlex::Reactive::Pending.current_handle
       end
 
-      # Prefer the captured handle; fall back to the thread-local for a job
-      # instance built outside the block and enqueued inside it. A retry
-      # re-enqueue re-serializes the SAME instance, which keeps its handle —
-      # the right reading: the pending UI is still waiting on this work.
+      # The same capture at ENQUEUE, for an instance built BEFORE the block and
+      # enqueued inside it (`job = MyJob.new(...)` … `reply.pending { job.enqueue }`).
+      # `enqueue` runs synchronously inside the block — it is the deferral it
+      # REGISTERS that runs later — so this is the last moment the thread-local
+      # is visible. `||=` never overwrites: a retry's `retry_job` re-enqueues a
+      # DESERIALIZED instance, which must keep the handle it came back with.
+      def enqueue(...)
+        @reactive_settle_handle ||= Phlex::Reactive::Pending.current_handle
+        super
+      end
+
+      # Prefer the captured handle; the thread-local fallback covers an instance
+      # serialized inside the block without going through either hook. A retry
+      # re-enqueue re-serializes the SAME instance, which keeps its handle — the
+      # right reading: the pending UI is still waiting on this work.
       def serialize
         handle = @reactive_settle_handle || Phlex::Reactive::Pending.current_handle
         return super unless handle
