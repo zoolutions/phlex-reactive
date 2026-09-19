@@ -56,4 +56,4 @@ bundle exec rubocop
 ```
 
 After creating the file, add a row to the "Slash Commands" table in the repo
-`CLAUDE.md` so the command is discoverable and its tier is recorded.
+`AGENTS.md` so the command is discoverable and its tier is recorded.

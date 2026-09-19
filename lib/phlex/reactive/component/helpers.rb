@@ -449,7 +449,7 @@ module Phlex
         # the baseline is the DOM's own `defaultValue`/`defaultChecked`/
         # `defaultSelected` from the last server render (dirty = current ≠ default).
         # The descriptor deep-merges via mix, so a caller's own data-action is
-        # token-joined, not clobbered (CLAUDE.md Never-Do #8).
+        # token-joined, not clobbered (AGENTS.md Never-Do #8).
         def reactive_field(param, **attrs)
           # Issue #184: the removed dirty: kwarg lands in **attrs — catch it and
           # print the reactive_dirty rewrite.

@@ -29,7 +29,7 @@ Protect this session's context: delegate mechanical exploration to cheaper subag
 
 1. Fan out Explore agents (`subagent_type: Explore`) for file discovery and naming-convention sweeps across the gem (`lib/`, `app/`) and the dummy app (`spec/dummy/`). Launch independent explorations in parallel. If a pgbus primitive is involved, point one at `~/Code/mhenrixon/pgbus` to verify its real signature — don't assume the wire format.
 2. Read the load-bearing files yourself — the ones the design decision actually hinges on. Don't design from subagent summaries alone. The layers: `lib/phlex/reactive/streamable.rb`, `lib/phlex/reactive/component.rb`, `lib/phlex/reactive/response.rb`, `app/controllers/phlex/reactive/actions_controller.rb`, `app/javascript/phlex/reactive/reactive_controller.js`, `lib/phlex/reactive.rb`.
-3. Read `CLAUDE.md` and the matching `.claude/rules/*.md` (coding-style, testing, performance, git-workflow, agents) — the invariants and gotchas live there. The published `docs/` site pages (architecture, security, broadcasting, transport-pgbus, testing, performance) are the deeper reference.
+3. Read `AGENTS.md` and the matching `.claude/rules/*.md` (coding-style, testing, performance, git-workflow, agents) — the invariants and gotchas live there. The published `docs/` site pages (architecture, security, broadcasting, transport-pgbus, testing, performance) are the deeper reference.
 4. Check `git log` for recent related work; the design should extend it, not fight it.
 
 ## Phase 2 — Surface the unknowns (blindspot pass + interview)
@@ -41,7 +41,7 @@ Investigation tells you what the codebase says; this phase finds what the REQUES
    - edge cases the codebase makes possible that the request never mentions
    - anything with no precedent in this repo — flag it explicitly as unknown-unknown territory
 2. **Interview the user** with AskUserQuestion, one question at a time, prioritized by blast radius: architecture-changing answers first, then public API / config surface, then UX. Rules:
-   - Skip anything the codebase, CLAUDE.md, or an existing issue already answers.
+   - Skip anything the codebase, AGENTS.md, or an existing issue already answers.
    - 2–5 questions is the sweet spot; zero is fine when the request is genuinely unambiguous — say so rather than inventing questions.
    - Every question offers concrete options with a recommended default, never an open-ended essay prompt.
 3. **Record the answers** in the plan's Decision section as `Settled in interview:` bullets — constraints the executor must not re-litigate.
@@ -49,7 +49,7 @@ Investigation tells you what the codebase says; this phase finds what the REQUES
 ## Phase 3 — Design
 
 - Develop 2–3 candidate approaches with real tradeoffs. Pick one and say why; record why the others lost.
-- The chosen design must respect the project invariants (see CLAUDE.md "Critical Rules"):
+- The chosen design must respect the project invariants (see AGENTS.md "Critical Rules"):
   - **Signed identity, never state** — the DOM carries `{c, gid}` or `{c, state}`, never raw state; re-find the record server-side.
   - **Default-deny actions** — only methods declared `action :name` run; mutating actions `authorize!` inside the action.
   - **Declared, coerced params** — any action taking input declares a `params:` schema; no raw mass assignment.

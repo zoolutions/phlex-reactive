@@ -28,7 +28,7 @@ class ReactiveRowComponent < ApplicationComponent
   def view_template
     # mix() deep-merges so reactive_attrs' data: (controller + token) survives
     # ALONGSIDE data-testid — a bare `data:` next to `**reactive_attrs` would
-    # clobber one of them (CLAUDE.md "Never Do #8").
+    # clobber one of them (AGENTS.md "Never Do #8").
     li(id:, class: "reactive-row", **mix(reactive_attrs, data: { testid: "reactive-row" })) do
       span(class: "body") { @todo.title }
       button(**mix(on(:toggle), data: { testid: "toggle" })) { "✓" }

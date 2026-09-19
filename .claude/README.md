@@ -63,7 +63,7 @@ Rules of thumb:
   scans — pass a cheaper `model:` explicitly. Left unset, a subagent inherits the
   session model, so the most mechanical work runs at the highest price.
 
-The convention is also recorded in the repo `CLAUDE.md` ("Slash Commands") so it
+The convention is also recorded in the repo `AGENTS.md` ("Slash Commands") so it
 survives across sessions.
 
 ## Authoring a new command
@@ -73,4 +73,4 @@ survives across sessions.
 3. Write a `description` that leads with what it does and when to use it.
 4. Scope `allowed-tools` if the command should be constrained (review/CI commands
    usually are; open implementation commands usually are not).
-5. Add a row to the "Slash Commands" table in `CLAUDE.md`.
+5. Add a row to the "Slash Commands" table in `AGENTS.md`.

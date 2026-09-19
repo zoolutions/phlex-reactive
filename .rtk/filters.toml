@@ -1,0 +1,99 @@
+# Project-local RTK filters (https://github.com/rtk-ai/rtk#custom-filters).
+#
+# The `rtk hook claude` PreToolUse hook rewrites a matching command to
+# `rtk <cmd>`; rtk runs it and drops the lines listed here before the agent
+# sees the output. Filters are line-based: they strip noise, never reformat.
+#
+# `match_command` is matched against the command with the first word reduced
+# to its basename, so `bin/x`, `./bin/x` and `x` all hit `^x\b`.
+#
+# Trust is a SHA-256 of this file: after every edit run `rtk trust --yes`,
+# then `rtk verify` to run the inline tests.
+schema_version = 1
+
+[filters.bench]
+description = "rake bench / bench:*: drop the repeated ruby/YJIT version banner and the Warming-up/Calculating/section-underline separators; keep every labelled i/s, comparison and allocation line"
+match_command = "^(?:bundle\\s+exec\\s+)?rake\\s+bench"
+strip_lines_matching = [
+  "^\\s*$",
+  "^ruby \\d+\\.\\d+\\.\\d+ \\(.*\\) .*\\[.*\\]$",
+  "^Warming up -+$",
+  "^Calculating -+$",
+  "^─+$",
+]
+on_empty = "bench: no output"
+
+[[tests.bench]]
+name = "micro suite keeps titles, i/s results, comparisons and allocation counts"
+input = """
+### benchmark/micro/around_action.rb ###
+
+around_action: empty-stack fold vs bare yield (per-request hot path)
+────────────────────────────────────────────────────────────────────
+ruby 4.0.7 (2026-09-15 revision 229531a6cf) +YJIT +PRISM [arm64-darwin27]
+Warming up --------------------------------------
+  bare yield (pre-#112)     1.590M i/100ms
+empty-stack fold (#112)     1.447M i/100ms
+Calculating -------------------------------------
+  bare yield (pre-#112)     21.441M (±10.1%) i/s   (46.64 ns/i) -     42.939M in   2.002628s
+empty-stack fold (#112)     19.132M (± 5.9%) i/s   (52.27 ns/i) -     39.056M in   2.041435s
+
+Comparison:
+  bare yield (pre-#112): 21441267.7 i/s
+empty-stack fold (#112): 19131673.1 i/s - same-ish: difference falls within error
+
+
+around_action allocations (per call)
+────────────────────────────────────
+  bare yield (pre-#112)                   0 objects           0 bytes (retained: 0 objects)
+  empty-stack fold (#112)                 0 objects           0 bytes (retained: 0 objects)
+"""
+expected = """### benchmark/micro/around_action.rb ###
+around_action: empty-stack fold vs bare yield (per-request hot path)
+  bare yield (pre-#112)     1.590M i/100ms
+empty-stack fold (#112)     1.447M i/100ms
+  bare yield (pre-#112)     21.441M (±10.1%) i/s   (46.64 ns/i) -     42.939M in   2.002628s
+empty-stack fold (#112)     19.132M (± 5.9%) i/s   (52.27 ns/i) -     39.056M in   2.041435s
+Comparison:
+  bare yield (pre-#112): 21441267.7 i/s
+empty-stack fold (#112): 19131673.1 i/s - same-ish: difference falls within error
+around_action allocations (per call)
+  bare yield (pre-#112)                   0 objects           0 bytes (retained: 0 objects)
+  empty-stack fold (#112)                 0 objects           0 bytes (retained: 0 objects)"""
+
+[[tests.bench]]
+name = "bench:request keeps the comparison and allocations, drops the version banner and separators"
+input = """RAILS_ENV=test ruby benchmark/request/derailed.rb
+
+request cycle: POST /reactive/actions (full Rack stack)
+──────────────────────────────────────────────────────
+ruby 4.0.7 (2026-09-15 revision 229531a6cf) +YJIT +PRISM [arm64-darwin27]
+Warming up --------------------------------------
+ state-backed action     7.000 i/100ms
+record-backed action    12.000 i/100ms
+Calculating -------------------------------------
+ state-backed action    610.185 (±14.1%) i/s    (1.64 ms/i) -      1.834k in   3.005648s
+record-backed action    424.072 (±20.5%) i/s    (2.36 ms/i) -      1.284k in   3.027786s
+
+Comparison:
+ state-backed action:      610.2 i/s
+record-backed action:      424.1 i/s - 1.44x  slower
+
+
+allocations per request
+───────────────────────
+  state-backed         1103 objects/req      152382 bytes/req
+  record-backed        1553 objects/req      188158 bytes/req
+"""
+expected = """RAILS_ENV=test ruby benchmark/request/derailed.rb
+request cycle: POST /reactive/actions (full Rack stack)
+ state-backed action     7.000 i/100ms
+record-backed action    12.000 i/100ms
+ state-backed action    610.185 (±14.1%) i/s    (1.64 ms/i) -      1.834k in   3.005648s
+record-backed action    424.072 (±20.5%) i/s    (2.36 ms/i) -      1.284k in   3.027786s
+Comparison:
+ state-backed action:      610.2 i/s
+record-backed action:      424.1 i/s - 1.44x  slower
+allocations per request
+  state-backed         1103 objects/req      152382 bytes/req
+  record-backed        1553 objects/req      188158 bytes/req"""
