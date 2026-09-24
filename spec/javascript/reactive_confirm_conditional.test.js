@@ -12,7 +12,7 @@
 //
 // Observed through the confirmResolver seam (does the dialog fire?) and the fetch
 // spy (does the action proceed?). Run with: bun test spec/javascript
-import { test, expect, mock, beforeAll, beforeEach } from "bun:test"
+import { test, expect, mock, beforeAll, beforeEach, afterAll } from "bun:test"
 
 let ReactiveController
 let confirmModule
@@ -90,12 +90,18 @@ function recordConfirm(answer) {
 // DNF wire for `{ total: 0 }` (equals) — the shape ShowConditions emits.
 const EQUALS_ZERO = { any: [[{ field: "total", equals: "0" }]] }
 
+const nativeResolver = (message) =>
+  Promise.resolve(typeof globalThis.window !== "undefined" ? globalThis.window.confirm(message) : true)
+
 beforeEach(() => {
-  confirmModule.setConfirmResolver((message) =>
-    Promise.resolve(typeof globalThis.window !== "undefined" ? globalThis.window.confirm(message) : true),
-  )
+  confirmModule.setConfirmResolver(nativeResolver)
   predicateModule.__resetConfirmPredicateRegistryForTest()
 })
+
+// bun runs every spec/javascript file in one process and shares the module
+// cache, so a recording resolver left installed here leaks into later files
+// (reactive_confirm.test.js stubs window.confirm and would never see it called).
+afterAll(() => confirmModule.setConfirmResolver(nativeResolver))
 
 // --- declarative (conditions language) --------------------------------------
 
