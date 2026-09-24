@@ -1,0 +1,19 @@
+spec/javascript/reactive_confirm_conditional.test.js
+  s_503aeedd2c821c::t_b3681f323b11be 15,93-95,97,101-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "a5e3e9e3c834b7e443055f4695088ab2becf066d",
+  "prompts": {},
+  "sessions": {
+    "s_503aeedd2c821c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9a5d7104-9660-4a3d-b18d-970f73d5a06b",
+        "model": "unknown"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
