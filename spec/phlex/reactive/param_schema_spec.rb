@@ -310,4 +310,42 @@ RSpec.describe Phlex::Reactive::ParamSchema do
       expect(coerce({ a: :string }, { "a" => "x", "admin" => "true" }, nil)).to eq(a: "x")
     end
   end
+
+  # Issue #258: the endpoint fills an announced empty group only where the
+  # DECLARATION names an array type, so it asks the compiled schema rather than
+  # reading the incoming params. Reading the declaration is schema logic (#109),
+  # and here its rules are reachable from a unit spec.
+  describe "#array_param — what may be announced empty" do
+    def array_param(schema, name) = described_class.compile(schema).array_param(name)
+
+    it "answers the declared key for an array type" do
+      expect(array_param({ tags: [:string] }, "tags")).to eq(:tags)
+    end
+
+    it "answers the key as WRITTEN for a string-keyed declaration" do
+      # compile keeps whichever form the author used, and the endpoint writes
+      # the key it gets back, so the form has to survive the lookup.
+      expect(array_param({ "tags" => [:string] }, "tags")).to eq("tags")
+    end
+
+    it "is nil for a scalar type" do
+      expect(array_param({ tags: :string }, "tags")).to be_nil
+    end
+
+    it "is nil for a nested hash, whatever it declares inside" do
+      expect(array_param({ project: { tags: [:string] } }, "project")).to be_nil
+    end
+
+    it "is nil for an undeclared name" do
+      expect(array_param({ tags: [:string] }, "other")).to be_nil
+    end
+
+    it "is nil for a key that is neither a String nor a Symbol" do
+      # `compile` validates types, never keys, so `{ 0 => [:string] }` is legal —
+      # but coerce_hash raises on `0.to_sym` the moment that key is PRESENT, and
+      # an announcement is what would make it present. Answering nil keeps a
+      # request that returns 200 and fills nothing from becoming a 500.
+      expect(array_param({ 0 => [:string] }, "0")).to be_nil
+    end
+  end
 end

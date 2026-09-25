@@ -12,6 +12,10 @@ class ScopedEditorComponent < ApplicationComponent
   reactive_record :todo
   reactive_scope :todo
   action :save, params: { title: :string } # FLAT — one name, scope handles the wire
+  # A checkbox group under the same scope (issue #258): the DOM name is
+  # todo[tags][], so a cleared group is announced as "todo[tags]" and has to land
+  # where the FLAT schema looks for it.
+  action :save_tags, params: { title: :string, tags: [:string] }
 
   def initialize(todo:)
     @todo = todo
@@ -24,10 +28,16 @@ class ScopedEditorComponent < ApplicationComponent
     reply.replace
   end
 
+  def save_tags(title: nil, tags: nil)
+    @received_tags = tags
+    reply.replace
+  end
+
   def view_template
     div(id:, **reactive_root) do
       input(**reactive_field(:title, value: @todo.title, data: { testid: "title" })) # name="todo[title]"
       button(**mix(on(:save), data: { testid: "save" })) { "Save" }
+      pre(data: { testid: "received-tags" }) { @received_tags.to_json }
     end
   end
 end

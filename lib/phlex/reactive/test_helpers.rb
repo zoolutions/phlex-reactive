@@ -64,10 +64,17 @@ module Phlex
       # `:file` param is present, issue #34): token + act flat, params bracketed.
       # No JSON Content-Type — Rails' test `post` builds the multipart body from
       # the nested Hash (files ride as UploadedFile values).
-      def post_reactive_multipart(component_or_class, act, params: {}, payload: {})
+      #
+      # `empty_groups:` names the `[]` groups the client cleared (issue #258). A
+      # form body cannot carry an empty array, so the client leaves those keys
+      # out and announces them in a field of its own; passing the names here is
+      # how a spec reproduces that request. Omit it and the body is exactly what
+      # it was before the field existed.
+      def post_reactive_multipart(component_or_class, act, params: {}, payload: {}, empty_groups: [])
         token = reactive_action_token(component_or_class, payload)
-        post Phlex::Reactive.action_path,
-          params: { token:, act:, params: },
+        body = { token:, act:, params: }
+        body[:empty_groups] = empty_groups if empty_groups.present?
+        post Phlex::Reactive.action_path, params: body,
           headers: { "Accept" => "text/vnd.turbo-stream.html" }
       end
 

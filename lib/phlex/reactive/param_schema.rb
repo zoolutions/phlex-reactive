@@ -174,6 +174,22 @@ module Phlex
         coerced.equal?(DROP) ? {} : coerced
       end
 
+      # The key this DECLARATION holds for `name` if it declares it as an ARRAY
+      # param, else nil. Reads the declaration, never the incoming params, so the
+      # endpoint's empty-group announcement (issue #258) can only ever fill
+      # something the action asked for.
+      #
+      # A key that is neither a String nor a Symbol stays unresolved on purpose:
+      # `compile` accepts `{ 0 => [:string] }`, but `coerce_hash` raises on
+      # `0.to_sym` the moment that key is PRESENT, and the announcement is what
+      # would make it present. Resolving it would turn a request that answers 200
+      # and fills nothing into a 500.
+      def array_param(name)
+        name = name.to_s
+        key, type = @schema.find { |k, _| (k.is_a?(String) || k.is_a?(Symbol)) && k.to_s == name }
+        key if type.is_a?(Array)
+      end
+
       private
 
       # Coerce a value against a declared type. Arrays accept both a real JSON

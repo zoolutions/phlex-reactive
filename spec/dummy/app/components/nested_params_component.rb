@@ -24,6 +24,13 @@ class NestedParamsComponent < ApplicationComponent
     invoice: { date: :string, status: :string, total: :float, active: :boolean }
   }
 
+  # The same two shapes declared with STRING keys, which `compile` keeps as
+  # written — so the dropped-param hints have to read both forms.
+  action :save_string_schema, params: {
+    "date" => :string,
+    "invoice" => { "status" => :string }
+  }
+
   def initialize(received: nil)
     @received = received
   end
@@ -39,6 +46,10 @@ class NestedParamsComponent < ApplicationComponent
   end
 
   def save_invoice(date: nil, invoice: nil)
+    @received = { date:, invoice: }.compact
+  end
+
+  def save_string_schema(date: nil, invoice: nil)
     @received = { date:, invoice: }.compact
   end
 

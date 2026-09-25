@@ -93,6 +93,10 @@ module Views
                 switches from a JSON body to multipart `FormData`.
               - `token` and `act` ride as fields; scalar params (`caption`) ride as
                 fields; the file(s) are appended.
+              - A **cleared checkbox group** can't be written as an empty array in
+                a form body, so its name goes into `empty_groups[]` and the
+                endpoint sets the declared array param to `[]`. The action sees
+                the same as over JSON.
               - The endpoint coerces `:file` to the uploaded file, passed through
                 untouched. A **non-file** value sent to a `:file` param is dropped
                 (the keyword default applies — never a fabricated file), the same

@@ -66,5 +66,32 @@ RSpec.describe "Checkbox group param coercion (issue #258)", type: :request do
       expect(response).to have_http_status(:ok)
       expect(received(response)["features"]).to eq(%w[news events])
     end
+
+    describe "the empty-group announcement (issue #258)" do
+      it "fills an announced group that is absent from params" do
+        post_reactive_multipart(CheckboxGroupComponent, "save", payload:,
+          params: { "subscribe" => "yes" }, empty_groups: ["features"])
+
+        expect(response).to have_http_status(:ok)
+        expect(received(response)["features"]).to eq([])
+      end
+
+      it "lets VALUES win over an announcement" do
+        # The announcement only fills an absence. A group that carries values
+        # keeps them, whatever the field says.
+        post_reactive_multipart(CheckboxGroupComponent, "save", payload:,
+          params: { "features" => %w[news] }, empty_groups: ["features"])
+
+        expect(received(response)["features"]).to eq(%w[news])
+      end
+
+      it "changes nothing when the field is absent — an old client stays correct" do
+        post_reactive_multipart(CheckboxGroupComponent, "save", payload:,
+          params: { "subscribe" => "yes" })
+
+        expect(response).to have_http_status(:ok)
+        expect(received(response)["features"]).to be_nil # the keyword default
+      end
+    end
   end
 end

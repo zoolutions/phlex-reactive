@@ -265,6 +265,7 @@ test("the multipart path writes a group as params[name][] entries, not indexed k
 
   expect(captured.body instanceof FormData).toBe(true)
   expect(captured.body.getAll("params[features][]")).toEqual(["news", "events"])
+  expect(captured.body.getAll("empty_groups[]")).toEqual([])
   expect(captured.body.get("params[features][0]")).toBeNull()
 })
 
@@ -441,4 +442,77 @@ test("a LONE editor under a [] name posts an array, not a scalar", async () => {
   root.append(new FakeNode({ tag: "div", name: "notes[]", editor: true, value: null, textContent: "typed" }))
 
   return expect(collect(root)).resolves.toEqual({ "notes[]": ["typed"] })
+})
+
+// --- the empty-group announcement (issue #258) ------------------------------
+//
+// A form body cannot carry an empty array, so a cleared group is ANNOUNCED
+// instead: its key stays out of `params` and its name rides in `empty_groups[]`,
+// a field of its own beside token/act/params. Announcing it rather than sending
+// a blank keeps `[""]` meaning what it means — a `[:date]` or `[:file]` element
+// reads a blank as "did not come in".
+
+function fileInput(name = "attachment") {
+  return new FakeNode({
+    tag: "input",
+    type: "file",
+    name,
+    files: [new File(["x"], "receipt.txt", { type: "text/plain" })],
+  })
+}
+
+// Dispatches `save` on the root and returns the FormData that went over the
+// wire. The file input is what makes the body multipart in the first place.
+async function collectMultipart(root) {
+  let captured = null
+  globalThis.fetch = (path, opts) => {
+    captured = opts
+    return Promise.resolve({
+      redirected: false,
+      ok: true,
+      headers: { get: () => "text/vnd.turbo-stream.html" },
+      text: () => Promise.resolve(""),
+    })
+  }
+  globalThis.document = { querySelector: () => null, dispatchEvent: () => {} }
+  globalThis.window = { Turbo: { renderStreamMessage: () => {} } }
+
+  const controller = new ReactiveController()
+  controller.element = root
+  controller.tokenValue = "tok"
+  await controller.dispatch({ params: { action: "save", params: "{}" }, preventDefault: () => {} })
+
+  expect(captured.body instanceof FormData).toBe(true)
+  return captured.body
+}
+
+test("an empty group beside a file input is ANNOUNCED, not silently dropped", async () => {
+  const root = new FakeNode({ tag: "div", controller: "reactive" })
+  root.append(checkbox("features[]", "news", false), checkbox("features[]", "events", false), fileInput())
+
+  const body = await collectMultipart(root)
+
+  expect(body.getAll("params[features][]")).toEqual([])
+  expect(body.getAll("empty_groups[]")).toEqual(["features"])
+})
+
+test("the announced name is the DOM name, so a scoped group carries its scope", async () => {
+  // `reactive_scope :todo` renders todo[tags][]; the announcement drops only
+  // the `[]` suffix, which is the name the endpoint resolves against the
+  // declaration after it peels the scope.
+  const root = new FakeNode({ tag: "div", controller: "reactive" })
+  root.append(checkbox("todo[tags][]", "ruby", false), fileInput())
+
+  const body = await collectMultipart(root)
+
+  expect(body.getAll("empty_groups[]")).toEqual(["todo[tags]"])
+})
+
+test("the JSON path keeps sending [] and never announces", async () => {
+  // No file, so the body is JSON — where an empty array is expressible and the
+  // announcement has no reason to exist.
+  const root = new FakeNode({ tag: "div", controller: "reactive" })
+  root.append(checkbox("features[]", "news", false))
+
+  expect(await collect(root)).toEqual({ "features[]": [] })
 })

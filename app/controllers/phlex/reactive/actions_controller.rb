@@ -556,6 +556,7 @@ module Phlex
       def coerce_params(action_def, component_class: nil, action_name: nil)
         dropped = Phlex::Reactive.verbose_errors ? [] : nil
         raw = unwrap_scope(params.fetch(:params, {}), component_class)
+        raw = apply_empty_groups(raw, action_def.schema, component_class, dropped) if params[:empty_groups]
 
         coerced = action_def.schema.coerce(raw, dropped)
         log_dropped_params(dropped, action_def.params, component_class, action_name)
@@ -570,7 +571,7 @@ module Phlex
       # raw params pass through untouched (unscoped components + nested_attributes
       # shapes are unaffected).
       def unwrap_scope(raw, component_class)
-        scope = component_class.reactive_scope if component_class.respond_to?(:reactive_scope)
+        scope = reactive_scope_of(component_class)
         return raw unless scope
 
         # At the endpoint `raw` is ActionController::Parameters, so `raw[scope]` is
@@ -578,6 +579,68 @@ module Phlex
         # coerce): unwrap only when the scope key maps to a nested params/hash.
         nested = raw[scope.to_s]
         nested.is_a?(Hash) || nested.is_a?(ActionController::Parameters) ? nested : raw
+      end
+
+      # Issue #258: a form body cannot carry an empty array, so the client
+      # ANNOUNCES a cleared `[]` group — its key absent from params, its name in
+      # `empty_groups[]` beside token/act/params. Those names are written back as
+      # empty arrays, the value the JSON path sends outright. The README documents
+      # what the rule accepts and what it leaves alone.
+      #
+      # The key written is whatever `array_param` hands back, so it is always a
+      # key the DECLARATION holds — never the announced name, which is only ever
+      # compared. Runs AFTER unwrap_scope so the params root is the only target:
+      # no node is built to reach a group, hence no nested-attributes row.
+      def apply_empty_groups(raw, schema, component_class, dropped)
+        names = params[:empty_groups]
+        return raw unless names.is_a?(Array)
+        # `raw` is whatever arrived: a String from `params=x` in a query string
+        # normalises to {} in coerce, but writing into it would raise.
+        return raw unless raw.is_a?(Hash) || raw.is_a?(ActionController::Parameters)
+
+        scope = reactive_scope_of(component_class)
+        # Flat is enough — only the root is written — and it keeps the filled key
+        # off the request's own params object.
+        raw = raw.dup
+        names.each do
+          key = announced_key(it, schema, scope)
+          # Its OWN reason, not :undeclared: that one routes through the #16/#21
+          # shape hints, which would read `empty_groups` as a param and advise
+          # nesting the group under it. `dropped` is nil unless verbose_errors.
+          next dropped&.<<(["empty_groups #{it}", ANNOUNCED_UNDECLARED]) unless key
+
+          raw[key] = [] unless raw.key?(key)
+        end
+        raw
+      end
+
+      ANNOUNCED_UNDECLARED = :"undeclared — the action declares no array param by that name"
+      private_constant :ANNOUNCED_UNDECLARED
+
+      # The declared key an announced name resolves to, or nil — bare (`tags`) or
+      # carrying the component's scope (`todo[tags]`), the two shapes the client
+      # emits for one group. Anything else resolves to nothing, whatever its
+      # type: array_param only answers with a key it already holds.
+      def announced_key(name, schema, scope)
+        schema.array_param(unscoped_group_name(name.to_s, scope))
+      end
+
+      # `todo[tags]` => `tags` under `reactive_scope :todo`. One level off the
+      # front, never a walk — a deeper name (todo[a][tags]) keeps its remaining
+      # brackets and simply fails the lookup.
+      def unscoped_group_name(name, scope)
+        return name unless scope
+
+        prefix = "#{scope}["
+        return name unless name.start_with?(prefix) && name.end_with?("]")
+
+        name.delete_prefix(prefix).delete_suffix("]")
+      end
+
+      # Read the way unwrap_scope reads it — the peel and this strip have to
+      # agree on the scope or an announced name lands at the wrong depth.
+      def reactive_scope_of(component_class)
+        component_class.reactive_scope if component_class.respond_to?(:reactive_scope)
       end
 
       # ---- verbose_errors dropped-param logging --------------------------
@@ -615,7 +678,7 @@ module Phlex
         segments = bracket_path(path)
         if segments.length > 1
           leaf = segments.last
-          return unless schema.key?(leaf.to_sym)
+          return unless declared_key?(schema, leaf)
 
           "schema declares :#{leaf} at top level; nested schemas look like " \
             "{ #{segments.first}: { #{leaf}: :string } }"
@@ -628,12 +691,18 @@ module Phlex
         end
       end
 
+      # A schema declares `name` whether it was written with a symbol or a
+      # string key; ParamSchema.compile keeps whichever the author used.
+      def declared_key?(schema, name)
+        schema.key?(name.to_sym) || schema.key?(name.to_s)
+      end
+
       # The first schema key whose nested hash (or array-of-hash element
       # schema) declares `name` one level down.
       def nested_declaration_of(name, schema)
         schema.find do |_key, type|
           inner = type.is_a?(Array) ? type.first : type
-          inner.is_a?(Hash) && inner.key?(name.to_sym)
+          inner.is_a?(Hash) && declared_key?(inner, name)
         end&.first
       end
 
