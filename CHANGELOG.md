@@ -441,6 +441,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The dropped-param hints said nothing for a schema with string keys.**
+  `ParamSchema.compile` keeps keys as the author wrote them, so
+  `params: { "date" => :string }` is valid, but the #16/#21 hints only looked
+  up symbol keys. The param was still dropped and logged, just without the hint
+  that says where the schema declares it.
+
 - **A checkbox group collapsed to one boolean, and the chosen values never left
   the browser (#258).** `#collectFields` wrote `fields[name] = field.checked` for
   every checkbox, so several boxes sharing a `features[]` name overwrote each
@@ -480,10 +486,28 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `unchecked_value: nil`. Reading the second shape by value collected
   `["0","0","0","3"]` for three boxes with the third ticked.
 
-  A form body cannot carry an empty array. Over the JSON path a cleared group
-  arrives as `[]`; over a form body — which the client uses when a file input
-  carries a file — the group's key is simply absent, and the action's keyword
-  default applies. The two encodings therefore differ for that one case.
+  A form body can't carry an empty array, so a cleared group used to go missing
+  whenever the client sent a form body (as soon as a file input holds a file),
+  and the action got its keyword default instead of `[]`. Now the client names
+  the cleared group in `empty_groups[]`, a field next to `token`, `act` and
+  `params`, and the endpoint sets it to `[]`. A request without that field
+  behaves as before, and a group that carries values keeps them.
+
+  It applies to params the action declares as an array, by plain name or with
+  the component's `reactive_scope` in front, and only at the top level. A group
+  declared one level down or inside nested attributes is ignored and keeps its
+  keyword default; `verbose_errors` logs it. The endpoint never takes the key it
+  writes from the request. It looks the name up in the declaration and writes
+  the declared key, so a request can't create a param the action didn't ask for.
+
+  A blank entry (`params[name][]=""`) would have been the other way, but the
+  schema reads `[""]` per element type, and for a `[:file]` param behind
+  `has_many_attached` that is the difference between "not sent" and "remove the
+  attachments".
+
+  `post_reactive_multipart` takes `empty_groups:` so a request spec can send a
+  cleared group the way the client does. `ParamSchema#array_param(name)`
+  returns the declared key for an array param, or `nil`.
 
   `reactive_persist` drafts such a group as the list of ticked values and
   restores exactly those boxes; before, the draft held one boolean and the

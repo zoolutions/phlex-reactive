@@ -491,23 +491,38 @@ def view_template
 end
 ```
 
-> **One multipart caveat:** `FormData` can't carry an *empty* array or hash, and
-> that includes a **checkbox group** (a name ending in `[]`). A group with
-> values rides along fine — every chosen value is written as `params[name][]`,
-> the shape Rack parses back into an array. A group with NOTHING ticked has no
-> form-body spelling at all: its key is absent, and the action's keyword default
-> applies, where the JSON path would have sent `[]`. The same holds for every
-> other empty `[]`/`{}` param on the multipart (file-present) path. If you rely
-> on sending `tags: []` to clear a collection, send that action *without* a file
-> (the JSON path). A non-empty nested/array param rides along fine next to a
-> file.
+> **Clearing a checkbox group next to a file.** When the reactive root holds a
+> file, the action goes out as `FormData`, and `FormData` has no way to write an
+> empty array. A group with values is fine: each value goes out as
+> `params[name][]`. A group with nothing ticked would simply be missing, so the
+> client lists its name in a separate field, `empty_groups[]`, and the endpoint
+> sets that param to `[]`. The action gets the same value it would get over JSON.
+>
+> This works for any param the action declares as an array, by its plain name or
+> with the component's `reactive_scope` in front. A `features[]` group is
+> announced as `features`, and a `todo[tags][]` group under `reactive_scope :todo`
+> as `todo[tags]`. Under a scope you write the group's name by hand, because
+> `reactive_field(:"tags[]")` gives `todo[tags[]]`, which isn't read as a group:
+>
+> ```ruby
+> input(type: "checkbox", name: "todo[tags][]", value: "ruby")   # reactive_scope :todo
+> ```
+>
+> The endpoint only fills a key the body didn't send, and only at the top level.
+> A group declared one level down (`params: { project: { features: [:string] } }`)
+> or inside nested attributes is left alone, and the action gets its keyword
+> default as before. With `verbose_errors` on, the log tells you when that happens.
+>
+> Other empty `[]` or `{}` params are still left out of a form body. If you rely
+> on `tags: []` to clear something that isn't a `[]` group, send that action
+> without a file.
 
 **Checkbox groups.** Controls sharing a name that ends in `[]` are collected
 as an **array of the chosen values** — a ticked box contributes its `value`, an
 unticked one nothing, a `<select multiple>` its selected options. Nothing ticked is
 an empty array, not a missing key, so an action can tell a cleared group from one
-that never rendered — over the JSON path; a form body cannot carry the empty array,
-see the caveat above. Declare it as an array type:
+that never rendered, over a form body as well (see above). Declare it as an
+array type:
 
 ```ruby
 action :save, params: { features: [:string] }   # <input type="checkbox" name="features[]" value="news">
@@ -3250,8 +3265,10 @@ endpoint maps it to 403). Matchers: `have_reactive_replace`,
 refresh so a reply that would silently break the next click fails your test.
 
 **HTTP helpers** — `post_reactive_action(component_or_class, act, params:, payload:)`
-and `post_reactive_multipart(...)` POST a signed token to
-`Phlex::Reactive.action_path` exactly as the client does. **Token minting** —
+and `post_reactive_multipart(..., empty_groups: [])` POST a signed token to
+`Phlex::Reactive.action_path` exactly as the client does; `empty_groups:` lists
+the groups the client cleared by name, without the `[]`, the way a form body
+sends them. **Token minting** —
 `reactive_token_for(component_or_class, payload = {})`.
 
 > `verbose_errors` defaults ON in test (it changes only an error BODY, never a

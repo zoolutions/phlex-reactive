@@ -250,6 +250,26 @@ RSpec.describe "verbose_errors diagnostics (issue #82)", type: :request do
         .with(a_string_including("status (undeclared — schema declares :status nested under :invoice"))
     end
 
+    it "hints for a bracketed name against a schema written with STRING keys" do
+      # `compile` keeps the keys the author wrote, so a string-keyed declaration
+      # is as valid as a symbol one — and a hint that reads only symbols goes
+      # quiet for half of them, exactly where the #16/#21 confusion is hardest
+      # to see.
+      post_action(NestedParamsComponent, payload:, act: "save_string_schema",
+        params: { "invoice[date]" => "2026-01-02" })
+
+      expect(Rails.logger).to have_received(:warn)
+        .with(a_string_including("invoice[date] (undeclared — schema declares :date at top level"))
+    end
+
+    it "hints for a flat name against a nested schema written with STRING keys" do
+      post_action(NestedParamsComponent, payload:, act: "save_string_schema",
+        params: { status: "open" })
+
+      expect(Rails.logger).to have_received(:warn)
+        .with(a_string_including("status (undeclared — schema declares :status nested under :invoice"))
+    end
+
     it "logs nothing about dropped params when the flag is off" do
       Phlex::Reactive.verbose_errors = false
       post_action(NestedParamsComponent, payload:, act: "save",

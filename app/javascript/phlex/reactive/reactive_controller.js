@@ -4055,14 +4055,12 @@ export default class extends Controller {
         const slot = fields[field.name] ?? (fields[field.name] = [])
         if (field.type === "checkbox" || field.type === "radio") {
           // An unchecked box contributes NOTHING, the way a native submission
-          // leaves it out. The group's value is the list of checked values,
-          // and with none checked that list stays an EMPTY ARRAY rather than
-          // vanishing, so over the JSON path the action can tell "the operator
-          // cleared them" from "the group never rendered" and an [:string]
-          // schema coerces [] to []. A form body cannot carry the empty array
-          // at all, and the client switches to one as soon as a file input
-          // holds a file — there the key is simply absent; see the README's
-          // multipart caveat.
+          // leaves it out. The group's value is the list of checked values, and
+          // with none checked that list stays an EMPTY ARRAY rather than
+          // vanishing: the action can tell "the operator cleared them" from
+          // "the group never rendered", and an [:string] schema coerces [] to
+          // []. A form body cannot carry the empty array, so #buildFormData
+          // announces the group there instead.
           if (field.checked) slot.push(field.value)
         } else if (field.type === "hidden") {
           if (!companionNames.has(field.name)) slot.push(field.value)
@@ -5002,6 +5000,7 @@ export default class extends Controller {
     const fd = new FormData()
     fd.append("token", token)
     fd.append("act", action)
+    const emptyGroups = []
     for (const [key, value] of Object.entries(params)) {
       // A `[]` name carrying an array is the group shape (issue #258): every
       // element goes to params[name][], which Rack parses as an array. The
@@ -5010,17 +5009,26 @@ export default class extends Controller {
       // type normalizes that back, but only an array type does, so the two
       // bodies would stop coercing identically for the same fields.
       //
-      // An EMPTY group cannot be expressed in a form body at all: a repeated
-      // key with no values is nothing, and `[""]` means something else per
-      // element type. Such a group is therefore ABSENT here while the JSON
-      // path sends `[]` — see the README caveat.
+      // An EMPTY group cannot be an empty array in a form body, so it is
+      // ANNOUNCED instead: its key stays absent from params and its name goes
+      // into `empty_groups[]`, a field of its own beside token/act/params. A
+      // blank entry was the obvious alternative and is ambiguous — Rails leaves
+      // `[""]` to the caller, and a `[:date]` or `[:file]` element reads it as
+      // "did not come in", so treating it as "cleared" would change what those
+      // params mean. The field is additive: a server that ignores it behaves
+      // exactly as it does today, and so does a client that never sends it.
       if (Array.isArray(value) && String(key).endsWith("[]")) {
-        const wire = `${this.#wireKey(key)}[]`
-        for (const element of value) fd.append(wire, String(element))
+        if (value.length === 0) {
+          emptyGroups.push(String(key).slice(0, -2))
+        } else {
+          const wire = `${this.#wireKey(key)}[]`
+          for (const element of value) fd.append(wire, String(element))
+        }
       } else {
         this.#appendField(fd, this.#wireKey(key), value)
       }
     }
+    for (const name of emptyGroups) fd.append("empty_groups[]", name)
     const multiNames = this.#multiFileNames(files)
     for (const { name, file, multiple } of files) {
       // params[name][] when the input is `multiple` (array shape even for one

@@ -46,4 +46,22 @@ RSpec.describe "Reactive checkbox group (issue #258)", type: :system do
     # never rendered.
     expect(page).to have_css("[data-testid='received']", text: '"features":[]')
   end
+
+  it "clears a group over the FORM-encoded path, end to end (issue #258)" do
+    # With a file attached the client sends FormData, where an empty array is not
+    # expressible: the group's key is left out and its name is announced in
+    # `empty_groups[]`. This is the only test that drives the client's name format
+    # through the server's resolver — the two halves otherwise each assert their
+    # own expectation of the other.
+    visit "/checkbox_group"
+
+    attach_file("attachment", Rails.root.join("../fixtures/files/receipt.txt").to_s,
+      make_visible: true)
+    find("[data-testid='feature-news']").click
+    find("[data-testid='feature-events']").click
+    find("[data-testid='save']").click
+
+    expect(page).to have_css("[data-testid='received']", text: '"features":[]')
+    expect(page).to have_css("[data-testid='received']", text: '"attachment":"receipt.txt"')
+  end
 end

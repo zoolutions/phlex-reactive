@@ -18,7 +18,13 @@ class CheckboxGroupComponent < ApplicationComponent
 
   reactive_state :received
 
-  action :save, params: { features: [:string], subscribe: :boolean, regions: [:string] }
+  action :save, params: { features: [:string], subscribe: :boolean, regions: [:string], attachment: :file }
+  # A group declared one level down, so the announcement's bound can be checked
+  # against a name the endpoint does NOT resolve.
+  action :save_scoped, params: { project: { features: [:string] } }
+  # Written with STRING keys on purpose: ParamSchema.compile keeps the keys it is
+  # given, so the announcement's schema lookup has to read both forms.
+  action :save_string_keys, params: { "features" => [:string] }
 
   def initialize(received: nil)
     @received = received
@@ -26,8 +32,16 @@ class CheckboxGroupComponent < ApplicationComponent
 
   def id = "checkbox-group"
 
-  def save(features: nil, subscribe: nil, regions: nil)
-    @received = { features:, subscribe:, regions: }
+  def save(features: nil, subscribe: nil, regions: nil, attachment: nil)
+    @received = { features:, subscribe:, regions:, attachment: attachment&.original_filename }
+  end
+
+  def save_scoped(project: nil)
+    @received = { project: }
+  end
+
+  def save_string_keys(features: nil)
+    @received = { features: }
   end
 
   def view_template
@@ -56,6 +70,10 @@ class CheckboxGroupComponent < ApplicationComponent
           option(value: region, selected: region == "north") { region }
         end
       end
+
+      # A file input so a system spec can drive the FORM-encoded path, where the
+      # announcement lives — with no file the client sends JSON.
+      input(type: "file", name: "attachment", data: { testid: "attachment" })
 
       button(**mix(on(:save), data: { testid: "save" })) { "Save" }
 

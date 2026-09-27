@@ -136,12 +136,14 @@ module Views
               ```
 
               Nothing ticked is an **empty array**, not a missing key, so an action
-              can tell a cleared group from one that never rendered. A form body
-              cannot carry an empty array at all, and the client switches to a
-              form body as soon as a file input holds a file — so a cleared
-              group is absent
-              there and the keyword default applies. See the multipart caveat in
-              the README.
+              can tell a cleared group from one that never rendered. That holds
+              over a form body too, which the client uses as soon as a file input
+              holds a file: an empty array can't be written there, so the client
+              names the cleared group in `empty_groups[]` and the endpoint sets it
+              to `[]`. This works for params declared as an array at the top
+              level, by their plain name or with the component's
+              `reactive_scope`. A group declared one level down keeps its keyword
+              default. The README has the details.
 
               Three shapes keep their own meaning: a lone checkbox without `[]`
               stays the yes/no boolean, a radio group keeps its single checked
