@@ -1232,8 +1232,9 @@ module Phlex
         # The inputs param wire (issue #104). Untyped (array form) → a JSON ARRAY of
         # names, byte-identical to the shipped wire so the client keeps its numeric
         # coercion. Typed (hash form) → a JSON OBJECT of name→type
-        # ({"title":"string","qty":"number"}) so the client reads a :string raw and
-        # coerces a :number through Number.
+        # ({"title":"string","qty":"number"}) so the client reads a :string raw,
+        # coerces a :number through Number and reads a :boolean as a checkbox's
+        # checked state (issue #262).
         def compute_inputs_param(definition)
           types = definition.input_types
           return definition.inputs.map(&:to_s).to_json if types.nil?

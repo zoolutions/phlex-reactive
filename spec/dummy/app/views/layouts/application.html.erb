@@ -32,6 +32,7 @@
           "payment_split_reducer": "/vendor/payment_split_reducer.js",
           "post_preview_reducer": "/vendor/post_preview_reducer.js",
           "compute_seed_reducer": "/vendor/compute_seed_reducer.js",
+          "compute_checked_reducer": "/vendor/compute_checked_reducer.js",
           "otp_reducer": "/vendor/otp_reducer.js",
           "split_code_reducer": "/vendor/split_code_reducer.js",
           "confirm_predicate_registration": "/vendor/confirm_predicate_registration.js",
@@ -55,6 +56,7 @@
       import { registerPaymentSplit } from "payment_split_reducer"
       import { registerPostPreview } from "post_preview_reducer"
       import { registerComputeSeed } from "compute_seed_reducer"
+      import { registerComputeChecked } from "compute_checked_reducer"
       import { registerOtp } from "otp_reducer"
       import { registerSplitCode } from "split_code_reducer"
       import { registerConfirmPredicates } from "confirm_predicate_registration"
@@ -70,6 +72,7 @@
       registerPaymentSplit()
       registerPostPreview()
       registerComputeSeed()
+      registerComputeChecked() // issue #262: checkbox/radio compute inputs + outputs
       registerOtp() // issue #226: the $ops auto-commit flagship
       registerSplitCode() // issue #226: the multi-box variant
       registerConfirmPredicates()

@@ -1876,6 +1876,31 @@ RSpec.describe Phlex::Reactive::Component do
       end
     end
 
+    # Issue #262: :boolean is a CLIENT-side coercion (a checkbox's checked state as
+    # a real boolean), so the server's whole job is to carry the type onto the wire
+    # under the name the client branches on.
+    describe "a :boolean input (issue #262)" do
+      let(:boolean_klass) do
+        Class.new do
+          include Phlex::Reactive::Component
+
+          def self.name = "BooleanCompute"
+
+          reactive_compute :total, inputs: [:price, { gift: :boolean }], outputs: %i[total]
+        end
+      end
+
+      it "captures the type keyed by name" do
+        expect(boolean_klass.reactive_computes[:total].input_types).to eq(price: :number, gift: :boolean)
+      end
+
+      it "emits it on the inputs param wire" do
+        attrs = boolean_klass.new.send(:compute_binding, :total)
+        expect(JSON.parse(attrs[:data][:reactive_compute_inputs_param]))
+          .to eq("price" => "number", "gift" => "boolean")
+      end
+    end
+
     # Issue #183: the PERMIT shape unifies the array and hash dialects. Bare
     # symbols default to :number; a trailing Hash types the exceptions. Both old
     # dialects are degenerate cases of this one form (a pure array = all bare; a

@@ -102,7 +102,8 @@ module Phlex
       # `input_types` (issue #104) is nil for the ARRAY input form (untyped ⇒ the
       # client coerces every input through Number, the shipped behavior) and a
       # { name => type } hash for the typed HASH form (:string reads the field
-      # value raw, :number coerces). `inputs` stays the ordered name list either
+      # value raw, :number coerces, :boolean reads a checkbox's checked state —
+      # issue #262). `inputs` stays the ordered name list either
       # way, so iteration order is preserved and the array-form wire is unchanged.
       #
       # `mirror` (issue #159) is nil when undeclared, else a { name => [id

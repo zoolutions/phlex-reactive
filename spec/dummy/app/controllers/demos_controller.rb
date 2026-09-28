@@ -240,6 +240,12 @@ class DemosController < ActionController::Base
     render html: component + recap.html_safe, layout: true
   end
 
+  # Checked-state compute controls (issue #262): a checkbox pair, a lone box and
+  # a radio group as compute inputs AND outputs.
+  def compute_checked
+    render_component ComputeCheckedComponent.new
+  end
+
   def notifications
     render_component NotificationsListComponent.new
   end

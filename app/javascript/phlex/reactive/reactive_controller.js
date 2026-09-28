@@ -1947,6 +1947,94 @@ function parseOps(raw) {
   }
 }
 
+// The TEXT reading of a compute control (issue #262) — what a :string input
+// hands the reducer and what the identity/cross-root mirrors paint. A checkbox
+// reads its CHECKED STATE ("true"/"false", the strings reactive_show compares
+// against): its .value is a constant — "1", "on", whatever the markup says —
+// so reading it told the reducer nothing. A radio reads its value only while
+// checked ("" otherwise; the resolver hands over the checked radio of a group).
+// Anything else reads .value, as it always has.
+//
+// Every compute helper takes a CONTROL — the { el, kind } record #recompute's
+// resolver builds, kind being "checkbox", "radio" or "" — and never re-reads
+// el.type: the resolver reads it ONCE per name. Re-reading it in each helper
+// cost the 30-input calculator bench ~60% (16.8 → 27 µs/iter, measured).
+function computeText({ el, kind }) {
+  if (!el) return ""
+  if (kind === "checkbox") return el.checked ? "true" : "false"
+  if (kind === "radio") return el.checked ? (el.value ?? "") : ""
+  return el.value ?? ""
+}
+
+// The control for a name nothing owned resolves to.
+const COMPUTE_NO_CONTROL = Object.freeze({ el: null, kind: "" })
+
+// Whether a value counts as "on" — for a :boolean input read off a control that
+// is not a checkbox, and for an output written INTO a checkbox. A boolean is
+// itself; otherwise "", "0" and "false" are off (what a hidden flag field or a
+// reducer returning 0 means) and anything else is on.
+function computeTruthy(value) {
+  if (typeof value === "boolean") return value
+  if (value == null) return false
+  const text = String(value)
+  return text !== "" && text !== "0" && text !== "false"
+}
+
+// One declared input's value for the reducer, coerced by its declared type
+// (issue #104; checked-state controls issue #262):
+//
+//   "string"  → the text reading, raw (blank/absent → "")
+//   "boolean" → a checkbox's checked state; any other control by computeTruthy
+//   "number"  → a checkbox is 1/0; anything else through Number (blank/NaN → 0,
+//               the nanToZero the hand-written calculators use)
+//
+// A checkbox is 1/0 and never Number(its value): a box is a yes/no, and a
+// reducer that wants an amount writes `gift ? 25 : 0`.
+function computeValue(control, type) {
+  if (type === "string") return computeText(control)
+  const box = control.kind === "checkbox"
+  if (type === "boolean") return box ? Boolean(control.el.checked) : computeTruthy(computeText(control))
+  if (box) return control.el.checked ? 1 : 0
+  const n = Number(computeText(control))
+  return Number.isFinite(n) ? n : 0
+}
+
+// Write one reducer output into the control its name resolved to (issue #262),
+// change-guarded. Returns the element to announce with an `input` event, or
+// null when nothing changed. A checkbox takes the result as its checked state
+// and a radio group checks the radio carrying it — neither ever has its value
+// attribute rewritten, which would change what the control SUBMITS. Anything
+// else takes the result as its .value (issue #76).
+function computeWrite(root, owns, { el, kind }, domName, value) {
+  if (kind === "checkbox") {
+    const checked = computeTruthy(value)
+    if (Boolean(el.checked) === checked) return null
+    el.checked = checked
+    return el
+  }
+  if (kind === "radio") return computeCheckRadio(root, owns, domName, String(value))
+  if (String(value) === el.value) return null
+  el.value = value
+  return el
+}
+
+// Check the owned radio of a group whose value is `wanted`, unchecking the
+// rest — the same per-radio rule a restored draft applies. A value no radio
+// carries clears the group. Returns the radio that GAINED the check, or, for a
+// cleared group, the one that lost it; null when the selection already matched.
+function computeCheckRadio(root, owns, domName, wanted) {
+  let announced = null
+  for (const el of root.querySelectorAll(`[name="${domName}"]`)) {
+    if (el.type !== "radio" || !owns(el)) continue
+    const checked = el.value === wanted
+    if (Boolean(el.checked) === checked) continue
+    el.checked = checked
+    if (checked) announced = el
+    else announced ??= el
+  }
+  return announced
+}
+
 // Normalize a reducer's reserved $ops output (issue #226): the compute `ops`
 // builder (its .ops list), a raw [[name, args], ...] array, or null/undefined
 // (no effect this pass). An EMPTY list is the same as null — "nothing to run"
@@ -2614,8 +2702,14 @@ export default class extends Controller {
     // predicate in the common no-nested-root case (skipping closest() entirely)
     // and the exact #ownsField check when a nested reactive root is present
     // (issue #15 scoping, byte-identical to before). Resolution is memoized in a
-    // per-CALL Map, FIRST-WINS, so a name read as an input AND written as an
-    // output resolves to the SAME element and is queried once.
+    // per-CALL Map, so a name read as an input AND written as an output
+    // resolves to the SAME element and is queried once.
+    //
+    // Which element a name resolves to (issue #262, mirroring #showFieldValue): a
+    // CHECKBOX wins over the hidden companion Rails renders before it; a radio
+    // group resolves to its CHECKED radio (any radio of the group when none is);
+    // anything else is first-wins. Resolving first-wins across the board handed
+    // the reducer the companion's constant "0" and the first radio's value.
     //
     // Why per-name `[name="X"]` queries and not one bare `[name]` sweep: a single
     // sweep is the natural "one walk", but the resolver must issue the SAME
@@ -2634,25 +2728,37 @@ export default class extends Controller {
 
     const owns = this.#ownershipFilter()
     const byName = new Map()
-    const ownedField = (name) => {
-      if (byName.has(name)) return byName.get(name)
-      let found = null
+    const ownedControl = (name) => {
+      const known = byName.get(name)
+      if (known) return known
+      let radio = null
+      let first = null
+      let control = null
       for (const el of this.element.querySelectorAll(`[name="${scoped(name)}"]`)) {
-        if (owns(el)) {
-          found = el // FIRST-WINS (radio groups, Rails hidden+checkbox name pairs)
+        if (!owns(el)) continue
+        const kind = el.type // read ONCE per element — see computeText
+        if (kind === "checkbox" || (kind === "radio" && el.checked)) {
+          control = { el, kind }
           break
         }
+        if (kind === "radio") radio ??= el
+        else first ??= el
       }
-      byName.set(name, found)
-      return found
+      if (!control) {
+        if (radio) control = { el: radio, kind: "radio" }
+        else control = first ? { el: first, kind: "" } : COMPUTE_NO_CONTROL
+      }
+      byName.set(name, control)
+      return control
     }
 
     // Identity-mirror pass (issue #104), ALWAYS run — even with NO registered
     // reducer, so reactive_text(:title) mirrors a field into its text node with
-    // zero reducer wiring. Each declared input's RAW string value is written to
-    // its owned [data-reactive-text="<name>"] node(s). It runs BEFORE the reducer
+    // zero reducer wiring. Each declared input's RAW text reading (computeText —
+    // a checkbox paints "true"/"false", issue #262) is written to its owned
+    // [data-reactive-text="<name>"] node(s). It runs BEFORE the reducer
     // early-return below so a reducer-less binding still mirrors.
-    for (const name of inputs) this.#mirrorText(name, ownedField(name)?.value ?? "")
+    for (const name of inputs) this.#mirrorText(name, computeText(ownedControl(name)))
 
     const key = this.element.getAttribute("data-reactive-compute-reducer-param")
     const reduce = key ? computeReducer(key) : null
@@ -2660,26 +2766,18 @@ export default class extends Controller {
       // No reducer registered: the identity pass above still ran, so declared
       // cross-root mirrors of the INPUT names still paint (issue #159) — a
       // reducer-less binding mirrors, exactly like the owned-text-node case.
-      this.#applyComputeMirrors({}, ownedField)
+      this.#applyComputeMirrors({}, ownedControl)
       return
     }
 
     const outputs = this.#parseComputeList("data-reactive-compute-outputs-param")
 
-    // Coerce each input per its declared type (issue #104): "string" → the raw
-    // display string (blank/absent → ""); else ("number", the array-form default)
-    // → the numeric coercion (blank/NaN → 0, the nanToZero the hand-written
-    // calculators use). Reads from the memoized resolver — no re-query.
+    // Coerce each input per its declared type (computeValue): "string" raw,
+    // "boolean" a real boolean, else ("number", the array-form default) the
+    // numeric coercion. A checkbox contributes its CHECKED STATE under every
+    // type (issue #262). Reads from the memoized resolver — no re-query.
     const values = {}
-    for (const [name, type] of inputPairs) {
-      const field = ownedField(name)
-      if (type === "string") {
-        values[name] = field?.value ?? ""
-      } else {
-        const n = Number(field?.value)
-        values[name] = Number.isFinite(n) ? n : 0
-      }
-    }
+    for (const [name, type] of inputPairs) values[name] = computeValue(ownedControl(name), type)
 
     // meta.changed stays on #changedComputeField (its own #ownsField check over
     // the raw event target) — NOT this resolver. The issue-#15 nested-rejection
@@ -2698,7 +2796,8 @@ export default class extends Controller {
     //   1. BATCH the field writes from the ONE result. Each output name in the
     //      allowlist (outputs:) whose owned field's value actually changes is
     //      written now (change-guarded) and remembered — but NO `input` event is
-    //      dispatched yet, so nothing re-enters mid-batch.
+    //      dispatched yet, so nothing re-enters mid-batch. A checkbox or radio
+    //      output is written as its CHECKED state (computeWrite, issue #262).
     //   2. PAINT the sinks from the SETTLED values: any owned reactive_text node by
     //      presence (issue #183 change #4 — a text node no longer needs its name in
     //      outputs:), then the cross-root mirror: ids (issue #159).
@@ -2712,11 +2811,10 @@ export default class extends Controller {
     const changedFields = []
     for (const name of outputs) {
       if (name === "$ops" || !(name in result)) continue
-      const field = ownedField(name)
-      if (!field) continue // a non-field output paints as a text sink in phase 2
-      if (String(result[name]) === field.value) continue // change-guard — unchanged, skip
-      field.value = result[name]
-      changedFields.push(field)
+      const control = ownedControl(name)
+      if (!control.el) continue // a non-field output paints as a text sink in phase 2
+      const written = computeWrite(this.element, owns, control, scoped(name), result[name])
+      if (written) changedFields.push(written) // null = change-guard, unchanged
     }
 
     // Phase 2 — text sinks declare themselves (issue #183 change #4): every result
@@ -2733,7 +2831,7 @@ export default class extends Controller {
 
     // Cross-root text mirrors (issue #159) — AFTER the batch + text sinks, so a
     // mirror keyed on a just-written output paints the settled value.
-    this.#applyComputeMirrors(result, ownedField)
+    this.#applyComputeMirrors(result, ownedControl)
 
     // Phase 3 — dispatch the deferred `input` events (issue #183). Real browsers
     // do NOT fire `input` on a programmatic .value write (issue #76), so we do it
@@ -3301,10 +3399,11 @@ export default class extends Controller {
   // only (never innerHTML), change-guarded, and NO input dispatch — same
   // contract as #mirrorText. With no mirror declared this is one getAttribute
   // and out — the shipped compute path never touches the document.
-  #applyComputeMirrors(result, ownedField) {
+  #applyComputeMirrors(result, ownedControl) {
     const mirror = this.#parseComputeMirror()
     for (const [name, selectors] of Object.entries(mirror)) {
-      const value = name in result ? result[name] : ownedField(name)?.value
+      const control = name in result ? null : ownedControl(name)
+      const value = name in result ? result[name] : control.el ? computeText(control) : undefined
       if (value === undefined || value === null) continue
       const text = String(value)
       for (const sel of Array.isArray(selectors) ? selectors : [selectors]) {

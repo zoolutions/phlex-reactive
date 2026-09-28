@@ -441,6 +441,38 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **`reactive_compute` never saw a checkbox's checked state (#262).**
+  `#recompute` resolved each declared name first-wins and read `.value`, which
+  for a checkbox is a constant. Measured: a Rails `check_box` pair read `0`
+  ticked or not (the hidden companion comes first), a lone `value="1"` box read
+  `1` either way, and a box with no value attribute read `0` (`Number("on")` is
+  NaN). A radio group read its FIRST radio's value, whichever was checked. The
+  reducer ran on the toggle, from values that could not have changed.
+
+  A checkbox now contributes its checked state, coerced by the declared type:
+  `1`/`0` as a `:number` (and in the array form), `"true"`/`"false"` as a
+  `:string`, and `true`/`false` under the new **`:boolean`** type. It wins over
+  its same-named hidden companion, as it already did for `reactive_show`. A radio
+  group contributes its checked radio's value. The identity mirror and the
+  `mirror:` fallback paint the same reading.
+
+  Outputs were wrong the same way: a result whose name resolved to a checkbox
+  pair wrote `.value` on the hidden companion, changing what the UNCHECKED state
+  submits and leaving the box alone. An output now sets a checkbox's `checked`
+  from the result's truthiness (`""`, `"0"`, `"false"`, `0` and `false` untick)
+  and checks the radio of a group that carries the result.
+
+  **If a reducer relied on the old reading**, it changes: a lone checkbox with a
+  numeric `value` used to read that number regardless of state and now reads
+  `1`/`0` — write the amount in the reducer (`gift ? 25 : 0`). Apps that worked
+  around the defect by reading the box from `document` inside the reducer keep
+  working and can drop the workaround.
+
+  Cost, same machine, happy-dom (engine-relative): the 30-input calculator
+  bench goes from 16.3 to 18.4 µs/iter, allocations flat. That is one `el.type`
+  read per declared name, which is what telling a checkbox from a text field
+  takes.
+
 - **The dropped-param hints said nothing for a schema with string keys.**
   `ParamSchema.compile` keeps keys as the author wrote them, so
   `params: { "date" => :string }` is valid, but the #16/#21 hints only looked
