@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    phlex-reactive (0.13.2)
+    phlex-reactive (0.13.3)
       globalid (~> 1.0)
       phlex-rails (>= 2.0, < 3)
       railties (>= 7.1, < 9.0)
@@ -518,7 +518,7 @@ CHECKSUMS
   pgmq-ruby (0.7.1) sha256=d5057dd16fb2bc2668978a942809749b4a27092ff92c904fc96ebab5ebc418f5
   phlex (2.4.1) sha256=e596717fbfe38b5271840266758779ebe75092e02629f0c170287e6290a70b12
   phlex-rails (2.4.0) sha256=2bcddbd488681acb25753bab1887d3ac150e644244ff8ba307f2171a4d0195f5
-  phlex-reactive (0.13.2)
+  phlex-reactive (0.13.3)
   playwright-ruby-client (1.61.0) sha256=1f5c5f0307a2f6bd70b4fa797020a30eef5680caf8d5bd9ccc8d3937f6666e08
   pp (0.6.4) sha256=dfcb0fce700c41456265922884f9fe195d7fbb0674a3578e6c0f69588e82b570
   prettyprint (0.2.0) sha256=2bc9e15581a94742064a3cc8b0fb9d45aae3d03a1baa6ef80922627a0766f193
