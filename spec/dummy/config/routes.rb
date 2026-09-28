@@ -42,6 +42,7 @@ Rails.application.routes.draw do
   get "draft_order_confirm_interpolate" => "demos#draft_order_confirm_interpolate"
   get "post_preview/:id" => "demos#post_preview"
   get "compute_seed" => "demos#compute_seed"
+  get "compute_checked" => "demos#compute_checked"
   # Issue #226: the $ops flagship — normalize on input, auto-commit when complete.
   get "verification" => "demos#verification"
   # Issue #226: the multi-box variant — paste redistribution + focus advance.

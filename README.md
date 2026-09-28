@@ -396,7 +396,7 @@ Use in controllers: `render turbo_stream: Counter.replace(counter)`.
 | `reactive_listnav("[role=option]")` | The **standalone** combobox keyboard wiring (Arrow/Enter/Escape) for an input that fires **no action** — the preload-and-filter case. Same behavior as `on(…, listnav:)`, minus the POST. |
 | `reactive_tags(:tags)` | **Tag-chip input** (the combobox/tags widget): spread onto the root and name the hidden field that stores the **comma-joined** value — the client maintains that field + the chip list entirely client-side (form state, zero round trips), rebuilding chips from your server-owned `<template>`. Composes with `reactive_filter` (type to narrow) and `reactive_listnav` (Enter picks the highlighted option). `name:` is the escape hatch — a **verbatim** wire name (`name: "user[tags]"`, never re-scoped), the form-builder case. See [Tag-chip input](#tag-chip-input-reactive_tags). |
 | `reactive_tags_add` / `reactive_tags_option(tag)` / `reactive_tags_remove(tag)` | The tags triggers, all **client-only**: `reactive_tags_add` on the query input adds the typed text on Enter (mix it **after** `reactive_listnav`; Enter never submits the enclosing form); `reactive_tags_option` makes a preloaded suggestion add its declared tag on click; `reactive_tags_remove` is a chip's remove button (no arg inside the template — the client fills the tag per chip). |
-| `reactive_compute :name, inputs: { title: :string, qty: :number }, outputs:` | **Typed** inputs: a `:string` reaches the JS reducer raw, a `:number` is coerced through `Number`. The array form (`inputs: %i[a b]`) stays all-numeric; the **permit-style** form (`inputs: [:qty, title: :string]`) mixes both — bare symbols default `:number`, a trailing hash types the exceptions. `outputs:` is the field allowlist; a reducer-result key also paints any owned `reactive_text` node by presence and any `mirror:` id, so an `outputs:` entry that exists only to reach a text node is redundant (harmless — a widening). |
+| `reactive_compute :name, inputs: { title: :string, qty: :number }, outputs:` | **Typed** inputs: a `:string` reaches the JS reducer raw, a `:number` is coerced through `Number`, a `:boolean` is a checkbox's checked state. The array form (`inputs: %i[a b]`) stays all-numeric; the **permit-style** form (`inputs: [:qty, title: :string]`) mixes both — bare symbols default `:number`, a trailing hash types the exceptions. `outputs:` is the field allowlist; a reducer-result key also paints any owned `reactive_text` node by presence and any `mirror:` id, so an `outputs:` entry that exists only to reach a text node is redundant (harmless — a widening). |
 | `reactive_compute :name, ..., mirror: { sum: "#summary-sum" }` | **Cross-root text mirrors**: paint a compute value into declared, id-allowlisted nodes **outside** the reactive root (a recap in another tab pane) via `textContent` — no bespoke listener. See [Cross-root mirrors](#cross-root-mirrors-mirror--painting-a-recap-outside-the-root). |
 | `reactive_dirty` / `reactive_dirty warn_unsaved: true` / `reactive_dirty only: %i[...]` | **Dirty tracking**, declared once at the class level, against the DOM's own `defaultValue`/`defaultChecked`/`defaultSelected` — no client state. Marks changed fields + the root `data-reactive-dirty`; `warn_unsaved:` arms a `beforeunload`/`turbo:before-visit` guard; `only:` scopes tracking to named fields. Style with `[data-reactive-dirty]`. See [Dirty-field tracking](#dirty-field-tracking-reactive_dirty). |
 | `nested_update!(:assoc, attrs)` | Map a nested param onto `<assoc>_attributes` with id preservation; update the record. |
@@ -1287,6 +1287,29 @@ setComputeReducer("preview", ({ title }) => ({
   **permit-style form** (`inputs: [:qty, title: :string]`) combines both in one
   declaration — bare symbols default to `:number`, a trailing hash types the
   exceptions.
+- **Checkboxes and radios read their checked state.** A checkbox's `.value` is a
+  constant, so a compute reads whether the box is ticked instead, coerced by the
+  declared type: `1`/`0` as a `:number` (and in the array form),
+  `"true"`/`"false"` as a `:string`, `true`/`false` as a **`:boolean`**. The
+  checkbox wins over the hidden companion Rails' `check_box` renders before it.
+  A radio group reads its checked radio's value (`""`, or `0` as a number, when
+  none is checked). A `:boolean` on any other control is `false` for `""`, `"0"`
+  and `"false"`.
+
+  ```ruby
+  reactive_compute :total, inputs: [:price, { gift_wrap: :boolean }], outputs: %i[total]
+  ```
+
+  ```js
+  setComputeReducer("total", ({ price, gift_wrap }) => ({ total: price + (gift_wrap ? 25 : 0) }))
+  ```
+
+  An **output** that resolves to a checkbox sets `checked` from the result's
+  truthiness, and one that resolves to a radio group checks the radio carrying
+  the result (a value no radio carries clears the group). Neither rewrites a
+  `value` attribute, so what the control submits is unchanged. A `[]`-named
+  checkbox *group* is not a compute input — compute values are scalars; declare
+  each box under its own name.
 - **`reactive_text(:name, initial)`** mirrors a value into a **text node** via
   `textContent` (XSS-safe by construction). Every reducer-result key paints any
   matching sink: an owned **field** if declared in `outputs:`, any owned

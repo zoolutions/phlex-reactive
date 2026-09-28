@@ -389,6 +389,13 @@ module Phlex
           #     inputs: { title: :string, qty: :number },
           #     outputs: %i[title_preview char_count]
           #
+          # A CHECKBOX contributes its checked state, never its constant .value
+          # (issue #262): 1/0 as a :number, "true"/"false" as a :string, and a
+          # real boolean as a :boolean. It wins over the hidden companion Rails
+          # renders before it. A radio group contributes its checked radio's value.
+          #
+          #   reactive_compute :total, inputs: [:price, { gift_wrap: :boolean }], outputs: %i[total]
+          #
           # An output with no matching form field writes to its reactive_text(:name)
           # node (textContent); a declared input also mirrors into its own text node
           # with no reducer. The array form's wire stays byte-identical.

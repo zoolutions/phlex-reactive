@@ -28,13 +28,21 @@
 //            issue #104) arrive as the RAW string. `reactive_compute :x, inputs:
 //            { title: :string, qty: :number }` is what selects per-input types;
 //            `inputs: %i[a b]` stays all-numeric (backward compatible).
+//            A CHECKBOX arrives as its checked state, never its constant
+//            .value (issue #262): 1/0 untyped or :number, "true"/"false" as a
+//            :string, true/false as a :boolean. A radio group arrives as its
+//            checked radio's value ("" / 0 when none is checked).
 //   meta   — { changed }: the name (string) of the declared input the
 //            triggering event edited, or null (a direct recompute() call, or a
 //            target this root doesn't own / didn't declare as an input).
 //
 // OUTPUTS may be a form FIELD or a TEXT NODE (issue #104). An output whose name
 // matches an owned control writes its .value (+ the change-guarded input
-// dispatch below). An output with NO matching field writes textContent to every
+// dispatch below) — or, for a checkbox or a radio group, its CHECKED state
+// (issue #262): a truthy result ticks the box ("", "0", "false", 0 and false
+// untick it), and a radio group checks the radio carrying the result. Their
+// value attributes are never rewritten, so what they submit is unchanged.
+// An output with NO matching field writes textContent to every
 // owned [data-reactive-text="<name>"] node (reactive_text(:name)) — XSS-safe by
 // construction, change-guarded, NO input dispatch (a text node has no listener
 // contract). A declared INPUT also mirrors into its own text node on every
