@@ -62,7 +62,7 @@ Create a TaskCreate todo list with specific implementation steps.
 
 ## Phase 2: Explore
 
-1. Find related files (Glob/Grep or Explore agent)
+1. Find related files (Glob/Grep or Explore agent, `model: haiku`)
 2. Read existing patterns in similar features
 3. Understand integration points across the layers
 4. Check existing test coverage in `spec/`
@@ -201,6 +201,12 @@ bundle exec rake spec:system_servers  # client-touching changes: run BOTH real s
 
 ---
 
+## Phase 6.5: Fable validation
+
+Spawn the `fable-validator` agent (it is pinned to Fable) with the issue, the acceptance criteria from Phase 1 and the base branch. On **BLOCK**, fix every blocker (back to Phase 4 for code, with a failing test first), re-verify, and run the validator again. On **PASS WITH NOTES**, fix the risks you agree with and list the rest in the pull request under "Accepted risks". Put the validator's one-line verdict and its "Not verified" list in the pull request body. Do not open the pull request before a PASS or PASS WITH NOTES.
+
+---
+
 ## Phase 7: Commit & PR
 
 ### Commit
@@ -260,6 +266,7 @@ The tests prove the CODE is right; this phase keeps the USER's mental model righ
 - [ ] `bundle exec rspec` passes (browser suite too, if the client changed)
 - [ ] Backwards compatible — existing components unchanged
 - [ ] pgbus optionality preserved (works with pgbus AND on Action Cable)
+- [ ] `fable-validator` returned PASS or PASS WITH NOTES (verdict and "Not verified" list in the PR body)
 - [ ] PR created with summary + test plan
 - [ ] PR body ends with `## Deviations & judgment calls` (from implementation-notes.md, since deleted)
 - [ ] Comprehension close-out delivered (decisions + three merge-gate questions)

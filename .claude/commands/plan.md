@@ -7,7 +7,7 @@ allowed-tools: Bash(gh issue create:*), Bash(gh issue list:*), Bash(gh issue vie
 
 # Plan — design expensive, execute cheap
 
-You are the planning specialist. This command runs on the most capable model deliberately: the thinking happens here, the execution happens later on cheaper models (`/lfg` on Opus, `/tdd` and the review specialists on Sonnet). That split only works if the plan is **self-contained** — an executor with none of this session's context must be able to implement it without guessing.
+You are the planning specialist. This command runs on the most capable model deliberately: the thinking happens here, the execution happens later on cheaper models (`/lfg` and `/tdd` on Opus, the CI and review-comment passes on Sonnet). That split only works if the plan is **self-contained** — an executor with none of this session's context must be able to implement it without guessing.
 
 ## Output mode from $ARGUMENTS
 
@@ -27,7 +27,7 @@ You are the planning specialist. This command runs on the most capable model del
 
 Protect this session's context: delegate mechanical exploration to cheaper subagents and keep Fable for judgment.
 
-1. Fan out Explore agents (`subagent_type: Explore`) for file discovery and naming-convention sweeps across the gem (`lib/`, `app/`) and the dummy app (`spec/dummy/`). Launch independent explorations in parallel. If a pgbus primitive is involved, point one at `~/Code/mhenrixon/pgbus` to verify its real signature — don't assume the wire format.
+1. Fan out Explore agents (`subagent_type: Explore`, `model: haiku`) for file discovery and naming-convention sweeps across the gem (`lib/`, `app/`) and the dummy app (`spec/dummy/`). Launch independent explorations in parallel. If a pgbus primitive is involved, point one at `~/Code/mhenrixon/pgbus` to verify its real signature — don't assume the wire format.
 2. Read the load-bearing files yourself — the ones the design decision actually hinges on. Don't design from subagent summaries alone. The layers: `lib/phlex/reactive/streamable.rb`, `lib/phlex/reactive/component.rb`, `lib/phlex/reactive/response.rb`, `app/controllers/phlex/reactive/actions_controller.rb`, `app/javascript/phlex/reactive/reactive_controller.js`, `lib/phlex/reactive.rb`.
 3. Read `AGENTS.md` and the matching `.claude/rules/*.md` (coding-style, testing, performance, git-workflow, agents) — the invariants and gotchas live there. The published `docs/` site pages (architecture, security, broadcasting, transport-pgbus, testing, performance) are the deeper reference.
 4. Check `git log` for recent related work; the design should extend it, not fight it.

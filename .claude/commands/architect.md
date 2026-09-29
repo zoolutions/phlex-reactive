@@ -38,7 +38,7 @@ Layer 0: Core + config      lib/phlex/reactive.rb (verifier, renderer, gate, act
 
 ## Delegate vs. do directly
 
-**Delegate** (Explore/Plan agents) when: multiple files change, you need to
+**Delegate** (Explore agents with `model: haiku`, Plan agents with `model: sonnet`) when: multiple files change, you need to
 verify a pgbus primitive's real signature in `~/Code/mhenrixon/pgbus`, or the
 work is cleanly scoped to one layer.
 
@@ -86,6 +86,7 @@ capability gate, the security model) that you must hold in your head.
 - [ ] A dummy example component exercises the feature
 - [ ] Tests cover every touched layer
 - [ ] `bundle exec rubocop` + `bundle exec rspec` pass
+- [ ] Run the `fable-validator` agent on the combined diff first; do not open or merge on BLOCK.
 
 ## Handoff
 

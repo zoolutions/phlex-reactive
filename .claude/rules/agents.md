@@ -12,10 +12,10 @@
 
 Use agents PROACTIVELY without waiting for a prompt:
 
-1. **Complex feature requests** → Plan agent first
-2. **Codebase exploration** → Explore agent
-3. **Multi-file searches** → Explore agent (not direct Glob/Grep)
-4. **Cross-repo questions** (phlex-reactive ↔ pgbus) → Explore agent against both checkouts
+1. **Complex feature requests** → Plan agent first (`model: sonnet`)
+2. **Codebase exploration** → Explore agent (`model: haiku`)
+3. **Multi-file searches** → Explore agent (`model: haiku`; not direct Glob/Grep)
+4. **Cross-repo questions** (phlex-reactive ↔ pgbus) → Explore agent (`model: haiku`) against both checkouts
 
 ## Parallel Execution
 
@@ -32,7 +32,7 @@ ALWAYS run independent operations in parallel:
 
 ## When to Use Explore
 
-Use the Explore agent (subagent_type=Explore) instead of direct Glob/Grep when:
+Use the Explore agent (subagent_type=Explore, model=haiku) instead of direct Glob/Grep when:
 - Open-ended exploration across the gem (`lib/`, `app/`) and the dummy app (`spec/dummy/`)
 - Confirming a pgbus primitive's real signature in `~/Code/mhenrixon/pgbus`
   before building against it (verify the wire format — don't assume)

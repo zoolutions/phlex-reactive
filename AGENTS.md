@@ -93,16 +93,7 @@ re-sync command.
 | `/github-review-failures` | Fix failing CI checks until green |
 | `/github-review-comments` | Process unresolved PR review comments |
 
-Commands pin a model tier via frontmatter aliases: `haiku` for mechanical/config
-work, `sonnet` for the prescriptive pattern-following passes (`/github-review-comments`,
-`/github-review-failures`), `opus` for orchestration, security, review synthesis,
-and the reasoning-heavy specialists (`/lfg`, `/architect`, `/security`, `/review-pr`,
-`/github-review-pr`, `/tdd`, `/perf`). Fable is pinned only on `/plan` — read-only
-planning that hands execution to cheaper models; otherwise choose it per-session
-with `/model` for architecture and the hardest debugging. Use the tier alias,
-never a full model ID, so commands track the latest model in each tier. When
-spawning subagents for mechanical work (file finding, pattern scans), pass a
-cheaper model explicitly rather than letting them inherit the session model.
+**Models.** Sessions run on `opus` (Opus 5.5) with `fable` (Fable 5.1) as the advisor (`.claude/settings.json`). Fable is spent where judgment matters most: `/plan` runs on Fable, the advisor is consulted at decision points (before choosing an approach, a schema or public API, a migration, a dependency, anything irreversible, and when a failure repeats), and the `fable-validator` agent checks every finished implementation before its pull request opens (`/lfg`, Phase 6.5). Commands pin their tier by alias, never by full model ID: `opus` for orchestration, security, full PR review and the reasoning-heavy specialists (`/lfg`, `/architect`, `/security`, `/review-pr`, `/github-review-pr`, `/tdd`, `/perf`); `sonnet` for the prescriptive pattern-following passes (`/github-review-comments`, `/github-review-failures`); `haiku` for mechanical scans. Every spawned agent names its `model:`; one that does not runs on `sonnet` (`CLAUDE_CODE_SUBAGENT_MODEL`), never on the session's model. Plan mode cannot take a model of its own: it runs on Opus and asks the advisor.
 
 ## Architecture
 
