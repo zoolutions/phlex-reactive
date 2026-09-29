@@ -13,7 +13,7 @@ The issue (number or text), the acceptance criteria, and the base branch (usuall
 
 ## What you do
 
-1. Read the diff whole: `git diff <base>...HEAD --stat`, then the full diff. Read the files around each change where the diff alone does not show what it touches (callers, the other half of a contract, the migration and the model it serves).
+1. Read the change whole, committed or not: `git diff <base>...HEAD` for what is committed, `git diff HEAD` for what is not, and `git status --short` for new files (read those in full). `/lfg` runs you before it commits, so most of the change may be uncommitted: if all three are empty, say so and BLOCK; never pass an empty change. Read the files around each change where the diff alone does not show what it touches (callers, the other half of a contract, the migration and the model it serves).
 2. Hold it against the acceptance criteria, one by one: met, partly met, not met.
 3. Look for what reviews miss:
    - correctness at the edges (nil and empty, zero and negative, concurrency and ordering, time zones, encodings, retries and idempotency, partial failure);
