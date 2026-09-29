@@ -12,9 +12,9 @@
 
 Use agents PROACTIVELY without waiting for a prompt:
 
-1. **Complex feature requests** → Plan agent first
-2. **Codebase exploration** → Explore agent
-3. **Multi-file searches** → Explore agent (not direct Glob/Grep)
+1. **Complex feature requests** → Plan agent first (`model: sonnet`)
+2. **Codebase exploration** → Explore agent (`model: haiku`)
+3. **Multi-file searches** → Explore agent (`model: haiku`; not direct Glob/Grep)
 4. **Cross-repo questions** (phlex-reactive ↔ pgbus) → Explore agent (`model: haiku`) against both checkouts
 
 ## Parallel Execution
