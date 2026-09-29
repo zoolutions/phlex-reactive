@@ -5,8 +5,10 @@ the whole team (and every autonomous session) shares the same conventions.
 
 ```
 .claude/
+├── agents/     Subagents with a pinned model (fable-validator)
 ├── commands/   Slash commands (/lfg, /tdd, /plan, /security, …) — one markdown file each
 ├── rules/      Standing rules auto-loaded into context (coding-style, testing, performance, git-workflow, agents)
+├── settings.json   Session model (opus), advisor (fable), subagent default (sonnet)
 ├── README.md   This file — how to author a command
 └── SKILL_TEMPLATE.md   Copy-paste starting point for a new command
 ```
@@ -44,24 +46,28 @@ Pin a model **tier** by the work the command does, not the model you happen to b
 running. Tier aliases (`haiku`, `sonnet`, `opus`, `fable`) always resolve to the
 latest model in that tier, so a command never goes stale on an outdated pin.
 
+Sessions run on `opus` (Opus 5.5) with `fable` (Fable 5.1) as the advisor
+(`.claude/settings.json`). Fable is spent where judgment matters most: `/plan`
+runs on Fable, the advisor is consulted at decision points (before choosing an
+approach, a schema or public API, a migration, a dependency, anything
+irreversible, and when a failure repeats), and the `fable-validator` agent checks
+every finished implementation before its pull request opens (`/lfg`, Phase 6.5).
+
 | Tier | Use for | Commands here |
 |------|---------|---------------|
-| `haiku` | Mechanical / config work, diff pattern-scanning | *(none yet)* |
-| `sonnet` | Prescriptive, pattern-following passes with a tight prompt | `/github-review-comments`, `/github-review-failures` |
-| `opus` | Orchestration, security, review synthesis, and reasoning-heavy specialists | `/lfg`, `/architect`, `/security`, `/review-pr`, `/github-review-pr`, `/tdd`, `/perf` |
-| `fable` | Read-only planning that hands execution to cheaper models | `/plan` |
+| `haiku` | Mechanical scans (file finding, naming-convention sweeps, pattern scans) | *(no command; the Explore agents `/plan` and `/lfg` fan out)* |
+| `sonnet` | Prescriptive, pattern-following passes with a tight prompt; any spawned agent that names no model | `/github-review-comments`, `/github-review-failures` |
+| `opus` | Sessions, orchestration, security, full PR review, and reasoning-heavy specialists | `/lfg`, `/architect`, `/security`, `/review-pr`, `/github-review-pr`, `/tdd`, `/perf` |
+| `fable` | Planning, the advisor, and final validation | `/plan`, the `fable-validator` agent |
 
 Rules of thumb:
 
 - **Always use the alias**, never `claude-opus-4-8` or another full model ID —
   aliases track the latest model per tier and never rot.
-- **`fable` is pinned only on `/plan`.** For a plain interactive session, pick it
-  per-session with `/model` when you want the most capable model for architecture
-  or the hardest debugging.
-- **Subagents don't inherit the tier for free.** When a command (or you) spawns a
-  subagent for mechanical work — file finding, naming-convention sweeps, pattern
-  scans — pass a cheaper `model:` explicitly. Left unset, a subagent inherits the
-  session model, so the most mechanical work runs at the highest price.
+- **Every spawned agent names its `model:`.** One that does not runs on `sonnet`
+  (`CLAUDE_CODE_SUBAGENT_MODEL`), never on the session's model.
+- **Plan mode cannot take a model of its own.** It runs on Opus and asks the
+  advisor.
 
 The convention is also recorded in the repo `AGENTS.md` ("Slash Commands") so it
 survives across sessions.
