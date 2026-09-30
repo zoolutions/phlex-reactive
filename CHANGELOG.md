@@ -9,6 +9,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`pending_template` — opt-in pending MARKUP for `reply.pending` (#249).** A
+  row component that defines `pending_template` now has its markup swapped by
+  `reply.pending` (a real "Queued" badge, a genuinely removed button), in
+  addition to the #248 markers. The swap renders a memoized anonymous subclass
+  whose `.name` is the row's own, so a row that signs its token still verifies
+  on its next action; the memo resets on Rails code reload. A template that
+  drops the row's `id` raises before anything is enqueued. Rows without the
+  hook are byte-identical to before. The swapped markup is undone only by a
+  settle that replaces or removes the row.
+
 - **`bin/release` — the release front door, ported from pgbus.** Works out the
   next version (`patch` by default, `minor`, `major`, or an explicit `X.Y.Z`
   with an optional `v`), prints the commits since the last tag, and hands off

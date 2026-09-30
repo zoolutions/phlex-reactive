@@ -92,8 +92,10 @@ module Phlex
       end
 
       # One recorded pending segment: the handle plus the DOM ids that were
-      # marked pending (the endpoint emits one marker stream per id).
-      Segment = Data.define(:handle, :target_ids)
+      # marked pending (the endpoint emits one marker stream per id), and — in
+      # step with target_ids — each row's pending markup (issue #249), nil for
+      # a row without the pending_template hook.
+      Segment = Data.define(:handle, :target_ids, :markup)
 
       # The attribute apps style. Set alongside aria-busy on every pending
       # target AND on the container, so one CSS rule covers both:
@@ -126,7 +128,8 @@ module Phlex
           # or re-queries, so a concurrent write could make the marked rows and
           # the enqueued jobs disagree.
           list = materialize(records)
-          targets = resolve_targets(container, list, collection)
+          rows = resolve_rows(container, list, collection)
+          targets = rows.map { it.is_a?(String) ? it : it.id }
 
           unless Phlex::Reactive.settle_capable?
             warn_no_lane
@@ -134,9 +137,12 @@ module Phlex
             return nil
           end
 
+          # Rendered BEFORE the enqueue, so a broken pending_template fails the
+          # action (and rolls it back) before any job exists.
+          markup = rows.map { Markup.render(it) }
           handle = build_handle(container, collection, targets, peers)
           with_handle(handle) { run_enqueue(list, job, args, enqueue, targets) }
-          Segment.new(handle:, target_ids: targets)
+          Segment.new(handle:, target_ids: targets, markup:)
         end
 
         # One record, or an enumerable of them, as an Array — never re-walked.
@@ -149,9 +155,13 @@ module Phlex
 
         # The wire streams for one segment, in apply order: the per-target
         # pending markers FIRST (so the UI stops lying immediately), then the
-        # single subscription directive.
+        # single subscription directive. A row with pending markup is replaced
+        # just before its marker, so the marker lands on the swapped node.
         def streams_for(segment)
-          streams = segment.target_ids.map { marker_stream(it) }
+          streams = segment.target_ids.each_with_index.flat_map do |id, index|
+            html = segment.markup[index]
+            html ? [Markup.stream(id, html), marker_stream(id)] : [marker_stream(id)]
+          end
           streams << marker_stream(segment.handle.anchor)
           streams << directive_stream(segment.handle)
           streams
@@ -162,24 +172,18 @@ module Phlex
         # exact id to tear the subscription down.
         def source_id(anchor) = "reactive-defer-src-#{anchor}"
 
-        # Resolve the DOM id a row component would render for `model`, WITHOUT
-        # rendering it (build is cheap — #id must be render-context-free, that
-        # is the Streamable#id contract).
-        def row_dom_id(definition, model)
-          return model if model.is_a?(String)
-
-          definition.item.send(:build, model, {}).id
-        end
-
         private
 
-        # Each pending target, as a DOM id. With `in:` the rows resolve through
-        # the collection declaration; without it every entry must already be a
-        # Streamable component (its own #id is the target).
-        def resolve_targets(container, list, collection)
+        # Each pending target, as a row component (its #id is the target, and
+        # it renders the pending markup when it has the hook) or a bare DOM id
+        # String. With `in:` the rows resolve through the collection declaration
+        # (build is cheap — #id must be render-context-free, the Streamable#id
+        # contract); without it every entry must already be a Streamable
+        # component.
+        def resolve_rows(container, list, collection)
           if collection
             definition = Phlex::Reactive::Collections.definition!(container, collection)
-            return list.map { row_dom_id(definition, it) }
+            return list.map { it.is_a?(String) ? it : definition.item.send(:build, it, {}) }
           end
 
           list.map do
@@ -190,7 +194,7 @@ module Phlex
                 "Streamable component instance (its #id is the target)"
             end
 
-            it.id
+            it
           end
         end
 
