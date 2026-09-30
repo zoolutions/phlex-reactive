@@ -1,0 +1,22 @@
+lib/phlex/reactive/pending/markup.rb
+  s_a202e9eb146f50::t_3d398ce9f0fcb8 116
+  s_a202e9eb146f50::t_fc55c9ef91cec0 46-51,114
+spec/phlex/reactive/pending_template_spec.rb
+  s_a202e9eb146f50::t_763e52589d4ef7 137-150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "4a49b0b68307c027f2bdfed233044731bcf742fd",
+  "prompts": {},
+  "sessions": {
+    "s_a202e9eb146f50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "93a02fe9-b194-4a42-948c-51832dea3ef2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
