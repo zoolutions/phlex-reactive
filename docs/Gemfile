@@ -48,7 +48,7 @@ gem "daisyui"
 # DocsKit.configure (see config/initializers/docs_kit.rb). Pulled from RubyGems
 # now the gem is released there — the old GitHub ref (needed while the sibling
 # repo sat outside the Docker build context) is obsolete.
-gem "docs-kit", "~> 1.1", ">= 1.1.1", require: "docs_kit"
+gem "docs-kit", "~> 1.2", ">= 1.2.1", require: "docs_kit"
 
 # MCP — docs-kit's optional Model Context Protocol server (read-only, stateless).
 # Not a docs-kit gemspec dependency; present here so the /mcp endpoint (routes in
