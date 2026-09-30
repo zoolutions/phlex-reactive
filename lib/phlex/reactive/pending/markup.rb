@@ -43,6 +43,12 @@ module Phlex
       module Markup
         HOOK = :pending_template
 
+        # The root start tag of the rendered markup, walked quote-aware: Phlex
+        # double-quotes every attribute value and leaves `>` raw inside it
+        # (`data-action="click->reactive#dispatch"`), so the tag must not end at
+        # the first `>`.
+        ROOT_TAG = %r{\A\s*<[^\s>/]+(?:\s+[^\s=>/]+(?:="[^"]*")?)*}
+
         # Keyed weakly on the row class, so a class Zeitwerk replaced is not
         # pinned between resets. A WeakKeyMap, not a WeakMap: nothing else holds
         # the variant, so a weak VALUE would let GC drop the memo.
@@ -105,9 +111,9 @@ module Phlex
           # to target: its replace/remove would miss and the row would say
           # "Queued" forever. Fail at the action, before anything is enqueued.
           # Only the ROOT start tag counts — the id on a data- attribute or a
-          # nested child is not a target the settle can swap.
+          # nested child is not a target the settle can swap (see ROOT_TAG).
           def assert_keeps_id!(row, html)
-            root_tag = html[/\A\s*<[^>]*>/].to_s
+            root_tag = html[ROOT_TAG].to_s
             return if root_tag.match?(/\sid="#{Regexp.escape(ERB::Util.html_escape(row.id))}"/)
 
             raise Phlex::Reactive::Error,

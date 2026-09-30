@@ -134,6 +134,20 @@ RSpec.describe Phlex::Reactive::Pending, type: :request do
     end
   end
 
+  describe "a pending template whose root carries a Stimulus descriptor before its id" do
+    it "accepts it — the '>' inside data-action is not the end of the tag" do
+      row = Class.new(plain_row) do
+        def self.name = "PendingTemplateSpecActionRow"
+
+        private
+
+        def pending_template = li(data: { action: "click->reactive#dispatch" }, id:) { "Queued" }
+      end
+
+      expect(streams_for(container_for(row), in: :todos).join).to include("Queued")
+    end
+  end
+
   describe "a pending template that drops the row's id" do
     let(:idless_row) do
       Class.new(ApplicationComponent) do
