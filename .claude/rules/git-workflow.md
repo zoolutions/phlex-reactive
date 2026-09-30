@@ -48,10 +48,12 @@ All work goes through PRs.
 Releases go through `bin/release` — the front door that works out the next
 version (`patch` default, `minor`, `major`, or an explicit `X.Y.Z`), shows the
 commits since the last tag, refuses to run off a clean up-to-date `main`, and
-hands off to `rake release[X.Y.Z]` (bumps version, re-locks the tracked
-lockfiles, verifies the build, commits, pushes, creates the GitHub Release).
-The Release workflow then publishes to RubyGems via trusted publishing (OIDC +
-Sigstore). Never `gem push` by hand.
+hands off to `rake release[X.Y.Z]` in `rakelib/release.rake` (bumps version +
+the tracked lockfile pins in place, verifies the build, commits, pushes, creates
+the GitHub Release). The Release workflow then publishes to RubyGems via trusted
+publishing (OIDC + Sigstore). Never `gem push` by hand. `bin/release`,
+`rakelib/release.rake` and the shared jobs of `release.yml` are byte-identical
+across the zoolutions gems: change them in every repo or none.
 
 ```bash
 bin/release list        # last releases + what each bump would give
