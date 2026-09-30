@@ -43,9 +43,10 @@ module Phlex
       module Markup
         HOOK = :pending_template
 
-        # Keyed weakly on the row class (the Streamable registry's shape), so a
-        # class Zeitwerk replaced is not pinned between resets.
-        @variants = ObjectSpace::WeakMap.new
+        # Keyed weakly on the row class, so a class Zeitwerk replaced is not
+        # pinned between resets. A WeakKeyMap, not a WeakMap: nothing else holds
+        # the variant, so a weak VALUE would let GC drop the memo.
+        @variants = ObjectSpace::WeakKeyMap.new
         @mutex = Mutex.new
 
         class << self
@@ -76,7 +77,7 @@ module Phlex
 
           # Called from the engine's config.to_prepare (Rails code reload).
           def reset!
-            @mutex.synchronize { @variants = ObjectSpace::WeakMap.new }
+            @mutex.synchronize { @variants = ObjectSpace::WeakKeyMap.new }
           end
 
           private
@@ -84,6 +85,8 @@ module Phlex
           def build_variant(row_class)
             Class.new(row_class) do
               def self.name = superclass.name
+              def self.inspect = "#{superclass.name}(pending)"
+              def self.to_s = inspect
 
               def view_template = pending_template
             end
@@ -101,8 +104,11 @@ module Phlex
           # A pending template that drops the row's id leaves the settle nothing
           # to target: its replace/remove would miss and the row would say
           # "Queued" forever. Fail at the action, before anything is enqueued.
+          # Only the ROOT start tag counts — the id on a data- attribute or a
+          # nested child is not a target the settle can swap.
           def assert_keeps_id!(row, html)
-            return if html.include?(%(id="#{ERB::Util.html_escape(row.id)}"))
+            root_tag = html[/\A\s*<[^>]*>/].to_s
+            return if root_tag.match?(/\sid="#{Regexp.escape(ERB::Util.html_escape(row.id))}"/)
 
             raise Phlex::Reactive::Error,
               "#{row.class.name}#pending_template must render the row's root with its id " \

@@ -186,8 +186,8 @@ module Views
               - **Keep `reactive_attrs`** if the row carries its own token: the
                 swapped row signs the row class's real name, so its next action
                 verifies as usual.
-              - **Un-pending is the settle's job.** Only a settle that `s.replace`s
-                or `s.remove`s the row undoes the markup; a flash-only settle,
+              - **Un-pending is the settle's job.** Only a settle that replaces
+                (`s.replace`) or removes (`s.remove`) the row undoes the markup; a flash-only settle,
                 `finish: true` or a failed job clears the markers only.
             MD
           end

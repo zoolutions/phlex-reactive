@@ -108,8 +108,13 @@ RSpec.describe Phlex::Reactive::Pending, type: :request do
       expect(Phlex::Reactive::Pending::Markup.variant_for(hook_row).name).to eq("PendingTemplateSpecHookRow")
     end
 
-    it "is memoized per row class" do
+    it "labels itself after the parent in errors and logs" do
+      expect(Phlex::Reactive::Pending::Markup.variant_for(hook_row).inspect).to eq("PendingTemplateSpecHookRow(pending)")
+    end
+
+    it "is memoized per row class, even across a GC" do
       first = Phlex::Reactive::Pending::Markup.variant_for(hook_row)
+      GC.start
 
       expect(Phlex::Reactive::Pending::Markup.variant_for(hook_row)).to be(first)
     end
@@ -149,6 +154,19 @@ RSpec.describe Phlex::Reactive::Pending, type: :request do
     it "fails loudly — the settle could never find the row again" do
       expect { streams_for(container_for(idless_row), in: :todos) }
         .to raise_error(Phlex::Reactive::Error, /pending_template.*id=/m)
+    end
+
+    it "is not fooled by the id on a data- attribute or a nested child" do
+      row = Class.new(idless_row) do
+        def self.name = "PendingTemplateSpecDataIdRow"
+
+        private
+
+        def pending_template = li(data: { id: }) { span(id:) { "Queued" } }
+      end
+
+      expect { streams_for(container_for(row), in: :todos) }
+        .to raise_error(Phlex::Reactive::Error, /pending_template/)
     end
   end
 

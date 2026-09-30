@@ -2667,8 +2667,8 @@ A row without the hook is byte-identical to the marker-only reply.
 - **Keep `reactive_attrs`** if the row carries its own token — the swapped row
   signs the row class's real name, so its next action verifies as usual.
 - **Un-pending is the settle's job.** Markers are attributes any settle strips;
-  swapped markup is only undone by a settle that `s.replace`s or `s.remove`s the
-  row. A flash-only settle, `finish: true`, or a failed job clears the markers
+  swapped markup is only undone by a settle that replaces (`s.replace`) or
+  removes (`s.remove`) the row. A flash-only settle, `finish: true`, or a failed job clears the markers
   but leaves the pending markup in place.
 - It is a *template* method, unlike `deferred_placeholder` (which returns inner
   content for a shell the gem owns): here the row's own root is swapped.
