@@ -1,0 +1,20 @@
+docs/spec/system/docs_nav_spec.rb
+  s_25cbebfba64739::t_20900b5c58add3 21-25,30-32
+  s_25cbebfba64739::t_5e6d5ac290aca4 38-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "6f03b837409b884aa5746f7dcde50d5e6a492d37",
+  "prompts": {},
+  "sessions": {
+    "s_25cbebfba64739": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b64d472d-1a2e-42fd-a481-0b565af5e668",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
