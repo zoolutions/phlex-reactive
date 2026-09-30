@@ -13,8 +13,9 @@
 #   bin/release --dry-run  # (-n) show version + changes, publish nothing
 #   bin/release --force    # (-f) re-create an existing tag/release
 #
-# Byte-identical across the zoolutions gems; everything project-specific comes
-# from the *.gemspec. Project-only release gates live in the Rakefile hooks.
+# Part of the zoolutions release kit (canonical copy in docs-kit, see
+# RELEASE_KIT.md): byte-identical in every gem, never edited in place. Everything
+# project-specific comes from the *.gemspec; project-only gates are Rakefile hooks.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -32,7 +33,7 @@ for arg in "$@"; do
     v[0-9]*|[0-9]*.[0-9]*) EXPLICIT="${arg#v}" ;;
     --dry-run|-n) DRY_RUN=true ;;
     --force|-f) FORCE=true ;;
-    -h|--help) sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown argument: $arg (try --help)" >&2; exit 1 ;;
   esac
 done

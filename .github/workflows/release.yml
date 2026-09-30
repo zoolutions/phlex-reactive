@@ -1,11 +1,15 @@
 name: Release
 
-# Shared across the zoolutions gems (docs-kit, daisyui, dash, pgbus,
-# phlex-reactive). Everything below the `test` job is BYTE-IDENTICAL in every
-# repo: the gem name and version come from the one *.gemspec. Only the `test`
-# job is project-specific. Hardened for zizmor: actions pinned by SHA, no
-# bundler cache in a publishing workflow (cache poisoning), `${{ }}` only via
-# env (template injection), checkout without persisted credentials.
+# The zoolutions release kit (canonical copy in docs-kit, see RELEASE_KIT.md;
+# sync with `script/release-kit sync`). Everything outside the project-specific
+# `test` job is BYTE-IDENTICAL in every gem: the gem name and version come from
+# the one *.gemspec. Hardened for zizmor: actions pinned by SHA, no bundler cache
+# in a publishing workflow (cache poisoning), `${{ }}` only via env (template
+# injection), checkout without persisted credentials.
+#
+# The test job MUST install frozen whenever a Gemfile.lock is committed: that is
+# the gate that fails a release whose lockfile pins `rake release` missed,
+# before anything is published.
 #
 # Fired by `rake release[X.Y.Z]` / `bin/release` publishing the GitHub Release.
 
@@ -33,6 +37,8 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby }}
       - run: bundle install
+        env:
+          BUNDLE_FROZEN: ${{ hashFiles('Gemfile.lock') != '' }}
       - run: bundle exec rspec spec/phlex spec/requests spec/generators
 
   # ── shared: keep identical across the gems ────────────────────────────────

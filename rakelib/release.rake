@@ -1,9 +1,10 @@
 # frozen_string_literal: true
 
-# The shared release task. This file is BYTE-IDENTICAL across the zoolutions gems
-# (docs-kit, daisyui, dash, pgbus, phlex-reactive): everything project-specific is
-# derived from the one *.gemspec at the root, or lives in an optional hook task in
-# the project's own Rakefile. Change it in one repo, copy it to all of them.
+# The shared release task of the zoolutions release kit. This file is
+# BYTE-IDENTICAL across the gems (canonical copy in docs-kit, see RELEASE_KIT.md;
+# sync with `script/release-kit sync`): everything project-specific is derived
+# from the one *.gemspec at the root, or lives in an optional hook task in the
+# project's own Rakefile. Never edit it in a consuming repo.
 #
 #   rake release[1.2.3]         bump, commit, push main, publish the GitHub Release
 #   rake release[1.3.0.rc1]     same, flagged --prerelease (alpha/beta/rc/pre)
