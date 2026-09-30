@@ -2635,6 +2635,44 @@ bug). It emits:
 3. an inert `reactive:token` refresh, so the container's signed token rolls
    forward and the list is not act-once-only.
 
+#### Honest pending markup: `pending_template` (opt-in)
+
+The markers dim a *live* row. When the pending state should be real markup — a
+"Queued" badge, a button that is genuinely gone rather than hidden by
+`pointer-events: none` — define `pending_template` on the row component (private
+is fine). `reply.pending` then also **replaces** each such row with it, just
+before marking it:
+
+```ruby
+class TransferRow < ApplicationComponent
+  include Phlex::Reactive::Streamable
+  include Phlex::Reactive::Component
+
+  def view_template
+    li(**mix(reactive_attrs, id:)) { span { @transfer.label }; button(**on(:retry)) { "Retry" } }
+  end
+
+  private
+
+  def pending_template
+    li(**mix(reactive_attrs, id:)) { span { @transfer.label }; span(class: "badge") { "Queued" } }
+  end
+end
+```
+
+A row without the hook is byte-identical to the marker-only reply.
+
+- **Keep the root's `id`.** The settle targets it; a `pending_template` without
+  `id="<the row's id>"` raises before anything is enqueued.
+- **Keep `reactive_attrs`** if the row carries its own token — the swapped row
+  signs the row class's real name, so its next action verifies as usual.
+- **Un-pending is the settle's job.** Markers are attributes any settle strips;
+  swapped markup is only undone by a settle that replaces (`s.replace`) or
+  removes (`s.remove`) the row. A flash-only settle, `finish: true`, or a failed job clears the markers
+  but leaves the pending markup in place.
+- It is a *template* method, unlike `deferred_placeholder` (which returns inner
+  content for a shell the gem owns): here the row's own root is swapped.
+
 | `reply.pending(...)` | |
 |---|---|
 | `records` | one record, an enumerable of records, or built Streamable components |

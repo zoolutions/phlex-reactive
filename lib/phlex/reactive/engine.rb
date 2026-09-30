@@ -112,6 +112,7 @@ module Phlex
       config.to_prepare do
         Phlex::Reactive::Streamable.reset_all_view_contexts!
         Phlex::Reactive.reset_stream_builder!
+        Phlex::Reactive::Pending::Markup.reset!
       end
 
       # Boot-time guard (issue #26): warn if the action path doesn't resolve to

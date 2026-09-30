@@ -154,6 +154,43 @@ module Views
               ```
             MD
           end
+
+          DocsUI::Section('Honest pending markup: pending_template') do
+            md <<~MD
+              The markers dim a *live* row. When the pending state should be real
+              markup — a "Queued" badge, a button that is genuinely gone — define
+              `pending_template` on the row component (private is fine).
+              `reply.pending` then also **replaces** each such row with it, just
+              before marking it. A row without the hook is byte-identical to the
+              marker-only reply.
+
+              ```ruby
+              class TransferRow < ApplicationComponent
+                include Phlex::Reactive::Streamable
+                include Phlex::Reactive::Component
+
+                def view_template
+                  li(**mix(reactive_attrs, id:)) { span { @transfer.label }; button(**on(:retry)) { "Retry" } }
+                end
+
+                private
+
+                def pending_template
+                  li(**mix(reactive_attrs, id:)) { span { @transfer.label }; span(class: "badge") { "Queued" } }
+                end
+              end
+              ```
+
+              - **Keep the root's `id`** — the settle targets it. A `pending_template`
+                without it raises before anything is enqueued.
+              - **Keep `reactive_attrs`** if the row carries its own token: the
+                swapped row signs the row class's real name, so its next action
+                verifies as usual.
+              - **Un-pending is the settle's job.** Only a settle that replaces
+                (`s.replace`) or removes (`s.remove`) the row undoes the markup; a flash-only settle,
+                `finish: true` or a failed job clears the markers only.
+            MD
+          end
         end
 
         def the_settle
