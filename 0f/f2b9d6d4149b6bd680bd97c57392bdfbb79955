@@ -1,0 +1,32 @@
+docs/config/initializers/docs_kit.rb
+  s_25cbebfba64739::t_ff1e802d12bed2 3
+docs/Gemfile
+  s_25cbebfba64739::t_3d330321049e2a 51
+docs/package.json
+  s_25cbebfba64739::t_5e3d43f59bc552 3
+  s_25cbebfba64739::t_bda57dd2f37ee8 9-12
+docs/Gemfile.lock
+  ai_agent 16-18,22-27,29-33,36-38,46,48-51,54-55,60-61,63-67,69-73,75,91,97,102,134,149,162,164,192,206-207,209,239,245,256,258,289,320,323,347-358,360,371-373,389,397,440,453,455,487-489,522,557-567,570,572,584,595,601,610,616-618,631,634,640-641,661,672,674,686,690,696,698,710,713,739-740
+docs/bun.lock
+  ai_agent 7-10,21,53,55,57,59,61,63,65,67,69,71,73,75,77,79,81,85,89,139,141,143,145,159
+docs/AGENTS.md
+  s_25cbebfba64739::t_ff1e802d12bed2 69-71
+docs/Dockerfile
+  s_25cbebfba64739::t_ff1e802d12bed2 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "0ff2b9d6d4149b6bd680bd97c57392bdfbb79955",
+  "prompts": {},
+  "sessions": {
+    "s_25cbebfba64739": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b64d472d-1a2e-42fd-a481-0b565af5e668",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
