@@ -156,7 +156,7 @@ module Views
           end
 
           DocsUI::Section('Honest pending markup: pending_template') do
-            md <<~'MD'
+            md <<~MD
               The markers dim a *live* row. When the pending state should be real
               markup — a "Queued" badge, a button that is genuinely gone — define
               `pending_template` on the row component (private is fine).
