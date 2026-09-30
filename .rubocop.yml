@@ -277,6 +277,8 @@ Style/ItBlockParameter:
   Exclude:
     - "*.gemspec"
     - Rakefile
+    # Shared byte-identical with daisyui/dash, which still support Ruby 3.2 (no `it`).
+    - rakelib/release.rake
 
 Style/Documentation:
   Enabled: false

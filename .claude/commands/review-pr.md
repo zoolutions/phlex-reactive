@@ -30,7 +30,7 @@ dom_id (Phlex helper) inside #id      -> Streamable#dom_id (render-context-free)
 Assume pgbus / call pgbus keyword raw -> Capability gate (pgbus_streams?) + fallback
 Listen for pgbus events on document   -> They don't bubble — listen on the element
 Secret in reactive_state              -> reactive_record + server-side read
-Manual gem push                       -> rake release[X.Y.Z]
+Manual gem push                       -> bin/release
 ```
 
 ## Output Format
