@@ -138,7 +138,6 @@ labels:
 paths:
   "lib/phlex/reactive/{component,client_bindings,collections,effects,param_schema,pending,show_conditions,js,settle,settles,defer,deferred_render_job,authorization}.rb": component
   "lib/phlex/reactive/{component,pending}/**/*": component
-  "lib/phlex/reactive/{component,pending}.rb": component
   "app/javascript/**/*": client
   "spec/javascript/**/*": client
   "{package.json,bun.lock,tsconfig.json}": client
@@ -146,16 +145,16 @@ paths:
   "lib/phlex/reactive/{reply,response,stream,streamable,engine}.rb": transport
   "lib/phlex/reactive/{inspector,doctor,mcp,apm,log_subscriber,test_helpers}.rb": devtools
   "lib/phlex/reactive/{inspector,mcp,apm,test_helpers,claude}/**/*": devtools
-  "lib/phlex/reactive/{inspector,mcp,apm,test_helpers,claude}.rb": devtools
   "lib/generators/**/*": generators
   "lib/tasks/**/*": generators
   "spec/generators/**/*": generators
   "spec/phlex/reactive/{component,client_bindings,collections,effects,param_schema,pending,show_conditions,js,settle,settles,defer,deferred_render_job,authorization}_spec.rb": component
-  "spec/phlex/reactive/{component,pending}_spec.rb": component
+  "spec/phlex/reactive/{component,client_bindings,collections,effects,param_schema,pending,show_conditions,js,settle,settles,defer,deferred_render_job,authorization}_*_spec.rb": component
   "spec/phlex/reactive/{reply,response,stream,streamable,engine}_spec.rb": transport
+  "spec/phlex/reactive/{reply,response,stream,streamable,engine}_*_spec.rb": transport
   "spec/phlex/reactive/{inspector,doctor,mcp,apm,log_subscriber,test_helpers}_spec.rb": devtools
+  "spec/phlex/reactive/{inspector,doctor,mcp,apm,log_subscriber,test_helpers}_*_spec.rb": devtools
   "spec/phlex/reactive/{inspector,mcp,apm,test_helpers,claude}/**/*": devtools
-  "spec/phlex/reactive/{inspector,mcp,apm,test_helpers,claude}_spec.rb": devtools
   ".github/**/*": devops
   "bin/release": devops
   "rakelib/**/*": devops
