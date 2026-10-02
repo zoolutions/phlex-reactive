@@ -33,7 +33,7 @@ labels:
     description: Refactoring or cleanup that pays down an accepted shortcut
     group: type
   - name: security
-    color: e9e257
+    color: "e9e257"
     description: Vulnerability, hardening, or an authorization correctness fix
     group: type
   - name: documentation
@@ -92,7 +92,7 @@ labels:
     description: Has a /plan body with Context, Decision, Steps and Gates; ready for /lfg
     group: status
   - name: epic
-    color: 5319e7
+    color: "5319e7"
     description: Umbrella item tracking several smaller issues
     group: status
   - name: blocker
@@ -123,7 +123,7 @@ labels:
     description: This issue or pull request already exists
     group: community
   - name: invalid
-    color: e4e669
+    color: "e4e669"
     description: This doesn't seem right
     group: community
   - name: wontfix
@@ -137,7 +137,8 @@ labels:
 # path may match several globs — every matching area applies.
 paths:
   "lib/phlex/reactive/{component,client_bindings,collections,effects,param_schema,pending,show_conditions,js,settle,settles,defer,deferred_render_job,authorization}.rb": component
-  "lib/phlex/reactive/component/**/*": component
+  "lib/phlex/reactive/{component,pending}/**/*": component
+  "lib/phlex/reactive/{component,pending}.rb": component
   "app/javascript/**/*": client
   "spec/javascript/**/*": client
   "{package.json,bun.lock,tsconfig.json}": client
@@ -145,15 +146,21 @@ paths:
   "lib/phlex/reactive/{reply,response,stream,streamable,engine}.rb": transport
   "lib/phlex/reactive/{inspector,doctor,mcp,apm,log_subscriber,test_helpers}.rb": devtools
   "lib/phlex/reactive/{inspector,mcp,apm,test_helpers,claude}/**/*": devtools
+  "lib/phlex/reactive/{inspector,mcp,apm,test_helpers,claude}.rb": devtools
   "lib/generators/**/*": generators
   "lib/tasks/**/*": generators
   "spec/generators/**/*": generators
+  "spec/phlex/reactive/{component,client_bindings,collections,effects,param_schema,pending,show_conditions,js,settle,settles,defer,deferred_render_job,authorization}_spec.rb": component
+  "spec/phlex/reactive/{component,pending}_spec.rb": component
+  "spec/phlex/reactive/{reply,response,stream,streamable,engine}_spec.rb": transport
+  "spec/phlex/reactive/{inspector,doctor,mcp,apm,log_subscriber,test_helpers}_spec.rb": devtools
+  "spec/phlex/reactive/{inspector,mcp,apm,test_helpers,claude}/**/*": devtools
+  "spec/phlex/reactive/{inspector,mcp,apm,test_helpers,claude}_spec.rb": devtools
   ".github/**/*": devops
   "bin/release": devops
   "rakelib/**/*": devops
-  "Dockerfile*": devops
+  "**/Dockerfile*": devops
   ".claude/**/*": dx
   "{AGENTS,CLAUDE}.md": dx
   "bin/labels": dx
-  "lode/**/*": dx
   "docs/**/*": docs-site
