@@ -39,10 +39,9 @@ All work goes through PRs.
 1. Create branch from `main`
 2. Make focused, atomic commits
 3. Run validators before pushing (`bundle exec rake`)
-4. Create PR with summary + test plan
-5. Label the PR: exactly one `type` + at least one `area` (`gh pr create --label …`), never a `status` label. `bin/labels infer <changed paths>` gives the areas; the taxonomy is `.github/labels.yml`, the rules are `.github/LABELS.md`
-6. Request review
-7. Squash merge when approved + CI green
+4. Create PR with summary + test plan, labelled in the same `gh pr create` call: exactly one `type` + at least one `area` (`--label …`), never a `status` label. `bin/labels infer <changed paths>` gives the areas; the taxonomy is `.github/labels.yml`, the rules are `.github/LABELS.md`. Forgot? `gh pr edit <n> --add-label …`
+5. Request review
+6. Squash merge when approved + CI green
 
 ## Release
 
