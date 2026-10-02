@@ -39,7 +39,7 @@ All work goes through PRs.
 1. Create branch from `main`
 2. Make focused, atomic commits
 3. Run validators before pushing (`bundle exec rake`)
-4. Create PR with summary + test plan
+4. Create PR with summary + test plan, labelled in the same `gh pr create` call: exactly one `type` + at least one `area` (`--label …`), never a `status` label. `bin/labels infer <changed paths>` gives the areas; the taxonomy is `.github/labels.yml`, the rules are `.github/LABELS.md`. Forgot? `gh pr edit <n> --add-label …`
 5. Request review
 6. Squash merge when approved + CI green
 
@@ -78,3 +78,4 @@ bundle exec rspec spec/phlex spec/requests   # Fast suite
 - **ALWAYS** run validators before committing
 - **ALWAYS** write meaningful commit messages
 - Keep commits small and focused — one logical change per commit
+- Labels are edited in `.github/labels.yml` and applied with `bin/labels sync`, never by hand in the GitHub UI. `bin/labels` and `.github/LABELS.md` are the zoolutions labels kit (canonical copy in docs-kit, see its LABELS_KIT.md): never edit them here — change docs-kit, then `script/labels-kit sync`

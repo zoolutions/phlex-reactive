@@ -1,0 +1,165 @@
+# The label taxonomy for zoolutions/phlex-reactive — the single source of truth.
+#
+# `bin/labels sync` makes GitHub match this file; `bin/labels validate` checks it
+# offline. The rules live in .github/LABELS.md.
+#
+# Every label outside the `area` group, and the shared `devops`/`dx`/`docs-site`
+# areas, come from docs-kit's labels kit (LABELS_KIT.md) and must stay identical
+# to docs-kit's copy (`script/labels-kit check`). The other areas are this repo's.
+---
+# size:*, tier-2 and needs-strong-model are applied by an external triage tool, not by this repo.
+ignore:
+  - "size:*"
+  - "tier-2"
+  - "needs-strong-model"
+
+labels:
+  # ---------------------------------------------------------------- type ----
+  # Exactly one per issue/PR: what kind of work this is.
+  - name: bug
+    color: d73a4a
+    description: Something isn't working
+    group: type
+  - name: enhancement
+    color: a2eeef
+    description: New feature or request
+    group: type
+  - name: performance
+    color: fbca04
+    description: Faster or leaner with no change in behaviour
+    group: type
+  - name: tech-debt
+    color: 9c27bb
+    description: Refactoring or cleanup that pays down an accepted shortcut
+    group: type
+  - name: security
+    color: "e9e257"
+    description: Vulnerability, hardening, or an authorization correctness fix
+    group: type
+  - name: documentation
+    color: 0075ca
+    description: Improvements or additions to documentation
+    group: type
+  - name: dependencies
+    color: d93f0b
+    description: Changes dependencies in some way
+    group: type
+  - name: chore
+    color: ededed
+    description: CI, tooling or configuration work with no behaviour change
+    group: type
+
+  # ---------------------------------------------------------------- area ----
+  # One or more per issue/PR: which part of the code it touches. Shared first.
+  - name: devops
+    color: 006b75
+    description: CI, the release kit, Docker, deploys and infrastructure
+    group: area
+  - name: dx
+    color: 16a085
+    description: Developer experience — agent commands and rules, generators, local tooling
+    group: area
+  - name: docs-site
+    color: 2ea44f
+    description: The documentation site under docs/
+    group: area
+  # phlex-reactive's own areas.
+  - name: component
+    color: 1d76db
+    description: Server-side reactive components — actions, state, effects, collections and authorization
+    group: area
+  - name: client
+    color: 0366d6
+    description: The browser runtime — the reactive Stimulus controller and its helpers
+    group: area
+  - name: transport
+    color: 7eafec
+    description: The endpoint, replies, responses, streams and the Rails engine
+    group: area
+  - name: devtools
+    color: 5b8def
+    description: Inspector, doctor, MCP server, APM hooks, logging and test helpers
+    group: area
+  - name: generators
+    color: 3e6abd
+    description: Install and component generators and rake tasks
+    group: area
+
+  # -------------------------------------------------------------- status ----
+  # Where an issue is in its lifecycle. Never on a pull request.
+  - name: plan
+    color: 6f42c1
+    description: Has a /plan body with Context, Decision, Steps and Gates; ready for /lfg
+    group: status
+  - name: epic
+    color: "5319e7"
+    description: Umbrella item tracking several smaller issues
+    group: status
+  - name: blocker
+    color: 8a63d2
+    description: Blocks other work or a release until it is resolved
+    group: status
+  - name: needs-info
+    color: d4c5f9
+    description: Waiting on details before it can be planned or worked on
+    group: status
+
+  # ----------------------------------------------------------- community ----
+  # GitHub's defaults, kept because GitHub surfaces them to contributors.
+  - name: good first issue
+    color: 7057ff
+    description: Good for newcomers
+    group: community
+  - name: help wanted
+    color: "008672"
+    description: Extra attention is needed
+    group: community
+  - name: question
+    color: d876e3
+    description: Further information is requested
+    group: community
+  - name: duplicate
+    color: cfd3d7
+    description: This issue or pull request already exists
+    group: community
+  - name: invalid
+    color: "e4e669"
+    description: This doesn't seem right
+    group: community
+  - name: wontfix
+    color: ffffff
+    description: This will not be worked on
+    group: community
+
+# Path globs -> area label, used by `bin/labels infer` and by /plan and /lfg to
+# label deterministically from a diff. Matched with File.fnmatch and
+# File::FNM_PATHNAME | File::FNM_EXTGLOB: write a recursive glob as `**/*`. A
+# path may match several globs — every matching area applies.
+paths:
+  "lib/phlex/reactive/{component,client_bindings,collections,effects,param_schema,pending,show_conditions,js,settle,settles,defer,deferred_render_job,authorization}.rb": component
+  "lib/phlex/reactive/{component,pending}/**/*": component
+  "app/javascript/**/*": client
+  "spec/javascript/**/*": client
+  "{package.json,bun.lock,tsconfig.json}": client
+  "app/controllers/**/*": transport
+  "lib/phlex/reactive/{reply,response,stream,streamable,engine}.rb": transport
+  "lib/phlex/reactive/{inspector,doctor,mcp,apm,log_subscriber,test_helpers}.rb": devtools
+  "lib/phlex/reactive/{inspector,mcp,apm,test_helpers,claude}/**/*": devtools
+  "lib/generators/**/*": generators
+  "lib/tasks/**/*": generators
+  "spec/generators/**/*": generators
+  "spec/phlex/reactive/{component,client_bindings,collections,effects,param_schema,pending,show_conditions,js,settle,settles,defer,deferred_render_job,authorization}_spec.rb": component
+  "spec/phlex/reactive/{component,client_bindings,collections,effects,param_schema,pending,show_conditions,js,settle,settles,defer,deferred_render_job,authorization}_*_spec.rb": component
+  "spec/phlex/reactive/{reply,response,stream,streamable,engine}_spec.rb": transport
+  "spec/phlex/reactive/{reply,response,stream,streamable,engine}_*_spec.rb": transport
+  "spec/phlex/reactive/{inspector,doctor,mcp,apm,log_subscriber,test_helpers}_spec.rb": devtools
+  "spec/phlex/reactive/{inspector,mcp,apm,test_helpers,claude}/**/*": devtools
+  "spec/phlex/reactive/{inspector,mcp,apm,test_helpers,claude}_*_spec.rb": devtools
+  ".github/**/*": devops
+  "bin/release": devops
+  "rakelib/**/*": devops
+  "**/Dockerfile*": devops
+  ".claude/**/*": dx
+  "{AGENTS,CLAUDE}.md": dx
+  "bin/labels": dx
+  "docs/**/*": docs-site
