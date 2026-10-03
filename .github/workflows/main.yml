@@ -11,10 +11,10 @@ permissions:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     name: Lint
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Set up Ruby
@@ -28,7 +28,7 @@ jobs:
         run: gem build phlex-reactive.gemspec --strict
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     name: Ruby ${{ matrix.ruby }}
     strategy:
       fail-fast: false
@@ -37,7 +37,7 @@ jobs:
           - "3.4"
           - "4.0"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Set up Ruby
@@ -49,10 +49,10 @@ jobs:
         run: bundle exec rspec spec/phlex spec/requests spec/generators
 
   bench:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     name: Benchmarks (report only)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Set up Ruby
@@ -72,7 +72,7 @@ jobs:
         continue-on-error: true
         run: bundle exec rake bench:request | tee tmp/benchmarks/request.txt
       - name: Upload benchmark report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: benchmarks
@@ -80,7 +80,7 @@ jobs:
           if-no-files-found: warn
 
   site:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     name: Demo site (${{ matrix.server }})
     # The docs/ Rails app is a separate app that dogfoods the gem via
     # `path: ".."`. Run its request + system suites under BOTH real servers,
@@ -109,7 +109,7 @@ jobs:
       # app; the lock is still respected, just allowed to update the path entry.
       BUNDLE_FROZEN: "false"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Set up Ruby
@@ -124,7 +124,7 @@ jobs:
       - name: Install JS dependencies
         run: bun install --frozen-lockfile
       - name: Cache Playwright browsers
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
@@ -149,7 +149,7 @@ jobs:
         run: bundle exec rspec spec/system
 
   system:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     name: System (${{ matrix.server }} / ${{ matrix.transport }})
     # Run the browser suite across TWO real servers × TWO transports (issue #187):
     #   server:    puma (sync, thread-pool) | falcon (async, fiber-per-request)
@@ -194,7 +194,7 @@ jobs:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/phlex_reactive_pgbus_test
       PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Set up Ruby
@@ -225,7 +225,7 @@ jobs:
         if: matrix.transport == 'pgbus'
         run: bundle exec rake pgbus:prepare_test_db
       - name: Cache Playwright browsers
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
@@ -240,7 +240,7 @@ jobs:
       - name: System specs
         run: bundle exec rspec spec/system
       - name: Upload failure screenshots
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: capybara-screenshots-${{ matrix.server }}-${{ matrix.transport }}
