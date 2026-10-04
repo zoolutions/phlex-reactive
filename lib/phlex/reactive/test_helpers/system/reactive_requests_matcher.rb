@@ -52,19 +52,27 @@ module Phlex
           end
 
           def failure_message
-            message = "expected #{@expected} reactive #{noun} (#{scope}), got #{selected} — totals #{totals_str}"
+            with_gate_hint(
+              "expected #{@expected} reactive #{noun} (#{scope}), got #{selected} — totals #{totals_str}"
+            )
+          end
+
+          def failure_message_when_negated
+            with_gate_hint(
+              "expected the reactive request count (#{scope}) NOT to be #{@expected}, but it was — totals #{totals_str}"
+            )
+          end
+
+          private
+
+          # A closed verbose gate is the usual cause of an unexpected zero: say so.
+          def with_gate_hint(message)
             return message if @verbose
 
             "#{message}. The verbose gate is closed, so the client is not counting: it writes " \
               "<html #{REQUESTS_ATTR}> only under Phlex::Reactive.verbose_errors (on in dev/test " \
               "by default) or data-reactive-verbose on <html>"
           end
-
-          def failure_message_when_negated
-            "expected the reactive request count (#{scope}) NOT to be #{@expected}, but it was — totals #{totals_str}"
-          end
-
-          private
 
           def read_state
             raw = @page.evaluate_script(<<~JS)

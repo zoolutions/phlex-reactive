@@ -61,6 +61,10 @@ RSpec.describe "Reactive request-count helpers (issue #279)", type: :system do
     wait_for_reactive
     expect(page.evaluate_script("window.__noReload")).to eq("alive") # a Drive visit, not a reload
 
+    # The totals live on <html>, which Drive keeps: the earlier request is
+    # still counted until the reset.
+    expect(reactive_request_count).to eq(action: 1, defer: 0)
+
     reset_reactive_requests!
     expect(reactive_request_count).to eq(action: 0, defer: 0)
     find("[data-testid='inc']").click
