@@ -225,6 +225,16 @@ module Phlex
           "keydown.esc->reactive#listnavClose"
         ].freeze
 
+        # Roving-focus mode (issue #271): Enter/Space are the focused item's
+        # native activation and Escape is the caller's own on_client binding,
+        # so only the movement keys are bound.
+        LISTNAV_FOCUS_ACTIONS = [
+          "keydown.down->reactive#listnavNext",
+          "keydown.up->reactive#listnavPrev",
+          "keydown.home->reactive#listnavFirst",
+          "keydown.end->reactive#listnavLast"
+        ].freeze
+
         # Event modifiers (issue #80) — window:, once:, outside:, throttle: are
         # RESERVED keyword names on on() (no longer usable as free action params):
         #
@@ -376,6 +386,17 @@ module Phlex
         # Window-bound triggers are never preventDefault-ed by the client and skip
         # the forced type="button".
         #
+        # Issue #271: each call emits ONE self-describing binding record —
+        #   data-reactive-ops-param='{"on":"click","window":true,"outside":true,"ops":[…]}'
+        # carrying its own descriptor, flags and confirm, so several bindings on
+        # one element compose through mix: the data-action descriptors token-join,
+        # the records space-join (every literal space inside a record is written
+        # as \u0020, so the join is unambiguous), and the client runs only the
+        # record whose descriptor matches the firing event:
+        #   div(**mix(reactive_root,
+        #             on_client(:click, js.hide("#menu"), outside: true),
+        #             on_client("keydown.esc", js.hide("#menu"))))
+        #
         # Ops are EPHEMERAL UI: any server re-render of the component (an action
         # reply, a broadcast, a morph) rebuilds from server state and resets
         # whatever they toggled — by design (the LiveView JS-commands caveat). Use
@@ -402,29 +423,21 @@ module Phlex
               "(change/input), or gate it behind a reducer's $ops / reactive_on_complete."
           end
           window_bound = window || outside
+          record = client_binding_record(event, ops, window_bound:, outside:, once:, confirm:)
           attrs = {
             data: {
               action: "#{event}#{"@window" if window_bound}->reactive#runOps#{":once" if once}",
-              reactive_ops_param: ops.to_json
+              # Space-free (issue #271): compact JSON has no structural
+              # whitespace, so every space is inside a string, where \u0020
+              # parses to the same string — and mix's space-join stays splittable.
+              reactive_ops_param: record.to_json.gsub(" ", '\u0020')
             }
           }
-          # STRING "true", not boolean — same Phlex valueless-attribute trap as
-          # on()'s flags above.
-          attrs[:data][:reactive_outside_param] = "true" if outside
-          attrs[:data][:reactive_window_param] = "true" if window_bound
           # Issue #228: mark a clipboard-reading trigger so the client can gate
           # its visibility on availability — on connect the controller sets
           # hidden = !navigator.clipboard.readText. Render the trigger `hidden`
           # for reveal-when-available (a dead paste button never shows).
           attrs[:data][:reactive_clipboard] = "true" if ops.ops.any? { |name, _| name == "paste_into" }
-          # Issue #178: confirm: gates the client-op chain behind the SAME
-          # overridable confirmResolver on(:action, confirm:) uses (#52/#55). Emits
-          # the identical data-reactive-confirm-param; the client's runOps prompts
-          # via confirmResolver BEFORE applying the ops (a falsy resolve cancels
-          # the chain), so a destructive client op gets the themed dialog with no
-          # round trip. Issue #179: a Hash confirm: is CONDITIONAL — same shared
-          # apply_confirm! branches String vs Hash for both on and on_client.
-          apply_confirm!(attrs[:data], confirm) if confirm
           attrs[:type] = "button" if event == "click" && !window_bound
           attrs
         end
@@ -678,13 +691,23 @@ module Phlex
         # Enter picks the highlighted one by clicking its own reactive trigger
         # (selection stays a signed action), Escape clears. Combine with other
         # attrs via mix so a caller's data-action token-joins, not clobbers.
-        def reactive_listnav(option_selector = "[role=option]")
-          {
-            data: {
-              action: LISTNAV_ACTIONS.join(" "),
-              reactive_listnav_option_param: filter_selector!(:selector, option_selector)
-            }
+        #
+        # `focus: true` (issue #271) is ROVING-FOCUS mode for a menu container:
+        # Arrow Down/Up move real focus among the items (wrapping), Home/End jump
+        # to the first/last; no highlight attr is written. The item selector
+        # defaults to [role=menuitem]. Enter/Space stay native activation and
+        # Escape is yours to bind (on_client("keydown.esc", ...) composes via mix):
+        #
+        #   ul(role: "menu", **mix(reactive_listnav(focus: true), data: { testid: "menu" }))
+        def reactive_listnav(option_selector = nil, focus: false)
+          option_selector ||= focus ? "[role=menuitem]" : "[role=option]"
+          data = {
+            action: (focus ? LISTNAV_FOCUS_ACTIONS : LISTNAV_ACTIONS).join(" "),
+            reactive_listnav_option_param: filter_selector!(:selector, option_selector)
           }
+          # STRING "true" — Phlex renders a boolean true as a valueless attribute.
+          data[:reactive_listnav_focus_param] = "true" if focus
+          { data: }
         end
 
         # Tag-chip input (issue #203) — the composed combobox/tags primitive.
@@ -1391,6 +1414,29 @@ module Phlex
         # Shared by on and on_client so both paths speak the same three forms. The
         # predicate is soft-validation UX, NOT authorization — a user can bypass it;
         # the action still hits the endpoint's real authorize/default-deny.
+        # One on_client binding record (issue #271). Flags and confirm live IN
+        # the record — never as element-wide params, which a sibling binding
+        # would inherit. Issue #178: confirm: gates the chain behind the SAME
+        # overridable confirmResolver on(:action, confirm:) uses (#52/#55); the
+        # client prompts BEFORE applying the ops. Issue #179: a Hash confirm: is
+        # CONDITIONAL, compiled by the shared compile_conditional_confirm.
+        def client_binding_record(event, ops, window_bound:, outside:, once:, confirm:)
+          record = { "on" => event }
+          record["window"] = true if window_bound
+          record["outside"] = true if outside
+          # A mix-ed regular sibling keeps calling runOps after Stimulus drops
+          # this binding's :once listener — the client skips a spent once record.
+          record["once"] = true if once
+          case confirm
+          when nil, false then nil
+          when String then record["confirm"] = confirm
+          when Hash then record["confirmWhen"] = compile_conditional_confirm(confirm)
+          else apply_confirm!({}, confirm) # raises the shared guided error
+          end
+          record["ops"] = ops.ops
+          record
+        end
+
         def apply_confirm!(data, confirm)
           case confirm
           when String

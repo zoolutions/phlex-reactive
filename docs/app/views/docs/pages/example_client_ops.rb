@@ -18,6 +18,7 @@ module Views
         def content
           try_it
           how
+          disclosure_menu
           ops
           value_conditional
           client_drafts
@@ -48,7 +49,9 @@ module Views
               `on_client(:click, ops)` binds a chain of DOM ops to an event and runs
               them locally through the one generic reactive controller. The ops are a
               **frozen whitelist** — `show`/`hide`/`toggle`, `add_class`/
-              `remove_class`/`toggle_class`, `set_attr`/`toggle_attr`/`remove_attr`,
+              `remove_class`/`toggle_class`, `set_attr`/`toggle_attr`/`remove_attr`
+              (`toggle_attr` also flips between two values, and `show`/`hide`/`toggle`
+              take `expanded:` to keep a trigger's `aria-expanded` in sync — #271),
               `focus`/`focus_first`, `text`, `dispatch`, `submit`, `paste_into` —
               each a local DOM mutation, with two deliberate exceptions. `submit`
               hands the form to its own native/intercepted submit path — the form
@@ -69,6 +72,35 @@ module Views
                 trigger, and `focus_first("#ct-drawer")` moves focus to the first
                 control inside — the exact accessible-disclosure pattern, one chain.
             MD
+          end
+        end
+
+        def disclosure_menu
+          DocsUI::Section('Accessible disclosure menu') do
+            md <<~MD
+              The WAI-ARIA *menu button* pattern, still with **no actions and no
+              custom JavaScript** (#271). Click the trigger, or focus it and press
+              Arrow Down: the menu opens and focus lands on the first item. Arrow
+              Up/Down rove focus (wrapping), Home/End jump to the edges, Escape
+              closes and returns focus to the trigger, and an outside click closes
+              it too. `aria-expanded` on the trigger stays honest the whole way.
+
+              - **`toggle_attr(to, name, on, off)`** flips an attribute *between two
+                values* — `js.toggle("#dm-menu").toggle_attr("#dm-trigger",
+                "aria-expanded", "true", "false")`. An absent attribute becomes `on`.
+              - **`expanded:`** on `show`/`hide`/`toggle` mirrors the op's intended
+                state into the trigger's `aria-expanded` — `js.hide("#dm-menu",
+                expanded: "#dm-trigger")` writes `"false"`, before any transition.
+              - **`reactive_listnav(focus: true)`** on the `role="menu"` list gives
+                roving focus among `[role=menuitem]`.
+              - **Two `on_client` calls on one element** compose through `mix`: the
+                trigger binds `click` and `keydown.down`, the root binds the
+                outside click and `keydown.esc`.
+            MD
+            render Views::Examples::LiveExample.new(
+              component: DisclosureMenuComponent.new,
+              filename: 'app/components/disclosure_menu_component.rb'
+            )
           end
         end
 

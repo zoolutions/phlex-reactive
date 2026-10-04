@@ -296,6 +296,68 @@ RSpec.describe Phlex::Reactive::JS do
     end
   end
 
+  # --- Issue #271: two-value toggle_attr + expanded: on the visibility ops ---
+  describe "toggle_attr with two values (flip between on/off, not presence)" do
+    def args(chain) = JSON.parse(chain.to_json).dig(0, 1)
+
+    it "serializes the pair as values (stringified)" do
+      expect(args(js.toggle_attr("#t", "aria-expanded", true, false)))
+        .to eq("to" => "#t", "name" => "aria-expanded", "values" => %w[true false])
+    end
+
+    it "keeps today's presence-toggle wire when no values are given" do
+      expect(js.toggle_attr("#t", "aria-expanded").to_json)
+        .to eq('[["toggle_attr",{"to":"#t","name":"aria-expanded"}]]')
+    end
+
+    it "raises for exactly one value or more than two (a half-specified flip)" do
+      expect { js.toggle_attr("#t", "aria-expanded", "true") }.to raise_error(ArgumentError, /two values/)
+      expect { js.toggle_attr("#t", "data-state", "a", "b", "c") }.to raise_error(ArgumentError, /two values/)
+    end
+
+    it "raises when both values are equal (a flip that never changes anything)" do
+      expect { js.toggle_attr("#t", "aria-pressed", true, "true") }.to raise_error(ArgumentError, /differ/)
+    end
+
+    it "still carries global: and still gates the name" do
+      expect(args(js.toggle_attr("#t", "data-state", "open", "closed", global: true))).to include("global" => true)
+      expect { js.toggle_attr("#t", "onclick", "a", "b") }.to raise_error(ArgumentError, /onclick/)
+    end
+
+    it "is still gated on the raw-list escape hatch" do
+      expect { described_class.assert_ops_allowed!([["toggle_attr", { "name" => "href", "values" => %w[a b] }]]) }
+        .to raise_error(ArgumentError, /href/)
+    end
+  end
+
+  describe "expanded: on show/hide/toggle (mirror the disclosure state into aria-expanded)" do
+    def args(chain) = JSON.parse(chain.to_json).dig(0, 1)
+
+    it "records the expanded target on each visibility op" do
+      expect(args(js.toggle("#menu", expanded: "#trigger"))).to eq("to" => "#menu", "expanded" => "#trigger")
+      expect(args(js.show("#menu", expanded: "#trigger"))["expanded"]).to eq("#trigger")
+      expect(args(js.hide("#menu", expanded: "#trigger"))["expanded"]).to eq("#trigger")
+    end
+
+    it "translates expanded: :root to the root sentinel" do
+      expect(args(js.hide("#menu", expanded: :root))["expanded"]).to eq("@root")
+    end
+
+    it "raises for a target that is neither :root nor a selector" do
+      expect { js.toggle("#menu", expanded: 123) }.to raise_error(ArgumentError, /target/)
+    end
+
+    it "composes with transition: and global:" do
+      legs = { during: "t", from: "f", to: "to" }
+      expect(args(js.toggle("#menu", expanded: "#trigger", transition: legs, global: true)))
+        .to include("expanded" => "#trigger", "global" => true, "transition" => %w[t f to])
+    end
+
+    it "keeps the wire byte-identical when omitted" do
+      expect(js.toggle("#menu").to_json).to eq('[["toggle",{"to":"#menu"}]]')
+    end
+  end
+
   # --- Issue #159: the text op (set textContent — the cross-root text escape) ---
 
   describe "text op (#text) — textContent only, never innerHTML" do

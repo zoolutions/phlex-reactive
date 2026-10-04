@@ -110,17 +110,25 @@ module Phlex
       # the next frame `from`→`to` swaps, and the whole set is awaited via
       # `animationend` (with a setTimeout fallback so a non-animated element never
       # hangs the op chain). Omit it for the instant flip.
+      #
+      # `expanded:` (issue #271) — a disclosure trigger to keep honest: the
+      # client sets its aria-expanded from the op's INTENDED state (show →
+      # "true", hide → "false", toggle → the pre-flip hidden state), before any
+      # transition runs. Resolved with the op's own scoping (`:root` or a
+      # selector, document-wide under global: true). Pair it with ONE disclosure
+      # target — with several, the last one wins.
+      #   js.toggle("#menu", expanded: "#menu-trigger")
 
-      def show(to, global: false, transition: nil)
-        append("show", target_args(to, global:, transition:))
+      def show(to, global: false, transition: nil, expanded: nil)
+        append("show", target_args(to, global:, transition:, expanded:))
       end
 
-      def hide(to, global: false, transition: nil)
-        append("hide", target_args(to, global:, transition:))
+      def hide(to, global: false, transition: nil, expanded: nil)
+        append("hide", target_args(to, global:, transition:, expanded:))
       end
 
-      def toggle(to, global: false, transition: nil)
-        append("toggle", target_args(to, global:, transition:))
+      def toggle(to, global: false, transition: nil, expanded: nil)
+        append("toggle", target_args(to, global:, transition:, expanded:))
       end
 
       # --- Classes ---
@@ -143,6 +151,11 @@ module Phlex
       # The value is stringified (a Phlex-style flag rides as the string "true",
       # never a valueless attribute). The name is checked against the allowlist at
       # build time — an event-handler, URL-bearing, or style name raises here.
+      #
+      # toggle_attr(to, name, on, off) (issue #271) flips BETWEEN two values
+      # instead of toggling presence — current == on ? off : on, so an absent
+      # attribute becomes `on`. For aria-expanded/aria-pressed/data-state:
+      #   js.toggle_attr("#trigger", "aria-expanded", "true", "false")
 
       def set_attr(to, name, value, global: false)
         append("set_attr", attr_args(to, name, global:, value:))
@@ -152,8 +165,11 @@ module Phlex
         append("remove_attr", attr_args(to, name, global:))
       end
 
-      def toggle_attr(to, name, global: false)
-        append("toggle_attr", attr_args(to, name, global:))
+      def toggle_attr(to, name, *values, global: false)
+        args = attr_args(to, name, global:)
+        return append("toggle_attr", args) if values.empty?
+
+        append("toggle_attr", args.merge("values" => toggle_values(name, values)).freeze)
       end
 
       # --- Focus (issue #96) ---
@@ -290,11 +306,29 @@ module Phlex
         self.class.new([*@ops, [name, args].freeze].freeze)
       end
 
-      def target_args(to, global:, transition: nil)
+      def target_args(to, global:, transition: nil, expanded: nil)
         args = { "to" => normalize_target(to) }
         args["global"] = true if global
         args["transition"] = normalize_transition(transition) if transition
+        args["expanded"] = normalize_target(expanded) unless expanded.nil?
         args.freeze
+      end
+
+      # The [on, off] pair of a two-value toggle_attr, stringified. Loud on a
+      # half-specified pair or one that could never change anything.
+      def toggle_values(name, values)
+        unless values.size == 2
+          raise ArgumentError,
+            "#{self.class}: toggle_attr(#{name.to_s.inspect}) takes no values (presence toggle) " \
+            "or two values to flip between, got #{values.size}: #{values.inspect}"
+        end
+
+        on, off = values.map(&:to_s)
+        if on == off
+          raise ArgumentError, "#{self.class}: toggle_attr(#{name.to_s.inspect}) values must differ, got #{on.inspect} twice"
+        end
+
+        [on, off].freeze
       end
 
       # An attr op's args: the target, the allowlisted name, an optional

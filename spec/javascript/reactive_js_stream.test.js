@@ -159,6 +159,22 @@ test("@root with a target resolves to the target element itself", () => {
   expect(root.hidden).toBe(true)
 })
 
+test("expanded: resolves through the stream's resolver (issue #271)", () => {
+  const actions = stubTurbo()
+  registerReactiveJs()
+  const menu = makeEl("menu")
+  const trigger = makeEl("trigger")
+  trigger.attrs = {}
+  trigger.setAttribute = (n, v) => (trigger.attrs[n] = String(v))
+  menu.hidden = true
+  stubDocument({ docMatches: { "#menu": [menu], "#trigger": [trigger] } })
+
+  invoke(actions, streamEl({ ops: JSON.stringify([["toggle", { to: "#menu", expanded: "#trigger" }]]) }))
+
+  expect(menu.hidden).toBe(false)
+  expect(trigger.attrs["aria-expanded"]).toBe("true")
+})
+
 test("a missing target element is a no-op (never throws)", () => {
   const actions = stubTurbo()
   registerReactiveJs()
