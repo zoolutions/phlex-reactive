@@ -199,9 +199,14 @@ guide](https://phlex-reactive.zoolutions.llc/docs/tooling) for the full workflow
 ```bash
 bin/rails phlex_reactive:doctor          # validate the whole install (✓/✗/? + a fix each)
 bin/rails phlex_reactive:actions         # every component × action: params, file:line, auth
+bin/rails phlex_reactive:actions UNVERIFIED=1 # only actions with no detected authorization AND no skip
 bin/rails "phlex_reactive:find[counter]" # fuzzy-find one; prints each action's method source
 bin/rails phlex_reactive:mcp             # a read-only MCP server (needs `gem "mcp"`)
 ```
+
+The `auth` column reads `authorized*` (an authorization call was detected — a
+heuristic), `skipped` / `skipped (class)` (declared `skip_verify_authorized`,
+per action or component-wide), or `unverified` (neither — review these).
 
 In the browser console, map every reactive root + trigger on the page back to its
 server `Component#action` names (a standalone module — zero cost until imported):

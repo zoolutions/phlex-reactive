@@ -9,6 +9,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`phlex_reactive:actions` tells a deliberate skip from a forgotten check
+  (#278).** The `auth` column now has three states: `authorized*` (a call was
+  detected), `skipped` / `skipped (class)` (declared `skip_verify_authorized`,
+  per action or component-wide, inherited too) and `unverified` (neither).
+  `UNVERIFIED=1` lists only the unverified rows. The JSON and the MCP
+  `phlex_reactive_actions` / `phlex_reactive_find` tools add `authorization`
+  (`detected`/`skipped`/`none`) and `authorization_skip` (`class`/`action`/`null`);
+  `authorization_call_detected` stays for compatibility.
+
 - **Several `on_client` bindings on one element (#271).** Two `on_client`
   calls merged with `mix` now both work — e.g. a root that closes a menu on an
   outside click AND on Escape. Each call carries its own descriptor, flags and

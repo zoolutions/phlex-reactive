@@ -12,14 +12,18 @@ namespace :phlex_reactive do
     abort unless Phlex::Reactive::Doctor.run
   end
 
-  desc "List every declared reactive action (component | action | params | file:line | auth); FORMAT=json for tooling"
+  desc "List every declared reactive action (component | action | params | file:line | auth); " \
+       "FORMAT=json for tooling, UNVERIFIED=1 for only the unverified rows"
   task actions: :environment do
     # eager_load! so every app component is in the Streamable registry the
     # Inspector reads. Plain text by default (no ANSI, like the doctor);
     # FORMAT=json emits a parseable array for tooling. Names/paths/schemas only.
+    # UNVERIFIED=1 keeps only actions with neither a detected authorization call
+    # nor a skip_verify_authorized — the review queue (issue #278).
     Rails.application.eager_load!
     format = ENV["FORMAT"].to_s.downcase == "json" ? :json : :text
-    puts Phlex::Reactive::Inspector::Report.actions(Phlex::Reactive::Inspector.components, format:)
+    unverified_only = %w[1 true yes].include?(ENV["UNVERIFIED"].to_s.downcase)
+    puts Phlex::Reactive::Inspector::Report.actions(Phlex::Reactive::Inspector.components, format:, unverified_only:)
   end
 
   desc "Fuzzy-find a reactive component and print its actions with method-definition source — phlex_reactive:find[query]"

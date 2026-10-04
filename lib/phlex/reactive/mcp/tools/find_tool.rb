@@ -15,7 +15,8 @@ module Phlex
             Fuzzy-find reactive components by name (exact > prefix > substring >
             subsequence, on both the demodulized and full name). Returns the ranked
             matches, each with its actions' param schema, source location,
-            authorization heuristic, and the full method-definition SOURCE
+            authorization (detected / skipped / none, plus the skip form), and the
+            full method-definition SOURCE
             (extracted with Prism). Read-only.
 
             NOTE: unlike the other tools (which report names/paths/schemas only),
@@ -53,6 +54,8 @@ module Phlex
               params: action.params,
               source_location: Phlex::Reactive::Inspector::Report.location_str(action.source_location),
               authorization_call_detected: action.authorization_call_detected?,
+              authorization: action.authorization_state.to_s,
+              authorization_skip: action.authorization_skip&.to_s,
               # The full method SOURCE — this is the one field that exposes an
               # action body verbatim (see the tool description). A secret hardcoded
               # in an action would surface here; keep secrets out of action bodies.
