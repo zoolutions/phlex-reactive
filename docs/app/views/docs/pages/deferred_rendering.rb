@@ -394,7 +394,7 @@ module Views
               |---|---|
               | `Cache-Control` | `max-age=<n>, private` — never `public`. `<n>` is the declared `max_age`, capped by `Phlex::Reactive.fragment_cache_max_age_limit` (1 hour). |
               | `ETag` | derived from the rendered body, so a stale copy revalidates with a `304` |
-              | `Vary` | `Cookie` — unless the component declares `reactive_cache_viewer` (below) |
+              | `Vary` | `Cookie` — unless `reactive_cache_viewer` returns a non-blank value (below) |
 
               Every other response is `no-store`: a 4xx, a `render?` false (204), and
               anything your base controller answers before the endpoint runs (a 401,
@@ -459,10 +459,11 @@ module Views
 
               One difference from a plain `on:` shell: with `cache:` the load runs
               on the **defer lane** (a module-level GET), not the action pipeline.
-              So `reactive:before-dispatch` does not fire for it and cannot veto it,
-              the busy markers are the defer ones (`data-reactive-defer-pending`),
-              and a failed load emits `reactive:error` with `kind: "defer"` and a
-              `retry()` — where a plain `on:` shell waits for the next morph.
+              `reactive:before-dispatch` still fires first and can veto it (with
+              `detail.action` `"__materialize"`), but the busy markers are the
+              defer ones (`data-reactive-defer-pending`), and a failed load emits
+              `reactive:error` with `kind: "defer"` and a `retry()` — where a plain
+              `on:` shell waits for the next morph.
 
               **With `reactive_dormant`.** An `on:` + `cache:` shell goes dormant like
               any `on:` shell: the event wakes the root and the load is the cacheable
@@ -480,11 +481,10 @@ module Views
                 than cache it — so the component keeps working, just uncached.
                 Reactive triggers are unaffected: the client reads the CSRF token
                 from the page's `csrf-token` meta tag at request time.
-              - **A plain `reactive_lazy` child.** Its shell carries a defer token
-                that expires after `defer_token_ttl` (120 s). A cached copy replayed
-                later still holds the old token, and the child's load then fails
-                with a 400. Give a nested lazy child `on:` or `cache:` instead
-                (neither expires), or render it eagerly.
+
+              Nested lazy components are fine: the fragment is a real render, so a
+              `reactive_lazy` child inside it renders its own template too — no
+              shell, and so no expiring defer token in the cached copy.
 
               **Limits.**
 

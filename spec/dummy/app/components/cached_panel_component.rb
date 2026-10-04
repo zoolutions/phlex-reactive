@@ -1,10 +1,11 @@
 # frozen_string_literal: true
 
-# reactive_lazy(on:, cache:) fixture (issue #277): "load on first open, reuse
-# across page views". No request on page load; the first `panel:opened` GETs
-# the cacheable fragment; a later page view's first open is answered by the
-# browser cache. tag: :ul matches the real root so a Turbo morph keeps the
-# element (see LazyPanelComponent).
+# reactive_lazy(on:, cache:) fixture (issue #277), in the DEFAULT mode (no
+# reactive_cache_viewer, so the reply says Vary: Cookie): no request on page
+# load; the first `panel:opened` GETs the cacheable fragment; the copy is
+# reused while the cookies are unchanged — a same-page morph-back — and not on
+# the next page view under the cookie session store. tag: :ul matches the real
+# root so a Turbo morph keeps the element (see LazyPanelComponent).
 class CachedPanelComponent < ApplicationComponent
   include Phlex::Reactive::Streamable
   include Phlex::Reactive::Component

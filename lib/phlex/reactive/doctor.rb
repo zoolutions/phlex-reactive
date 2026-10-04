@@ -124,10 +124,15 @@ module Phlex
         path = Phlex::Reactive.fragment_path
         return if path == "/reactive/fragment"
 
-        if layout_references?("phlex-reactive-fragment-path")
-          Check.new(:ok, "phlex-reactive-fragment-path meta found for #{path}", name: :fragment_path_meta)
+        # A file must name the meta AND supply this path — literally, or from
+        # the setting (`Phlex::Reactive.fragment_path`). A tag left behind with
+        # an old path is as broken as none. Whether it sits in <head> (the only
+        # place the client reads it) can't be told from source; the fix says so.
+        if layout_references?("phlex-reactive-fragment-path") { it.include?(path) || it.include?("fragment_path") }
+          Check.new(:ok, "phlex-reactive-fragment-path meta found for #{path} (it must be in <head>)",
+            name: :fragment_path_meta)
         else
-          Check.new(:fail, "Phlex::Reactive.fragment_path is #{path} but no layout renders its meta tag",
+          Check.new(:fail, "Phlex::Reactive.fragment_path is #{path} but no layout renders its meta tag with that path",
             name: :fragment_path_meta,
             fix: "Add <meta name=\"phlex-reactive-fragment-path\" content=\"#{path}\"> to your layout's " \
                  "<head> — the client refuses a fragment URL outside the path it knows.")
@@ -454,7 +459,8 @@ module Phlex
         layout_references?("csrf_meta_tags")
       end
 
-      # Does any ERB view / Phlex view or component mention `needle`?
+      # Does any ERB view / Phlex view or component mention `needle` (and, with
+      # a block, satisfy it for that file's source)?
       def layout_references?(needle)
         globs = %w[
           app/views/**/*.erb
@@ -464,7 +470,8 @@ module Phlex
         ].map { app_path(it) }
 
         ::Dir.glob(globs).any? do
-          File.read(it).include?(needle)
+          source = File.read(it)
+          source.include?(needle) && (!block_given? || yield(source))
         rescue StandardError
           false
         end

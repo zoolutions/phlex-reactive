@@ -241,6 +241,19 @@ RSpec.describe "cacheable lazy fragments", type: :request do
       expect(response.headers["Cache-Control"]).to eq("no-store")
     end
 
+    # The policy is re-asserted after every callback: an inherited after_action
+    # must not be able to widen it (public → a shared cache) or drop the Vary.
+    it "stays private and bounded when an after_action tried to make the reply public" do
+      cookies[:viewer] = "publisher"
+
+      get_fragment
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers["Cache-Control"]).to eq("max-age=600, private")
+      expect(response.headers["Cache-Control"]).not_to include("public")
+      expect(vary).to include("Cookie")
+    end
+
     it "revalidates (304) without a Set-Cookie when nothing wrote the session" do
       get "/lazy_stats"
       get_fragment
@@ -620,6 +633,19 @@ RSpec.describe "cacheable lazy fragments", type: :request do
         expect(response.body).to include("t0ken")
         expect(response.headers["Cache-Control"]).to eq("no-store")
       end
+    end
+
+    # The fragment is a REAL render (Defer.with_real_render), so a nested
+    # reactive_lazy child renders its template too — no shell, and so no
+    # expiring defer token inside a cached copy.
+    it "renders a nested reactive_lazy child for real: no shell, no defer token" do
+      get_fragment(panel_url({ "c" => "CachedProbeComponent", "s" => { "markup" => "nested" } }))
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("stats:week")
+      expect(response.body).not_to include("data-reactive-defer-token")
+      expect(response.body).not_to include("reactive-defer-placeholder")
+      expect(response.headers["Cache-Control"]).to eq("max-age=600, private")
     end
 
     it "still caches a render without one" do

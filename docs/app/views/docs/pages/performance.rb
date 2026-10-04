@@ -740,27 +740,27 @@ module Views
               to reuse across page views. See
               [Deferred rendering](/docs/deferred-rendering).
 
-              The shell is not more expensive than the one it replaces. Same machine,
-              `benchmark/micro/fragment.rb` (the plain shell signs a defer token, the
-              cached shell a fragment id plus one SHA-256 per version/viewer):
+              The shell costs a few microseconds more than the one it replaces: it
+              signs a fragment id where the plain shell signs a defer token, plus one
+              keyed digest for a declared viewer; an `on:` + `cache:` shell signs the
+              identity token for its trigger as well. Once per page render, same
+              machine, `benchmark/micro/fragment.rb`:
 
               | Per call | Throughput | Allocations |
               |---|---|---|
-              | `sign_fragment` | ~180k i/s (5.6 μs) | 13 objects |
-              | `verify_fragment` (once per origin hit) | ~119k i/s (8.4 μs) | 24 objects |
-              | `sign_defer` (the plain shell's token) | ~98k i/s (10.2 μs) | 30 objects |
-              | plain lazy shell render | ~66k i/s (15.1 μs) | 77 objects |
-              | cached shell render (URL + viewer) | ~65k i/s (15.5 μs) | 45 objects |
-              | `on:` shell render | ~62k i/s (16.2 μs) | 40 objects |
-              | `on:` + `cache:` shell render | ~36k i/s (28.2 μs) | 64 objects |
+              | `sign_fragment` | ~195k i/s (5.1 μs) | 13 objects |
+              | `verify_fragment` (once per origin hit) | ~145k i/s (6.9 μs) | 24 objects |
+              | `sign_defer` (the plain shell's token) | ~133k i/s (7.5 μs) | 30 objects |
+              | plain lazy shell render | ~83k i/s (12.0 μs) | 77 objects |
+              | cached shell render (URL + viewer) | ~57k i/s (17.4 μs) | 54 objects |
+              | `on:` shell render | ~71k i/s (14.2 μs) | 40 objects |
+              | `on:` + `cache:` shell render | ~40k i/s (24.8 μs) | 64 objects |
 
-              An `on:` + `cache:` shell signs twice (the identity token for its
-              trigger, the fragment id for its URL), once per page render. The
-              existing shells are untouched: against `main`, the plain lazy shell
-              and the `on:` shell allocate the same 77 and 40 objects, and
-              `reactive_token` the same 18. Runs on a busy machine swing ±10–25%;
-              read the throughput column as an order of magnitude and the
-              allocation column as exact.
+              So `cache:` adds roughly 5 μs to a plain lazy shell and 10 μs to an
+              `on:` shell — against the request and render it removes on every
+              later view. The existing shells are untouched: against `main`, the
+              plain lazy shell and the `on:` shell allocate the same 77 and 40
+              objects, and `reactive_token` the same 18.
             MD
           end
         end

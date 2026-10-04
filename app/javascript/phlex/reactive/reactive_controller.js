@@ -3186,6 +3186,9 @@ export default class extends Controller {
     // __materialize POST below. Say why the cacheable GET was skipped.
     const refused = !source && refusedFragmentSrc(this.element)
     if (refused) console.error(refusedFragmentMessage(refused))
+    // The GET skips #proceed, so raise its veto here: an app's
+    // reactive:before-dispatch listener controls a materialize either way.
+    if (source && this.#materializeVetoed()) return
     const run = source
       ? startFetchDefer(this.element.id, source)
       : this.#proceed(this.element, LAZY_MATERIALIZE_ACTION, "{}")
@@ -3199,6 +3202,15 @@ export default class extends Controller {
     }
     run.then(done, done)
     return run
+  }
+
+  #materializeVetoed() {
+    const before = this.#emit(
+      "reactive:before-dispatch",
+      { action: LAZY_MATERIALIZE_ACTION, params: {}, element: this.element },
+      { cancelable: true },
+    )
+    return before.defaultPrevented
   }
 
   // reactive_lazy(on: :visible) (issue #276): materialize the first time the

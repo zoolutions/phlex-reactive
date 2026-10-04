@@ -35,7 +35,9 @@ end
 BenchSupport.header("shell render: cached vs plain lazy")
 BenchSupport.ips do
   it.report("plain lazy shell (defer token)") { LazyStatsComponent.new(scope: "week").call }
-  it.report("cached shell (fragment URL + viewer)") { CachedMenuComponent.new(scope: "main").call }
+  it.report("cached shell (fragment URL + viewer)") do
+    Viewer.set(who: "bench") { CachedMenuComponent.new(scope: "main").call }
+  end
   it.report("on: shell (identity token)") { LazyPanelComponent.new(scope: "mine").call }
   it.report("on: + cache: shell") { CachedPanelComponent.new(scope: "mine").call }
 end
@@ -48,6 +50,8 @@ BenchSupport.allocations("src (version + viewer)") do
   Phlex::Reactive::Fragment.src(payload, version: "2026-10-04", viewer: Phlex::Reactive::Fragment.viewer_param(42))
 end
 BenchSupport.allocations("plain lazy shell") { LazyStatsComponent.new(scope: "week").call }
-BenchSupport.allocations("cached shell") { CachedMenuComponent.new(scope: "main").call }
+BenchSupport.allocations("cached shell (viewer)") do
+  Viewer.set(who: "bench") { CachedMenuComponent.new(scope: "main").call }
+end
 BenchSupport.allocations("on: shell") { LazyPanelComponent.new(scope: "mine").call }
 BenchSupport.allocations("on: + cache: shell") { CachedPanelComponent.new(scope: "mine").call }

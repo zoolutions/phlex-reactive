@@ -2338,13 +2338,14 @@ What keeps a private cache safe:
   the session on every request (Devise `timeoutable`) gets no caching.
 - **No CSRF tokens.** A render that embeds a form authenticity token or
   `csrf_meta_tags` is served `no-store` with a warning rather than cached.
-- **No plain `reactive_lazy` child.** Its defer token expires after 120 s, so a
-  cached copy replayed later fails that child's load: give it `on:` or `cache:`.
+- **Nested lazy components are fine.** The fragment is a real render, so a
+  `reactive_lazy` child inside it renders its template, with no expiring defer
+  token in the cached copy.
 
 With `on:`, a `cache:` component loads on the defer lane rather than the action
-pipeline: `reactive:before-dispatch` cannot veto it, and a failed load emits
-`reactive:error` (`kind: "defer"`) with a `retry()`. A reply that was redirected
-or is not a turbo-stream is a failed load, never rendered.
+pipeline: `reactive:before-dispatch` still fires and can veto it, but a failed
+load emits `reactive:error` (`kind: "defer"`) with a `retry()`. A reply that was
+redirected or is not a turbo-stream is a failed load, never rendered.
 
 Within `max_age` the browser does not ask the server, so a revoked permission
 or a sign-out is not seen until the copy expires: keep `max_age` short for

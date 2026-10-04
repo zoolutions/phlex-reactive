@@ -80,6 +80,10 @@ module Phlex
       def settle_caching
         return forbid_caching unless @fragment_cacheable && cookies_untouched?
 
+        # Re-assert the policy: an inherited after_action may have replaced it
+        # (expires_in …, public: true would let a shared cache keep a viewer's
+        # fragment) or overwritten the Vary.
+        apply_cache_policy
         # Nothing changed, so don't re-issue the session: the cookie store
         # would otherwise send a freshly encrypted Set-Cookie with this very
         # reply — on a stored response, and changing the Cookie the next
@@ -144,13 +148,22 @@ module Phlex
         # never be stored under another viewer's key.
         return super unless ActiveSupport::SecurityUtils.secure_compare(viewer.to_s, params[:u].to_s)
 
-        expires_in Phlex::Reactive::Fragment.max_age_for(component.class), public: false
         # With no viewer named, the cookie is the only thing that tells two
         # viewers apart; with one, the URL does (and was just checked).
-        vary_on_cookie unless viewer
+        @fragment_policy = { max_age: Phlex::Reactive::Fragment.max_age_for(component.class), vary: viewer.nil? }
+        apply_cache_policy
         render turbo_stream: stream if stale?(etag: stream, template: false)
         # Only now: anything that raised above leaves the reply no-store.
         @fragment_cacheable = true
+      end
+
+      # `private, max-age=<n>` and nothing else, plus Vary: Cookie in the default
+      # mode. Applied before the render (the 304 carries it) and again after
+      # every callback ran (settle_caching).
+      def apply_cache_policy
+        response.headers.delete("Cache-Control")
+        response.cache_control.replace(max_age: @fragment_policy[:max_age], public: false)
+        vary_on_cookie if @fragment_policy[:vary]
       end
 
       # Add Cookie to whatever the base controller or a middleware already

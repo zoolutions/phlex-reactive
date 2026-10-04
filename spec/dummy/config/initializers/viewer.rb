@@ -15,7 +15,8 @@
 #   * "cookied"        — a before_action that sets a cookie of its own;
 #   * "cookied_after"  — the same from an after_action;
 #   * "rolling"        — re-sets a cookie to the SAME value with a new expiry;
-#   * "forgetful"      — deletes a cookie.
+#   * "forgetful"      — deletes a cookie;
+#   * "publisher"      — an after_action that makes every reply public.
 # An X-Dummy-Vary request header makes the gate set that Vary, the way a
 # controller that localizes by Accept-Language would.
 module DummyViewerGate
@@ -39,7 +40,7 @@ module DummyViewerGate
 
     case dummy_viewer
     when "expired" then head :unauthorized
-    when "redirected" then redirect_to "/lazy_stats"
+    when "redirected" then (redirect_to "/lazy_stats" unless request.path == "/lazy_stats")
     when "tracked" then session[:seen_at] = dummy_stamp
     when "cookied" then cookies[:last_seen] = dummy_stamp
     when "rolling" then cookies[:roll] = { value: "same", expires: 1.day }
@@ -51,6 +52,9 @@ module DummyViewerGate
     case dummy_viewer
     when "tracked_after" then session[:left_at] = dummy_stamp
     when "cookied_after" then cookies[:left_at] = dummy_stamp
+    when "publisher"
+      expires_in 1.hour, public: true
+      response.headers["Vary"] = "Accept-Encoding"
     end
   end
 

@@ -387,6 +387,42 @@ test("its event GETs the fragment URL once — never the __materialize POST", as
   expectFragmentGet(calls[0])
 })
 
+test("reactive:before-dispatch can veto the cacheable GET, like any materialize", async () => {
+  const el = makeRoot(cachedEventShell())
+  const dispatch = el.dispatchEvent
+  el.dispatchEvent = (event) => {
+    if (event.type === "reactive:before-dispatch") event.preventDefault()
+    return dispatch(event)
+  }
+  const controller = connect(el)
+
+  stimulusFires(controller)
+  await settle()
+
+  expect(calls).toEqual([])
+  const before = el.dispatched.find((event) => event.type === "reactive:before-dispatch")
+  expect(before.detail).toMatchObject({ action: "__materialize", params: {} })
+})
+
+test("a vetoed load can be triggered again", async () => {
+  const el = makeRoot(cachedEventShell())
+  const dispatch = el.dispatchEvent
+  let veto = true
+  el.dispatchEvent = (event) => {
+    if (veto && event.type === "reactive:before-dispatch") event.preventDefault()
+    return dispatch(event)
+  }
+  const controller = connect(el)
+  stimulusFires(controller)
+  veto = false
+
+  el.morphTo(realContent())
+  el.morphTo(cachedEventShell())
+  await settle()
+
+  expect(calls.length).toBe(1)
+})
+
 test("a second trigger while the GET is in flight does not double-request", async () => {
   const pending = gate()
   nextResponse = () => pending.promise

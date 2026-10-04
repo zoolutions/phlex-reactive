@@ -5,7 +5,8 @@
 #     false, whitespace, an Array with a blank part) names NO viewer, so the
 #     component must fall back to the default mode for that render.
 #   * the `markup` state — a render that embeds a CSRF token in one of the
-#     spellings a template can produce; none of them may be cached.
+#     spellings a template can produce (none of them may be cached), or
+#     "nested": a plain reactive_lazy child.
 class CachedProbeComponent < ApplicationComponent
   include Phlex::Reactive::Streamable
   include Phlex::Reactive::Component
@@ -43,6 +44,9 @@ class CachedProbeComponent < ApplicationComponent
   def view_template
     div(id:, **reactive_attrs) do
       span { "who:#{Viewer.who || "guest"}" }
+      # "nested": a plain reactive_lazy child inside the cached fragment.
+      next render(LazyStatsComponent.new(scope: "week")) if @markup == "nested"
+
       raw(safe(MARKUP.fetch(@markup))) if @markup
     end
   end
