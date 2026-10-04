@@ -92,6 +92,14 @@ RSpec.describe "phlex_reactive inventory rake tasks" do
         expect(output).not_to include("PublicCounterComponent")
       end
 
+      it "says there are no unverified actions (not 'no components') when the queue is empty" do
+        ENV["UNVERIFIED"] = "1"
+        public_only = Phlex::Reactive::Inspector.components.select { it.name == "PublicCounterComponent" }
+        allow(Phlex::Reactive::Inspector).to receive(:components).and_return(public_only)
+        output = capture_stdout { rake["phlex_reactive:actions"].invoke }
+        expect(output.strip).to eq("no unverified actions")
+      end
+
       it "filters the JSON to unverified actions and drops components with none" do
         ENV["UNVERIFIED"] = "1"
         ENV["FORMAT"] = "json"

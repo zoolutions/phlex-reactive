@@ -134,6 +134,12 @@ RSpec.describe Phlex::Reactive::MCP do
         expect(increment["definition"]).to include("def increment")
       end
 
+      it "reports the three-state authorization per action (issue #278)" do
+        result = tool_json(described_class::Tools::FindTool, query: "PublicCounterComponent")
+        increment = result["matches"].first["actions"].find { it["name"] == "increment" }
+        expect(increment).to include("authorization" => "skipped", "authorization_skip" => "class")
+      end
+
       it "reports no matches for an unknown query" do
         result = tool_json(described_class::Tools::FindTool, query: "zzz_no_such_zzz")
         expect(result["matches"]).to eq([])

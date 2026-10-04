@@ -15,7 +15,8 @@ module Phlex
             Fuzzy-find reactive components by name (exact > prefix > substring >
             subsequence, on both the demodulized and full name). Returns the ranked
             matches, each with its actions' param schema, source location,
-            authorization heuristic, and the full method-definition SOURCE
+            authorization (detected / skipped / none, plus the skip form), and the
+            full method-definition SOURCE
             (extracted with Prism). Read-only.
 
             NOTE: unlike the other tools (which report names/paths/schemas only),

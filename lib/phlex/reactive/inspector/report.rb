@@ -18,7 +18,10 @@ module Phlex
         # `unverified_only:` keeps just the actions whose authorization_state is
         # :none (the review queue) and drops components left with none.
         def actions(components, format: :text, unverified_only: false)
-          components = unverified(components) if unverified_only
+          if unverified_only
+            components = unverified(components)
+            return "no unverified actions" if components.empty? && format != :json
+          end
           return actions_json(components) if format == :json
 
           actions_text(components)
