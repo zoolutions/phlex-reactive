@@ -2220,9 +2220,10 @@ request), and a shell that is still unloaded is re-armed, which is also a
 failed load's retry path. **Give the shell the real root's tag** (`tag: :ul`
 for a `<ul>` root): with the default `<div>` shell on a `<ul>`/`<tr>` root,
 Turbo swaps the node instead of morphing it, and an already-open panel shows
-its skeleton until its event fires again. A page that refresh-morphs pays one
-request per loaded `on:` component per refresh; `data-turbo-permanent` on the
-real root opts it out. See the deferred-rendering docs page.
+its skeleton until its event fires again. With matching tags, a page that
+refresh-morphs pays one request per loaded `on:` component per refresh;
+`data-turbo-permanent` on the real root opts it out. See the
+deferred-rendering docs page.
 
 > **One edge case:** a `reply.defer(placeholder:)` shell (the action-driven,
 > not page-mount, form) carries no token of its own — the transient directive

@@ -345,7 +345,8 @@ module Views
               **The cost of refresh morphs.** A full page render ships the shell, so
               every page-refresh morph turns each *loaded* `on:` component back
               into its shell, and each one reloads: **one `__materialize` request
-              per loaded component per refresh**. That is bounded by how often the
+              per loaded component per refresh** (with matching tags; a mismatched
+              shell is swapped in instead and waits for its trigger). That is bounded by how often the
               page refreshes — the client never triggers it on its own — but a page
               that refreshes on every broadcast pays it every time. To opt a
               component out, put `data-turbo-permanent` on its real root (it needs
