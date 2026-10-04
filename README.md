@@ -3380,7 +3380,10 @@ counting: `reset_reactive_requests!` baselines, `have_reactive_requests(n,
 kind: nil)` waits until nothing is in flight and asserts exactly `n` action
 (`kind: :action`) or deferred-render (`kind: :defer`) requests, and
 `reactive_request_count` returns `{ action:, defer: }`. The client keeps the
-totals on `<html data-reactive-requests>` under the verbose gate only.
+totals on `<html data-reactive-requests>` under the verbose gate only. The
+matcher waits for requests in flight, not ones yet to start (a debounced
+trigger, a defer the reply is about to start): wait for the UI outcome first.
+A defer pushed over a pgbus stream makes no request and is not counted.
 
 ```ruby
 reset_reactive_requests!

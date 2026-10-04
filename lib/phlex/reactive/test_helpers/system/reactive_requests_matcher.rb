@@ -9,9 +9,10 @@ module Phlex
         # The waiting matcher behind have_reactive_requests (issue #279). Reads the
         # client's per-kind request totals (<html data-reactive-requests>, JSON)
         # AND the in-flight marker in ONE evaluate_script per poll, and holds once
-        # the selected total equals `expected` with the layer idle — so a request
-        # still in flight can't be counted early, and a late second request can't
-        # slip past an early match.
+        # the selected total equals `expected` with the layer idle, so a request
+        # still in flight is never counted early. It cannot see a request that has
+        # not STARTED yet (a debounced trigger, or the defer an action's reply is
+        # about to start): barrier on the UI outcome first for those.
         #
         # Totals only grow until reset_reactive_requests!, so a total ABOVE the
         # expectation is terminal: the matcher fails at once instead of waiting out
@@ -52,11 +53,11 @@ module Phlex
 
           def failure_message
             message = "expected #{@expected} reactive #{noun} (#{scope}), got #{selected} — totals #{totals_str}"
-            return message if @present
+            return message if @verbose
 
-            "#{message}. <html #{REQUESTS_ATTR}> is absent: the client writes it only under the " \
-              "verbose gate (Phlex::Reactive.verbose_errors, on in dev/test by default, or " \
-              "data-reactive-verbose on <html>)"
+            "#{message}. The verbose gate is closed, so the client is not counting: it writes " \
+              "<html #{REQUESTS_ATTR}> only under Phlex::Reactive.verbose_errors (on in dev/test " \
+              "by default) or data-reactive-verbose on <html>"
           end
 
           def failure_message_when_negated
@@ -69,11 +70,16 @@ module Phlex
             raw = @page.evaluate_script(<<~JS)
               (() => {
                 const html = document.documentElement
-                return { requests: html.getAttribute(#{REQUESTS_ATTR.to_json}), active: html.hasAttribute(#{ACTIVE_MARKER.to_json}) }
+                return {
+                  requests: html.getAttribute(#{REQUESTS_ATTR.to_json}),
+                  active: html.hasAttribute(#{ACTIVE_MARKER.to_json}),
+                  verbose: html.hasAttribute("data-reactive-verbose") ||
+                    !!document.querySelector('[data-reactive-verbose="true"]'),
+                }
               })()
             JS
             raw = {} unless raw.is_a?(::Hash)
-            @present = raw["requests"].is_a?(::String)
+            @verbose = raw["verbose"] == true
             @totals = System.parse_reactive_requests(raw["requests"])
             @active = raw["active"] == true
           end

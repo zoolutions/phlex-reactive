@@ -404,7 +404,13 @@ module Views
                   plain '). The client keeps them on '
                   code { '<html data-reactive-requests>' }
                   plain ' only under the verbose gate (on in dev/test), so production writes nothing. '
-                  plain 'No fetch spy: requests made before the spec looks are counted, and unrelated fetches are not.'
+                  plain 'No fetch spy: requests made before the spec looks are counted, and unrelated fetches are not. '
+                  plain 'The matcher waits for requests in flight, not for ones that have not started: after a debounced ' \
+                        'trigger, or an action whose reply starts a deferred render, wait for the UI outcome first. ' \
+                        'A lazy shell fetches on connect, so call '
+                  code { 'wait_for_reactive' }
+                  plain ' before a reset that should exclude it. A deferred render pushed over a pgbus stream makes no ' \
+                        'request and is not counted.'
                 end
               end
             end

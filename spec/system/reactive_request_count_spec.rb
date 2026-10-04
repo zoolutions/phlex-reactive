@@ -34,12 +34,29 @@ RSpec.describe "Reactive request-count helpers (issue #279)", type: :system do
     expect(page).to have_css("[data-testid='totals-value']", text: "2")
   end
 
+  # The lazy shell is the page's ONLY reactive root when it fetches: its own
+  # verbose stamp must open the gate, or the count would depend on page layout.
+  it "counts a lazy mount's fetch when the shell is the only reactive root" do
+    visit "/lazy_stats"
+
+    expect(page).to have_css("[data-testid='stats-value']", text: "stats:week")
+    expect(page).to have_reactive_requests(1, kind: :defer)
+    expect(page).to have_reactive_requests(0, kind: :action)
+  end
+
   it "reset_reactive_requests! re-baselines after a Turbo Drive visit" do
     visit "/counter"
     find("[data-testid='inc']").click
     expect(page).to have_reactive_requests(1)
 
-    page.execute_script("window.__noReload = 'alive'; Turbo.visit('/counter')")
+    # Mark the OLD body so the barrier below waits for Drive to swap it — the
+    # old page's button would otherwise satisfy have_css before the visit lands.
+    page.execute_script(<<~JS)
+      window.__noReload = "alive"
+      document.body.setAttribute("data-old-body", "")
+      Turbo.visit("/counter")
+    JS
+    expect(page).to have_no_css("body[data-old-body]")
     expect(page).to have_css("[data-testid='inc']")
     wait_for_reactive
     expect(page.evaluate_script("window.__noReload")).to eq("alive") # a Drive visit, not a reload

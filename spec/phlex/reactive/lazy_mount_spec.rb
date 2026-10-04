@@ -39,6 +39,20 @@ RSpec.describe "Phlex::Reactive reactive_lazy" do
       expect(html).not_to include("real:5")
     end
 
+    # Issue #279: the shell is a reactive root like any other, so it carries the
+    # verbose stamp — a page whose ONLY reactive element is a lazy shell still
+    # opens the client's verbose gate (its mount fetch is counted).
+    it "stamps data-reactive-verbose on the shell only when verbose_errors is on" do
+      previous = Phlex::Reactive.verbose_errors
+      Phlex::Reactive.verbose_errors = true
+      expect(lazy_class.new(n: 5).call).to include('data-reactive-verbose="true"')
+
+      Phlex::Reactive.verbose_errors = false
+      expect(lazy_class.new(n: 5).call).not_to include("data-reactive-verbose")
+    ensure
+      Phlex::Reactive.verbose_errors = previous
+    end
+
     it "carries a defer token on the ROOT that round-trips to the component's identity" do
       html = lazy_class.new(n: 5).call
       raw = html[/data-reactive-defer-token="([^"]+)"/, 1]

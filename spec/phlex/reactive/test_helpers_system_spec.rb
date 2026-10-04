@@ -164,8 +164,12 @@ RSpec.describe Phlex::Reactive::TestHelpers::System do
       end
     end
 
-    def state(action: 0, defer: 0, active: false, present: true)
-      { "requests" => present ? { "action" => action, "defer" => defer }.to_json : nil, "active" => active }
+    def state(action: 0, defer: 0, active: false, present: true, verbose: true)
+      {
+        "requests" => present ? { "action" => action, "defer" => defer }.to_json : nil,
+        "active" => active,
+        "verbose" => verbose
+      }
     end
 
     it "waits for the count to reach n with the layer idle" do
@@ -193,10 +197,20 @@ RSpec.describe Phlex::Reactive::TestHelpers::System do
       expect(described_class.new(4, wait: 0).matches?(page)).to be(true)
     end
 
-    it "treats an absent attribute as zero and hints at the verbose gate on failure" do
+    it "treats an absent attribute as zero" do
+      expect(described_class.new(0, wait: 0).matches?(fake_page(state(present: false)))).to be(true)
+    end
+
+    it "hints at the verbose gate when it is closed, even after a reset wrote the attribute" do
       matcher = described_class.new(1, wait: 0)
-      expect(matcher.matches?(fake_page(state(present: false)))).to be(false)
-      expect(matcher.failure_message).to include("data-reactive-requests", "verbose")
+      expect(matcher.matches?(fake_page(state(verbose: false)))).to be(false)
+      expect(matcher.failure_message).to include("verbose gate is closed", "data-reactive-requests")
+    end
+
+    it "gives no verbose hint when the gate is open" do
+      matcher = described_class.new(1, wait: 0)
+      matcher.matches?(fake_page(state))
+      expect(matcher.failure_message).not_to include("verbose gate")
     end
 
     it "supports negation once the layer is idle" do
