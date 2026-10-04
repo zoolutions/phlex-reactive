@@ -39,7 +39,7 @@ class DisclosureMenuComponent < Phlex::HTML
   def trigger
     # aria_expanded is the STRING "false": Phlex drops a boolean false entirely.
     button(id: 'dm-trigger', aria_haspopup: 'menu', aria_expanded: 'false', aria_controls: 'dm-menu',
-           **mix(on_client(:click, js.toggle('#dm-menu').toggle_attr('#dm-trigger', 'aria-expanded', 'true', 'false')),
+           **mix(on_client(:click, js.toggle('#dm-menu').toggle_attr('#dm-trigger', 'aria-expanded', 'true', 'false').focus_first('#dm-menu')),
                  on_client('keydown.down', js.show('#dm-menu', expanded: '#dm-trigger').focus_first('#dm-menu')),
                  class: 'btn btn-sm')) { 'Actions ▾' }
   end
@@ -51,7 +51,7 @@ class DisclosureMenuComponent < Phlex::HTML
       ITEMS.each do |label|
         li(role: 'none') do
           button(role: 'menuitem', tabindex: '-1',
-                 **on_client(:click, js.hide('#dm-menu', expanded: '#dm-trigger').text('#dm-status', label))) { label }
+                 **on_client(:click, js.hide('#dm-menu', expanded: '#dm-trigger').text('#dm-status', label).focus('#dm-trigger'))) { label }
         end
       end
     end

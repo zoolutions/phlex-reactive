@@ -423,7 +423,7 @@ module Phlex
               "(change/input), or gate it behind a reducer's $ops / reactive_on_complete."
           end
           window_bound = window || outside
-          record = client_binding_record(event, ops, window_bound:, outside:, confirm:)
+          record = client_binding_record(event, ops, window_bound:, outside:, once:, confirm:)
           attrs = {
             data: {
               action: "#{event}#{"@window" if window_bound}->reactive#runOps#{":once" if once}",
@@ -1420,12 +1420,15 @@ module Phlex
         # overridable confirmResolver on(:action, confirm:) uses (#52/#55); the
         # client prompts BEFORE applying the ops. Issue #179: a Hash confirm: is
         # CONDITIONAL, compiled by the shared compile_conditional_confirm.
-        def client_binding_record(event, ops, window_bound:, outside:, confirm:)
+        def client_binding_record(event, ops, window_bound:, outside:, once:, confirm:)
           record = { "on" => event }
           record["window"] = true if window_bound
           record["outside"] = true if outside
+          # A mix-ed regular sibling keeps calling runOps after Stimulus drops
+          # this binding's :once listener — the client skips a spent once record.
+          record["once"] = true if once
           case confirm
-          when nil then nil
+          when nil, false then nil
           when String then record["confirm"] = confirm
           when Hash then record["confirmWhen"] = compile_conditional_confirm(confirm)
           else apply_confirm!({}, confirm) # raises the shared guided error

@@ -1425,7 +1425,8 @@ RSpec.describe Phlex::Reactive::Component do
       attrs = instance.send(:on_client, :click, ops, window: true, once: true)
 
       expect(attrs[:data][:action]).to eq("click@window->reactive#runOps:once")
-      expect(binding_record(attrs)).to eq("on" => "click", "window" => true, "ops" => [["toggle", { "to" => "#menu" }]])
+      expect(binding_record(attrs))
+        .to eq("on" => "click", "window" => true, "once" => true, "ops" => [["toggle", { "to" => "#menu" }]])
       expect(attrs).not_to have_key(:type)
     end
 
@@ -1493,6 +1494,18 @@ RSpec.describe Phlex::Reactive::Component do
       attrs = instance.send(:on_client, :click, ops, outside: true, confirm: "Sure?")
 
       expect(binding_record(attrs)).to include("confirm" => "Sure?", "outside" => true)
+    end
+
+    it "treats confirm: false like no confirm (a conditional option stays usable)" do
+      expect(binding_record(instance.send(:on_client, :click, ops, confirm: false))).not_to have_key("confirm")
+    end
+
+    it "records once: so a spent one-shot binding is skipped beside a regular sibling" do
+      attrs = instance.send(:on_client, :click, ops, once: true)
+
+      expect(attrs[:data][:action]).to eq("click->reactive#runOps:once")
+      expect(binding_record(attrs)).to include("once" => true)
+      expect(binding_record(instance.send(:on_client, :click, ops))).not_to have_key("once")
     end
 
     it "raises the shared guided error for a confirm: that is neither String nor Hash" do

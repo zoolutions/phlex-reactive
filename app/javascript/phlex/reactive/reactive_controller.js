@@ -1992,16 +1992,25 @@ const KEY_FILTER_MODIFIERS = Object.freeze(["meta", "ctrl", "alt", "shift"])
 
 // Stimulus's rule: the four modifiers must match EXACTLY (ctrl+k is not k);
 // the remaining token is compared to event.key case-insensitively. A
-// non-keyboard event (no event.key) checks the modifiers only.
-function keyFilterMatches(filter, event) {
+// non-keyboard event (no event.key) checks the modifiers only. `keyMappings`
+// is the app's Stimulus schema table (custom keys included) when the
+// controller has one; the default table is the fallback.
+function keyFilterMatches(filter, event, keyMappings) {
   const parts = filter.split("+")
   for (const mod of KEY_FILTER_MODIFIERS) {
     if (parts.includes(mod) !== Boolean(event[`${mod}Key`])) return false
   }
   const token = parts.find((part) => !KEY_FILTER_MODIFIERS.includes(part))
   if (token === undefined || typeof event.key !== "string") return true
-  const key = Object.hasOwn(KEY_FILTER_MAP, token) ? KEY_FILTER_MAP[token] : /^[a-z0-9]$/.test(token) ? token : null
-  return key !== null && key.toLowerCase() === event.key.toLowerCase()
+  const key =
+    keyMappings && Object.hasOwn(keyMappings, token)
+      ? keyMappings[token]
+      : Object.hasOwn(KEY_FILTER_MAP, token)
+        ? KEY_FILTER_MAP[token]
+        : /^[a-z0-9]$/.test(token)
+          ? token
+          : null
+  return typeof key === "string" && key.toLowerCase() === event.key.toLowerCase()
 }
 
 // Parse data-reactive-ops-param into binding records. Stimulus typecasts a
@@ -2035,16 +2044,38 @@ function parseBindingRecords(raw) {
 // matters for an element carrying both `click` and `click@window`: one inside
 // click reaches both listeners, and only currentTarget tells them apart. The
 // `window != null` guard keeps a window-less harness from classifying every
-// undefined currentTarget as window-bound.
-function bindingMatches(record, event) {
+// undefined currentTarget as window-bound. Only a LEGACY record (no `on` by
+// construction) matches everything; any other record without a descriptor is
+// malformed and never matches (default-deny). `keyMappings === null` skips the
+// key filter (the caller's single-candidate shortcut).
+function bindingMatches(record, event, keyMappings) {
+  if (record.legacy) return true
   const on = record.on
-  if (typeof on !== "string" || on === "") return true
+  if (typeof on !== "string" || on === "") return false
   const dot = on.indexOf(".")
   if (event.type !== (dot < 0 ? on : on.slice(0, dot))) return false
   const win = globalThis.window
   const windowBound = win != null && event.currentTarget === win
   if (Boolean(record.window) !== windowBound) return false
-  return dot < 0 || keyFilterMatches(on.slice(dot + 1), event)
+  return dot < 0 || keyMappings === null || keyFilterMatches(on.slice(dot + 1), event, keyMappings)
+}
+
+// A `once: true` record (PR #272) is spent after its first run. Stimulus
+// removes only that binding's own listener; a regular same-event sibling on
+// the element keeps calling runOps with BOTH records, so the spent one is
+// skipped here. Keyed per controller on the element's ops attr + the record.
+const spentOnceBindings = new WeakMap()
+function onceBindingSpent(controller, raw, record) {
+  if (!record.once) return false
+  let spent = spentOnceBindings.get(controller)
+  if (!spent) {
+    spent = new Set()
+    spentOnceBindings.set(controller, spent)
+  }
+  const key = `${typeof raw === "string" ? raw : JSON.stringify(raw ?? null)}|${JSON.stringify(record)}`
+  if (spent.has(key)) return true
+  spent.add(key)
+  return false
 }
 
 // Two identical descriptors on one element (two mix-ed on_client calls with
@@ -2749,9 +2780,18 @@ export default class extends Controller {
     // Issue #271: run only the binding record(s) whose descriptor fired. A
     // legacy [[op, args]] attr reads its flags from the element-wide params.
     const records = parseBindingRecords(params.ops)
-    const matching = records.filter((record) => bindingMatches(record, event))
+    // Stimulus already applied the firing descriptor's key filter (custom
+    // schema keys included), so a lone candidate on type + window-boundness
+    // runs without a second key check; several same-type candidates are told
+    // apart by their key filters, read through the app's Stimulus schema.
+    const candidates = records.filter((record) => bindingMatches(record, event, null))
+    const matching =
+      candidates.length <= 1
+        ? candidates
+        : candidates.filter((record) => bindingMatches(record, event, this.application?.schema?.keyMappings))
     if (matching.length === 0 && records.length > 0) return this.#warnNoBinding(event)
     for (const record of matching) {
+      if (onceBindingSpent(this, params.ops, record)) continue
       this.#runBinding(record.legacy ? { ...params, ops: record.ops } : record, event, trigger)
     }
   }

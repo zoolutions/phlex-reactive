@@ -13,9 +13,17 @@
 import { bench, group } from "mitata"
 import { makeDom, buildController } from "./support/harness.js"
 
-const { document, window } = await makeDom()
-globalThis.document = document
-globalThis.window = window
+// makeDom() installs THIS window's Event/CustomEvent on globalThis, and the
+// fixture below needs this document. Restore the previous DOM globals after
+// building it, so the benches that registered earlier (recompute dispatches
+// events at run time) keep their own window's constructors.
+const previousGlobals = {
+  document: globalThis.document,
+  window: globalThis.window,
+  Event: globalThis.Event,
+  CustomEvent: globalThis.CustomEvent,
+}
+const { document } = await makeDom()
 
 const root = document.createElement("div")
 root.id = "menu-root"
@@ -24,6 +32,7 @@ root.innerHTML = '<button id="trigger"></button><ul id="menu" hidden><li>a</li><
 document.body.appendChild(root)
 const trigger = root.querySelector("#trigger")
 const controller = buildController(root)
+Object.assign(globalThis, previousGlobals)
 
 const ops = [["toggle", { to: "#menu" }]]
 const record = { on: "click", ops }

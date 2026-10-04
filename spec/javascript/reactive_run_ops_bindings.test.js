@@ -217,13 +217,18 @@ test("single-letter, digit, and custom event names match", () => {
   expect(root.hidden).toBe(false)
 })
 
-test("an unknown key filter never matches", () => {
-  const root = makeRoot()
+test("an unknown key filter never matches when telling same-type records apart", () => {
+  const known = makeEl()
+  const unknown = makeEl()
+  const root = makeRoot({ "#known": [known], "#unknown": [unknown] })
   const controller = buildController(root)
+  const ops = wire({ on: "keydown.f13", ops: [["hide", { to: "#unknown" }]] },
+    { on: "keydown.esc", ops: [["hide", { to: "#known" }]] })
 
-  controller.runOps(makeEvent({ type: "keydown", key: "F13", ops: wire({ on: "keydown.f13", ops: [["hide", { to: "@root" }]] }), currentTarget: root }))
+  controller.runOps(makeEvent({ type: "keydown", key: "F13", ops, currentTarget: root }))
 
-  expect(root.hidden).toBe(false)
+  expect(unknown.hidden).toBe(false)
+  expect(known.hidden).toBe(false)
 })
 
 // --- window-boundness ----------------------------------------------------------
@@ -392,4 +397,57 @@ test("a root outside-close and a child window-bound binding in one root both run
 
   expect(root.hidden).toBe(true)
   expect(panel.hidden).toBe(true)
+})
+
+// --- PR #272 review ---------------------------------------------------------------
+
+test("a lone binding runs on any event Stimulus let through (custom keyMappings are Stimulus's call)", () => {
+  const root = makeRoot()
+  const controller = buildController(root)
+  // `slash` is not in the default table — an app registered it in its Stimulus schema.
+  const ops = wire({ on: "keydown.slash", ops: [["hide", { to: "@root" }]] })
+
+  controller.runOps(makeEvent({ type: "keydown", key: "/", ops, currentTarget: root }))
+
+  expect(root.hidden).toBe(true)
+})
+
+test("custom keyMappings from the Stimulus schema tell two same-type records apart", () => {
+  const slash = makeEl()
+  const esc = makeEl()
+  const root = makeRoot({ "#slash": [slash], "#esc": [esc] })
+  const controller = buildController(root)
+  controller.application = { schema: { keyMappings: { esc: "Escape", slash: "/" } } }
+  const ops = wire({ on: "keydown.slash", ops: [["hide", { to: "#slash" }]] },
+    { on: "keydown.esc", ops: [["hide", { to: "#esc" }]] })
+
+  controller.runOps(makeEvent({ type: "keydown", key: "/", ops, currentTarget: root }))
+
+  expect(slash.hidden).toBe(true)
+  expect(esc.hidden).toBe(false)
+})
+
+test("a non-legacy record without `on` never matches (default-deny)", () => {
+  const root = makeRoot()
+  const controller = buildController(root)
+
+  const event = makeEvent({ ops: { ops: [["hide", { to: "@root" }]] }, currentTarget: root })
+  controller.runOps(event)
+
+  expect(root.hidden).toBe(false)
+  expect(event.defaultPrevented).toBe(false)
+})
+
+test("a once record runs once even when a regular same-event sibling keeps firing", () => {
+  const root = makeRoot()
+  const controller = buildController(root)
+  const names = []
+  root.dispatchEvent = (e) => names.push(e.type)
+  const ops = wire({ on: "click", once: true, ops: [["dispatch", { name: "once", to: "@root" }]] },
+    { on: "click", ops: [["dispatch", { name: "every", to: "@root" }]] })
+
+  controller.runOps(makeEvent({ ops, currentTarget: root }))
+  controller.runOps(makeEvent({ ops, currentTarget: root }))
+
+  expect(names).toEqual(["once", "every", "every"])
 })

@@ -26,7 +26,7 @@ BenchSupport.allocations("on_client(outside:, spaced chain)") do
   component.send(:on_client, :click, spaced, outside: true)
 end
 
-BenchSupport.header("ClientTabsComponent render (4 on_client triggers)")
+BenchSupport.header("ClientTabsComponent render (5 on_client triggers)")
 BenchSupport.ips do
   it.report("render ClientTabsComponent") { ClientTabsComponent.new.call }
 end

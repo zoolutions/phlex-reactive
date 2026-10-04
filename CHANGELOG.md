@@ -25,7 +25,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`expanded:` on `show`/`hide`/`toggle` (#271).** `js.toggle("#menu",
   expanded: "#trigger")` writes the op's intended state into the trigger's
   `aria-expanded` (`show` → `"true"`, `hide` → `"false"`, `toggle` → the
-  pre-flip state), before any transition. Resolved with the op's own scoping.
+  state after the flip: `"true"` when the target was hidden), before any
+  transition. Resolved with the op's own scoping.
 
 - **`reactive_listnav(focus: true)` — roving focus for menus (#271).** Spread
   on a `role="menu"` container: Arrow Down/Up move real focus among

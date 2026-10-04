@@ -946,7 +946,8 @@ button(**on_client(:click, js
 - **`expanded:`** on `show`/`hide`/`toggle` (#271) keeps a disclosure trigger's
   `aria-expanded` honest: `js.toggle("#menu", expanded: "#trigger")` writes the
   op's **intended** state (`show` → `"true"`, `hide` → `"false"`, `toggle` → the
-  pre-flip state) onto the target — set before any transition runs. It resolves
+  state after the flip: `"true"` when the target was hidden, `"false"` when it
+  was visible) onto the target — set before any transition runs. It resolves
   with the op's own scoping (`:root`, a root-scoped selector, or document-wide
   under `global: true`). Pair it with one disclosure target; with several, the
   last one wins.

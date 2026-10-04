@@ -47,6 +47,7 @@ RSpec.describe "Disclosure menu (issue #271 — on_client only)", type: :system 
     trigger.click
     expect(page).to have_css("[data-testid='dm-menu']")
     expect_expanded("true")
+    expect_focused("dm-item-1") # Enter/Space/click open lands focus in the menu
 
     trigger.click
     expect(page).to have_css("[data-testid='dm-menu']", visible: :hidden)
@@ -99,6 +100,7 @@ RSpec.describe "Disclosure menu (issue #271 — on_client only)", type: :system 
     expect(page).to have_css("[data-testid='dm-menu']", visible: :hidden)
     expect_expanded("false")
     expect(page).to have_css("[data-testid='dm-status']", text: "Duplicate")
+    expect_focused("dm-trigger") # focus returns to the menu button
 
     expect_no_round_trip
   end
