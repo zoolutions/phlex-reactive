@@ -337,6 +337,34 @@ module Phlex
               "use reactive_actions.key?(#{name.inspect})"
           end
 
+          # Dormant root (issue #274): every root of this component renders
+          # data-reactive-dormant="reactive" instead of data-controller=
+          # "reactive", so the client is neither mounted nor (when loaded
+          # lazily) fetched until one of the root's triggers fires — for a root
+          # that only matters after a gesture (a closed dialog, a menu that
+          # loads on open). The app must import "phlex/reactive/early", which
+          # wakes the root. Inherited; `reactive_dormant false` turns it off
+          # again in a subclass, and reactive_root(dormant:) overrides per
+          # render. See Phlex::Reactive::Dormant.
+          #
+          # Not with reactive_lazy(on: :visible): that shell has no trigger to
+          # wake on (refused here, or at render for the other declaration order).
+          # A plain reactive_lazy shell ignores it: it fetches on connect, so it
+          # always mounts. reactive_lazy(on: "event") shells do go dormant.
+          def reactive_dormant(dormant = true) # rubocop:disable Style/OptionalBooleanParameter
+            unless [true, false].include?(dormant)
+              raise ArgumentError, "#{self}: reactive_dormant takes true or false, got #{dormant.inspect}"
+            end
+
+            Phlex::Reactive::Dormant.reject_visible_lazy!(self) if dormant
+
+            Registry.write_scalar(self, :dormant, dormant)
+          end
+
+          def reactive_dormant?
+            Registry.resolve_scalar(self, :dormant, :reactive_dormant?) == true
+          end
+
           # Opt out of the default-ON verify_authorized guard (issue #168).
           # Bare skips the WHOLE component (a public counter, a client-only
           # filter); with names skips just those actions:

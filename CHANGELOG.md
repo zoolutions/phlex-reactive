@@ -57,11 +57,31 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `Phlex::Reactive.early_event_ttl_ms` (10 s, read from
   `<meta name="phlex-reactive-early-ttl">`) or whose element left the page are
   dropped, with a warning under `data-reactive-verbose`. The module is under
-  1 KB gzipped, asserted by a test. Every root now also sets
+  1.1 KB gzipped, asserted by a test. Every root now also sets
   `data-reactive-connected` and emits a bubbling `reactive:connect` event when
   its controller connects. Apps that never import `early` see no change beyond
   that event and attribute. If you add the import, remove any hand-written
   "wait for the controller, then dispatch" loop, or the trigger fires twice.
+
+- **Dormant roots: mount the controller on first use (#274).**
+  `reactive_dormant` (class-level, inherited) or `reactive_root(dormant: true)`
+  / `reactive_attrs(dormant: true)` renders `data-reactive-dormant="reactive"`
+  in place of `data-controller="reactive"`, so a root that only matters after a
+  gesture neither mounts the controller nor, when it loads lazily, fetches it
+  (68 KB minified, 20 KB gzipped). The first element-bound `on`/`on_client`
+  trigger (not a `window:` or `outside:` one) wakes the
+  root: `phlex/reactive/early` moves the identifier into `data-controller`
+  (other controllers on the root stay connected) and the trigger is replayed
+  once on connect. Requires `import "phlex/reactive/early"`;
+  `phlex_reactive:doctor` lists the dormant components and whether it found
+  the import. The actor's reply, a `reactive_lazy(on:)` materialize and the
+  defer endpoint render the root awake; the page and broadcasts render it
+  dormant, and a dormant render landing on an awake root is re-woken by the
+  next trigger. A `reactive_lazy(on: "event")` shell can be dormant (the event
+  wakes and loads it in one request); `on: :visible` cannot, and declaring both
+  raises. Non-dormant roots render the same
+  bytes as before. `early.min.js` grows 53 B (1,007 → 1,060 B gzipped; the test
+  budget moves from 1,024 to 1,100 B).
 
 - **`phlex_reactive:actions` tells a deliberate skip from a forgotten check
   (#278).** The `auth` column now has three states: `authorized*` (a call was

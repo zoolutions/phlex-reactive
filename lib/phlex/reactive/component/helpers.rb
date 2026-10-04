@@ -72,8 +72,22 @@ module Phlex
         # Root-element attributes: marks the element reactive and carries the
         # signed identity token. Spread onto the root:
         #   div(id:, **reactive_attrs) { ... }
-        def reactive_attrs
-          data = { controller: "reactive" }
+        #
+        # `dormant: true` (issue #274; default: the class's reactive_dormant)
+        # renders data-reactive-dormant="reactive" IN PLACE of the controller
+        # attribute: nothing mounts until a trigger fires and phlex/reactive/early
+        # wakes the root. The actor's own reply renders awake (Dormant.awake).
+        def reactive_attrs(dormant: nil)
+          dormant = self.class.reactive_dormant? if dormant.nil? && self.class.respond_to?(:reactive_dormant?)
+          data =
+            if dormant && !Phlex::Reactive::Dormant.awake?
+              # The lazy SHELL (not the real render) of an on: :visible component
+              # can never wake — refuse it rather than ship a dead placeholder.
+              Phlex::Reactive::Dormant.reject_visible_lazy!(self.class) unless Phlex::Reactive::Defer.real_render?
+              { reactive_dormant: "reactive" }
+            else
+              { controller: "reactive" }
+            end
           # A CLIENT-ONLY component (Phlex::Reactive::ClientBindings, issue #180)
           # has no Identity, so no token — the root is tokenless (show/filter/
           # compute need no signed round trip). reactive_token is private, so the
@@ -137,7 +151,12 @@ module Phlex
         # fields, and — for warn_unsaved: true — the navigate-away marker (STRING
         # "true", since a boolean-true attr renders valueless → "" → falsy client-
         # side). The removed track_dirty:/warn_unsaved: kwargs raise a guided error.
-        def reactive_root(**overrides)
+        #
+        # `dormant: true` (issue #274) is handed to reactive_attrs: the root mounts
+        # on its first trigger instead of on page load. On a reactive_lazy
+        # component declare `reactive_dormant` on the class instead: the lazy
+        # SHELL is rendered by the framework and reads only the class declaration.
+        def reactive_root(dormant: nil, **overrides)
           # A CLIENT-ONLY component (ClientBindings, issue #180) needs no #id —
           # there's no token to self-match by id. Use an explicit override, else
           # #id when the component defines one, else nothing (no id attr).
@@ -151,7 +170,7 @@ module Phlex
           # Issue #184: dirty tracking is a class-level reactive_dirty declaration.
           dirty = self.class.reactive_dirty_config if self.class.respond_to?(:reactive_dirty_config)
 
-          attrs = mix({ **reactive_attrs }, overrides)
+          attrs = mix({ **reactive_attrs(dormant:) }, overrides)
           attrs = mix(attrs, { id: root_id }) unless root_id.nil?
           # Root-level delegation tracks the whole subtree UNLESS only: scoped it to
           # named fields (those carry their own descriptor via reactive_field).

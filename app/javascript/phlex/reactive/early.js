@@ -19,7 +19,15 @@
 //
 // The queue lives on window under a Symbol.for key, so neither module imports
 // the other and either may load first. NO Stimulus import: this module must
-// stay tiny (< 1 KB gzipped, asserted by spec/javascript/reactive_early.test.js).
+// stay tiny (its gzipped size is asserted by spec/javascript/reactive_early.test.js).
+//
+// Dormant roots (issue #274): reactive_root(dormant: true) renders
+// data-reactive-dormant="reactive" INSTEAD of data-controller="reactive", so
+// nothing mounts (or, with a lazily loaded controller, is even fetched) until
+// one of the root's triggers fires. The first recorded trigger WAKES the root:
+// the identifier moves into data-controller, Stimulus connects it, and the
+// trigger is replayed like any other early event. A dormant root therefore
+// NEEDS this module — without it nothing ever wakes it.
 //
 // Limits: @window/@document bindings (window:/outside:) are not recorded; a
 // key filter is matched against Stimulus's DEFAULT key mappings only.
@@ -29,7 +37,8 @@ const KEY = Symbol.for("phlex-reactive.early")
 // The roots whose triggers are captured. A root counts as connected only
 // through state.connected (a WeakSet the controller fills in connect()), never
 // through markup — a Turbo snapshot clone carries data-reactive-connected over.
-const ROOT_SELECTOR = '[data-controller~="reactive"]'
+// A dormant root (issue #274) is one too: it has no controller yet by design.
+const ROOT_SELECTOR = '[data-controller~="reactive"],[data-reactive-dormant~="reactive"]'
 
 const state = (globalThis[KEY] ??= { queue: [], connected: new WeakSet() })
 
@@ -78,6 +87,14 @@ function record(event) {
     // `at` is the capture time — not event.timeStamp, which is when the event
     // object was CREATED (an app may build one and dispatch it much later).
     if (queue.push({ event, el, root, descs, at: performance.now() }) > 50) queue.shift()
+    // Wake a dormant root (issue #274) — synchronously, so by the time the
+    // event bubbles to an OUTER reactive root's Stimulus listener, `el` is
+    // already in this root's scope. Other controllers on the root are kept.
+    const { reactiveDormant, controller = "" } = root.dataset
+    if (reactiveDormant) {
+      root.dataset.controller = `${controller} ${reactiveDormant}`.trim()
+      delete root.dataset.reactiveDormant
+    }
   }
 }
 

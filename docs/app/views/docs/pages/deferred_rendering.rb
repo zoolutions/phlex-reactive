@@ -464,6 +464,13 @@ module Views
               and a failed load emits `reactive:error` with `kind: "defer"` and a
               `retry()` — where a plain `on:` shell waits for the next morph.
 
+              **With `reactive_dormant`.** An `on:` + `cache:` shell goes dormant like
+              any `on:` shell: the event wakes the root and the load is the cacheable
+              GET. The fragment itself always renders **awake** — the client that
+              fetches it is loaded by then — so the replaced root needs no second
+              wake. A `cache:` shell without `on:` ignores dormancy, exactly like a
+              plain `reactive_lazy` shell: it has to mount to fetch on connect.
+
               **What a cached fragment must not contain.**
 
               - **A CSRF token.** A `form_with` / `form_authenticity_token` /

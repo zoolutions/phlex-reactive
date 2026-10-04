@@ -224,6 +224,29 @@ RSpec.describe "reactive_lazy(cache:)" do # rubocop:disable RSpec/DescribeClass
     end
   end
 
+  # Dormant roots (#274): an event shell goes dormant like any on: shell; a
+  # fetch-on-connect shell ignores dormancy, exactly like a plain reactive_lazy
+  # shell — it has to mount to fetch.
+  describe "combined with reactive_dormant" do
+    it "renders a dormant on: + cache: shell that still carries the fragment URL" do
+      html = DormantCachedPanelComponent.new(scope: "mine").call
+
+      expect(html).to include('data-reactive-dormant="reactive"')
+      expect(html).not_to include("data-controller")
+      expect(attr_value(html, "data-action")).to eq("panel:opened->reactive#dispatch:once")
+      expect(src(html)).to start_with("/reactive/fragment/")
+    end
+
+    it "keeps a fetch-on-connect cached shell mounted (dormancy does not apply to it)" do
+      klass = Class.new(cached_class(cache: { max_age: 600 })) { reactive_dormant }
+      html = klass.new(n: 1).call
+
+      expect(html).to include('data-controller="reactive"')
+      expect(html).not_to include("data-reactive-dormant")
+      expect(src(html)).to start_with("/reactive/fragment/")
+    end
+  end
+
   describe "without cache: (unchanged, byte for byte)" do
     it "renders the plain shell with a defer token and no fragment URL" do
       html = LazyStatsComponent.new(scope: "week").call

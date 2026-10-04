@@ -115,6 +115,19 @@ RSpec.describe "cacheable lazy fragments", type: :request do
       expect(response).to have_http_status(:ok)
     end
 
+    # Dormant roots (#274): the client asking for a fragment is loaded and
+    # connected, so the real root renders AWAKE — like the defer and
+    # __materialize renders — and the stored copy is the awake one.
+    it "renders a reactive_dormant component awake, and cacheable" do
+      get_fragment(panel_url({ "c" => "DormantCachedPanelComponent", "s" => { "scope" => "mine" } }))
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include('target="dormant-cached-panel"')
+      expect(response.body).to include('data-controller="reactive"')
+      expect(response.body).not_to include("data-reactive-dormant")
+      expect(response.headers["Cache-Control"]).to eq("max-age=600, private")
+    end
+
     it "instruments as a defer (a read), naming the component" do
       events = []
       sub = ActiveSupport::Notifications.subscribe("defer.phlex_reactive") { |*args| events << args.last }
