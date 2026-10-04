@@ -53,6 +53,8 @@ module Phlex
               params: action.params,
               source_location: Phlex::Reactive::Inspector::Report.location_str(action.source_location),
               authorization_call_detected: action.authorization_call_detected?,
+              authorization: action.authorization_state.to_s,
+              authorization_skip: action.authorization_skip&.to_s,
               # The full method SOURCE — this is the one field that exposes an
               # action body verbatim (see the tool description). A secret hardcoded
               # in an action would surface here; keep secrets out of action bodies.

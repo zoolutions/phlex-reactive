@@ -22,6 +22,7 @@ RSpec.describe "phlex_reactive inventory rake tasks" do
   after do
     Rake.application = Rake::Application.new
     ENV.delete("FORMAT")
+    ENV.delete("UNVERIFIED")
   end
 
   describe "phlex_reactive:actions" do
@@ -51,6 +52,69 @@ RSpec.describe "phlex_reactive inventory rake tasks" do
       expect(counter).not_to be_nil
       action_names = counter["actions"].map { it["name"] }
       expect(action_names).to include("increment", "set")
+    end
+
+    # Issue #278: three AUTH states — a deliberate skip is not "unverified".
+    describe "the AUTH column" do
+      def row(output, component, action)
+        output.lines.find { it.start_with?("#{component} ") && it.split[1] == action }.to_s
+      end
+
+      let(:output) { capture_stdout { rake["phlex_reactive:actions"].invoke } }
+
+      it "prints authorized* for an action with a detected authorization call" do
+        expect(row(output, "AuthorizedTodoComponent", "rename")).to end_with("authorized*\n")
+      end
+
+      it "prints skipped for an action named in skip_verify_authorized" do
+        expect(row(output, "AuthorizedTodoComponent", "rename_skipped")).to end_with("skipped\n")
+      end
+
+      it "prints skipped (class) for every action of a bare skip_verify_authorized component" do
+        expect(row(output, "PublicCounterComponent", "increment")).to end_with("skipped (class)\n")
+      end
+
+      it "prints unverified for an action with neither" do
+        expect(row(output, "AuthorizedTodoComponent", "rename_unguarded")).to end_with("unverified\n")
+      end
+    end
+
+    describe "UNVERIFIED=1" do
+      it "lists only the unverified rows" do
+        ENV["UNVERIFIED"] = "1"
+        output = capture_stdout { rake["phlex_reactive:actions"].invoke }
+        rows = output.lines.drop(1)
+
+        expect(rows).not_to be_empty
+        expect(rows).to all(end_with("unverified\n"))
+        expect(output).to include("rename_unguarded")
+        expect(output).not_to include("rename_skipped")
+        expect(output).not_to include("PublicCounterComponent")
+      end
+
+      it "filters the JSON to unverified actions and drops components with none" do
+        ENV["UNVERIFIED"] = "1"
+        ENV["FORMAT"] = "json"
+        parsed = JSON.parse(capture_stdout { rake["phlex_reactive:actions"].invoke })
+
+        expect(parsed.flat_map { it["actions"] }.map { it["authorization"] }).to all(eq("none"))
+        expect(parsed.map { it["component"] }).not_to include("PublicCounterComponent")
+        expect(parsed).to all(satisfy { it["actions"].any? })
+      end
+    end
+
+    it "adds authorization + authorization_skip to the JSON, keeping authorization_call_detected" do
+      ENV["FORMAT"] = "json"
+      parsed = JSON.parse(capture_stdout { rake["phlex_reactive:actions"].invoke })
+      todo = parsed.find { it["component"] == "AuthorizedTodoComponent" }["actions"].index_by { it["name"] }
+      public_inc = parsed.find { it["component"] == "PublicCounterComponent" }["actions"].first
+
+      expect(todo["rename"]).to include("authorization" => "detected", "authorization_skip" => nil,
+        "authorization_call_detected" => true)
+      expect(todo["rename_skipped"]).to include("authorization" => "skipped", "authorization_skip" => "action",
+        "authorization_call_detected" => false)
+      expect(todo["rename_unguarded"]).to include("authorization" => "none", "authorization_skip" => nil)
+      expect(public_inc).to include("authorization" => "skipped", "authorization_skip" => "class")
     end
 
     it "never leaks a token, secret, or runtime state into the output" do

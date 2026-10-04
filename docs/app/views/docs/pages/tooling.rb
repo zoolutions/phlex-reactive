@@ -83,16 +83,23 @@ module Views
             DocsUI::Code(<<~SHELL, lexer: :shell)
               bin/rails phlex_reactive:actions             # component | action | params | file:line | auth
               bin/rails phlex_reactive:actions FORMAT=json # machine-readable
+              bin/rails phlex_reactive:actions UNVERIFIED=1 # only the unverified rows (the review queue)
               bin/rails "phlex_reactive:find[counter]"     # fuzzy-find one; prints each action's method source
             SHELL
             md <<~MD
               `actions` is a table across the whole app; `find` fuzzy-matches one
               component (exact > prefix > substring > subsequence) and prints each
               action's **method-definition source** (extracted with Prism). The
-              `auth` column is a **heuristic**: `authorized*` means an
-              authorization call was detected in the body; `unverified` means none
-              was — but a helper may still authorize indirectly, so it's a hint,
-              not a verdict.
+              `auth` column has three states. `authorized*` means an
+              authorization call was detected in the body (a **heuristic** — a
+              helper may still authorize indirectly, so it's a hint, not a
+              verdict). `skipped` means the action is declared with
+              `skip_verify_authorized :name`; `skipped (class)` means a bare
+              `skip_verify_authorized` (own or inherited) covers every action.
+              `unverified` means neither — the rows worth reviewing, which
+              `UNVERIFIED=1` isolates. JSON adds `authorization`
+              (`detected` / `skipped` / `none`) and `authorization_skip`
+              (`class` / `action` / `null`) next to `authorization_call_detected`.
             MD
           end
         end

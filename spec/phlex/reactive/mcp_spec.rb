@@ -108,6 +108,16 @@ RSpec.describe Phlex::Reactive::MCP do
         expect(set_action).to have_key("authorization_call_detected")
       end
 
+      it "reports the three-state authorization and the skip form (issue #278)" do
+        result = tool_json(described_class::Tools::ActionsTool)
+        todo = result["components"].find { it["component"] == "AuthorizedTodoComponent" }
+        skipped = todo["actions"].find { it["name"] == "rename_skipped" }
+        public_inc = result["components"].find { it["component"] == "PublicCounterComponent" }["actions"].first
+
+        expect(skipped).to include("authorization" => "skipped", "authorization_skip" => "action")
+        expect(public_inc).to include("authorization" => "skipped", "authorization_skip" => "class")
+      end
+
       it "filters to one component when given component:" do
         result = tool_json(described_class::Tools::ActionsTool, component: "CounterComponent")
         names = result["components"].map { it["component"] }
