@@ -1,0 +1,21 @@
+spec/phlex/reactive/test_helpers_system_spec.rb
+  s_b4f052d694d82f::t_a311ce14decfa7 146-154
+lib/phlex/reactive/test_helpers/system.rb
+  s_b4f052d694d82f::t_2e806dc4b1a5d0 51,56-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "1bdd08d1487cbaba92384a53f9f028e8d03d85bf",
+  "prompts": {},
+  "sessions": {
+    "s_b4f052d694d82f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a4f9e839-a934-4e75-9b79-590503d3a110",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
