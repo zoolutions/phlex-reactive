@@ -180,6 +180,53 @@ RSpec.describe "reactive_lazy(cache:)" do # rubocop:disable RSpec/DescribeClass
       expect(src(viewer_class([1, 2].cycle).new.call)).not_to include("u=")
     end
 
+    # A viewer is an identity, never a collection to enumerate: no value may
+    # make the shell render slow, hang, or raise into the host page.
+    describe "values that are not an identity" do
+      def shell_for(viewer)
+        started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        url = src(viewer_class(viewer).new.call)
+        [url, Process.clock_gettime(Process::CLOCK_MONOTONIC) - started]
+      end
+
+      self_referential = [1].tap { it << it }
+      returns_itself = Class.new { def to_a = self }.new
+      raising = Class.new { def to_a = raise("boom") }.new
+      {
+        "an endless Range" => (1..),
+        "a huge Range" => (1..(10**7)),
+        "a huge Array" => Array.new(10_000, 1),
+        "a huge Set" => Set.new(1..10_000),
+        "a self-referential Array" => self_referential,
+        "an object whose to_a returns itself" => returns_itself,
+        "an object whose to_a raises" => raising,
+        "unpermitted ActionController::Parameters" => ActionController::Parameters.new(user: 1)
+      }.each do |label, value|
+        it "renders the shell, promptly and with no u, for #{label}" do
+          url, seconds = shell_for(value)
+
+          expect(url).to start_with("/reactive/fragment/")
+          expect(url).not_to include("u=")
+          expect(seconds).to be < 0.5
+        end
+      end
+
+      it "still names a viewer for a small collection of ids" do
+        expect(shell_for((1..3).to_a).first).to include("u=")
+        expect(shell_for(Array.new(32, 1)).first).to include("u=")
+      end
+
+      it "logs why, once" do
+        logged = []
+        allow(Rails.logger).to receive(:warn) { logged << it }
+        Phlex::Reactive::Fragment.reset_viewer_warning!
+
+        2.times { shell_for(ActionController::Parameters.new(user: 1)) }
+
+        expect(logged.grep(/reactive_cache_viewer/).size).to eq(1)
+      end
+    end
+
     it "is keyed: not reproducible from the value with a plain digest" do
       u = src(viewer_class(42).new.call)[/u=(\h+)/, 1]
       guesses = ["42", "viewer:42", "phlex-reactive/fragment-viewer:42"].flat_map do

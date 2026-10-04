@@ -2337,7 +2337,7 @@ What keeps a private cache safe:
   shape the browser's cache key. Authorize in the render, as for any lazy
   component. A cacheable reply carries no `Set-Cookie`; a request during which
   any callback (before, around or after) changed the session, set or consumed a
-  flash, or wrote a cookie keeps that write and is answered `no-store` instead —
+  flash, minted a CSRF token, or wrote a cookie keeps that write and is answered `no-store` instead —
   so an app that writes the session on every request (Devise `timeoutable`) gets
   no caching. Session writes made outside the controller (Rack middleware) are
   not seen, and are lost on a cacheable reply. The endpoint itself never reads

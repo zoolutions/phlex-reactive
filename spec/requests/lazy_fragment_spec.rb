@@ -340,6 +340,95 @@ RSpec.describe "cacheable lazy fragments", type: :request do
       end
     end
 
+    # Like the flash, a CSRF token minted in a callback is only stored when Rails
+    # commits the session, AFTER the controller returns. It is committed before
+    # the decision, so the token survives and the minting reply is not stored.
+    describe "a CSRF token minted in a controller callback" do
+      # The session's real token behind a masked one (Rails XORs it with a
+      # one-time pad): equal across requests only if the token was persisted.
+      def real_token(masked)
+        raw = Base64.urlsafe_decode64(masked)
+        pad = raw[0, raw.size / 2].bytes
+        raw[(raw.size / 2)..].bytes.zip(pad).map { |a, b| a ^ b }.pack("C*")
+      end
+
+      %w[csrf_before csrf_after].each_with_index do |minter, _index|
+        it "keeps the token a #{minter.delete_prefix("csrf_")} filter minted; only that reply is not cacheable" do
+          cookies[:viewer] = minter
+          get_fragment
+          first = response.headers["X-CSRF-Token"]
+
+          expect(response).to have_http_status(:ok)
+          expect(response.headers["Cache-Control"]).to eq("no-store")
+          expect(response.headers["Set-Cookie"].to_s).to include("_dummy_session")
+
+          get_fragment
+
+          expect(real_token(response.headers["X-CSRF-Token"])).to eq(real_token(first))
+          expect(response.headers["Cache-Control"]).to eq("max-age=600, private")
+          expect(response.headers["Set-Cookie"]).to be_blank
+        end
+      end
+
+      [true, false].each_with_index do |protection, _index|
+        it "mints nothing on a plain GET with forgery protection #{protection ? "on" : "off"}" do
+          original = ActionController::Base.allow_forgery_protection
+          ActionController::Base.allow_forgery_protection = protection
+          get_fragment
+
+          expect(response.headers["Cache-Control"]).to eq("max-age=600, private")
+          expect(response.headers["Set-Cookie"]).to be_blank
+        ensure
+          ActionController::Base.allow_forgery_protection = original
+        end
+      end
+
+      # The cookie storage strategy writes the token to the COOKIE JAR at commit.
+      describe "with the cookie CSRF storage strategy" do
+        around do
+          original = ActionController::Base.csrf_token_storage_strategy
+          ActionController::Base.csrf_token_storage_strategy =
+            ActionController::RequestForgeryProtection::CookieStore.new
+          it.run
+        ensure
+          ActionController::Base.csrf_token_storage_strategy = original
+        end
+
+        it "is not cacheable when a filter handed out a token, and the cookie is sent" do
+          cookies[:viewer] = "csrf_after"
+          get_fragment
+
+          expect(response).to have_http_status(:ok)
+          expect(response.headers["Cache-Control"]).to eq("no-store")
+          expect(response.headers["Set-Cookie"].to_s).to include("csrf_token=")
+        end
+
+        it "stays cacheable on a plain GET" do
+          get_fragment
+
+          expect(response.headers["Cache-Control"]).to eq("max-age=600, private")
+          expect(response.headers["Set-Cookie"]).to be_blank
+        end
+      end
+    end
+
+    # A token minted INSIDE the render comes from the gem's memoized view
+    # context and its synthetic request, so it never touches THIS request's
+    # session — on the fragment endpoint as on the defer endpoint.
+    it "does not write the session for a token minted inside the render (same as the defer endpoint)" do
+      todo = Todo.create!(title: "t", done: false)
+      post Phlex::Reactive.defer_path,
+        params: { token: Phlex::Reactive.sign_defer({ "c" => "CsrfFormComponent", "gid" => todo.to_gid.to_s }) }.to_json,
+        headers: headers.merge("Content-Type" => "application/json")
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include('name="authenticity_token"')
+      expect(response.headers["Set-Cookie"]).to be_blank
+
+      get_fragment(panel_url({ "c" => "CachedFormComponent", "s" => { "label" => "go" } }))
+      expect(response.body).to include('name="authenticity_token"')
+      expect(response.headers["Set-Cookie"]).to be_blank
+    end
+
     # The fragment's ETag is its body, nothing else: the controller's `etag {}`
     # blocks (and Rails' own flash etagger, which would load and sweep the
     # flash) are deliberately not applied.
@@ -364,8 +453,11 @@ RSpec.describe "cacheable lazy fragments", type: :request do
       "expires_in_5" => "max-age=5, private",
       "must_revalidate" => "max-age=600, private, must-revalidate",
       "raw_short" => "max-age=30, private, must-revalidate",
+      "raw_twice" => "max-age=5, private",
       "expires_in_0" => "no-store",
       "raw_zero" => "no-store",
+      "negative" => "no-store",
+      "raw_negative" => "no-store",
       "long_public" => "max-age=600, private",
       "shared" => "max-age=600, private"
     }.to_a.product(%w[Before After]).each do |(policy, expected), filter|

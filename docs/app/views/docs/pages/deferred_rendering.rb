@@ -412,9 +412,14 @@ module Views
               `no-store` (`flash.now` does not; a 304 that consumed a flash is
               `no-store` with a `Set-Cookie` too). The endpoint itself never reads
               the flash, so a notice waiting for the next page view survives a
-              fragment load. With a rolling-expiry session (`expire_after`), a
-              cacheable fragment reply does not renew the session, since it does not
-              re-issue it.
+              fragment load. A **CSRF token** a filter hands out
+              (`form_authenticity_token` in a callback) is treated the same way:
+              the request that mints it keeps it and is `no-store`; once the session
+              has a token, later replies are cacheable again. (With the cookie CSRF
+              storage strategy the token cookie is written every time one is handed
+              out, so such a filter turns the cache off.) With a rolling-expiry
+              session (`expire_after`), a cacheable fragment reply does not renew
+              the session, since it does not re-issue it.
 
               The ETag is the body only: the controller's `etag { }` blocks are
               **not** mixed in (Rails' own flash etagger would load, and so consume,
@@ -426,7 +431,15 @@ module Views
               `no-store`; a shorter `max-age` (`expires_in 5`) is kept; and
               `must-revalidate` is kept. It cannot loosen it — `public`,
               `s-maxage`, `stale-while-revalidate` and a longer `max-age` are
-              dropped, back to `private, max-age=<n>`.
+              dropped, back to `private, max-age=<n>`. In a header set by hand,
+              every `max-age=<integer>` is read and the smallest wins (a negative
+              one counts as 0); a malformed value (`max-age="5"`, `max-age=abc`,
+              `Max-Age = 5`) is ignored, so the component's applies, and a
+              lookalike such as `x-max-age=1` is read too (which only tightens).
+              One asymmetry when `fragment_cache_max_age_limit` is 0: a before
+              filter that sets a policy gets `max-age=0, private`, while an after
+              filter that merely adds a directive gets `no-store` — both fail
+              closed.
 
               This guarantee covers the controller's callbacks and the flash. A
               session write made **outside** them — in Rack middleware or a routing
@@ -472,7 +485,11 @@ module Views
               `true` is the same viewer for everyone, and so is an **unsaved record**
               (`User.new` has the cache key `users/new` for every guest — return
               `nil` for guests instead). A user id, or an Array of ids, is the
-              intended shape.
+              intended shape — a viewer is an identity, never a collection to
+              enumerate: a `Range`, a collection of more than 32 parts, an
+              unsized Enumerator, or a value that raises when turned into a key
+              names nobody (default mode, logged once), and a `Time` is
+              unreliable (Rails expands it through `to_a`).
 
               `u` is a **keyed** digest (derived with the same secret that signs the
               tokens): it cannot be reversed to the value, and nobody can compute
@@ -522,7 +539,10 @@ module Views
                 render `no-store`, with a warning in the log, rather than cache it —
                 so the component keeps working, just uncached. It is a name match:
                 a token placed elsewhere (`data-csrf="…"`) or under an
-                entity-encoded name is not detected, so don't put one there.
+                entity-encoded name is not detected, so don't put one there. (A
+                token minted inside the render comes from the gem's off-request
+                view context, as on every reactive endpoint, so it never touches
+                this request's session.)
                 Reactive triggers are unaffected: the client reads the CSRF token
                 from the page's `csrf-token` meta tag at request time.
 
@@ -559,6 +579,8 @@ module Views
                 rendered.
               - The route answers `GET` (and `HEAD`: a 200 with the policy headers and
                 an empty body); every other verb is a 404.
+              - A `no-store` 200 may still carry an `ETag`: stock Rails'
+                `Rack::ETag` adds one. Nothing stores it.
               - Only `Cache-Control` and `Vary` are managed. An `Expires` or
                 `Surrogate-Control` header an `after_action` adds is left alone.
               - A filter that **raises** (a `RecordNotFound` turned into a 404 page

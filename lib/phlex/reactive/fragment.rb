@@ -29,6 +29,11 @@ module Phlex
     module Fragment
       PURPOSE = "phlex-reactive/fragment"
       VIEWER_PURPOSE = "phlex-reactive/fragment-viewer"
+      # A viewer is an identity — an id, or a few of them. These bound how far
+      # a collection is walked, so no value can make the shell render slow.
+      VIEWER_PART_LIMIT = 32
+      VIEWER_NODE_LIMIT = 64
+      VIEWER_WARNED = Concurrent::AtomicBoolean.new
 
       module_function
 
@@ -81,30 +86,82 @@ module Phlex
       # KEYED: the digest is taken over the verifier's signature of the value,
       # so it can be neither reversed to the value (a user id is a small space)
       # nor computed for someone else without the app's secret. 128 bits.
+      #
+      # NEVER RAISES and never takes long, whatever the hook returned: this runs
+      # inside the host page's render. A value that cannot be turned into a key
+      # (it raises, it is endless, it is huge) names nobody — the fail-closed
+      # default mode — and is logged once.
       def viewer_param(viewer)
         return nil unless viewer_named?(viewer)
 
         signed = Phlex::Reactive.verifier.generate(ActiveSupport::Cache.expand_cache_key(viewer),
           purpose: VIEWER_PURPOSE)
         Digest::SHA256.hexdigest(signed)[0, 32]
+      rescue StandardError => e
+        warn_viewer_unusable!("#{e.class}: #{e.message}")
+        nil
+      end
+
+      def viewer_named?(viewer)
+        named_within?(viewer, [VIEWER_NODE_LIMIT])
       end
 
       # Every LEAF must name something. A collection — anything
       # expand_cache_key walks with to_a: an Array, a Hash (keys and values), a
-      # Set, a Struct, an Enumerator, nested to any depth — with one blank part
-      # is unnamed, and so is a value whose cache key expands to nothing (an
+      # Set, a Struct, a sized Enumerator, nested — with one blank part is
+      # unnamed, and so is a value whose cache key expands to nothing (an
       # object with a blank to_param). 0 is a viewer.
-      def viewer_named?(viewer)
-        return false if viewer.nil? || viewer == false
-        # An Enumerator of unknown or infinite size would never finish to_a.
-        return false if viewer.is_a?(::Enumerator) && !viewer.size.is_a?(::Integer)
+      #
+      # Bounded: a Range is never walked, a collection of more than
+      # VIEWER_PART_LIMIT parts or a walk of more than VIEWER_NODE_LIMIT values
+      # (a self-referential Array, a to_a that returns itself) is unnamed.
+      # `budget` is a one-element counter shared by the whole walk.
+      def named_within?(value, budget)
+        return false if value.nil? || value == false
+        return viewer_unusable!("a Range is not an identity") if value.is_a?(::Range)
+        return viewer_unusable!("too deep or self-referential") if (budget[0] -= 1).negative?
+        return viewer_leaf?(value) unless value.respond_to?(:to_a) && !value.respond_to?(:cache_key)
 
-        if viewer.respond_to?(:to_a) && !viewer.respond_to?(:cache_key)
-          parts = viewer.to_a
-          return parts.any? && parts.all? { viewer_named?(it) }
-        end
+        size = value.respond_to?(:size) ? value.size : nil
+        return viewer_unusable!("a collection of unknown or excessive size") unless viewer_size_ok?(size, value)
 
-        viewer.present? && ActiveSupport::Cache.expand_cache_key(viewer).present?
+        parts = value.to_a
+        return viewer_unusable!("more than #{VIEWER_PART_LIMIT} parts") if parts.size > VIEWER_PART_LIMIT
+
+        parts.any? && parts.all? { named_within?(it, budget) }
+      end
+
+      def viewer_leaf?(value)
+        value.present? && ActiveSupport::Cache.expand_cache_key(value).present?
+      end
+
+      # An Enumerator must report a finite size; anything sized must be small.
+      def viewer_size_ok?(size, value)
+        return size <= VIEWER_PART_LIMIT if size.is_a?(::Integer)
+
+        !value.is_a?(::Enumerator) && size.nil?
+      end
+
+      # Logs why, and answers nil (falsy): "this value names nobody".
+      def viewer_unusable!(reason)
+        warn_viewer_unusable!(reason)
+        nil
+      end
+
+      # Once per process: the cause is a component's hook, not a request.
+      def warn_viewer_unusable!(reason)
+        return unless VIEWER_WARNED.make_true
+        return unless defined?(::Rails) && ::Rails.respond_to?(:logger)
+
+        ::Rails.logger&.warn(
+          "[phlex-reactive] a reactive_cache_viewer value cannot name a viewer (#{reason}) — treated as no " \
+          "viewer (Vary: Cookie). Return an id, or a small Array of ids."
+        )
+      end
+
+      # Test seam: let the once-only warning fire again.
+      def reset_viewer_warning!
+        VIEWER_WARNED.make_false
       end
 
       # The max-age (seconds) the endpoint answers with: the component's

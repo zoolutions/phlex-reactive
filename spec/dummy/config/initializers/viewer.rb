@@ -22,6 +22,9 @@
 #   * "flash_now"      — a before_action that sets flash.now;
 #   * "flash_reader"   — a before_action that READS the flash (so this request
 #                        sweeps it) and echoes it in an X-Dummy-Flash header;
+#   * "csrf_before"    — a before_action that hands out a CSRF token in an
+#                        X-CSRF-Token header (minting one if the session has none);
+#   * "csrf_after"     — the same from an after_action;
 #   * "no_store"       — a before_action that forbids caching (no_store);
 #   * "expires_now_after" — an after_action that calls expires_now.
 # An X-Dummy-Vary request header makes the gate set that Vary, the way a
@@ -59,6 +62,7 @@ module DummyViewerGate
     when "flash_now" then flash.now[:alert] = "n"
     when "flash_reader" then response.headers["X-Dummy-Flash"] = flash.to_h.to_json
     when "no_store" then no_store
+    when "csrf_before" then response.headers["X-CSRF-Token"] = form_authenticity_token
     end
   end
 
@@ -69,6 +73,9 @@ module DummyViewerGate
     when "must_revalidate" then expires_in 1.hour, must_revalidate: true
     when "raw_zero" then response.headers["Cache-Control"] = "max-age=0, must-revalidate"
     when "raw_short" then response.headers["Cache-Control"] = "max-age=30, must-revalidate"
+    when "raw_twice" then response.headers["Cache-Control"] = "max-age=900, max-age=5"
+    when "negative" then expires_in(-1)
+    when "raw_negative" then response.headers["Cache-Control"] = "max-age=-1"
     when "long_public" then expires_in 1.day, public: true
     when "shared" then expires_in 1.hour, public: true, "s-maxage": 600, stale_while_revalidate: 60
     end
@@ -81,6 +88,7 @@ module DummyViewerGate
     when "cookied_after" then cookies[:left_at] = dummy_stamp
     when "flasher_after" then flash[:alert] = "x"
     when "expires_now_after" then expires_now
+    when "csrf_after" then response.headers["X-CSRF-Token"] = form_authenticity_token
     when "publisher"
       expires_in 1.hour, public: true
       response.headers["Vary"] = "Accept-Encoding"

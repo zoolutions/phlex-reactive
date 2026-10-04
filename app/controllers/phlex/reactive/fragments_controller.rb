@@ -31,8 +31,13 @@ module Phlex
     #     rendered before the action ran — is `no-store`;
     #   * a cacheable reply carries no Set-Cookie: an unchanged session is not
     #     re-issued, and a request that changed the session or wrote any cookie
-    #     — in any callback, before or after the action — is not cacheable;
-    #   * a render that embeds a CSRF token is not made cacheable.
+    #     — in any callback, before or after the action, or in one of the
+    #     writes Rails defers until the controller has returned (see
+    #     commit_deferred_writes) — is not cacheable;
+    #   * a render whose markup has a field or meta NAMED like a CSRF token
+    #     (`name="authenticity_token"`, `name="csrf-token"`, or the controller's
+    #     request_forgery_protection_token) is not made cacheable. A name match
+    #     only: a token placed anywhere else is not detected.
     class FragmentsController < ActionsController
       # The names a CSRF token is rendered under (a form's hidden field, or
       # csrf_meta_tags), besides the controller's own
@@ -126,7 +131,9 @@ module Phlex
         header = response.headers["Cache-Control"].to_s
         return {} if @applied_policy && control == @applied_policy && header.empty?
 
-        ages = [control[:max_age], header[/\bmax-age=(\d+)/i, 1]].compact.map(&:to_i)
+        # EVERY max-age in a hand-set header counts (the smallest wins — never
+        # looser than what the app wrote), and a negative one means zero.
+        ages = [control[:max_age], *header.scan(/\bmax-age=(-?\d+)/i).flatten].compact.map { [it.to_i, 0].max }
         { max_age: ages.min, must_revalidate: control[:must_revalidate] || header.match?(/\bmust-revalidate\b/i) }
       end
 
@@ -141,16 +148,46 @@ module Phlex
         # which never passes through the jar.
         return false if response.headers["Set-Cookie"].present?
 
-        # Rails commits the flash AFTER the action returns (Metal#dispatch), so
-        # commit it now: a flash this request set is then in the session data
-        # compared below, and so is the sweep of one this request consumed.
-        # Either way the session changed, the write is kept and the reply is
-        # not stored; committing twice is harmless.
-        request.commit_flash
+        commit_deferred_writes
 
         session_data == @session_before && pending_cookie_writes.empty?
       rescue StandardError
         false
+      end
+
+      # Rails performs some session/cookie writes only AFTER the controller has
+      # returned — too late for the comparison in cookies_untouched?, and (the
+      # session being skipped on a cacheable reply) they would then be LOST.
+      # Each is pulled forward here, so it shows up in the comparison: the write
+      # is kept and the reply is not stored. All of them are idempotent — Rails
+      # running them again afterwards changes nothing.
+      #
+      # THIS LIST IS THE AUDIT of actionpack 7.1 – 8.1 (the versions the gemspec
+      # supports; identical in all of them) for writes made after process_action:
+      #
+      #   * ActionController::Metal#dispatch → request.commit_flash
+      #       writes session["flash"]: a flash set this request, or the sweep of
+      #       one that was read. A no-op when nothing loaded the flash.
+      #   * ActionDispatch::Session::AbstractStore#commit_session
+      #       → request.commit_csrf_token → the csrf_token_storage_strategy's
+      #       #store: a CSRF token handed out this request (form_authenticity_
+      #       token in a filter). SessionStore writes session[:_csrf_token];
+      #       CookieStore writes an encrypted cookie to the cookie JAR (so it
+      #       shows up as a pending cookie write). A no-op when no token was
+      #       asked for.
+      #       → then Rack's own commit: only persists the session, and honours
+      #       :renew / :drop — both checked in cookies_untouched?.
+      #   * ActionDispatch::Cookies (middleware) → cookie_jar.write(response)
+      #       nothing new: it flushes the jar's pending writes, which
+      #       pending_cookie_writes reads through that same method.
+      #   * Response#before_committed, Rack::ETag / ConditionalGet, the CSP and
+      #       permissions-policy middleware, request id, runtime, server timing
+      #       → response headers only; none touches the session or cookies.
+      #
+      # Not covered, and cannot be from here: third-party Rack middleware.
+      def commit_deferred_writes
+        request.commit_flash
+        request.commit_csrf_token if request.respond_to?(:commit_csrf_token)
       end
 
       # The session's data without creating a session: {} when the request has
