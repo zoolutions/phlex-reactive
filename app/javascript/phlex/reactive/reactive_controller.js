@@ -2460,17 +2460,50 @@ function spendEarlyOnce(el, { token, type, method, filter }) {
 // True (once) for the live call that comes from a spent descriptor's listener:
 // same element, method, event type AND key filter — a sibling descriptor with
 // another filter (keydown.esc beside a spent keydown.enter:once) is not it.
+//
+// Also true for the ORIGINAL of a replayed event arriving live at the same
+// element (issue #274): waking a dormant root can connect its controller while
+// the waking event is still propagating (an eagerly registered controller
+// connects in the microtask checkpoint after early.js's capture listener), so
+// the event reaches the listener Stimulus just bound after it was replayed.
+// Only as many live calls as the replay RAN for that element and method are
+// dropped — a binding the replay skipped (a key filter only the app's own
+// mapping matches) still runs.
 function earlyOnceSwallows(event, method, keyMappings) {
   if (event?.[EARLY_KEY]) return false
+  const replayed = takeEarlyReplay(event, method)
   const spent = spentEarlyOnce.get(event?.currentTarget)
-  if (!spent) return false
-  for (const entry of spent.values()) {
+  for (const entry of spent?.values() ?? []) {
     if (!entry.armed || entry.method !== method || entry.type !== event.type) continue
     if (entry.filter && !keyFilterMatches(entry.filter, event, keyMappings)) continue
     entry.armed = false
     return true
   }
-  return false
+  return replayed
+}
+
+// event → (element → { dispatch: n, runOps: n }): how many bindings a replay
+// ran while its original may still be propagating. The entry lasts for that
+// propagation only — a new task starts after the whole dispatch is over — so
+// the same event OBJECT dispatched again later is live.
+const replayedEarly = new WeakMap()
+
+function markEarlyReplay(event, el, method) {
+  let byElement = replayedEarly.get(event)
+  if (!byElement) {
+    replayedEarly.set(event, (byElement = new Map()))
+    setTimeout(() => replayedEarly.delete(event))
+  }
+  const counts = byElement.get(el) ?? {}
+  byElement.set(el, counts)
+  counts[method] = (counts[method] ?? 0) + 1
+}
+
+function takeEarlyReplay(event, method) {
+  const counts = event && replayedEarly.get(event)?.get(event.currentTarget)
+  if (!counts?.[method]) return false
+  counts[method] -= 1
+  return true
 }
 
 // Register this controller eagerly OR lazily: with phlex/reactive/early
@@ -2834,6 +2867,10 @@ export default class extends Controller {
     this.#drainEarly()
   }
 
+  // The trigger elements whose :once descriptor THIS connection replayed —
+  // forgotten on disconnect (see disconnect()).
+  #earlySpentOn = new Set()
+
   // Takes this root's entries — and those of any root that left the page
   // before connecting (replaced by a stream), which no controller would ever
   // claim.
@@ -2887,7 +2924,13 @@ export default class extends Controller {
       if (!tokens.includes(desc.token)) continue
       if (desc.filter && !keyFilterMatches(desc.filter, event, keyMappings)) continue
       // (`:once` is read off the token: early.js keeps its records minimal.)
-      if (/#\w+.*:once\b/.test(desc.token) && !spendEarlyOnce(el, desc)) continue
+      if (/#\w+.*:once\b/.test(desc.token)) {
+        if (!spendEarlyOnce(el, desc)) continue
+        this.#earlySpentOn.add(el)
+      }
+      // The original may still be propagating (issue #274): its live arrival at
+      // `el` must not run this binding again (earlyOnceSwallows).
+      markEarlyReplay(event, el, desc.method)
       if (desc.method === "runOps") this.runOps(replay)
       else this.dispatch(replay)
     }
@@ -2936,6 +2979,13 @@ export default class extends Controller {
     // Early triggers (issue #273): a disconnected root records again.
     earlyState().connected.delete(this.element)
     this.element.removeAttribute?.("data-reactive-connected")
+    // A spent :once replay is remembered per element so a morph REPLY (root
+    // still connected) cannot re-arm it. A disconnect drops Stimulus's own
+    // `once` listeners and the next connect binds fresh ones, so the memory
+    // goes too (issue #274: a dormant morph-back disconnects a root in place —
+    // its :once trigger must work again after the re-wake).
+    for (const el of this.#earlySpentOn) spentEarlyOnce.delete(el)
+    this.#earlySpentOn.clear()
   }
 
   // Which reactive_lazy(on:) shell this root currently is — read live, because

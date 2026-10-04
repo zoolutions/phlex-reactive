@@ -121,7 +121,7 @@ module Views
                     "registration (above) guarantees it's bound before any interaction. To load it " \
                     'lazily instead, add '
               code { 'import "phlex/reactive/early"' }
-              plain ' to your entry point: that module (under 1 KB gzipped, pinned and preloaded by ' \
+              plain ' to your entry point: that module (under 1.1 KB gzipped, pinned and preloaded by ' \
                     'the engine) queues an '
               code { 'on(...)' }
               plain ' or '
@@ -135,6 +135,20 @@ module Views
               plain '/'
               code { 'outside:' }
               plain ' triggers are not captured.'
+            end
+            DocsUI::Prose() do
+              p do
+                plain 'The same module lets a root cost nothing until it is used: '
+                code { 'reactive_dormant' }
+                plain ' (or '
+                code { 'reactive_root(dormant: true)' }
+                plain ') renders the root without '
+                code { 'data-controller="reactive"' }
+                plain ", so a lazily loaded controller is not fetched until one of the root's " \
+                      'triggers fires. See '
+                a(href: '/docs/performance') { 'Dormant roots' }
+                plain ' on the performance page.'
+              end
             end
           end
         end

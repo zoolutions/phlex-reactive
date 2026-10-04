@@ -62,7 +62,7 @@ module Phlex
             to: "phlex/reactive/reactive_controller.min.js",
             preload: true
           )
-          # The early-trigger capture (issue #273): a < 1 KB module the app
+          # The early-trigger capture (issue #273): a ~1 KB module the app
           # imports EAGERLY (`import "phlex/reactive/early"`) so a trigger that
           # fires before a lazily loaded controller connects is replayed on
           # connect instead of lost. Preloaded: it must run before the triggers.
