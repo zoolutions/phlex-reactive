@@ -234,9 +234,14 @@ guide](https://phlex-reactive.zoolutions.llc/docs/tooling) for the full workflow
 ```bash
 bin/rails phlex_reactive:doctor          # validate the whole install (✓/✗/? + a fix each)
 bin/rails phlex_reactive:actions         # every component × action: params, file:line, auth
+bin/rails phlex_reactive:actions UNVERIFIED=1 # only actions with no detected authorization AND no skip
 bin/rails "phlex_reactive:find[counter]" # fuzzy-find one; prints each action's method source
 bin/rails phlex_reactive:mcp             # a read-only MCP server (needs `gem "mcp"`)
 ```
+
+The `auth` column reads `authorized*` (an authorization call was detected — a
+heuristic), `skipped` / `skipped (class)` (declared `skip_verify_authorized`,
+per action or component-wide), or `unverified` (neither — review these).
 
 In the browser console, map every reactive root + trigger on the page back to its
 server `Component#action` names (a standalone module — zero cost until imported):
@@ -3403,6 +3408,23 @@ and `post_reactive_multipart(..., empty_groups: [])` POST a signed token to
 the groups the client cleared by name, without the `[]`, the way a form body
 sends them. **Token minting** —
 `reactive_token_for(component_or_class, payload = {})`.
+
+**System helpers** (`Phlex::Reactive::TestHelpers::System`, Capybara-gated) —
+`wait_for_reactive`, `have_reactive_value`, `have_reactive_text`, and request
+counting: `reset_reactive_requests!` baselines, `have_reactive_requests(n,
+kind: nil)` waits until nothing is in flight and asserts exactly `n` action
+(`kind: :action`) or deferred-render (`kind: :defer`) requests, and
+`reactive_request_count` returns `{ action:, defer: }`. The client keeps the
+totals on `<html data-reactive-requests>` under the verbose gate only. The
+matcher waits for requests in flight, not ones yet to start (a debounced
+trigger, a defer the reply is about to start): wait for the UI outcome first.
+A defer pushed over a pgbus stream makes no request and is not counted.
+
+```ruby
+reset_reactive_requests!
+find("#open-panel").click
+expect(page).to have_reactive_requests(1)
+```
 
 > `verbose_errors` defaults ON in test (it changes only an error BODY, never a
 > status). Asserting an empty failure body? Set

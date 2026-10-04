@@ -25,6 +25,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   that event and attribute. If you add the import, remove any hand-written
   "wait for the controller, then dispatch" loop, or the trigger fires twice.
 
+- **`phlex_reactive:actions` tells a deliberate skip from a forgotten check
+  (#278).** The `auth` column now has three states: `authorized*` (a call was
+  detected), `skipped` / `skipped (class)` (declared `skip_verify_authorized`,
+  per action or component-wide, inherited too) and `unverified` (neither).
+  `UNVERIFIED=1` lists only the unverified rows. The JSON and the MCP
+  `phlex_reactive_actions` / `phlex_reactive_find` tools add `authorization`
+  (`detected`/`skipped`/`none`) and `authorization_skip` (`class`/`action`/`null`);
+  `authorization_call_detected` stays for compatibility.
+
+- **System-test helpers that count reactive requests (#279).**
+  `reset_reactive_requests!`, `have_reactive_requests(n, kind: nil)` and
+  `reactive_request_count` in `TestHelpers::System` answer "one request on
+  first open, none after" without a fetch spy. The matcher waits until the
+  layer is idle, then asserts the exact count (`kind: :action` or `:defer`),
+  failing at once if the count overshoots. The client keeps per-kind totals on
+  `<html data-reactive-requests>` only under the verbose gate (dev/test by
+  default); production writes nothing.
+
 - **Several `on_client` bindings on one element (#271).** Two `on_client`
   calls merged with `mix` now both work — e.g. a root that closes a menu on an
   outside click AND on Escape. Each call carries its own descriptor, flags and

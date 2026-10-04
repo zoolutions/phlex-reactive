@@ -216,6 +216,74 @@ RSpec.describe Phlex::Reactive::Inspector do
     end
   end
 
+  # Issue #278: the inventory tells a deliberate opt-out from a forgotten check.
+  # authorization_state is :detected (a call was found), :skipped (declared with
+  # skip_verify_authorized) or :none; authorization_skip says which form.
+  describe "authorization state (detected / skipped / none)" do
+    # component_info directly: an anonymous-then-stubbed subclass is not in the
+    # Streamable registry, so .components would not list it.
+    def action_for(klass, name)
+      described_class.send(:component_info, klass).actions.find { it.name == name }
+    end
+
+    it "is :detected for an action that calls an authorization method" do
+      action = action_for(AuthorizedTodoComponent, :rename)
+      expect(action.authorization_state).to eq(:detected)
+      expect(action.authorization_skip).to be_nil
+    end
+
+    it "is :skipped with skip :action for an action named in skip_verify_authorized" do
+      action = action_for(AuthorizedTodoComponent, :rename_skipped)
+      expect(action.authorization_state).to eq(:skipped)
+      expect(action.authorization_skip).to eq(:action)
+    end
+
+    it "is :none for an action with neither a call nor a skip" do
+      action = action_for(AuthorizedTodoComponent, :rename_unguarded)
+      expect(action.authorization_state).to eq(:none)
+      expect(action.authorization_skip).to be_nil
+    end
+
+    it "is :skipped with skip :class for every action under a bare skip_verify_authorized" do
+      action = action_for(PublicCounterComponent, :increment)
+      expect(action.authorization_state).to eq(:skipped)
+      expect(action.authorization_skip).to eq(:class)
+    end
+
+    it "is :detected when a skipped action also calls an authorization method, keeping the skip form" do
+      klass = Class.new(AuthorizedTodoComponent) do
+        def self.name = "Phlex::Reactive::InspectorSpec::SkippedButAuthorized"
+        skip_verify_authorized :rename
+      end
+      stub_const(klass.name, klass)
+
+      action = action_for(klass, :rename)
+      expect(action.authorization_state).to eq(:detected)
+      expect(action.authorization_skip).to eq(:action)
+    end
+
+    it "inherits a superclass's bare skip as :class" do
+      klass = Class.new(PublicCounterComponent) do
+        def self.name = "Phlex::Reactive::InspectorSpec::InheritsSkip"
+        action :decrement
+        def decrement = @count -= 1
+      end
+      stub_const(klass.name, klass)
+
+      expect(action_for(klass, :decrement).authorization_skip).to eq(:class)
+    end
+
+    it "inherits a superclass's per-action skip as :action" do
+      klass = Class.new(AuthorizedTodoComponent) do
+        def self.name = "Phlex::Reactive::InspectorSpec::InheritsActionSkip"
+      end
+      stub_const(klass.name, klass)
+
+      expect(action_for(klass, :rename_skipped).authorization_skip).to eq(:action)
+      expect(action_for(klass, :rename_unguarded).authorization_skip).to be_nil
+    end
+  end
+
   describe ".find (fuzzy match)" do
     it "returns an empty array when nothing matches" do
       expect(described_class.find("zzz_no_such_component_zzz")).to eq([])

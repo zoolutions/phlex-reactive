@@ -15,7 +15,9 @@ module Phlex
             action with its param schema, source file:line, and a heuristic
             authorization status (whether an authorization method or
             mark_authorized! call was detected in the body — advisory only, since a
-            helper may authorize indirectly). Pass `component:` to scope to one
+            helper may authorize indirectly), plus `authorization` — detected,
+            skipped (declared skip_verify_authorized; `authorization_skip` says
+            class or action) or none. Pass `component:` to scope to one
             component (exact name). Read-only — schemas and paths, never runtime
             values.
           DESC

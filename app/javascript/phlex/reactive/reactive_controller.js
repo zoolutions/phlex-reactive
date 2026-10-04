@@ -302,6 +302,7 @@ async function performDeferFetch(targetId, entry, token) {
   // whole fetch + body read, mirroring #perform's AbortSignal.timeout).
   let response
   try {
+    countReactiveRequest("defer")
     response = await fetch(deferPath(), {
       method: "POST",
       headers: {
@@ -948,6 +949,43 @@ function syncReactiveActivity(eventName) {
   if (typeof document.dispatchEvent === "function" && typeof CustomEvent === "function") {
     document.dispatchEvent(new CustomEvent(eventName, { detail: { count: activityCount } }))
   }
+}
+
+// --- Reactive request totals (issue #279) ----------------------------------
+// A running total of the reactive REQUESTS made, per kind — "action" (one per
+// #perform fetch) and "defer" (one per performDeferFetch) — so a system test can
+// assert "one request on first open, none after". The in-flight count above says
+// whether the layer is settling; this says how much it did.
+//
+// The JSON on <html data-reactive-requests> IS the store (read-modify-write per
+// request): a test reads it, and re-baselines by writing zeros, with no window
+// hook and no module state to drift from it. Written ONLY under the verbose gate
+// — data-reactive-verbose on <html> or on any reactive root (stamped in dev/test
+// by default) — so production writes nothing. The gate is checked once per
+// network request, never per event.
+export const REQUESTS_ATTR = "data-reactive-requests"
+
+export function countReactiveRequest(kind) {
+  if (typeof document === "undefined") return
+  const root = document.documentElement
+  if (typeof root?.setAttribute !== "function" || !reactiveRequestsCounted(root)) return
+  const totals = readReactiveRequests(root)
+  totals[kind] = (Number(totals[kind]) || 0) + 1
+  root.setAttribute(REQUESTS_ATTR, JSON.stringify(totals))
+}
+
+function reactiveRequestsCounted(root) {
+  return root.hasAttribute?.("data-reactive-verbose") || !!document.querySelector?.('[data-reactive-verbose="true"]')
+}
+
+// The current totals, or zeros when the attribute is absent or not an object
+// (a hand-edited / garbled value restarts the count rather than throwing).
+function readReactiveRequests(root) {
+  try {
+    const parsed = JSON.parse(root.getAttribute(REQUESTS_ATTR))
+    if (parsed && typeof parsed === "object") return { action: 0, defer: 0, ...parsed }
+  } catch {}
+  return { action: 0, defer: 0 }
 }
 
 export function registerReactiveActions() {
@@ -4240,6 +4278,7 @@ export default class extends Controller {
         // reactive:applied LISTENER throwing — per the DOM spec, dispatchEvent
         // never propagates a listener's exception back to its caller, so that
         // case can't reach this catch at all; verified in the JS test suite.)
+        countReactiveRequest("action")
         response = await fetch(this.#actionPath(), {
           method: "POST",
           headers,

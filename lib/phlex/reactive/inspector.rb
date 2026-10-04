@@ -31,7 +31,10 @@ module Phlex
       #                       of the definition finds a call to any configured
       #                       authorization method or mark_authorized!. A helper
       #                       may authorize indirectly, so this is advisory ONLY.
-      ActionInfo = Data.define(:name, :params, :source_location, :definition) do
+      #   * authorization_skip — :class (a bare skip_verify_authorized, own or
+      #                       inherited), :action (this action is named in one),
+      #                       or nil. The author's declared opt-out (issue #278).
+      ActionInfo = Data.define(:name, :params, :source_location, :definition, :authorization_skip) do
         # Was any authorization method (or mark_authorized!) called directly in
         # the method body? Heuristic — a Prism scan of `definition`. False when
         # the definition is unavailable.
@@ -39,6 +42,14 @@ module Phlex
           return false unless definition
 
           Inspector.authorization_call?(definition)
+        end
+
+        # :detected (a call was found), :skipped (declared skip_verify_authorized)
+        # or :none (neither — the review queue). A detected call wins over a skip.
+        def authorization_state
+          return :detected if authorization_call_detected?
+
+          authorization_skip ? :skipped : :none
         end
       end
 
@@ -164,8 +175,18 @@ module Phlex
             name: action.name,
             params: action.params,
             source_location: location,
-            definition: (extract_definition(location) if location)
+            definition: (extract_definition(location) if location),
+            authorization_skip: authorization_skip(klass, action.name)
           )
+        end
+
+        # How `name` opts out of verify_authorized: :class for a bare skip (own
+        # or inherited), :action when listed by name, else nil. Resolved through
+        # the same Registry readers the runtime guard uses.
+        def authorization_skip(klass, name)
+          return :class if klass.reactive_skip_all_authorization?
+
+          :action if klass.reactive_skip_authorization_actions.include?(name.to_sym)
         end
 
         # The method's [file, line], or nil when the declared method is missing

@@ -36,6 +36,30 @@ module Phlex
         # twin of wait_for_turbo watching the Turbo progress bar.
         ACTIVE_MARKER = "data-reactive-active"
 
+        # The <html> attribute the client keeps its per-kind request totals in
+        # (issue #279), as JSON ({"action":1,"defer":0}). Lockstep with
+        # reactive_controller.js REQUESTS_ATTR. Written only under the verbose
+        # gate (dev/test by default).
+        REQUESTS_ATTR = "data-reactive-requests"
+
+        # Parse the attribute value into { action:, defer: } Integers — zeros for
+        # an absent or garbled value. Shared by the helpers and
+        # ReactiveRequestsMatcher.
+        def self.parse_reactive_requests(raw)
+          parsed = raw.is_a?(::String) ? ::JSON.parse(raw) : {}
+          parsed = {} unless parsed.is_a?(::Hash)
+          { action: reactive_request_total(parsed["action"]), defer: reactive_request_total(parsed["defer"]) }
+        rescue ::JSON::ParserError
+          { action: 0, defer: 0 }
+        end
+
+        # One total as an Integer. Only a number or a numeric string counts; any
+        # other JSON value (array, object, boolean, null) is garbled, so zero.
+        def self.reactive_request_total(value)
+          value.is_a?(::Numeric) || value.is_a?(::String) ? value.to_i : 0
+        end
+        private_class_method :reactive_request_total
+
         # Block until the reactive layer is IDLE — every dispatch round trip and
         # deferred render has settled and the <html data-reactive-active> marker is
         # gone. The system-test twin of wait_for_turbo (which watches the Turbo
@@ -91,6 +115,42 @@ module Phlex
         #   expect(page).to have_reactive_text("recap", "6 items")
         def have_reactive_text(id, value, **)
           have_css("##{id}", text: value, **)
+        end
+
+        # How many reactive requests the page has made since the last
+        # reset_reactive_requests! (or since the page loaded), per kind (issue
+        # #279):
+        #
+        #   reactive_request_count # => { action: 1, defer: 0 }
+        #
+        # A snapshot, not a wait — barrier on wait_for_reactive (or use
+        # have_reactive_requests) before reading it after a gesture.
+        def reactive_request_count
+          System.parse_reactive_requests(
+            page.evaluate_script("document.documentElement.getAttribute(#{REQUESTS_ATTR.to_json})")
+          )
+        end
+
+        # Baseline the request totals to zero. The attribute IS the client's
+        # store, so writing zeros re-baselines it — including after a Turbo Drive
+        # visit, where the <html> element (and its totals) survives navigation.
+        def reset_reactive_requests!
+          zeros = { action: 0, defer: 0 }.to_json
+          page.execute_script("document.documentElement.setAttribute(#{REQUESTS_ATTR.to_json}, '#{zeros}')")
+          nil
+        end
+
+        # Assert (waiting) that exactly `count` reactive requests were made — of
+        # `kind` (:action or :defer), or of any kind — since the last reset, AND
+        # that nothing is still in flight. Fails at once if the count overshoots
+        # (totals only grow until a reset).
+        #
+        #   reset_reactive_requests!
+        #   find("#open-panel").click
+        #   expect(page).to have_reactive_requests(1)
+        #   expect(page).to have_reactive_requests(0, kind: :defer)
+        def have_reactive_requests(count, kind: nil, timeout: nil, wait: nil)
+          ReactiveRequestsMatcher.new(count, kind:, wait: timeout || wait)
         end
         # rubocop:enable Naming/PredicatePrefix
 
@@ -190,3 +250,5 @@ module Phlex
     end
   end
 end
+
+require "phlex/reactive/test_helpers/system/reactive_requests_matcher"
