@@ -143,7 +143,7 @@ RSpec.describe "Dormant roots (issue #274 — mount the controller on first use)
   end
 
   # reactive_lazy(on:) + reactive_dormant (issues #276 + #274): "load this panel
-  # the first time it opens, and fetch no JavaScript until then".
+  # the first time it opens, and do not fetch the controller until then".
   context "with a dormant reactive_lazy(on:) event shell" do
     def open_lazy_panel
       page.execute_script(

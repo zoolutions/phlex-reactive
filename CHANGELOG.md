@@ -45,7 +45,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   / `reactive_attrs(dormant: true)` renders `data-reactive-dormant="reactive"`
   in place of `data-controller="reactive"`, so a root that only matters after a
   gesture neither mounts the controller nor, when it loads lazily, fetches it
-  (68 KB minified, 20 KB gzipped). The first `on`/`on_client` trigger wakes the
+  (68 KB minified, 20 KB gzipped). The first element-bound `on`/`on_client`
+  trigger (not a `window:` or `outside:` one) wakes the
   root: `phlex/reactive/early` moves the identifier into `data-controller`
   (other controllers on the root stay connected) and the trigger is replayed
   once on connect. Requires `import "phlex/reactive/early"`;

@@ -306,6 +306,30 @@ test("a dormant reactive_lazy(on:) event shell wakes and materializes once", asy
   expect(calls.map((call) => call.event.params.action)).toEqual(["__materialize"])
 })
 
+// Only what the replay actually RAN is dropped when the original arrives live.
+// A binding early.js could not see (a key filter under the app's own Stimulus
+// key mapping) was never replayed, so its live call must go through.
+test("a live binding the replay did not run is not swallowed", async () => {
+  const root = await mount(`
+    <div id="menu" data-reactive-dormant="reactive">
+      <input data-action="keydown.enter->reactive#dispatch keydown.submit->reactive#dispatch" data-reactive-action-param="save">
+    </div>`)
+  const input = root.querySelector("input")
+  const seen = countDispatches(root)
+  const event = new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })
+  input.dispatchEvent(event)
+  const controller = realConnect(root)
+  // early.js queued the event for keydown.enter only ("submit" is not a
+  // default key name), and without the app's mapping the replay skips it too.
+  expect(seen).toEqual(["save"])
+
+  // Stimulus (with the app's `submit: "Enter"` mapping) calls both bindings.
+  controller.dispatch(liveEventFor(event, input))
+  expect(seen).toEqual(["save"])
+  controller.dispatch(liveEventFor(event, input))
+  expect(seen).toEqual(["save", "save"])
+})
+
 test("the same goes for an on_client trigger", async () => {
   const root = await mount(`
     <div id="menu" data-reactive-dormant="reactive">

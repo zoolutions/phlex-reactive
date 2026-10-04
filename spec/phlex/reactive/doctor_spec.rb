@@ -325,6 +325,21 @@ RSpec.describe Phlex::Reactive::Doctor do
       expect(check.fix).to include('import "phlex/reactive/early"')
     end
 
+    it "recognises the import statement, in either quote style and indented" do
+      expect(described_class.imports_early_source?(%(import "phlex/reactive/early"\n))).to be(true)
+      expect(described_class.imports_early_source?(%(  import 'phlex/reactive/early';\n))).to be(true)
+      expect(described_class.imports_early_source?(%(<script type="module">import "phlex/reactive/early"</script>)))
+        .to be(true)
+    end
+
+    it "does not take a commented-out import for the real thing" do
+      expect(described_class.imports_early_source?(%(// import "phlex/reactive/early"\n))).to be(false)
+      expect(described_class.imports_early_source?(%(  * import "phlex/reactive/early"\n))).to be(false)
+      expect(described_class.imports_early_source?(%(<%# import "phlex/reactive/early" %>\n))).to be(false)
+      expect(described_class.imports_early_source?(%(import x from "y" // import "phlex/reactive/early"\n)))
+        .to be(false)
+    end
+
     it "finds the dummy's dormant component and its early import" do
       Rails.application.eager_load!
       check = doctor.checks.find { it.name == :dormant }

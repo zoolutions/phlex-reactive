@@ -255,6 +255,19 @@ module Phlex
         "phlex/reactive/actions"
       end
 
+      EARLY_IMPORT = %r{import\s+["']phlex/reactive/early["']}
+      # What precedes the import on its line when it is commented out: a //,
+      # a block-comment * or /*, or an ERB <%# comment.
+      COMMENT_BEFORE = %r{//|/\*|\A\s*\*|<%#}
+
+      # Is there an `import "phlex/reactive/early"` in `source` that actually
+      # runs? A line-based read, so a commented-out import doesn't count.
+      def self.imports_early_source?(source)
+        source.each_line.any? do
+          (match = EARLY_IMPORT.match(it)) && !match.pre_match.match?(COMMENT_BEFORE)
+        end
+      end
+
       private
 
       # A one-line tally: how many passed, failed, and are advisory/unknown.
@@ -377,7 +390,7 @@ module Phlex
       # Does any Stimulus entrypoint candidate import phlex/reactive/early?
       def imports_early?
         stimulus_registration_files.any? do
-          File.read(it).match?(%r{import\s+["']phlex/reactive/early["']})
+          Doctor.imports_early_source?(File.read(it))
         rescue StandardError
           false
         end

@@ -2466,8 +2466,12 @@ function spendEarlyOnce(el, { token, type, method, filter }) {
 // the waking event is still propagating (an eagerly registered controller
 // connects in the microtask checkpoint after early.js's capture listener), so
 // the event reaches the listener Stimulus just bound after it was replayed.
+// Only as many live calls as the replay RAN for that element and method are
+// dropped — a binding the replay skipped (a key filter only the app's own
+// mapping matches) still runs.
 function earlyOnceSwallows(event, method, keyMappings) {
   if (event?.[EARLY_KEY]) return false
+  const replayed = takeEarlyReplay(event, method)
   const spent = spentEarlyOnce.get(event?.currentTarget)
   for (const entry of spent?.values() ?? []) {
     if (!entry.armed || entry.method !== method || entry.type !== event.type) continue
@@ -2475,11 +2479,32 @@ function earlyOnceSwallows(event, method, keyMappings) {
     entry.armed = false
     return true
   }
-  return replayedEarly.get(event)?.has(event.currentTarget) === true
+  return replayed
 }
 
-// event → the elements it was replayed on (see earlyOnceSwallows).
+// event → (element → { dispatch: n, runOps: n }): how many bindings a replay
+// ran while its original may still be propagating. The entry lasts for that
+// propagation only — a new task starts after the whole dispatch is over — so
+// the same event OBJECT dispatched again later is live.
 const replayedEarly = new WeakMap()
+
+function markEarlyReplay(event, el, method) {
+  let byElement = replayedEarly.get(event)
+  if (!byElement) {
+    replayedEarly.set(event, (byElement = new Map()))
+    setTimeout(() => replayedEarly.delete(event))
+  }
+  const counts = byElement.get(el) ?? {}
+  byElement.set(el, counts)
+  counts[method] = (counts[method] ?? 0) + 1
+}
+
+function takeEarlyReplay(event, method) {
+  const counts = event && replayedEarly.get(event)?.get(event.currentTarget)
+  if (!counts?.[method]) return false
+  counts[method] -= 1
+  return true
+}
 
 // Register this controller eagerly OR lazily: with phlex/reactive/early
 // imported, a trigger that fires before connect is replayed on connect (issue
@@ -2893,17 +2918,6 @@ export default class extends Controller {
   // was queued (spendEarlyOnce).
   #replayEarly({ event, el, descs }) {
     const replay = earlyReplayEvent(event, el)
-    // The original may still be propagating (issue #274): its live arrival at
-    // `el` must not run the same bindings again (earlyOnceSwallows).
-    // The mark lasts for that propagation only — a new task starts after the
-    // whole dispatch is over — so the same event OBJECT dispatched again later
-    // is live.
-    let replayedOn = replayedEarly.get(event)
-    if (!replayedOn) {
-      replayedEarly.set(event, (replayedOn = new WeakSet()))
-      setTimeout(() => replayedEarly.delete(event))
-    }
-    replayedOn.add(el)
     const keyMappings = this.application?.schema?.keyMappings
     const tokens = (el.getAttribute("data-action") ?? "").split(/\s+/)
     for (const desc of descs) {
@@ -2914,6 +2928,9 @@ export default class extends Controller {
         if (!spendEarlyOnce(el, desc)) continue
         this.#earlySpentOn.add(el)
       }
+      // The original may still be propagating (issue #274): its live arrival at
+      // `el` must not run this binding again (earlyOnceSwallows).
+      markEarlyReplay(event, el, desc.method)
       if (desc.method === "runOps") this.runOps(replay)
       else this.dispatch(replay)
     }

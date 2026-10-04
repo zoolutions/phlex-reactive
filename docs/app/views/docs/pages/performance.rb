@@ -767,8 +767,9 @@ module Views
                   plain '68,492 B minified, 20,009 B gzipped, 17,623 B brotli.'
                 end
                 li do
-                  plain 'The root itself replaced about 0.1–0.25 KB (gzipped) of inline markup, so the '
-                  plain 'page paid roughly a hundred times more in JavaScript than it saved in HTML.'
+                  plain 'The dialog was reactive so that its list could load on open, which took about '
+                  plain '0.1–0.25 KB (gzipped) of inline markup out of each page. Loading the client for it '
+                  plain 'cost roughly a hundred times that in JavaScript.'
                 end
               end
               p do
@@ -835,13 +836,18 @@ module Views
                 code { 'reactive_lazy on: "panel:opened"' }
                 plain ' plus '
                 code { 'reactive_dormant' }
-                plain ' gives "load this the first time it opens, and fetch no JavaScript until then". '
+                plain ' gives "load this the first time it opens, and do not fetch the reactive controller '
+                plain 'until then". '
                 plain 'The event wakes the root and loads it in one request, and the content arrives awake. '
                 code { 'on: :visible' }
                 plain ' cannot be dormant, because its shell has no trigger to wake on; declaring both '
                 plain 'raises. A plain '
                 code { 'reactive_lazy' }
-                plain ' shell always mounts, because it fetches on connect.'
+                plain ' shell always mounts, because it fetches on connect. On a lazy component, declare '
+                code { 'reactive_dormant' }
+                plain ' on the class: the framework renders the shell, so a per-render '
+                code { 'reactive_root(dormant: true)' }
+                plain ' in the template never reaches it.'
               end
               h3 { 'Limits' }
               ul do

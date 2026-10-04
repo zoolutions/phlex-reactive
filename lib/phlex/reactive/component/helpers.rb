@@ -153,7 +153,9 @@ module Phlex
         # side). The removed track_dirty:/warn_unsaved: kwargs raise a guided error.
         #
         # `dormant: true` (issue #274) is handed to reactive_attrs: the root mounts
-        # on its first trigger instead of on page load.
+        # on its first trigger instead of on page load. On a reactive_lazy
+        # component declare `reactive_dormant` on the class instead: the lazy
+        # SHELL is rendered by the framework and reads only the class declaration.
         def reactive_root(dormant: nil, **overrides)
           # A CLIENT-ONLY component (ClientBindings, issue #180) needs no #id —
           # there's no token to self-match by id. Use an explicit override, else

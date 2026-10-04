@@ -177,7 +177,8 @@ div(**reactive_root(dormant: true)) { … } # or one render at a time
 
 A dormant root renders `data-reactive-dormant="reactive"` in place of the
 controller attribute, so nothing mounts and a lazily loaded controller is not
-fetched. The first `on(...)`/`on_client(...)` trigger that reaches it wakes it:
+fetched. The first element-bound `on(...)`/`on_client(...)` trigger that reaches
+it (not a `window:` or `outside:` one) wakes it:
 `phlex/reactive/early` moves the identifier into `data-controller`, Stimulus
 loads and connects the controller, and the trigger is replayed once.
 
@@ -202,7 +203,9 @@ loads and connects the controller, and the trigger is replayed once.
 - With `reactive_lazy`: an event shell (`reactive_lazy on: "panel:opened"`) can
   be dormant, and that event wakes and loads it in one go. `on: :visible`
   cannot (its shell has no trigger to wake on; declaring both raises), and a
-  plain `reactive_lazy` shell always mounts, because it fetches on connect.
+  plain `reactive_lazy` shell always mounts, because it fetches on connect. On
+  a lazy component use the class-level `reactive_dormant`: the shell is rendered
+  by the framework and never sees a per-render `reactive_root(dormant: true)`.
 - With a controller of your own on the same root, list it first:
   `mix({ data: { controller: "dropdown" } }, reactive_root)`. Waking appends
   `reactive`, which then matches what an awake reply renders; in the other
