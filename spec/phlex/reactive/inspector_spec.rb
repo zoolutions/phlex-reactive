@@ -250,6 +250,18 @@ RSpec.describe Phlex::Reactive::Inspector do
       expect(action.authorization_skip).to eq(:class)
     end
 
+    it "is :detected when a skipped action also calls an authorization method, keeping the skip form" do
+      klass = Class.new(AuthorizedTodoComponent) do
+        def self.name = "Phlex::Reactive::InspectorSpec::SkippedButAuthorized"
+        skip_verify_authorized :rename
+      end
+      stub_const(klass.name, klass)
+
+      action = action_for(klass, :rename)
+      expect(action.authorization_state).to eq(:detected)
+      expect(action.authorization_skip).to eq(:action)
+    end
+
     it "inherits a superclass's bare skip as :class" do
       klass = Class.new(PublicCounterComponent) do
         def self.name = "Phlex::Reactive::InspectorSpec::InheritsSkip"

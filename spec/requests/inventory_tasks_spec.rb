@@ -105,6 +105,7 @@ RSpec.describe "phlex_reactive inventory rake tasks" do
         ENV["FORMAT"] = "json"
         parsed = JSON.parse(capture_stdout { rake["phlex_reactive:actions"].invoke })
 
+        expect(parsed).not_to be_empty
         expect(parsed.flat_map { it["actions"] }.map { it["authorization"] }).to all(eq("none"))
         expect(parsed.map { it["component"] }).not_to include("PublicCounterComponent")
         expect(parsed).to all(satisfy { it["actions"].any? })

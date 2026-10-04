@@ -112,7 +112,8 @@ RSpec.describe Phlex::Reactive::MCP do
         result = tool_json(described_class::Tools::ActionsTool)
         todo = result["components"].find { it["component"] == "AuthorizedTodoComponent" }
         skipped = todo["actions"].find { it["name"] == "rename_skipped" }
-        public_inc = result["components"].find { it["component"] == "PublicCounterComponent" }["actions"].first
+        public = result["components"].find { it["component"] == "PublicCounterComponent" }
+        public_inc = public["actions"].find { it["name"] == "increment" }
 
         expect(skipped).to include("authorization" => "skipped", "authorization_skip" => "action")
         expect(public_inc).to include("authorization" => "skipped", "authorization_skip" => "class")

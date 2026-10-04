@@ -90,7 +90,8 @@ module Views
               `actions` is a table across the whole app; `find` fuzzy-matches one
               component (exact > prefix > substring > subsequence) and prints each
               action's **method-definition source** (extracted with Prism). The
-              `auth` column has three states. `authorized*` means an
+              `auth` column has four labels for three states (`skipped` is spelled
+              two ways). `authorized*` means an
               authorization call was detected in the body (a **heuristic** — a
               helper may still authorize indirectly, so it's a hint, not a
               verdict). `skipped` means the action is declared with
