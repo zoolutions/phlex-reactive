@@ -3374,6 +3374,20 @@ the groups the client cleared by name, without the `[]`, the way a form body
 sends them. **Token minting** —
 `reactive_token_for(component_or_class, payload = {})`.
 
+**System helpers** (`Phlex::Reactive::TestHelpers::System`, Capybara-gated) —
+`wait_for_reactive`, `have_reactive_value`, `have_reactive_text`, and request
+counting: `reset_reactive_requests!` baselines, `have_reactive_requests(n,
+kind: nil)` waits until nothing is in flight and asserts exactly `n` action
+(`kind: :action`) or deferred-render (`kind: :defer`) requests, and
+`reactive_request_count` returns `{ action:, defer: }`. The client keeps the
+totals on `<html data-reactive-requests>` under the verbose gate only.
+
+```ruby
+reset_reactive_requests!
+find("#open-panel").click
+expect(page).to have_reactive_requests(1)
+```
+
 > `verbose_errors` defaults ON in test (it changes only an error BODY, never a
 > status). Asserting an empty failure body? Set
 > `Phlex::Reactive.verbose_errors = false` in your setup.

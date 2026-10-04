@@ -102,4 +102,107 @@ RSpec.describe Phlex::Reactive::TestHelpers::System do
       expect(matcher.failure_message).to include("total_ro", '"6"', '"5"')
     end
   end
+
+  describe "request totals (issue #279)" do
+    subject(:helper) do
+      fake = page_stub
+      Class.new do
+        include Phlex::Reactive::TestHelpers::System
+
+        define_method(:page) { fake }
+      end.new
+    end
+
+    # A page whose <html data-reactive-requests> / data-reactive-active are a
+    # plain hash the fake evaluate_script/execute_script read and write.
+    let(:html) { {} }
+
+    def page_stub
+      attrs = html
+      Object.new.tap do
+        it.define_singleton_method(:evaluate_script) do
+          if it.include?(Phlex::Reactive::TestHelpers::System::REQUESTS_ATTR)
+            attrs["requests"]
+          else
+            attrs.key?("active")
+          end
+        end
+        it.define_singleton_method(:execute_script) { attrs["requests"] = it[/'({.*})'/, 1] }
+      end
+    end
+
+    it "keeps REQUESTS_ATTR in lockstep with the client" do
+      expect(Phlex::Reactive::TestHelpers::System::REQUESTS_ATTR).to eq("data-reactive-requests")
+      client = Rails.root.join("public/vendor/reactive_controller.js").read
+      expect(client).to include("data-reactive-requests")
+    end
+
+    it "reactive_request_count reads the per-kind totals (zeros when absent)" do
+      expect(helper.reactive_request_count).to eq(action: 0, defer: 0)
+      html["requests"] = %({"action":2,"defer":1})
+      expect(helper.reactive_request_count).to eq(action: 2, defer: 1)
+    end
+
+    it "reset_reactive_requests! writes zeros to the attribute" do
+      html["requests"] = %({"action":2,"defer":1})
+      helper.reset_reactive_requests!
+      expect(helper.reactive_request_count).to eq(action: 0, defer: 0)
+    end
+
+    it "rejects an unknown kind" do
+      expect { helper.have_reactive_requests(1, kind: :fragment) }.to raise_error(ArgumentError, /kind/)
+    end
+  end
+
+  describe described_class::ReactiveRequestsMatcher do
+    # Scripted page: each evaluate_script returns the next {requests, active}
+    # pair (the matcher reads both in one call), the last one repeating.
+    def fake_page(*states)
+      queue = states.dup
+      Object.new.tap do
+        it.define_singleton_method(:evaluate_script) { |*| queue.length > 1 ? queue.shift : queue.first }
+      end
+    end
+
+    def state(action: 0, defer: 0, active: false, present: true)
+      { "requests" => present ? { "action" => action, "defer" => defer }.to_json : nil, "active" => active }
+    end
+
+    it "waits for the count to reach n with the layer idle" do
+      matcher = described_class.new(1, wait: 1)
+      expect(matcher.matches?(fake_page(state, state(action: 1, active: true), state(action: 1)))).to be(true)
+    end
+
+    it "fails after two requests when one is expected, naming both counts" do
+      matcher = described_class.new(1, wait: 1)
+      expect(matcher.matches?(fake_page(state(action: 2)))).to be(false)
+      expect(matcher.failure_message).to include("1 reactive request", "got 2", "action: 2")
+    end
+
+    it "fails fast once the total overshoots (counts only grow until a reset)" do
+      matcher = described_class.new(1, wait: 5)
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      expect(matcher.matches?(fake_page(state(action: 2)))).to be(false)
+      expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to be < 1
+    end
+
+    it "filters by kind" do
+      page = fake_page(state(action: 3, defer: 1))
+      expect(described_class.new(1, kind: :defer, wait: 0).matches?(page)).to be(true)
+      expect(described_class.new(3, kind: :action, wait: 0).matches?(page)).to be(true)
+      expect(described_class.new(4, wait: 0).matches?(page)).to be(true)
+    end
+
+    it "treats an absent attribute as zero and hints at the verbose gate on failure" do
+      matcher = described_class.new(1, wait: 0)
+      expect(matcher.matches?(fake_page(state(present: false)))).to be(false)
+      expect(matcher.failure_message).to include("data-reactive-requests", "verbose")
+    end
+
+    it "supports negation once the layer is idle" do
+      matcher = described_class.new(1, wait: 0)
+      expect(matcher.does_not_match?(fake_page(state(action: 2)))).to be(true)
+      expect(matcher.does_not_match?(fake_page(state(action: 1)))).to be(false)
+    end
+  end
 end
