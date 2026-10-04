@@ -1,0 +1,99 @@
+app/javascript/phlex/reactive/reactive_controller.js
+  s_b4f052d694d82f::t_afa04cc69ad331 2858-2861
+  s_b4f052d694d82f::t_4245ce79f21bd8 2460-2465,2469,2475,2478-2479
+  s_b4f052d694d82f::t_e01c50bbfefee1 2862
+spec/dummy/config/routes.rb
+  s_b4f052d694d82f::t_cbbad0301c3df6 13-14
+benchmark/micro/root_attrs.rb
+  s_b4f052d694d82f::t_fcbd6971cada30 1-28
+app/controllers/phlex/reactive/actions_controller.rb
+  s_b4f052d694d82f::t_db8000158ff2ea 83-84
+  s_b4f052d694d82f::t_b5052cd976baaa 51-55
+docs/app/views/docs/pages/performance.rb
+  s_b4f052d694d82f::t_5fdec365489318 27
+  s_b4f052d694d82f::t_e13f2532a57cc9 728
+  s_b4f052d694d82f::t_2ac95c4fc8328e 750-865
+app/javascript/phlex/reactive/early.js
+  s_b4f052d694d82f::t_51086d1db9ef4a 40-41
+  s_b4f052d694d82f::t_4dc8b75b27fd3e 90-97
+  s_b4f052d694d82f::t_05d2c71ecceee5 22-30
+README.md
+  s_b4f052d694d82f::t_0858e294306dde 121
+  s_b4f052d694d82f::t_07c42b20a0d636 467
+  s_b4f052d694d82f::t_af88cdfa308986 157-199
+lib/phlex/reactive/component/registry.rb
+  s_b4f052d694d82f::t_66f63d0311f3f9 62-63
+lib/phlex/reactive/dormant.rb
+  s_b4f052d694d82f::t_1a26de98226fc2 15-19
+  s_b4f052d694d82f::t_db4bab8e647c99 37-49
+  s_b4f052d694d82f::t_5fc945b9685f91 1-14,20-36,50-53
+spec/phlex/reactive/doctor_spec.rb
+  s_b4f052d694d82f::t_ca3f8cdb627b8b 281-312,314-320,322-336
+  s_b4f052d694d82f::t_376cce3feef5a0 313,321
+lib/phlex/reactive/doctor.rb
+  s_b4f052d694d82f::t_376cce3feef5a0 222,227
+  s_b4f052d694d82f::t_83c7cb3c0621a1 377-385
+  s_b4f052d694d82f::t_926acbf2968211 79-81
+  s_b4f052d694d82f::t_1379e6c55c5458 216-221,223-226,228-233
+docs/app/views/docs/pages/installation.rb
+  s_b4f052d694d82f::t_5302cc10961bb7 124
+  s_b4f052d694d82f::t_6bec7296ff52c9 152
+  s_b4f052d694d82f::t_5fbabe182d9345 139-151
+spec/phlex/reactive/dormant_spec.rb
+  s_b4f052d694d82f::t_8f29f376db0ba3 1-10,12-20,23-31,33-35,37-41,43-58,60-116,118-151,153,155-161,164-166,170-173,199-202
+  s_b4f052d694d82f::t_376cce3feef5a0 11,21-22,32,36,42,152,154,162-163,167-169,174,176-177,180,185-187,192-193
+  s_b4f052d694d82f::t_583b5849b5bde4 117
+  s_b4f052d694d82f::t_9c97db2c398679 59
+  s_b4f052d694d82f::t_95f93d99174833 175,178-179,181-184,188-191,194-198
+lib/phlex/reactive/component/dsl.rb
+  s_b4f052d694d82f::t_95b44ca4b7efbe 241-261
+lib/phlex/reactive/component/helpers.rb
+  s_b4f052d694d82f::t_5ecbb23e2cc5c8 151-154
+  s_b4f052d694d82f::t_de611528a81549 168
+  s_b4f052d694d82f::t_2d083639ce6a98 75-87
+lib/phlex/reactive/engine.rb
+  s_b4f052d694d82f::t_475141e6b9e5eb 65
+spec/dummy/app/views/layouts/lazy_controller.html.erb
+  s_b4f052d694d82f::t_4a877db4e5c78b 2-7,46,50-70,73-91
+spec/javascript/reactive_dormant.test.js
+  s_b4f052d694d82f::t_11f9b5e60a4058 1-251,253-285
+  s_b4f052d694d82f::t_013a2ca6841af8 252
+spec/requests/dormant_reply_spec.rb
+  s_b4f052d694d82f::t_c7de5d92789f28 1-28,30-32,41-63,65-75,77-80
+  s_b4f052d694d82f::t_b6fc10b9ea6381 29,37,64,76
+  s_b4f052d694d82f::t_9b60a0fafbc9d0 33-36,38-40
+spec/dummy/app/controllers/demos_controller.rb
+  s_b4f052d694d82f::t_758ea1dbd41873 20-27,29-36
+  s_b4f052d694d82f::t_d5b9ae8e819782 28
+spec/system/dormant_root_spec.rb
+  s_b4f052d694d82f::t_70e42f6a83b451 1-123,125,127-161
+  s_b4f052d694d82f::t_d2d76a8c1bd9e4 124,126
+CHANGELOG.md
+  s_b4f052d694d82f::t_ce1f896760fb15 23
+  s_b4f052d694d82f::t_4608c32dc93bb2 29-44
+spec/javascript/reactive_early.test.js
+  s_b4f052d694d82f::t_bb393c7bc38f0a 237-239,241
+lib/phlex/reactive/streamable.rb
+  s_b4f052d694d82f::t_315b5decdf67ae 151-159
+spec/dummy/app/components/dormant_panel_component.rb
+  s_b4f052d694d82f::t_761923fb1d874e 1-27,34-37,39-40,44,46-51
+  s_b4f052d694d82f::t_57189b19428cf3 28-33
+  s_b4f052d694d82f::t_511b9d1415754f 41-43,45
+  s_b4f052d694d82f::t_263e5c51a5c2e3 38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e0f0fb74a63a94d23269f5676b016c3b88913b25",
+  "prompts": {},
+  "sessions": {
+    "s_b4f052d694d82f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a4f9e839-a934-4e75-9b79-590503d3a110",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
