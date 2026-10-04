@@ -256,14 +256,17 @@ module Phlex
       end
 
       EARLY_IMPORT = %r{import\s+["']phlex/reactive/early["']}
-      # What precedes the import on its line when it is commented out: a //,
-      # a block-comment * or /*, or an ERB <%# comment.
-      COMMENT_BEFORE = %r{//|/\*|\A\s*\*|<%#}
+      # Closed comments, which may span lines: HTML, JS block and ERB.
+      BLOCK_COMMENT = %r{<!--.*?-->|/\*.*?\*/|<%#.*?%>}m
+      # What precedes the import on its line when it is commented out: a //
+      # (not the one in a URL), an unclosed /*, or a block-comment's leading *.
+      COMMENT_BEFORE = %r{(?<!:)//|/\*|\A\s*\*}
 
       # Is there an `import "phlex/reactive/early"` in `source` that actually
-      # runs? A line-based read, so a commented-out import doesn't count.
+      # runs? Closed comments are dropped first, then each line is read, so a
+      # commented-out import doesn't count.
       def self.imports_early_source?(source)
-        source.each_line.any? do
+        source.gsub(BLOCK_COMMENT, "").each_line.any? do
           (match = EARLY_IMPORT.match(it)) && !match.pre_match.match?(COMMENT_BEFORE)
         end
       end

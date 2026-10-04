@@ -340,6 +340,24 @@ RSpec.describe Phlex::Reactive::Doctor do
         .to be(false)
     end
 
+    it "does not count an import inside a multi-line or HTML comment" do
+      html = %(<!-- <script type="module">import "phlex/reactive/early"</script> -->\n)
+      spread = %(<!--\n<script type="module">import "phlex/reactive/early"</script>\n-->\n)
+      block = %(/*\nimport "phlex/reactive/early"\n*/\n)
+
+      expect(described_class.imports_early_source?(html)).to be(false)
+      expect(described_class.imports_early_source?(spread)).to be(false)
+      expect(described_class.imports_early_source?(block)).to be(false)
+    end
+
+    it "still counts an import that follows a closed comment or a URL" do
+      after_comment = %(/* early capture */ import "phlex/reactive/early"\n)
+      after_url = %(const docs = "https://example.com"; import "phlex/reactive/early"\n)
+
+      expect(described_class.imports_early_source?(after_comment)).to be(true)
+      expect(described_class.imports_early_source?(after_url)).to be(true)
+    end
+
     it "finds the dummy's dormant component and its early import" do
       Rails.application.eager_load!
       check = doctor.checks.find { it.name == :dormant }
