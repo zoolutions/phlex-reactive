@@ -9,6 +9,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`reactive_lazy(on:)` — load on an event or on visibility (#276).**
+  `reactive_lazy on: "panel:opened"` keeps the placeholder shell until that
+  event reaches it (bubbling from inside counts), then fetches the real render
+  once; `on: :visible` (or `on: { visible: "200px" }`) does the same when the
+  shell first enters the observer region (the viewport, grown by any
+  rootMargin). No request on page load, no re-arm after the
+  replace, and no TTL: the shell carries the identity token and a
+  framework-owned `__materialize` trigger, which the action endpoint answers
+  with the real render (403 for components that aren't `reactive_lazy(on:)`).
+  `action :__materialize` is now refused at declaration. A Turbo morph that
+  turns the loaded root back into the shell re-materializes it at once, and a
+  shell that is still unloaded after a morph is re-armed (a failed load's retry
+  path). Plain `reactive_lazy` is unchanged.
+
 - **`phlex/reactive/early`: triggers that fire before the controller connects
   are replayed, not lost (#273).** Import it eagerly
   (`import "phlex/reactive/early"`; the engine pins it with `preload: true`) and

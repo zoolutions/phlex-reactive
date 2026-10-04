@@ -213,8 +213,17 @@ module Phlex
           # root's element for content that can't legally hold a <div> — a
           # `reactive_lazy tag: :tr` component rooting at <tr> inside <tbody>
           # ships a <tr> shell, not a <div> the HTML parser would hoist away.
-          def reactive_lazy(tag: :div)
-            Registry.write_scalar(self, :lazy, { tag: tag.to_sym })
+          #
+          # `on:` (issue #276) defers the REQUEST itself, not just server time:
+          #   reactive_lazy on: "panel:opened"        # a DOM event on (or bubbling into) the shell
+          #   reactive_lazy on: :visible              # the shell first scrolls into view
+          #   reactive_lazy on: { visible: "200px" }  # …with an IntersectionObserver rootMargin
+          # The shell then carries the identity token (no TTL) and materializes
+          # once through the action endpoint. See Component::Lazy.
+          def reactive_lazy(tag: :div, on: nil)
+            declaration = { tag: tag.to_sym }
+            declaration[:trigger] = Lazy.normalize_trigger(on) unless on.nil?
+            Registry.write_scalar(self, :lazy, declaration)
           end
 
           # The RAW resolved lazy declaration ({ tag: } or nil) — the reader the
@@ -238,6 +247,14 @@ module Phlex
             value.is_a?(::Hash) ? value.fetch(:tag, :div) : :div
           end
 
+          # The normalized `on:` trigger of a lazy component — `{ event: "x" }`
+          # or `{ visible: "<rootMargin>" }` — or nil (plain reactive_lazy, or
+          # not lazy at all). The endpoint's `__materialize` gate reads it.
+          def reactive_lazy_trigger
+            value = reactive_lazy_declaration
+            value[:trigger] if value.is_a?(::Hash)
+          end
+
           # Declare a client-invokable action with an optional param schema.
           #   action :increment
           #   action :rename, params: { title: :string }
@@ -258,6 +275,13 @@ module Phlex
           # ({ "0" => ..., "1" => ... }), so a fields_for collection works either way.
           def action(name, params: {})
             require_server_actions!(:action)
+            # Issue #276: the endpoint routes `__materialize` to the lazy render
+            # before the action registry is consulted — a declared one would be
+            # dead code that looks invokable.
+            if name.to_sym == Lazy::MATERIALIZE_ACTION
+              raise ArgumentError, "action #{name.inspect} is reserved for reactive_lazy(on:)"
+            end
+
             # Issue #184: params: :symbol resolves a registered named schema.
             params = Phlex::Reactive.param_schema(params) if params.is_a?(Symbol)
             # If a scope is already declared, reject a schema nested under the scope

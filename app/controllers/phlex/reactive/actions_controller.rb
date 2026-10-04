@@ -27,6 +27,8 @@ module Phlex
       wrap_parameters false if respond_to?(:wrap_parameters)
 
       def create
+        return materialize if reactive_action_name == Phlex::Reactive::Component::Lazy::MATERIALIZE_ACTION
+
         # ONE action.phlex_reactive event per request (issue #107). The event
         # payload carries the component/action NAMES + outcome ONLY (never the
         # token, params, or state); we fill it as those become known and set
@@ -84,17 +86,53 @@ module Phlex
 
       private
 
+      # `__materialize` (issue #276): a reactive_lazy(on:) shell's trigger. It
+      # arrives on the ACTION endpoint with the identity token (no TTL — the
+      # shell may sit in a page far longer than defer_token_ttl), but it is a
+      # READ: no action runs, no transaction opens, no params are read. It
+      # renders exactly what the defer endpoint renders, through the same
+      # authorization step, and is instrumented as a defer. Routed here before
+      # the action registry is consulted; `action :__materialize` is refused at
+      # declaration, so it can't be shadowed. CSRF/auth come from the base
+      # controller exactly as for any action.
+      def materialize
+        event = { component: nil, outcome: nil }
+        Phlex::Reactive.with_url_options(Phlex::Reactive.url_options_for(request)) do
+          Phlex::Reactive.instrument("defer", event) do
+            render_real_component(event, permit: :reactive_lazy_trigger, empty: :stream) { verified_payload }
+          end
+        end
+      end
+
       # The defer body, mirroring create_action's shape: fill the event payload
       # on every exit path, reuse the shared rescue → reactive_error plumbing.
       def deferred_action(event)
-        payload = verified_defer_payload
+        render_real_component(event) { verified_defer_payload }
+      end
+
+      # The lazy/defer READ leg, shared by the defer endpoint and __materialize
+      # (and the seam for any other signed-identity → real-render route). The
+      # block verifies and returns the payload INSIDE this method's rescues, so
+      # every token failure maps the same way. `permit:` names a class-level
+      # predicate the component must answer truthy (default-deny for an opt-in
+      # route); `empty:` picks the render? false reply — :no_content for the
+      # defer client (it clears pending on 204), :stream (an empty turbo-stream)
+      # for the action client, which treats a non-stream body as an error.
+      def render_real_component(event, permit: nil, empty: :no_content)
+        payload = yield
         component_class = resolve_component(payload["c"])
         event[:component] = component_class.name
+
+        if permit && !(component_class.respond_to?(permit) && component_class.public_send(permit))
+          event[:outcome] = :denied_undeclared
+          return reactive_error(:forbidden, unpermitted_render_message(component_class), kind: :forbidden)
+        end
+
         component = component_class.from_identity(payload)
 
         if component.respond_to?(:render?) && !component.render?
           event[:outcome] = :no_content
-          return head :no_content
+          return empty == :stream ? render(turbo_stream: "") : head(:no_content)
         end
 
         event[:outcome] = :ok
@@ -125,6 +163,11 @@ module Phlex
           "tampered, or an ACTION token posted to the defer endpoint (the purposes are disjoint)",
           diagnostic: :tampered
         ))
+      end
+
+      def unpermitted_render_message(component_class)
+        "#{component_class.name} is not reactive_lazy(on:) — __materialize is the lazy shell's " \
+          "trigger, not a declarable action"
       end
 
       def deferred_authorization_message(error, component_class)

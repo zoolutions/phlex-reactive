@@ -80,6 +80,8 @@ Rails.application.routes.draw do
   get "loading_button" => "demos#loading_button"
   get "defer" => "demos#defer"
   get "lazy_stats" => "demos#lazy_stats"
+  get "lazy_on" => "demos#lazy_on"
+  get "lazy_on_early" => "demos#lazy_on_early"
   get "morph_grid/:id" => "demos#morph_grid"
   get "js_focus/:id" => "demos#js_focus"
   get "partial_grid/:id" => "demos#partial_grid"
