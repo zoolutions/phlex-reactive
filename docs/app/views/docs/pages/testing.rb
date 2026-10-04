@@ -387,6 +387,31 @@ module Views
                   code { 'have_reactive_text(id, value)' }
                   plain ' — the mirror/recap twin for a text sink (textContent), re-resolving by id each poll.'
                 end
+                li do
+                  code { 'have_reactive_requests(n, kind: nil)' }
+                  plain ' — assert exactly '
+                  code { 'n' }
+                  plain ' reactive requests ('
+                  code { ':action' }
+                  plain ', '
+                  code { ':defer' }
+                  plain ', or any kind) since the last '
+                  code { 'reset_reactive_requests!' }
+                  plain ', waiting until nothing is in flight. '
+                  code { 'reactive_request_count' }
+                  plain ' returns the totals ('
+                  code { '{ action: 1, defer: 0 }' }
+                  plain '). The client keeps them on '
+                  code { '<html data-reactive-requests>' }
+                  plain ' only under the verbose gate (on in dev/test), so production writes nothing. '
+                  plain 'No fetch spy: requests made before the spec looks are counted, and unrelated fetches are not. '
+                  plain 'The matcher waits for requests in flight, not for ones that have not started: after a debounced ' \
+                        'trigger, or an action whose reply starts a deferred render, wait for the UI outcome first. ' \
+                        'A lazy shell fetches on connect, so call '
+                  code { 'wait_for_reactive' }
+                  plain ' before a reset that should exclude it. A deferred render pushed over a pgbus stream makes no ' \
+                        'request and is not counted.'
+                end
               end
             end
             DocsUI::Code(<<~RUBY, lexer: :ruby)
@@ -403,6 +428,17 @@ module Views
                 wait_for_reactive                          # round trip + defer settled
                 expect(page).to have_reactive_value("total", "6")   # re-resolves by id
                 expect(page).to have_reactive_text("recap", "6 items")
+              end
+
+              it "loads the panel once" do
+                visit "/"
+                reset_reactive_requests!                   # baseline (also after a Turbo visit)
+                find("#open-panel").click
+                expect(page).to have_reactive_requests(1)  # waits, then exact count
+                find("#close-panel").click
+                find("#open-panel").click
+                expect(page).to have_reactive_requests(1)  # still one: reused
+                expect(page).to have_reactive_requests(0, kind: :defer)
               end
             RUBY
           end

@@ -1184,6 +1184,8 @@ loader.ignore("#{lib}/phlex/reactive/test_helpers/matchers.rb")
 # only when Capybara is present, so the loader must ignore it (otherwise an
 # eager-load in production would define browser helpers with no Capybara).
 loader.ignore("#{lib}/phlex/reactive/test_helpers/system.rb")
+# ...and its matcher subdirectory (issue #279), required by system.rb itself.
+loader.ignore("#{lib}/phlex/reactive/test_helpers/system")
 # The MCP diagnostic tool tree (issue #168) subclasses the OPTIONAL `mcp` gem's
 # constants (MCP::Tool) at class-definition time, so the whole mcp/ subdirectory
 # must stay out of the autoloader — Phlex::Reactive::MCP.load! requires it in

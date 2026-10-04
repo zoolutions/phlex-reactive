@@ -46,6 +46,10 @@ module Phlex
             data: {
               controller: "reactive",
               reactive_defer_pending: "true",
+              # The same verbose stamp reactive_attrs writes (nil is omitted):
+              # the shell may be the page's only reactive root when its mount
+              # fetch runs, and the client's verbose gate reads it (issue #279).
+              reactive_verbose: (Phlex::Reactive.verbose_errors ? "true" : nil),
               # UNBOUND (issue #165 security): a lazy shell renders during the
               # page render — on a fresh visit the session doesn't exist yet, so
               # the token can't be actor-bound (it would 400 at the endpoint,
