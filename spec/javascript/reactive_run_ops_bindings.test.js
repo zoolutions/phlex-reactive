@@ -451,3 +451,20 @@ test("a once record runs once even when a regular same-event sibling keeps firin
 
   expect(names).toEqual(["once", "every", "every"])
 })
+
+test("spent once state belongs to the trigger element: a re-rendered or sibling trigger starts fresh", () => {
+  const root = makeRoot()
+  const controller = buildController(root)
+  const names = []
+  root.dispatchEvent = (e) => names.push(e.type)
+  const ops = wire({ on: "click", once: true, ops: [["dispatch", { name: "once", to: "@root" }]] },
+    { on: "click", ops: [["dispatch", { name: "every", to: "@root" }]] })
+  const first = { id: "first" }
+  const rerendered = { id: "rerendered" } // a morph/stream swapped in a fresh element, same markup
+
+  controller.runOps(makeEvent({ ops, currentTarget: first }))
+  controller.runOps(makeEvent({ ops, currentTarget: first }))
+  controller.runOps(makeEvent({ ops, currentTarget: rerendered }))
+
+  expect(names).toEqual(["once", "every", "every", "once", "every"])
+})

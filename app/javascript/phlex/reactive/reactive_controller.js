@@ -2063,16 +2063,29 @@ function bindingMatches(record, event, keyMappings) {
 // A `once: true` record (PR #272) is spent after its first run. Stimulus
 // removes only that binding's own listener; a regular same-event sibling on
 // the element keeps calling runOps with BOTH records, so the spent one is
-// skipped here. Keyed per controller on the element's ops attr + the record.
+// skipped here. Spent state belongs to the TRIGGER element (a WeakMap, so it
+// is collected with it): a morph/stream that swaps in a fresh element starts
+// fresh, and a byte-identical sibling trigger has its own. A window-bound
+// binding's currentTarget is the window, so there the element's ops attr joins
+// the key (a re-rendered window-bound once trigger with the same markup stays
+// spent — a known limit).
 const spentOnceBindings = new WeakMap()
-function onceBindingSpent(controller, raw, record) {
+function onceBindingSpent(controller, event, record) {
   if (!record.once) return false
-  let spent = spentOnceBindings.get(controller)
+  const owner = event.currentTarget ?? controller.element
+  let byOwner = spentOnceBindings.get(controller)
+  if (!byOwner) {
+    byOwner = new WeakMap()
+    spentOnceBindings.set(controller, byOwner)
+  }
+  let spent = byOwner.get(owner)
   if (!spent) {
     spent = new Set()
-    spentOnceBindings.set(controller, spent)
+    byOwner.set(owner, spent)
   }
-  const key = `${typeof raw === "string" ? raw : JSON.stringify(raw ?? null)}|${JSON.stringify(record)}`
+  const raw = event.params?.ops
+  const attr = owner === globalThis.window ? `${typeof raw === "string" ? raw : JSON.stringify(raw ?? null)}|` : ""
+  const key = attr + JSON.stringify(record)
   if (spent.has(key)) return true
   spent.add(key)
   return false
@@ -2791,7 +2804,7 @@ export default class extends Controller {
         : candidates.filter((record) => bindingMatches(record, event, this.application?.schema?.keyMappings))
     if (matching.length === 0 && records.length > 0) return this.#warnNoBinding(event)
     for (const record of matching) {
-      if (onceBindingSpent(this, params.ops, record)) continue
+      if (onceBindingSpent(this, event, record)) continue
       this.#runBinding(record.legacy ? { ...params, ops: record.ops } : record, event, trigger)
     }
   }
