@@ -143,6 +143,15 @@ RSpec.describe Phlex::Reactive::TestHelpers::System do
       expect(helper.reactive_request_count).to eq(action: 2, defer: 1)
     end
 
+    it "counts a garbled value as zero, whether it fails to parse or parses to the wrong shape" do
+      zeros = { action: 0, defer: 0 }
+      expect(described_class.parse_reactive_requests("{nope")).to eq(zeros)
+      expect(described_class.parse_reactive_requests("[1, 2]")).to eq(zeros)
+      expect(described_class.parse_reactive_requests(%({"action":[1],"defer":{"n":2}}))).to eq(zeros)
+      expect(described_class.parse_reactive_requests(%({"action":true,"defer":null}))).to eq(zeros)
+      expect(described_class.parse_reactive_requests(%({"action":"3","defer":2.0}))).to eq(action: 3, defer: 2)
+    end
+
     it "reset_reactive_requests! writes zeros to the attribute" do
       html["requests"] = %({"action":2,"defer":1})
       helper.reset_reactive_requests!

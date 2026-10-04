@@ -48,10 +48,17 @@ module Phlex
         def self.parse_reactive_requests(raw)
           parsed = raw.is_a?(::String) ? ::JSON.parse(raw) : {}
           parsed = {} unless parsed.is_a?(::Hash)
-          { action: parsed["action"].to_i, defer: parsed["defer"].to_i }
+          { action: reactive_request_total(parsed["action"]), defer: reactive_request_total(parsed["defer"]) }
         rescue ::JSON::ParserError
           { action: 0, defer: 0 }
         end
+
+        # One total as an Integer. Only a number or a numeric string counts; any
+        # other JSON value (array, object, boolean, null) is garbled, so zero.
+        def self.reactive_request_total(value)
+          value.is_a?(::Numeric) || value.is_a?(::String) ? value.to_i : 0
+        end
+        private_class_method :reactive_request_total
 
         # Block until the reactive layer is IDLE — every dispatch round trip and
         # deferred render has settled and the <html data-reactive-active> marker is
