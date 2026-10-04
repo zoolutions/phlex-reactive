@@ -129,10 +129,11 @@ module Phlex
           Phlex::Reactive::Fragment.src(reactive_identity_payload, version:, viewer: fragment_viewer_param)
         end
 
-        # The `u` of the fragment URL: the digest of reactive_cache_viewer when
-        # the component declares who its render is for, else nil. The shell
-        # renders it; the endpoint recomputes it in the requesting session and
-        # compares (see FragmentsController).
+        # The `u` of the fragment URL: the keyed digest of reactive_cache_viewer
+        # when the component declares who its render is for AND that value names
+        # someone, else nil (the default, `Vary: Cookie` mode). The shell renders
+        # it; the endpoint recomputes it in the requesting session and compares
+        # (see FragmentsController).
         def fragment_viewer_param
           return unless respond_to?(:reactive_cache_viewer, true)
 

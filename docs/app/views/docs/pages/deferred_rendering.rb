@@ -399,11 +399,14 @@ module Views
               Every other response is `no-store`: a 4xx, a `render?` false (204), and
               anything your base controller answers before the endpoint runs (a 401,
               a redirect to sign-in). A cacheable reply carries no `Set-Cookie`: an
-              unchanged session is not re-issued, and a request that **changed** the
-              session or set a cookie (a filter stamping an activity time, say) keeps
-              that write and is answered `no-store` instead — so a base-controller
-              filter that writes the session or a cookie on every request turns the
-              cache off.
+              unchanged session is not re-issued, and a request during which **any
+              callback** — before, around or after the action — changed the session
+              or wrote a cookie keeps that write and is answered `no-store` instead.
+              The consequence: an app whose base controller writes the session or a
+              cookie on every request (an activity timestamp; Devise's `timeoutable`
+              does this) gets `no-store` on every fragment reply. That is the safe
+              outcome, but the cache is then off — exempt the fragment route from
+              that filter if you want it.
 
               **Who a copy is for: `Vary: Cookie`, or `reactive_cache_viewer`.** A
               private cache must never show one viewer's fragment to the next viewer
@@ -411,22 +414,35 @@ module Views
 
               | | Without `reactive_cache_viewer` (default) | With `reactive_cache_viewer` |
               |---|---|---|
-              | What tells viewers apart | the `Cookie` header (`Vary: Cookie`) | the URL (`u`, a digest of the value you return) |
+              | What tells viewers apart | the `Cookie` header (`Vary: Cookie`) | the URL (`u`, an opaque keyed digest of the value you return) |
               | Reused while | the browser sends the **identical** cookies | the URL is unchanged, for `max_age` |
               | With Rails' cookie session store | reused within a page (a refresh morph), **not** across page views — the store issues a new session cookie on every response | reused across page views |
               | With a server-side session store (stable cookie) | reused across page views, until any cookie changes | reused across page views |
 
               `reactive_cache_viewer` is a promise: *the identity, the version and
               this value together decide the render*. Return what the render depends
-              on — the user id, or `[Current.user&.id, Current.tenant.id, I18n.locale]`
-              — and `nil` for an anonymous viewer (it is a viewer too). The endpoint
-              re-computes it **in the requesting session** and makes the reply
-              cacheable only when the URL names that same viewer; a URL that names
-              someone else (a page rendered before sign-out, a hand-built URL) still
-              renders for the current session, but is `no-store`. Anything else that
-              changes the render and is not in the cookie either — a locale taken
-              from `Accept-Language`, a feature flag — belongs in
+              on — the user id, or `[Current.user&.id, Current.tenant.id, I18n.locale]`.
+              The endpoint re-computes it **in the requesting session** and makes the
+              reply cacheable only when the URL names that same viewer; a URL that
+              names someone else (a page rendered before sign-out, a hand-built URL)
+              still renders for the current session, but is `no-store`. Anything else
+              that changes the render and is not in the cookie either — a locale
+              taken from `Accept-Language`, a feature flag — belongs in
               `reactive_cache_viewer` or `reactive_cache_version`.
+
+              **A blank viewer names nobody.** `nil`, `false`, a blank string, or an
+              Array with any blank part (`[Current.user&.id, locale]` when signed
+              out) is never turned into a shared "anonymous" key: for that render the
+              component falls back to the default mode — no `u`, `Vary: Cookie`. So
+              `Current.user&.id` is safe to return as is; signed-out visitors just
+              get the cookie-keyed behaviour.
+
+              `u` is a **keyed** digest (derived with the same secret that signs the
+              tokens): it cannot be reversed to the value, and nobody can compute
+              another viewer's `u` without your secret. What it cannot hide is the
+              URL itself from someone using the same browser profile — the
+              `max_age` cap and `Clear-Site-Data: "cache"` on sign-out are the
+              bound there.
 
               **`reactive_cache_version`** is optional and only busts the URL (`v`,
               a digest): return an `updated_at`, a counter, a record. The endpoint
@@ -441,13 +457,27 @@ module Views
               into the shell re-materializes from the cache, so the per-refresh
               request described above disappears for a cached component.
 
-              **What a cached fragment must not contain.** A `form_with` /
-              `form_authenticity_token` in the render embeds a CSRF token that would
-              outlive its session in the cache. The endpoint detects the token field
-              and serves that render `no-store` (with a warning in the log) rather
-              than cache it — so the component keeps working, just uncached. Reactive
-              triggers are unaffected: the client reads the CSRF token from the
-              `csrf-token` meta tag at request time.
+              One difference from a plain `on:` shell: with `cache:` the load runs
+              on the **defer lane** (a module-level GET), not the action pipeline.
+              So `reactive:before-dispatch` does not fire for it and cannot veto it,
+              the busy markers are the defer ones (`data-reactive-defer-pending`),
+              and a failed load emits `reactive:error` with `kind: "defer"` and a
+              `retry()` — where a plain `on:` shell waits for the next morph.
+
+              **What a cached fragment must not contain.**
+
+              - **A CSRF token.** A `form_with` / `form_authenticity_token` /
+                `csrf_meta_tags` in the render embeds a token that would outlive its
+                session in the cache. The endpoint detects it (any quoting) and
+                serves that render `no-store`, with a warning in the log, rather
+                than cache it — so the component keeps working, just uncached.
+                Reactive triggers are unaffected: the client reads the CSRF token
+                from the page's `csrf-token` meta tag at request time.
+              - **A plain `reactive_lazy` child.** Its shell carries a defer token
+                that expires after `defer_token_ttl` (120 s). A cached copy replayed
+                later still holds the old token, and the child's load then fails
+                with a 400. Give a nested lazy child `on:` or `cache:` instead
+                (neither expires), or render it eagerly.
 
               **Limits.**
 
@@ -459,9 +489,16 @@ module Views
                 Keep `max_age` short for anything sensitive, and send
                 `Clear-Site-Data: "cache"` on sign-out.
               - If you move the endpoint (`Phlex::Reactive.fragment_path`), tell the
-                client: `<meta name="phlex-reactive-fragment-path" content="…">`. The
-                client only ever fetches a `data-reactive-defer-src` that resolves to
-                this origin's fragment endpoint.
+                client: `<meta name="phlex-reactive-fragment-path" content="…">` in
+                the layout's `<head>` (a copy in the body is ignored). The client
+                only ever fetches a `data-reactive-defer-src` that resolves to this
+                origin's fragment endpoint; a refused URL fails the load with
+                `reactive:error` (`reason: "refused-url"`) and a console message
+                naming the meta tag. `phlex_reactive:doctor` flags a custom path
+                whose meta tag is in no layout.
+              - The reply must be the fragment: a response that was redirected, or
+                is not a turbo-stream, is a failed load (`reactive:error`), never
+                rendered.
               - In system tests the request counter counts `fetch()` calls, so a
                 cache hit still counts (as `kind: :defer`). To assert "no network
                 request", read Resource Timing: an entry the cache answered has

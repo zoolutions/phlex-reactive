@@ -30,8 +30,10 @@ RSpec.describe "reactive_lazy(cache:) (issue #277)", type: :system do
 
   def cache_hits = fragment_fetches.select { it["transferSize"].zero? }
 
+  # Sign in / out as `viewer` (the dummy gate reads the `viewer` cookie). Starts
+  # from a page that makes no fragment request, so it never warms the cache.
   def view_as(viewer)
-    visit "/cached_menu" if page.current_path.blank?
+    visit "/cached_panel"
     if viewer
       page.execute_script("document.cookie = 'viewer=#{viewer}; path=/'")
     else
@@ -52,14 +54,16 @@ RSpec.describe "reactive_lazy(cache:) (issue #277)", type: :system do
   end
 
   describe "a viewer-keyed fragment (reactive_cache_viewer)" do
+    before { view_as("alice") }
+
     it "is fetched on the first page view and reused, with no request, on the next" do
       visit "/cached_menu"
-      expect(page).to have_css("[data-testid='menu-item']", text: "menu:main:guest")
+      expect(page).to have_css("[data-testid='menu-item']", text: "menu:main:alice")
       expect(network_fetches.size).to eq(1)
       expect(CachedMenuComponent.renders).to eq(1)
 
       visit "/cached_menu"
-      expect(page).to have_css("[data-testid='menu-item']", text: "menu:main:guest")
+      expect(page).to have_css("[data-testid='menu-item']", text: "menu:main:alice")
 
       expect(fragment_fetches.size).to eq(1)
       expect(cache_hits.size).to eq(1)
@@ -93,17 +97,36 @@ RSpec.describe "reactive_lazy(cache:) (issue #277)", type: :system do
 
     it "never shows one viewer's cached copy to another viewer of the same browser" do
       visit "/cached_menu"
-      expect(page).to have_css("[data-testid='menu-item']", text: "menu:main:guest")
+      expect(page).to have_css("[data-testid='menu-item']", text: "menu:main:alice")
+
+      view_as("bob")
+      visit "/cached_menu"
+      expect(page).to have_css("[data-testid='menu-item']", text: "menu:main:bob")
+      expect(page).to have_no_text("alice")
+      expect(network_fetches.size).to eq(1)
 
       view_as("alice")
       visit "/cached_menu"
       expect(page).to have_css("[data-testid='menu-item']", text: "menu:main:alice")
-      expect(network_fetches.size).to eq(1)
+      expect(page).to have_no_text("bob")
+      expect(cache_hits.size).to eq(1)
+    end
+
+    # Signed out, the component names no viewer: no shared "anonymous" URL. It
+    # behaves like the default mode — a fresh request on the next page view,
+    # and never a signed-in viewer's copy.
+    it "falls back to Vary: Cookie when signed out, and never serves the signed-in copy" do
+      visit "/cached_menu"
+      expect(page).to have_css("[data-testid='menu-item']", text: "menu:main:alice")
 
       view_as(nil)
-      visit "/cached_menu"
-      expect(page).to have_css("[data-testid='menu-item']", text: "menu:main:guest")
-      expect(page).to have_no_text("alice")
+      2.times do
+        visit "/cached_menu"
+        expect(page).to have_css("[data-testid='menu-item']", text: "menu:main:guest")
+        expect(page).to have_no_text("alice")
+        expect(fragment_fetches.first["url"]).not_to include("u=")
+        expect(network_fetches.size).to eq(1)
+      end
     end
   end
 

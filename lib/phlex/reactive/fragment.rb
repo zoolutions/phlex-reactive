@@ -21,12 +21,14 @@ module Phlex
     # Two unsigned query parameters only shape the browser's cache KEY — the
     # render never reads them:
     #   v — a digest of the component's reactive_cache_version (content changed)
-    #   u — a digest of its reactive_cache_viewer (who the render is for). The
-    #       endpoint recomputes it in the CURRENT session and makes the reply
-    #       cacheable only when it matches, so a URL can only ever hold the
-    #       render of the viewer it names.
+    #   u — a KEYED digest of its reactive_cache_viewer (who the render is
+    #       for). The endpoint recomputes it in the CURRENT session and makes
+    #       the reply cacheable only when it matches, so a URL can only ever
+    #       hold the render of the viewer it names. A blank viewer names nobody:
+    #       no `u`, and the reply falls back to `Vary: Cookie`.
     module Fragment
       PURPOSE = "phlex-reactive/fragment"
+      VIEWER_PURPOSE = "phlex-reactive/fragment-viewer"
 
       module_function
 
@@ -68,12 +70,28 @@ module Phlex
         Digest::SHA256.hexdigest(ActiveSupport::Cache.expand_cache_key(key))[0, 16]
       end
 
-      # The `u` digest of a reactive_cache_viewer value. nil is a viewer too
-      # (the anonymous one), so every value digests — the scope is always
-      # explicit once a component declares the hook. Namespaced so it can never
-      # equal a version digest of the same value.
+      # The `u` of a reactive_cache_viewer value, or nil when the value names
+      # NO viewer — nil, false, a blank String, or an Array with any blank part
+      # (`[Current.user&.id, locale]` signed out). A blank viewer must never
+      # become a shared "anonymous" key: every signed-out or mis-resolved
+      # session would then store and read ONE url with no Vary. nil sends the
+      # component back to the default mode (`Vary: Cookie`) for that render.
+      #
+      # KEYED: the digest is taken over the verifier's signature of the value,
+      # so it can be neither reversed to the value (a user id is a small space)
+      # nor computed for someone else without the app's secret. 128 bits.
       def viewer_param(viewer)
-        Digest::SHA256.hexdigest("viewer:#{ActiveSupport::Cache.expand_cache_key(viewer)}")[0, 16]
+        return nil unless viewer_named?(viewer)
+
+        signed = Phlex::Reactive.verifier.generate(ActiveSupport::Cache.expand_cache_key(viewer),
+          purpose: VIEWER_PURPOSE)
+        Digest::SHA256.hexdigest(signed)[0, 32]
+      end
+
+      def viewer_named?(viewer)
+        return viewer.none?(&:blank?) && viewer.any? if viewer.is_a?(::Array)
+
+        viewer.present?
       end
 
       # The max-age (seconds) the endpoint answers with: the component's

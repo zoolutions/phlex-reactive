@@ -30,13 +30,21 @@ module Phlex
     #     this controller produces — including one a base-controller filter
     #     rendered before the action ran — is `no-store`;
     #   * a cacheable reply carries no Set-Cookie: an unchanged session is not
-    #     re-issued, and a request that changed the session or set any cookie
-    #     is not cacheable;
-    #   * a render that embeds a form authenticity token is not made cacheable.
+    #     re-issued, and a request that changed the session or wrote any cookie
+    #     — in any callback, before or after the action — is not cacheable;
+    #   * a render that embeds a CSRF token is not made cacheable.
     class FragmentsController < ActionsController
-      # A form's authenticity token in the render: cached, it would outlive the
-      # session it was minted for and fail the form's POST.
-      AUTHENTICITY_FIELD = 'name="authenticity_token"'
+      # A CSRF token in the render (a form's hidden field, or csrf_meta_tags):
+      # cached, it would outlive the session it was minted for. Any quoting.
+      CSRF_TOKEN_MARKUP = /\bname\s*=\s*["']?(?:authenticity_token|csrf-token)(?![\w-])/i
+
+      # Stands in for the response when asking the cookie jar what it WOULD
+      # write (CookieJar#write calls set_cookie / delete_cookie per pending
+      # write), so pending writes are read through the jar's own public method.
+      class CookieWrites < ::Hash
+        def set_cookie(name, *) = store(name.to_s, :set)
+        def delete_cookie(name, *) = store(name.to_s, :delete)
+      end
 
       def show
         event = { component: nil, outcome: nil }
@@ -51,20 +59,67 @@ module Phlex
 
       private
 
-      # Wraps the WHOLE action — callbacks included — so a response the base
-      # controller's own filters produced (a 401, a redirect to sign-in) is
-      # no-store too, not only the ones this controller renders.
+      # Wraps the WHOLE action — every before/around/after callback included —
+      # so the cacheability decision is made last: a response the base
+      # controller's filters produced (a 401, a redirect to sign-in) is
+      # no-store, and so is a reply during which ANY callback wrote the session
+      # or a cookie, however late.
       def process_action(*)
-        @state_before = cookie_state
+        @session_before = begin
+          session_data
+        rescue StandardError
+          Object.new # unreadable: equal to nothing, so the reply stays no-store
+        end
         super
       ensure
-        forbid_caching unless @fragment_cacheable
+        settle_caching
+      end
+
+      # The single place a reply becomes cacheable: the success path asked for
+      # it AND this request leaves the browser's cookies exactly as they were.
+      def settle_caching
+        return forbid_caching unless @fragment_cacheable && cookies_untouched?
+
+        # Nothing changed, so don't re-issue the session: the cookie store
+        # would otherwise send a freshly encrypted Set-Cookie with this very
+        # reply — on a stored response, and changing the Cookie the next
+        # request sends (defeating `Vary: Cookie` within the page).
+        request.session_options[:skip] = true
       end
 
       def forbid_caching
         response.cache_control.clear
         response.headers["Cache-Control"] = "no-store"
         response.headers.delete("ETag")
+      end
+
+      # True only when it is KNOWN that this request writes no cookie: the
+      # session's data is what it was, it is not being renewed or dropped, and
+      # the cookie jar has no pending write or delete. Anything unreadable
+      # counts as touched — the reply fails closed.
+      def cookies_untouched?
+        options = request.session_options
+        return false if options[:renew] || options[:drop]
+        # A cookie written straight onto the response (response.set_cookie),
+        # which never passes through the jar.
+        return false if response.headers["Set-Cookie"].present?
+
+        session_data == @session_before && pending_cookie_writes.empty?
+      rescue StandardError
+        false
+      end
+
+      # The session's data without creating a session: {} when the request has
+      # none. Deep-copied, so an in-place change shows up.
+      def session_data
+        session = request.session
+        session.respond_to?(:exists?) && !session.exists? && !session.loaded? ? {} : session.to_h.deep_dup
+      end
+
+      # What the cookie jar will write when the response leaves — including a
+      # cookie re-set to the same value with a new expiry, and deletes.
+      def pending_cookie_writes
+        CookieWrites.new.tap { request.cookie_jar.write(it) }
       end
 
       def verified_fragment_payload
@@ -75,51 +130,27 @@ module Phlex
         ))
       end
 
-      # The success reply: private, bounded, revalidatable. The ETag is derived
-      # from the rendered body (never from `v`/`u`), so a 304 is only ever
-      # answered for the exact render this viewer would get.
+      # The success reply: private, bounded, revalidatable — provisionally; see
+      # settle_caching. The ETag is derived from the rendered body (never from
+      # `v`/`u`), so a 304 is only ever answered for the exact render this
+      # viewer would get.
       def render_real_stream(stream, component)
-        return render_uncacheable(stream, component.class) if stream.include?(AUTHENTICITY_FIELD)
+        return render_uncacheable(stream, component.class) if stream.match?(CSRF_TOKEN_MARKUP)
 
         viewer = component.send(:fragment_viewer_param)
-        # A viewer-keyed URL that names someone else (a page rendered before the
-        # viewer changed, or a hand-built URL): render for THIS viewer, but never
-        # let it be stored under the other viewer's key.
-        return super if viewer && !ActiveSupport::SecurityUtils.secure_compare(viewer, params[:u].to_s)
+        # The URL must name exactly the viewer of THIS session — or nobody, when
+        # the session has none. Anything else (a page rendered before the viewer
+        # changed, a hand-built URL) still renders for this session, but must
+        # never be stored under another viewer's key.
+        return super unless ActiveSupport::SecurityUtils.secure_compare(viewer.to_s, params[:u].to_s)
 
-        # A request that CHANGED the session or set a cookie (a base-controller
-        # filter stamping an activity time, a sign-in side effect) must keep
-        # that write, and a reply carrying its Set-Cookie must not be stored.
-        return super if cookie_state != @state_before || response.headers["Set-Cookie"].present?
-
-        # Unchanged: don't re-issue it. The cookie store would otherwise send a
-        # freshly encrypted Set-Cookie with this very reply, changing the Cookie
-        # the next request sends and defeating `Vary: Cookie` within the page.
-        request.session_options[:skip] = true
         expires_in Phlex::Reactive::Fragment.max_age_for(component.class), public: false
-        # Without a declared viewer the cookie is the only thing that tells two
+        # With no viewer named, the cookie is the only thing that tells two
         # viewers apart; with one, the URL does (and was just checked).
         vary_on_cookie unless viewer
         render turbo_stream: stream if stale?(etag: stream, template: false)
         # Only now: anything that raised above leaves the reply no-store.
         @fragment_cacheable = true
-      end
-
-      # Everything this request could turn into a Set-Cookie, as it stands: the
-      # session's data and the cookie jar. Compared before the callbacks and
-      # after the render. Unreadable state is a fresh object — equal to nothing,
-      # so the reply fails closed (no-store) instead of being assumed unchanged.
-      def cookie_state
-        [session_data, request.cookie_jar.to_hash]
-      rescue StandardError
-        Object.new
-      end
-
-      # The session's data without creating a session: {} when the request has
-      # none. Deep-copied, so an in-place change shows up.
-      def session_data
-        session = request.session
-        session.respond_to?(:exists?) && !session.exists? && !session.loaded? ? {} : session.to_h.deep_dup
       end
 
       # Add Cookie to whatever the base controller or a middleware already
@@ -131,9 +162,9 @@ module Phlex
 
       def render_uncacheable(stream, component_class)
         ::Rails.logger&.warn(
-          "[phlex-reactive] #{component_class.name} is reactive_lazy(cache:) but its render embeds a form " \
-          "authenticity token — served no-store: a cached token outlives its session. Read the CSRF token " \
-          "from the csrf-token meta tag at submit time, or drop cache:."
+          "[phlex-reactive] #{component_class.name} is reactive_lazy(cache:) but its render embeds a CSRF " \
+          "token (a form authenticity token or csrf_meta_tags) — served no-store: a cached token outlives its " \
+          "session. Read the token from the page's csrf-token meta tag at submit time, or drop cache:."
         )
         render turbo_stream: stream
       end

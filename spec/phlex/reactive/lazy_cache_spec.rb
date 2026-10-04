@@ -57,9 +57,10 @@ RSpec.describe "reactive_lazy(cache:)" do # rubocop:disable RSpec/DescribeClass
       expect(Class.new(parent) { reactive_lazy }.reactive_lazy_cache).to be_nil
     end
 
-    [nil, 0, -1, "600", 1.5].each do
-      it "rejects max_age: #{it.inspect}" do
-        expect { cached_class(cache: { max_age: it }) }.to raise_error(ArgumentError, /max_age/)
+    # Two block params on purpose: a lone one would have to be `it`, which the examples below shadow.
+    [nil, 0, -1, "600", 1.5].each_with_index do |bad, _index|
+      it "rejects max_age: #{bad.inspect}" do
+        expect { cached_class(cache: { max_age: bad }) }.to raise_error(ArgumentError, /max_age: must|max_age must/)
       end
     end
 
@@ -161,14 +162,36 @@ RSpec.describe "reactive_lazy(cache:)" do # rubocop:disable RSpec/DescribeClass
     it "adds an opaque u after v, different per viewer and stable for one" do
       alice = src(viewer_class("alice@example").new.call)
 
-      expect(alice).to match(/\?v=\h{16}&u=\h{16}\z/)
+      expect(alice).to match(/\?v=\h{16}&u=\h{32}\z/)
       expect(alice).not_to include("alice@")
       expect(src(viewer_class("alice@example").new.call)).to eq(alice)
       expect(src(viewer_class("bob@example").new.call)).not_to eq(alice)
     end
 
-    it "digests the anonymous (nil) viewer too, so the scope is always explicit" do
-      expect(src(viewer_class(nil).new.call)).to match(/&u=\h{16}\z/)
+    # Two block params on purpose: a lone one would have to be `it`, which the examples below shadow.
+    [nil, "", " ", false, [], [nil, 1]].each_with_index do |blank, _index|
+      it "renders no u for a blank viewer (#{blank.inspect}): it names nobody" do
+        expect(src(viewer_class(blank).new.call)).not_to include("u=")
+      end
+    end
+
+    it "is keyed: not reproducible from the value with a plain digest" do
+      u = src(viewer_class(42).new.call)[/u=(\h+)/, 1]
+      guesses = ["42", "viewer:42", "phlex-reactive/fragment-viewer:42"].flat_map do
+        [Digest::SHA256.hexdigest(it), Digest::SHA1.hexdigest(it), Digest::MD5.hexdigest(it)]
+      end
+
+      expect(guesses.map { it[0, 32] }).not_to include(u)
+    end
+
+    it "changes with the signing secret" do
+      original = Phlex::Reactive.verifier
+      one = src(viewer_class(42).new.call)[/u=(\h+)/, 1]
+      Phlex::Reactive.verifier = ActiveSupport::MessageVerifier.new("another-secret-" * 4)
+
+      expect(src(viewer_class(42).new.call)[/u=(\h+)/, 1]).not_to eq(one)
+    ensure
+      Phlex::Reactive.verifier = original
     end
 
     it "never collides with the version digest of the same value" do
@@ -243,6 +266,34 @@ RSpec.describe "reactive_lazy(cache:)" do # rubocop:disable RSpec/DescribeClass
     it "is nil for garbage" do
       expect(Phlex::Reactive.verify_fragment("***")).to be_nil
       expect(Phlex::Reactive.verify_fragment(nil)).to be_nil
+    end
+  end
+
+  describe "fragment_cache_max_age_limit=" do
+    around do
+      original = Phlex::Reactive.fragment_cache_max_age_limit
+      it.run
+    ensure
+      Phlex::Reactive.fragment_cache_max_age_limit = original
+    end
+
+    it "accepts zero, an Integer and a Duration" do
+      [0, 90, 2.minutes].each { Phlex::Reactive.fragment_cache_max_age_limit = it }
+
+      expect(Phlex::Reactive.fragment_cache_max_age_limit).to eq(120)
+    end
+
+    # Two block params on purpose: a lone one would have to be `it`, which the examples below shadow.
+    [-5, -1.second, "600", 1.5, :forever].each_with_index do |bad, _index|
+      it "rejects #{bad.inspect}" do
+        expect { Phlex::Reactive.fragment_cache_max_age_limit = bad }.to raise_error(ArgumentError, /max_age_limit/)
+      end
+    end
+
+    it "resets to the default with nil" do
+      Phlex::Reactive.fragment_cache_max_age_limit = nil
+
+      expect(Phlex::Reactive.fragment_cache_max_age_limit).to eq(3600)
     end
   end
 

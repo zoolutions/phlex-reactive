@@ -276,9 +276,37 @@ function lazyDeferSource(el) {
 // point the client at another origin, an upload, or any other same-origin path.
 function fragmentSource(el) {
   const src = el.getAttribute?.("data-reactive-defer-src")
-  if (!src) return
-  if (isFragmentUrl(src)) return { src }
-  console.error(`[phlex-reactive] refused data-reactive-defer-src="${src}" — not this app's fragment endpoint`)
+  if (src && isFragmentUrl(src)) return { src }
+}
+
+// The fragment URL a root carries but the client will not fetch, or undefined.
+function refusedFragmentSrc(el) {
+  const src = el.getAttribute?.("data-reactive-defer-src")
+  if (src && !isFragmentUrl(src)) return src
+}
+
+function refusedFragmentMessage(src) {
+  return (
+    `[phlex-reactive] refused data-reactive-defer-src="${src}" — it is not under this app's fragment path ` +
+    `(${fragmentPath()}). If you changed Phlex::Reactive.fragment_path, add ` +
+    '<meta name="phlex-reactive-fragment-path" content="…your path…"> to the layout <head>.'
+  )
+}
+
+// A fetch-on-connect shell whose URL was refused has no other way to load, so
+// it must not shimmer forever: clear pending, mark the root, and emit the same
+// bubbling reactive:error a failed load does (no retry() — the URL won't change).
+function failRefusedFragment(el, src) {
+  console.error(refusedFragmentMessage(src))
+  clearDeferPending(el)
+  el.setAttribute("data-reactive-error", "defer")
+  el.dispatchEvent(
+    new CustomEvent("reactive:error", {
+      bubbles: true,
+      composed: true,
+      detail: { kind: "defer", target: el.id, reason: "refused-url" },
+    }),
+  )
 }
 
 function isFragmentUrl(src) {
@@ -293,9 +321,11 @@ function isFragmentUrl(src) {
 
 // Phlex::Reactive.fragment_path, for the check above. An app that moves the
 // endpoint renders <meta name="phlex-reactive-fragment-path"> (as for the
-// action and defer paths); the URL itself always comes from the shell.
+// action and defer paths); the URL itself always comes from the shell. Read
+// from <head> ONLY: this meta widens what the client will fetch and render, so
+// one injected into the body must not count.
 function fragmentPath() {
-  return document.querySelector('meta[name="phlex-reactive-fragment-path"]')?.content || "/reactive/fragment"
+  return document.head?.querySelector?.('meta[name="phlex-reactive-fragment-path"]')?.content || "/reactive/fragment"
 }
 
 // The push lane: subscribe a <pgbus-stream-source> to the server-signed
@@ -384,6 +414,16 @@ async function performDeferFetch(targetId, entry, source) {
     return // superseded mid-flight
   }
 
+  // The body is about to be rendered as a turbo-stream, so it must BE one, from
+  // the URL we asked for. A base-controller filter that redirects to a sign-in
+  // page ends in a 200 HTML document — a failed load, never rendered.
+  if (response.redirected) {
+    clearTimeout(timer)
+    console.error(`[phlex-reactive] deferred render failed: redirected to ${response.url ?? "another URL"}`)
+    failDefer(targetId, source, response.status)
+    return
+  }
+
   if (response.status === 204) {
     clearTimeout(timer)
     // render? false — keep the current content, just clear the pending state.
@@ -393,6 +433,13 @@ async function performDeferFetch(targetId, entry, source) {
   if (!response.ok) {
     clearTimeout(timer)
     console.error(`[phlex-reactive] deferred render failed: HTTP ${response.status}`)
+    failDefer(targetId, source, response.status)
+    return
+  }
+  const contentType = response.headers?.get?.("Content-Type") || ""
+  if (!contentType.includes("turbo-stream")) {
+    clearTimeout(timer)
+    console.error(`[phlex-reactive] deferred render failed: expected a turbo-stream, got "${contentType}"`)
     failDefer(targetId, source, response.status)
     return
   }
@@ -2677,7 +2724,10 @@ export default class extends Controller {
     // A `cache:` shell (issue #277) carries a fragment URL instead of the token
     // and takes the same path; an on: shell with a URL is NOT probed — it waits
     // for its trigger (its root has no pending marker).
-    if (lazyDeferSource(this.element) && this.#lazyShellKind() === null) {
+    if (
+      (lazyDeferSource(this.element) || refusedFragmentSrc(this.element)) &&
+      this.#lazyShellKind() === null
+    ) {
       this.#probeLazyDefer()
       this.#boundProbeLazyDefer = () => this.#probeLazyDefer()
       this.element.addEventListener?.("turbo:morph-element", this.#boundProbeLazyDefer)
@@ -3082,6 +3132,10 @@ export default class extends Controller {
   #materialize() {
     if (this.#lazyInFlight) return
     const source = fragmentSource(this.element)
+    // A refused URL on an on: shell still has a safe way to load: the signed
+    // __materialize POST below. Say why the cacheable GET was skipped.
+    const refused = !source && refusedFragmentSrc(this.element)
+    if (refused) console.error(refusedFragmentMessage(refused))
     const run = source
       ? startFetchDefer(this.element.id, source)
       : this.#proceed(this.element, LAZY_MATERIALIZE_ACTION, "{}")
@@ -3128,10 +3182,11 @@ export default class extends Controller {
   #probeLazyDefer() {
     const el = this.element
     if (!el?.id) return
-    const source = lazyDeferSource(el)
-    if (!source) return
     if (el.getAttribute?.("data-reactive-defer-pending") !== "true") return
-    startFetchDefer(el.id, source)
+    const source = lazyDeferSource(el)
+    if (source) return startFetchDefer(el.id, source)
+    const refused = refusedFragmentSrc(el)
+    if (refused) failRefusedFragment(el, refused)
   }
 
   // Serialize requests per component. Each round trip rewrites the signed

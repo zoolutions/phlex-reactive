@@ -161,13 +161,83 @@ RSpec.describe "cacheable lazy fragments", type: :request do
       expect(response.headers["Cache-Control"]).to eq("no-store")
     end
 
-    it "is not cacheable when the request's cookie/session state cannot be read (fails closed)" do
-      allow_any_instance_of(ActionDispatch::Cookies::CookieJar).to receive(:to_hash).and_raise("unreadable") # rubocop:disable RSpec/AnyInstance
+    it "is not cacheable when the request's cookie writes cannot be read (fails closed)" do
+      allow_any_instance_of(ActionDispatch::Cookies::CookieJar).to receive(:write).and_call_original # rubocop:disable RSpec/AnyInstance
+      allow_any_instance_of(ActionDispatch::Cookies::CookieJar) # rubocop:disable RSpec/AnyInstance
+        .to receive(:write).with(an_instance_of(Phlex::Reactive::FragmentsController::CookieWrites)).and_raise("unreadable")
 
       get_fragment
 
       expect(response).to have_http_status(:ok)
       expect(response.headers["Cache-Control"]).to eq("no-store")
+    end
+
+    # The decision is made after ALL callbacks ran — a write from an
+    # after_action or the tail of an around_action counts like any other.
+    it "keeps a session write an AFTER_ACTION made, and is then not cacheable" do
+      get "/lazy_stats"
+      cookies[:viewer] = "tracked_after"
+
+      get_fragment
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers["Set-Cookie"].to_s).to include("_dummy_session")
+      expect(response.headers["Cache-Control"]).to eq("no-store")
+    end
+
+    it "keeps a session write an AROUND_ACTION made after the action, and is then not cacheable" do
+      get "/lazy_stats"
+      cookies[:viewer] = "tracked_around"
+
+      get_fragment
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers["Set-Cookie"].to_s).to include("_dummy_session")
+      expect(response.headers["Cache-Control"]).to eq("no-store")
+    end
+
+    it "is not cacheable when an AFTER_ACTION set a cookie" do
+      cookies[:viewer] = "cookied_after"
+
+      get_fragment
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers["Set-Cookie"].to_s).to include("left_at=")
+      expect(response.headers["Cache-Control"]).to eq("no-store")
+    end
+
+    it "is not cacheable when a filter re-set a cookie to the SAME value with a new expiry" do
+      cookies[:viewer] = "rolling"
+      cookies[:roll] = "same"
+
+      get_fragment
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers["Set-Cookie"].to_s).to include("roll=same")
+      expect(response.headers["Cache-Control"]).to eq("no-store")
+    end
+
+    it "is not cacheable when a filter deleted a cookie" do
+      cookies[:viewer] = "forgetful"
+      cookies[:gone] = "x"
+
+      get_fragment
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers["Set-Cookie"].to_s).to include("gone=")
+      expect(response.headers["Cache-Control"]).to eq("no-store")
+    end
+
+    it "revalidates (304) without a Set-Cookie when nothing wrote the session" do
+      get "/lazy_stats"
+      get_fragment
+      etag = response.headers["ETag"]
+
+      get_fragment(extra_headers: { "If-None-Match" => etag })
+
+      expect(response).to have_http_status(:not_modified)
+      expect(response.headers["Cache-Control"]).to eq("max-age=600, private")
+      expect(response.headers["Set-Cookie"]).to be_blank
     end
 
     it "keeps a session a filter CREATED on a sessionless request, and is then not cacheable" do
@@ -185,9 +255,9 @@ RSpec.describe "cacheable lazy fragments", type: :request do
     it "keys the URL on the viewer: the same for one viewer, different for another" do
       alice = menu_url(viewer: "alice")
 
+      expect(alice).to match(/[?&]u=\h{32}\z/)
       expect(menu_url(viewer: "alice")).to eq(alice)
       expect(menu_url(viewer: "bob")).not_to eq(alice)
-      expect(menu_url(viewer: nil)).to match(/[?&]u=\h{16}\z/)
     end
 
     it "leaves a Vary the base controller set untouched (no Cookie added)" do
@@ -226,11 +296,70 @@ RSpec.describe "cacheable lazy fragments", type: :request do
       expect(response.headers["Cache-Control"]).to eq("no-store")
     end
 
-    it "treats the anonymous viewer as a viewer" do
-      get_fragment(menu_url(viewer: nil))
+    it "falls back to the default mode for an anonymous (nil) viewer: no u, Vary: Cookie" do
+      url = menu_url(viewer: nil)
+      get_fragment(url)
 
+      expect(url).not_to include("u=")
       expect(response.body).to include("menu:main:guest")
       expect(response.headers["Cache-Control"]).to eq("max-age=600, private")
+      expect(vary).to include("Cookie")
+    end
+
+    it "is no-store when the URL names a viewer but this session has none" do
+      get_fragment(menu_url(viewer: "alice"))
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("menu:main:guest")
+      expect(response.headers["Cache-Control"]).to eq("no-store")
+    end
+  end
+
+  # A blank reactive_cache_viewer names NO viewer. It must never become a shared
+  # "anonymous" key: two sessions would then store, and read, each other's
+  # render under one URL with no Vary. It falls back to the default mode.
+  describe "a blank reactive_cache_viewer (fails closed)" do
+    let(:probe_payload) { { "c" => "CachedProbeComponent", "s" => { "markup" => nil } } }
+
+    after { CachedProbeComponent.viewer = nil }
+
+    def probe_shell_url
+      CGI.unescapeHTML(CachedProbeComponent.new.call[/data-reactive-defer-src="([^"]+)"/, 1])
+    end
+
+    # Two block params on purpose: a lone one would have to be `it`, which the examples below shadow.
+    [nil, "", "   ", false, [], [nil, 5], ["", "en"]].each_with_index do |blank, _index|
+      it "renders no u for #{blank.inspect}, and two sessions each get a Vary: Cookie reply" do
+        CachedProbeComponent.viewer = blank
+        url = probe_shell_url
+        alice = open_session
+        bob = open_session
+        alice.cookies[:viewer] = "alice"
+        bob.cookies[:viewer] = "bob"
+
+        alice.get url, headers: headers
+        bob.get url, headers: headers
+
+        expect(url).not_to include("u=")
+        [alice, bob].each do
+          expect(it.response).to have_http_status(:ok)
+          expect(it.response.headers["Vary"].to_s).to include("Cookie")
+        end
+        expect(alice.response.body).to include("who:alice")
+        expect(bob.response.body).to include("who:bob")
+      end
+    end
+
+    it "keeps the viewer mode for a present value, including 0 and a full Array" do
+      [0, "alice", [7, "en"]].each do
+        CachedProbeComponent.viewer = it
+        url = probe_shell_url
+        get_fragment(url)
+
+        expect(url).to match(/[?&]u=\h{32}\z/)
+        expect(response.headers["Cache-Control"]).to eq("max-age=600, private")
+        expect(vary).not_to include("Cookie")
+      end
     end
   end
 
@@ -383,6 +512,13 @@ RSpec.describe "cacheable lazy fragments", type: :request do
       expect(response.body).not_to include("panel:")
     end
 
+    it "is no-store when the base controller redirects to sign-in before the endpoint runs" do
+      cookies[:viewer] = "redirected"
+      get_fragment
+
+      expect_no_store(:found)
+    end
+
     it "is no-store for render? false (204: keep the shell)" do
       get_fragment(panel_url({ "c" => "CachedMenuComponent", "s" => { "scope" => "hidden" } }))
 
@@ -460,6 +596,23 @@ RSpec.describe "cacheable lazy fragments", type: :request do
       expect(response.body).to include('name="authenticity_token"')
       expect(response.headers["Cache-Control"]).to eq("no-store")
       expect(logged.join).to include("CachedFormComponent").and include("authenticity token")
+    end
+
+    # Two block params on purpose: a lone one would have to be `it`, which the examples below shadow.
+    %w[single unquoted spaced upper meta].each_with_index do |spelling, _index|
+      it "is not fooled by the #{spelling} spelling of the token" do
+        get_fragment(panel_url({ "c" => "CachedProbeComponent", "s" => { "markup" => spelling } }))
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include("t0ken")
+        expect(response.headers["Cache-Control"]).to eq("no-store")
+      end
+    end
+
+    it "still caches a render without one" do
+      get_fragment(panel_url({ "c" => "CachedProbeComponent", "s" => { "markup" => nil } }))
+
+      expect(response.headers["Cache-Control"]).to eq("max-age=600, private")
     end
   end
 end

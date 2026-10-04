@@ -36,6 +36,7 @@ let rendered
 let byId
 let html
 let metas
+let bodyMetas
 
 class FakeIntersectionObserver {
   constructor(callback) {
@@ -78,6 +79,7 @@ beforeEach(() => {
   nextResponse = () => Promise.resolve(response())
   globalThis.IntersectionObserver = FakeIntersectionObserver
   metas = {}
+  bodyMetas = {}
   globalThis.window = {
     Turbo: { StreamActions: {}, renderStreamMessage: (body) => rendered.push(body) },
     location: { href: "https://app.example/dashboard" },
@@ -93,10 +95,10 @@ beforeEach(() => {
   globalThis.document = {
     documentElement: html,
     getElementById: (id) => byId[id] ?? null,
-    querySelector: (selector) => {
-      const name = selector.match(/meta\[name="([^"]+)"\]/)?.[1]
-      return name && metas[name] ? { content: metas[name] } : null
-    },
+    // <head> holds `metas`; a document-wide query also sees `bodyMetas` —
+    // markup a page could have had injected into its body.
+    head: { querySelector: (selector) => findMeta(selector, metas) },
+    querySelector: (selector) => findMeta(selector, metas) ?? findMeta(selector, bodyMetas),
     addEventListener: () => {},
     dispatchEvent: () => {},
   }
@@ -109,6 +111,11 @@ beforeEach(() => {
 afterEach(() => {
   delete globalThis.IntersectionObserver
 })
+
+function findMeta(selector, source) {
+  const name = selector.match(/meta\[name="([^"]+)"\]/)?.[1]
+  return name && source[name] ? { content: source[name] } : null
+}
 
 const TOKEN = "data-reactive-token-value"
 const ON = "data-reactive-lazy-on"
@@ -272,7 +279,61 @@ for (const [label, src] of refused) {
     expect(calls).toEqual([])
     expect(rendered).toEqual([])
   })
+
+  test(`…and the shell fails loudly instead of staying pending (${label})`, async () => {
+    const el = makeRoot({ [SRC]: src, [PENDING]: "true" })
+    connect(el)
+    await settle()
+
+    expect(el.attrs[PENDING]).toBeUndefined()
+    expect(el.attrs["data-reactive-error"]).toBe("defer")
+    const error = el.dispatched.find((event) => event.type === "reactive:error")
+    expect(error.detail).toMatchObject({ kind: "defer", target: "cached-root", reason: "refused-url" })
+    expect(error.detail.retry).toBeUndefined()
+  })
 }
+
+test("a fragment-path meta injected into <body> is ignored — only <head> can widen the path", async () => {
+  bodyMetas["phlex-reactive-fragment-path"] = "/uploads"
+  connect(makeRoot({ [SRC]: "/uploads/payload", [PENDING]: "true" }))
+  await settle()
+
+  expect(calls).toEqual([])
+})
+
+// --- the response must BE a fragment --------------------------------------------
+
+test("a redirected response (a filter's 302 to a sign-in page) is a failed load, never rendered", async () => {
+  nextResponse = () => Promise.resolve({ ...response(200, "<html>sign in</html>"), redirected: true })
+  const el = makeRoot(cachedShell())
+  connect(el)
+  await settle()
+
+  expect(rendered).toEqual([])
+  expect(el.attrs["data-reactive-error"]).toBe("defer")
+  expect(el.dispatched.some((event) => event.type === "reactive:error")).toBe(true)
+})
+
+test("a 200 that is not a turbo-stream is a failed load, never rendered", async () => {
+  nextResponse = () =>
+    Promise.resolve({ ...response(200, "<html>oops</html>"), headers: { get: () => "text/html; charset=utf-8" } })
+  const el = makeRoot(cachedShell())
+  connect(el)
+  await settle()
+
+  expect(rendered).toEqual([])
+  expect(el.attrs["data-reactive-error"]).toBe("defer")
+})
+
+test("the same holds for the token (POST) lane", async () => {
+  nextResponse = () => Promise.resolve({ ...response(200, "<html>sign in</html>"), redirected: true })
+  const el = makeRoot(plainShell())
+  connect(el)
+  await settle()
+
+  expect(rendered).toEqual([])
+  expect(el.attrs["data-reactive-error"]).toBe("defer")
+})
 
 test("an on: shell with a refused URL falls back to the signed __materialize POST", async () => {
   const controller = connect(

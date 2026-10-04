@@ -71,6 +71,7 @@ module Phlex
           route_check,
           defer_route_check,
           fragment_route_check,
+          fragment_path_meta_check,
           stimulus_check,
           csrf_check,
           verifier_check,
@@ -78,7 +79,7 @@ module Phlex
           action_check(components),
           id_check(components),
           authorization_check(components)
-        ]
+        ].compact
       end
 
       # --- individual checks ------------------------------------------------
@@ -110,6 +111,25 @@ module Phlex
             fix: "A host catch-all route (get \"*path\", ...) likely shadows it. Exempt " \
                  "#{Phlex::Reactive.fragment_path.delete_prefix("/")} from the catch-all, or set " \
                  "Phlex::Reactive.fragment_path to an unshadowed path.")
+        end
+      end
+
+      # A custom fragment_path the client was never told about (issue #277): the
+      # client only fetches a fragment URL under the path it knows — the meta
+      # tag, else the default — so every `reactive_lazy cache:` shell would be
+      # refused (reactive:error, the shell never loads). Only checked when the
+      # path was changed; nil (no check) otherwise.
+      def fragment_path_meta_check
+        path = Phlex::Reactive.fragment_path
+        return if path == "/reactive/fragment"
+
+        if layout_references?("phlex-reactive-fragment-path")
+          Check.new(:ok, "phlex-reactive-fragment-path meta found for #{path}", name: :fragment_path_meta)
+        else
+          Check.new(:fail, "Phlex::Reactive.fragment_path is #{path} but no layout renders its meta tag",
+            name: :fragment_path_meta,
+            fix: "Add <meta name=\"phlex-reactive-fragment-path\" content=\"#{path}\"> to your layout's " \
+                 "<head> — the client refuses a fragment URL outside the path it knows.")
         end
       end
 
@@ -387,6 +407,11 @@ module Phlex
 
       # Grep ERB layouts AND Phlex layout files for a csrf_meta_tags reference.
       def csrf_meta_referenced?
+        layout_references?("csrf_meta_tags")
+      end
+
+      # Does any ERB view / Phlex view or component mention `needle`?
+      def layout_references?(needle)
         globs = %w[
           app/views/**/*.erb
           app/views/**/*.rb
@@ -395,7 +420,7 @@ module Phlex
         ].map { app_path(it) }
 
         ::Dir.glob(globs).any? do
-          File.read(it).include?("csrf_meta_tags")
+          File.read(it).include?(needle)
         rescue StandardError
           false
         end

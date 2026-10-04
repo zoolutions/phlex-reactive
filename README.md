@@ -2263,6 +2263,9 @@ What keeps a private cache safe:
   instead: the endpoint re-computes it in the requesting session and makes the
   reply cacheable only when the URL names that viewer. Return everything the
   render depends on besides the identity and the version (user, tenant, locale).
+  `u` is an opaque keyed digest. A blank value (`nil`, `false`, `""`, an Array
+  with a blank part) names nobody and is never a shared "anonymous" key: that
+  render falls back to `Vary: Cookie`, so `Current.user&.id` is safe as is.
 - **Opt-in only.** The fragment id is signed under its own purpose: it is not
   an identity or defer token and those are not fragment ids (400 either way). A
   component without `cache:` is not reachable over GET (404). The id names no
@@ -2270,17 +2273,27 @@ What keeps a private cache safe:
   not encrypted, so keep secrets out of `reactive_state`.
 - **A read.** No action, no `around_actions`, no transaction; `v` and `u` only
   shape the browser's cache key. Authorize in the render, as for any lazy
-  component. A cacheable reply carries no `Set-Cookie`; a request that changed
-  the session or set a cookie keeps that write and is answered `no-store`
-  instead.
-- **No form tokens.** A render that embeds a form authenticity token is served
-  `no-store` with a warning rather than cached.
+  component. A cacheable reply carries no `Set-Cookie`; a request during which
+  any callback (before, around or after) changed the session or wrote a cookie
+  keeps that write and is answered `no-store` instead — so an app that writes
+  the session on every request (Devise `timeoutable`) gets no caching.
+- **No CSRF tokens.** A render that embeds a form authenticity token or
+  `csrf_meta_tags` is served `no-store` with a warning rather than cached.
+- **No plain `reactive_lazy` child.** Its defer token expires after 120 s, so a
+  cached copy replayed later fails that child's load: give it `on:` or `cache:`.
+
+With `on:`, a `cache:` component loads on the defer lane rather than the action
+pipeline: `reactive:before-dispatch` cannot veto it, and a failed load emits
+`reactive:error` (`kind: "defer"`) with a `retry()`. A reply that was redirected
+or is not a turbo-stream is a failed load, never rendered.
 
 Within `max_age` the browser does not ask the server, so a revoked permission
 or a sign-out is not seen until the copy expires: keep `max_age` short for
 sensitive content and send `Clear-Site-Data: "cache"` on sign-out. If you move
 the endpoint (`Phlex::Reactive.fragment_path`), render
-`<meta name="phlex-reactive-fragment-path" content="…">` in your layout.
+`<meta name="phlex-reactive-fragment-path" content="…">` in your layout's
+`<head>`; without it the client refuses the URL (`reactive:error`), and
+`phlex_reactive:doctor` says so.
 
 > **One edge case:** a `reply.defer(placeholder:)` shell (the action-driven,
 > not page-mount, form) carries no token of its own — the transient directive

@@ -590,8 +590,18 @@ module Phlex
       # ask the browser to keep its fragment for. A component declaring more
       # is answered with this cap. Within max-age the browser reuses its copy
       # WITHOUT asking the server — so this also bounds how long a revoked
-      # permission can keep showing a stale fragment. Default 1 hour.
-      attr_writer :fragment_cache_max_age_limit
+      # permission can keep showing a stale fragment. Default 1 hour; nil
+      # restores it; 0 makes every cached fragment revalidate on each use.
+      def fragment_cache_max_age_limit=(value)
+        seconds = value.is_a?(ActiveSupport::Duration) && value.to_i == value ? value.to_i : value
+        unless seconds.nil? || (seconds.is_a?(::Integer) && !seconds.negative?)
+          raise ArgumentError,
+            "Phlex::Reactive.fragment_cache_max_age_limit must be a whole, non-negative number of seconds " \
+            "(or nil for the default) — got #{value.inspect}"
+        end
+
+        @fragment_cache_max_age_limit = seconds
+      end
 
       def fragment_cache_max_age_limit
         @fragment_cache_max_age_limit ||= 3600

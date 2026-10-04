@@ -64,6 +64,21 @@ RSpec.describe Phlex::Reactive::Doctor do
       Phlex::Reactive.fragment_path = original
     end
 
+    it "says nothing about the fragment-path meta while the path is the default" do
+      expect(doctor.checks.map(&:name)).not_to include(:fragment_path_meta)
+    end
+
+    it "flags a custom fragment_path whose meta tag is in no layout (the client would refuse every URL)" do
+      original = Phlex::Reactive.fragment_path
+      Phlex::Reactive.fragment_path = "/_r/fragment"
+      meta = doctor.checks.find { it.name == :fragment_path_meta }
+
+      expect(meta).not_to be_ok
+      expect(meta.fix).to include('<meta name="phlex-reactive-fragment-path"')
+    ensure
+      Phlex::Reactive.fragment_path = original
+    end
+
     it "passes the verifier round-trip check" do
       verifier = doctor.checks.find { it.name == :verifier }
       expect(verifier).to be_ok

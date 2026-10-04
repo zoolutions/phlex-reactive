@@ -2,21 +2,62 @@
 
 # A minimal authentication gate for the cacheable-fragment fixtures (issue
 # #277), on every dummy controller the way an app's ApplicationController
-# would have it. The `viewer` cookie names the viewer; two values stand for
-# things a real base controller does:
-#   * "expired" — a session the app no longer accepts: the gate halts with 401
-#     BEFORE the reactive endpoint runs (that reply must still be no-store);
-#   * "tracked" — a filter that WRITES the session on every request (an
-#     activity timestamp): the write must survive, and the reply not be cached;
-#   * "cookied" — a filter that sets a cookie of its own on every request.
+# would have it. The `viewer` cookie names the viewer; some values stand for
+# things a real base controller does, so the specs can prove what each does to
+# a fragment reply's cacheability:
+#   * "expired"        — a session the app no longer accepts: halts with 401
+#                        BEFORE the reactive endpoint runs;
+#   * "redirected"     — the same, as a redirect to a sign-in page;
+#   * "tracked"        — a before_action that WRITES the session (an activity
+#                        timestamp) on every request;
+#   * "tracked_after"  — the same write from an after_action;
+#   * "tracked_around" — the same write from an around_action, after the yield;
+#   * "cookied"        — a before_action that sets a cookie of its own;
+#   * "cookied_after"  — the same from an after_action;
+#   * "rolling"        — re-sets a cookie to the SAME value with a new expiry;
+#   * "forgetful"      — deletes a cookie.
 # An X-Dummy-Vary request header makes the gate set that Vary, the way a
 # controller that localizes by Accept-Language would.
-ActiveSupport.on_load(:action_controller_base) do
-  before_action do
-    Viewer.who = cookies[:viewer]
-    session[:seen_at] = Process.clock_gettime(Process::CLOCK_MONOTONIC) if cookies[:viewer] == "tracked"
-    cookies[:last_seen] = Process.clock_gettime(Process::CLOCK_MONOTONIC).to_s if cookies[:viewer] == "cookied"
+module DummyViewerGate
+  extend ActiveSupport::Concern
+
+  included do
+    before_action :dummy_viewer_before
+    after_action :dummy_viewer_after
+    around_action :dummy_viewer_around
+  end
+
+  private
+
+  def dummy_viewer = cookies[:viewer]
+
+  def dummy_stamp = Process.clock_gettime(Process::CLOCK_MONOTONIC).to_s
+
+  def dummy_viewer_before
+    Viewer.who = dummy_viewer
     response.headers["Vary"] = request.headers["X-Dummy-Vary"] if request.headers["X-Dummy-Vary"]
-    head :unauthorized if cookies[:viewer] == "expired"
+
+    case dummy_viewer
+    when "expired" then head :unauthorized
+    when "redirected" then redirect_to "/lazy_stats"
+    when "tracked" then session[:seen_at] = dummy_stamp
+    when "cookied" then cookies[:last_seen] = dummy_stamp
+    when "rolling" then cookies[:roll] = { value: "same", expires: 1.day }
+    when "forgetful" then cookies.delete(:gone)
+    end
+  end
+
+  def dummy_viewer_after
+    case dummy_viewer
+    when "tracked_after" then session[:left_at] = dummy_stamp
+    when "cookied_after" then cookies[:left_at] = dummy_stamp
+    end
+  end
+
+  def dummy_viewer_around
+    yield
+    session[:around_at] = dummy_stamp if dummy_viewer == "tracked_around"
   end
 end
+
+ActiveSupport.on_load(:action_controller_base) { include DummyViewerGate }

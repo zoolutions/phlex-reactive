@@ -121,7 +121,9 @@
 # endpoint's path prefix (default "/reactive/fragment") and the longest max-age
 # a component may be answered with (default 1 hour — within it the browser does
 # not ask the server, so it also bounds how long a revoked permission can keep
-# showing a cached fragment). If you change the path, expose it to the client:
+# showing a cached fragment). If you change the path, expose it to the client
+# in the layout <head> (the client refuses fragment URLs outside the path it
+# knows; phlex_reactive:doctor checks for the tag):
 #   <meta name="phlex-reactive-fragment-path" content="<%%= Phlex::Reactive.fragment_path %>">
 # Phlex::Reactive.fragment_path = "/_r/fragment"
 # Phlex::Reactive.fragment_cache_max_age_limit = 10.minutes
