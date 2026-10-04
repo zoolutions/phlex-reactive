@@ -1,0 +1,66 @@
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 5,7-8
+spec/dummy/public/vendor/reactive_controller.min.js.map
+  ai_agent 5,7-8
+docs/app/views/docs/pages/testing.rb
+  s_b4f052d694d82f::t_8085824202a742 447-450
+spec/javascript/reactive_lazy_cache.test.js
+  s_b4f052d694d82f::t_a36c855ac1ed1d 39,82,98-101,115-119,282-293,296-336
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,3
+CHANGELOG.md
+  s_b4f052d694d82f::t_8085824202a742 23-28
+lib/phlex/reactive/fragment.rb
+  s_b4f052d694d82f::t_ad1a806724da13 24-28,31,73-82,84-94
+README.md
+  s_b4f052d694d82f::t_8085824202a742 2266-2268,2276-2288,2294-2296
+spec/dummy/app/components/cached_probe_component.rb
+  s_b4f052d694d82f::t_293321d99bbdcb 1-49
+app/controllers/phlex/reactive/fragments_controller.rb
+  s_b4f052d694d82f::t_ad1a806724da13 68-72,103-104
+  s_b4f052d694d82f::t_61acb01c90daaf 33-35,37-47,62-66,75-87,96-102,105-124,133-136,138,141-146,148,165-167
+lib/phlex/reactive.rb
+  s_b4f052d694d82f::t_ad1a806724da13 593-604
+lib/phlex/reactive/doctor.rb
+  s_b4f052d694d82f::t_e0b6ac82ba2693 82
+  s_b4f052d694d82f::t_ad1a806724da13 74,117-135,410-414,423
+spec/phlex/reactive/lazy_cache_spec.rb
+  s_b4f052d694d82f::t_f58befcf9ce007 62-63
+  s_b4f052d694d82f::t_a46634e547d197 165,173-194,272-285,288-296
+  s_b4f052d694d82f::t_656b44feec7fb0 60-61,171-172,286-287
+spec/phlex/reactive/doctor_spec.rb
+  s_b4f052d694d82f::t_a46634e547d197 67-81
+docs/app/views/docs/pages/deferred_rendering.rb
+  s_b4f052d694d82f::t_8085824202a742 402-409,417,424-430,433-446,460-480,492-501
+lib/generators/phlex/reactive/install/templates/phlex_reactive.rb.erb
+  s_b4f052d694d82f::t_8085824202a742 124-126
+spec/system/lazy_cache_spec.rb
+  s_b4f052d694d82f::t_836dd2a9ca5a45 33-34,36,57-58,61,66,100-106,111-113,115-118,120-129
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/reactive_controller.js
+  s_b4f052d694d82f::t_eadb06484ca4f7 279-309,324-326,328,417-426,439-445,2727-2730,3135-3138,3186-3189
+spec/requests/lazy_fragment_spec.rb
+  s_b4f052d694d82f::t_656b44feec7fb0 330-331,601-602
+  s_b4f052d694d82f::t_a46634e547d197 164-167,175-242,258,299-301,303,306-329,332-362,515-521,600,603-615
+lib/phlex/reactive/component/lazy.rb
+  s_b4f052d694d82f::t_ad1a806724da13 132-136
+spec/dummy/config/initializers/viewer.rb
+  s_b4f052d694d82f::t_486b7d19f64a33 5-18,21-37,39-59,62-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "0211b5cb237ac75764980ba65a7bcc99cf4d805c",
+  "prompts": {},
+  "sessions": {
+    "s_b4f052d694d82f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a4f9e839-a934-4e75-9b79-590503d3a110",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
