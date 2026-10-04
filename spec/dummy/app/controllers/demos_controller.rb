@@ -17,6 +17,23 @@ class DemosController < ActionController::Base
     render html: html.html_safe, layout: "lazy_controller"
   end
 
+  # Issue #274: a page whose ONLY reactive root is dormant, on the lazily
+  # loading layout. ?load=auto fetches the controller when an element first
+  # lists it in data-controller (lazyLoadControllersFrom's rule); ?load=eager
+  # registers it up front.
+  def dormant
+    @reactive_load = params[:load].presence_in(%w[auto eager]) || "auto"
+    html = render_to_string(DormantPanelComponent.new, layout: false)
+    visit = %(<a href="/dormant?load=#{@reactive_load}" data-testid="visit">Visit again</a>)
+    render html: "#{html}#{visit}".html_safe, layout: "lazy_controller"
+  end
+
+  # Issue #274: what a broadcast or page refresh sends — the root rendered
+  # OUTSIDE an actor reply (so dormant), morphed over the live one.
+  def dormant_stream
+    render turbo_stream: DormantPanelComponent.new(clicks: 7).to_stream_replace(morph: true)
+  end
+
   # Effects (issue #215). The dummy has no asset pipeline, so the page inlines
   # the gem's REAL shipped stylesheet — the browser animations under test are
   # driven by the exact CSS apps get. The duration override AFTER it widens the

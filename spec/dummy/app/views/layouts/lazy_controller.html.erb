@@ -1,5 +1,10 @@
 <!DOCTYPE html>
-<html>
+<%# data-reactive-load picks how the reactive controller loads (issue #274):
+    ""      only when the spec calls window.__loadReactive() (issue #273)
+    "auto"  when an element lists it in data-controller — the stand-in for
+            stimulus-loading's lazyLoadControllersFrom
+    "eager" registered before anything else runs %>
+<html data-reactive-load="<%= @reactive_load %>">
   <head>
     <title>phlex-reactive dummy (lazy controller)</title>
     <%= csrf_meta_tags %>
@@ -38,17 +43,52 @@
 
       import "@hotwired/turbo-rails"
       import "phlex/reactive/early"
-      import { Application } from "@hotwired/stimulus"
+      import { Application, Controller } from "@hotwired/stimulus"
 
       const application = Application.start()
       window.Stimulus = application
+
+      // An app controller sharing a root with a dormant reactive one (issue
+      // #274): it must stay connected while the root wakes.
+      window.__probe = { connects: 0, disconnects: 0 }
+      application.register(
+        "probe",
+        class extends Controller {
+          connect() {
+            window.__probe.connects += 1
+          }
+
+          disconnect() {
+            window.__probe.disconnects += 1
+          }
+        },
+      )
+
+      const loadReactive = async () => {
+        const { default: ReactiveController } = await import("reactive_controller")
+        application.register("reactive", ReactiveController)
+      }
       // The spec decides WHEN the controller loads (a fixed delay raced the
       // test's own clicks on a busy machine): a setTimeout-delayed import().
-      window.__loadReactive = () =>
-        setTimeout(async () => {
-          const { default: ReactiveController } = await import("reactive_controller")
-          application.register("reactive", ReactiveController)
-        }, 50)
+      window.__loadReactive = () => setTimeout(loadReactive, 50)
+
+      const mode = document.documentElement.dataset.reactiveLoad
+      if (mode === "eager") await loadReactive()
+      if (mode === "auto") {
+        let requested = false
+        const loadWhenUsed = () => {
+          if (requested || !document.querySelector('[data-controller~="reactive"]')) return
+          requested = true
+          loadReactive()
+        }
+        new MutationObserver(loadWhenUsed).observe(document.documentElement, {
+          attributes: true,
+          attributeFilter: ["data-controller"],
+          childList: true,
+          subtree: true,
+        })
+        loadWhenUsed()
+      }
       window.__earlyReady = true
     </script>
   </head>

@@ -24,6 +24,7 @@ module Views
           deferred_segments
           client_numbers
           loading_the_client
+          dormant_roots
           ci
           every_change
           adding_a_benchmark
@@ -724,7 +725,7 @@ module Views
                 code { 'preload: false' }
                 plain ' pin). The reactive controller can load that way too, as long as '
                 code { 'phlex/reactive/early' }
-                plain ' is imported eagerly (issue #273). It is under 1 KB gzipped (a test asserts '
+                plain ' is imported eagerly (issue #273). It is under 1.1 KB gzipped (a test asserts '
                 plain 'it) and has no Stimulus import. Until a root connects, it queues the trigger events '
                 plain 'that reach it and stops their native default where the controller would; the '
                 plain 'controller replays them when it connects. Without it, a click in the load window '
@@ -741,6 +742,122 @@ module Views
                 plain ' (10 s by default, read from '
                 code { '<meta name="phlex-reactive-early-ttl">' }
                 plain ') are dropped rather than fired out of nowhere.'
+              end
+            end
+          end
+        end
+
+        def dormant_roots
+          DocsUI::Section('Dormant roots') do
+            DocsUI::Prose() do
+              p do
+                plain 'Loading the controller lazily only helps on pages with no reactive root. One root in '
+                plain 'a shared layout (a closed dialog, a collapsed panel, a menu that loads its items on '
+                plain 'open) puts the client back on every page, because a root renders '
+                code { 'data-controller="reactive"' }
+                plain ' and that is what makes Stimulus load and connect it. Measured on such a page '
+                plain '(issue #274), with the controller pinned '
+                code { 'preload: false' }
+                plain ' and no other reactive root:'
+              end
+              ul do
+                li { 'Without the dialog: 21 script modules on load, no reactive client fetched.' }
+                li do
+                  plain 'With the dialog, never opened: 24 script modules, and the client fetched: '
+                  plain '68,492 B minified, 20,009 B gzipped, 17,623 B brotli.'
+                end
+                li do
+                  plain 'The root itself replaced about 0.1–0.25 KB (gzipped) of inline markup, so the '
+                  plain 'page paid roughly a hundred times more in JavaScript than it saved in HTML.'
+                end
+              end
+              p do
+                plain 'A '
+                strong { 'dormant' }
+                plain ' root costs nothing until it is used. It renders '
+                code { 'data-reactive-dormant="reactive"' }
+                plain ' in place of the controller attribute, so nothing mounts and a lazily loaded '
+                plain 'controller is not fetched. The first trigger that reaches it wakes it: '
+                code { 'phlex/reactive/early' }
+                plain ' moves the identifier into '
+                code { 'data-controller' }
+                plain ', Stimulus loads and connects the controller, and the trigger is replayed.'
+              end
+            end
+            DocsUI::Code(<<~RUBY, lexer: :ruby, filename: 'app/components/items_panel.rb')
+              class ItemsPanel < ApplicationComponent
+                include Phlex::Reactive::Component
+
+                reactive_dormant              # every root of this component, inherited
+                action :load
+
+                def view_template
+                  div(**mix(reactive_root, on(:load, event: "panel:opened", once: true))) { … }
+                end
+              end
+
+              # Or one render at a time:
+              div(**reactive_root(dormant: true)) { … }
+            RUBY
+            DocsUI::Callout(:warning) do
+              plain 'A dormant root needs '
+              code { 'import "phlex/reactive/early"' }
+              plain ' in your entry point. Without that module nothing wakes the root and its triggers '
+              plain 'do nothing. '
+              code { 'bin/rails phlex_reactive:doctor' }
+              plain ' lists the dormant components and says whether it found the import.'
+            end
+            DocsUI::Prose() do
+              h3 { 'What renders awake' }
+              p do
+                plain "The actor's own reply renders a dormant root awake: the reply only exists because "
+                plain "that page's controller is loaded, so a dormant replacement would cost one more "
+                plain 'wake and save nothing. The same goes for the defer endpoint. Every other render '
+                plain 'stays dormant: the page, a broadcast (also one fired inside an action), a page '
+                plain 'refresh. If one of those lands on a root that is already awake, the root goes '
+                plain 'back to sleep and the next trigger wakes it again; no trigger is lost.'
+              end
+              h3 { 'Limits' }
+              ul do
+                li do
+                  plain 'Use it for a root whose only behaviour is its triggers. Anything the controller '
+                  plain 'does at connect waits for the wake too: '
+                  code { 'reactive_persist' }
+                  plain ' restore, '
+                  code { 'reactive_compute' }
+                  plain ' seeding, show/filter sync, dirty tracking, a '
+                  code { 'reactive_lazy' }
+                  plain ' fetch.'
+                end
+                li do
+                  plain 'Only element-bound '
+                  code { 'on' }
+                  plain ' / '
+                  code { 'on_client' }
+                  plain ' triggers wake a root. A '
+                  code { 'window:' }
+                  plain ' or '
+                  code { 'outside:' }
+                  plain ' trigger, and the feature actions (list navigation, tags, nested rows), do not.'
+                end
+                li do
+                  plain 'When the root also lists a controller of your own, put it first: '
+                  code { 'mix({ data: { controller: "dropdown" } }, reactive_root)' }
+                  plain '. Waking appends '
+                  code { 'reactive' }
+                  plain ' to the list, so that order matches what an awake reply renders. In the other '
+                  plain 'order, the first morph reply reorders the list and Stimulus reconnects both '
+                  plain 'controllers once.'
+                end
+                li do
+                  plain 'A dormant root nested inside an awake one belongs to the outer root until it '
+                  plain 'wakes (its fields are collected with the outer root\'s actions).'
+                end
+                li do
+                  plain 'Waking costs '
+                  code { 'early.js' }
+                  plain ' 53 bytes: 1,007 B → 1,060 B gzipped, under a 1,100 B test budget.'
+                end
               end
             end
           end

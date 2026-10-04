@@ -238,6 +238,27 @@ module Phlex
             value.is_a?(::Hash) ? value.fetch(:tag, :div) : :div
           end
 
+          # Dormant root (issue #274): every root of this component renders
+          # data-reactive-dormant="reactive" instead of data-controller=
+          # "reactive", so the client is neither mounted nor (when loaded
+          # lazily) fetched until one of the root's triggers fires — for a root
+          # that only matters after a gesture (a closed dialog, a menu that
+          # loads on open). The app must import "phlex/reactive/early", which
+          # wakes the root. Inherited; `reactive_dormant false` turns it off
+          # again in a subclass, and reactive_root(dormant:) overrides per
+          # render. See Phlex::Reactive::Dormant.
+          def reactive_dormant(dormant = true) # rubocop:disable Style/OptionalBooleanParameter
+            unless [true, false].include?(dormant)
+              raise ArgumentError, "#{self}: reactive_dormant takes true or false, got #{dormant.inspect}"
+            end
+
+            Registry.write_scalar(self, :dormant, dormant)
+          end
+
+          def reactive_dormant?
+            Registry.resolve_scalar(self, :dormant, :reactive_dormant?) == true
+          end
+
           # Declare a client-invokable action with an optional param schema.
           #   action :increment
           #   action :rename, params: { title: :string }

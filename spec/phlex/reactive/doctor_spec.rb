@@ -278,6 +278,62 @@ RSpec.describe Phlex::Reactive::Doctor do
     end
   end
 
+  # Issue #274: a dormant root is woken by phlex/reactive/early — without that
+  # import it never mounts. The doctor counts the components declared dormant
+  # and looks for the import in the Stimulus entrypoints. ADVISORY (never a
+  # fail): the import may live in a file the doctor doesn't scan.
+  describe "the dormant-roots check" do
+    let(:dormant) do
+      Class.new(ApplicationComponent) do
+        include Phlex::Reactive::Component
+
+        def self.name = "SleepyMenu"
+        reactive_state :n
+        reactive_dormant
+        def initialize(n: 0) = (@n = n)
+        def id = "sleepy"
+      end
+    end
+
+    let(:awake) do
+      Class.new(ApplicationComponent) do
+        include Phlex::Reactive::Component
+
+        reactive_state :n
+        def initialize(n: 0) = (@n = n)
+        def id = "awake"
+      end
+    end
+
+    it "is absent when no component is dormant" do
+      expect(doctor.dormant_check([awake])).to be_nil
+    end
+
+    it "counts the dormant components when phlex/reactive/early is imported" do
+      check = doctor.dormant_check([dormant, awake], early: true)
+
+      expect(check).to be_ok
+      expect(check.name).to eq(:dormant)
+      expect(check.message).to include("1 dormant component (SleepyMenu)")
+    end
+
+    it "is advisory, with the import as the fix, when the import is not found" do
+      check = doctor.dormant_check([dormant], early: false)
+
+      expect(check.status).to eq(:unknown)
+      expect(check.message).to include("SleepyMenu")
+      expect(check.fix).to include('import "phlex/reactive/early"')
+    end
+
+    it "finds the dummy's dormant component and its early import" do
+      Rails.application.eager_load!
+      check = doctor.checks.find { it.name == :dormant }
+
+      expect(check).to be_ok
+      expect(check.message).to include("DormantPanelComponent")
+    end
+  end
+
   describe "output rendering" do
     before { Rails.application.eager_load! }
 

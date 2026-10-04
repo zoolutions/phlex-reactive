@@ -1,0 +1,161 @@
+# frozen_string_literal: true
+
+require "system_helper"
+
+# Issue #274: a DORMANT root mounts the reactive controller on first use. The
+# /dormant page's only reactive root renders data-reactive-dormant="reactive",
+# and its layout loads the controller the way stimulus-loading's
+# lazyLoadControllersFrom does — when an element first lists it in
+# data-controller. So nothing reactive is fetched until a trigger fires;
+# phlex/reactive/early (eager, ~1 KB) wakes the root and the trigger is
+# replayed when the controller connects.
+RSpec.describe "Dormant roots (issue #274 — mount the controller on first use)", type: :system do
+  def action_posts = page.evaluate_script("window.__actionPosts")
+
+  def controller_fetches
+    page.evaluate_script(<<~JS)
+      performance.getEntriesByType("resource").filter((entry) => entry.name.includes("reactive_controller")).length
+    JS
+  end
+
+  def probe = page.evaluate_script("window.__probe")
+
+  def open_panel
+    page.execute_script(%(document.getElementById("dormant-panel").dispatchEvent(new CustomEvent("panel:opened"))))
+  end
+
+  def visit_dormant(load: "auto")
+    visit "/dormant?load=#{load}"
+    expect(page).to have_css("#dormant-panel[data-reactive-dormant='reactive']")
+    expect(page.evaluate_script("window.__earlyReady === true")).to be(true)
+  end
+
+  # Settled, and nothing more in flight.
+  def expect_action_posts(count)
+    wait_for_reactive
+    sleep 0.3
+    expect(action_posts).to eq(count)
+  end
+
+  context "with a lazily loaded controller" do
+    it "fetches no reactive client until a trigger fires, then makes exactly one request" do
+      visit_dormant
+      # Give a wrongly eager load every chance to show up.
+      sleep 0.3
+      expect(controller_fetches).to eq(0)
+      expect(page).to have_css("[data-testid='connects']", exact_text: "0")
+      expect(page).to have_no_css("#dormant-panel[data-controller~='reactive']")
+
+      find("[data-testid='bump']").click
+
+      expect(page).to have_css("[data-testid='clicks']", text: "1")
+      expect(controller_fetches).to eq(1)
+      expect_action_posts(1)
+    end
+
+    it "behaves like any root after the wake: one request per trigger, no second wake" do
+      visit_dormant
+      find("[data-testid='bump']").click
+      expect(page).to have_css("[data-testid='clicks']", text: "1")
+
+      # The reply REPLACED the root: the replacement is awake, not dormant.
+      expect(page).to have_css("#dormant-panel[data-controller~='reactive']")
+      expect(page).to have_no_css("[data-reactive-dormant]")
+
+      reset_reactive_requests!
+      find("[data-testid='bump']").click
+      expect(page).to have_css("[data-testid='clicks']", text: "2")
+      expect(page).to have_reactive_requests(1, kind: :action)
+      expect_action_posts(2)
+      expect(controller_fetches).to eq(1)
+    end
+
+    it "wakes on a custom event, replaying a :once trigger fired three times once" do
+      visit_dormant
+      3.times { open_panel }
+
+      expect(page).to have_css("[data-testid='loads']", text: "1")
+      expect_action_posts(1)
+    end
+
+    it "replays two triggers fired before connect in order, with one wake" do
+      visit_dormant
+      page.execute_script(<<~JS)
+        const bump = document.querySelector("[data-testid='bump']")
+        bump.click()
+        bump.click()
+      JS
+
+      expect(page).to have_css("[data-testid='clicks']", text: "2")
+      expect_action_posts(2)
+      expect(controller_fetches).to eq(1)
+    end
+
+    it "keeps the root's other controller connected through the wake" do
+      visit_dormant
+      expect(probe).to eq("connects" => 1, "disconnects" => 0)
+
+      open_panel
+      # `load` replies with a morph: the same root element stays in place.
+      expect(page).to have_css("[data-testid='loads']", text: "1")
+      expect(page).to have_css("#dormant-panel[data-controller='probe reactive']")
+      expect(probe).to eq("connects" => 1, "disconnects" => 0)
+    end
+
+    it "wakes again after a Turbo Drive visit, without re-fetching the client" do
+      visit_dormant
+      find("[data-testid='bump']").click
+      expect(page).to have_css("[data-testid='clicks']", text: "1")
+
+      page.execute_script("window.__marker = 'alive'")
+      find("[data-testid='visit']").click
+      expect(page).to have_css("[data-testid='clicks']", text: "0")
+      expect(page.evaluate_script("window.__marker")).to eq("alive")
+      expect(page).to have_css("#dormant-panel[data-reactive-dormant='reactive']")
+
+      find("[data-testid='bump']").click
+      expect(page).to have_css("[data-testid='clicks']", text: "1")
+      expect_action_posts(2)
+    end
+
+    it "re-wakes on the next trigger when a morph renders the woken root dormant again" do
+      visit_dormant
+      find("[data-testid='bump']").click
+      expect(page).to have_css("[data-testid='clicks']", text: "1")
+      expect(page).to have_css("#dormant-panel[data-controller~='reactive']")
+      wait_for_reactive
+
+      # What a broadcast or a page refresh sends: the root rendered outside an
+      # actor reply, so dormant, morphed over the live (awake) one.
+      page.execute_script(<<~JS)
+        fetch("/dormant_stream", { headers: { Accept: "text/vnd.turbo-stream.html" } })
+          .then((response) => response.text())
+          .then((html) => window.Turbo.renderStreamMessage(html))
+      JS
+      expect(page).to have_css("[data-testid='clicks']", text: "7")
+      expect(page).to have_css("#dormant-panel[data-reactive-dormant='reactive']")
+      expect(page).to have_no_css("#dormant-panel[data-controller~='reactive']")
+
+      find("[data-testid='bump']").click
+      expect(page).to have_css("[data-testid='clicks']", text: "8")
+      expect_action_posts(2)
+    end
+  end
+
+  context "with an eagerly registered controller" do
+    it "does not connect the dormant root on load, and handles the waking click once" do
+      visit_dormant(load: "eager")
+      expect(controller_fetches).to eq(1)
+      expect(page).to have_css("[data-testid='connects']", exact_text: "0")
+
+      # A real click: the root wakes in the capture phase and Stimulus connects
+      # it before the click reaches the listener it binds — replayed once, not
+      # dispatched a second time by that listener.
+      find("[data-testid='bump']").click
+
+      expect(page).to have_css("[data-testid='clicks']", text: "1")
+      expect_action_posts(1)
+      expect(page).to have_css("[data-testid='clicks']", exact_text: "1")
+    end
+  end
+end

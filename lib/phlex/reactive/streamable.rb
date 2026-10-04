@@ -148,7 +148,15 @@ module Phlex
               # different hosts — absolute URLs in broadcast-rendered components
               # keep the process defaults, so "host-relative URLs" stays the
               # broadcast contract. Off-request callers pay one nil-write pair.
-              html = verb == :js ? nil : Phlex::Reactive.with_url_options(nil) { render_broadcast_html(component) }
+              # Nor the actor's AWAKE dormant roots (issue #274): a subscriber may
+              # never have loaded the client, so its copy stays dormant (one
+              # fiber-local read off-request).
+              html =
+                if verb != :js
+                  Phlex::Reactive::Dormant.asleep do
+                    Phlex::Reactive.with_url_options(nil) { render_broadcast_html(component) }
+                  end
+                end
               ops_json = verb == :js ? broadcast_js_ops_json(payload) : nil
               keys.each { dispatch_broadcast(verb, it, resolved_target, html, ops_json, morph, effect) }
             end

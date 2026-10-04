@@ -2457,18 +2457,26 @@ function spendEarlyOnce(el, { token, type, method, filter }) {
 // True (once) for the live call that comes from a spent descriptor's listener:
 // same element, method, event type AND key filter — a sibling descriptor with
 // another filter (keydown.esc beside a spent keydown.enter:once) is not it.
+//
+// Also true for the ORIGINAL of a replayed event arriving live at the same
+// element (issue #274): waking a dormant root can connect its controller while
+// the waking event is still propagating (an eagerly registered controller
+// connects in the microtask checkpoint after early.js's capture listener), so
+// the event reaches the listener Stimulus just bound after it was replayed.
 function earlyOnceSwallows(event, method, keyMappings) {
   if (event?.[EARLY_KEY]) return false
   const spent = spentEarlyOnce.get(event?.currentTarget)
-  if (!spent) return false
-  for (const entry of spent.values()) {
+  for (const entry of spent?.values() ?? []) {
     if (!entry.armed || entry.method !== method || entry.type !== event.type) continue
     if (entry.filter && !keyFilterMatches(entry.filter, event, keyMappings)) continue
     entry.armed = false
     return true
   }
-  return false
+  return replayedEarly.get(event)?.has(event.currentTarget) === true
 }
+
+// event → the elements it was replayed on (see earlyOnceSwallows).
+const replayedEarly = new WeakMap()
 
 // Register this controller eagerly OR lazily: with phlex/reactive/early
 // imported, a trigger that fires before connect is replayed on connect (issue
@@ -2847,6 +2855,11 @@ export default class extends Controller {
   // was queued (spendEarlyOnce).
   #replayEarly({ event, el, descs }) {
     const replay = earlyReplayEvent(event, el)
+    // The original may still be propagating (issue #274): its live arrival at
+    // `el` must not run the same bindings again (earlyOnceSwallows).
+    let replayedOn = replayedEarly.get(event)
+    if (!replayedOn) replayedEarly.set(event, (replayedOn = new WeakSet()))
+    replayedOn.add(el)
     const keyMappings = this.application?.schema?.keyMappings
     const tokens = (el.getAttribute("data-action") ?? "").split(/\s+/)
     for (const desc of descs) {

@@ -234,9 +234,11 @@ test("listens for trigger types of roots added after start (MutationObserver)", 
   expect(state().queue).toHaveLength(1)
 })
 
-test("early.min.js gzips to under 1 KB", () => {
+// The one module every page loads eagerly. 1,024 B before dormant roots (issue
+// #274) added the second root selector and the wake.
+test("early.min.js gzips to under 1,100 bytes", () => {
   const built = readFileSync(join(import.meta.dir, "../../app/javascript/phlex/reactive/early.min.js"))
-  expect(gzipSync(built, { level: 9 }).length).toBeLessThan(1024)
+  expect(gzipSync(built, { level: 9 }).length).toBeLessThan(1100)
 })
 
 // --- reactive_controller.js: connect() marks, announces and drains ------------

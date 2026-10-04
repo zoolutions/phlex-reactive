@@ -48,7 +48,11 @@ module Phlex
         Phlex::Reactive.with_url_options(Phlex::Reactive.url_options_for(request)) do
           Phlex::Reactive.with_defer_binding(Phlex::Reactive.defer_binding_for(request)) do
             Phlex::Reactive.instrument("action", event) do
-              create_action(event)
+              # The actor's reply renders dormant roots AWAKE (issue #274): this
+              # page's controller is loaded, so a dormant replacement would only
+              # cost one more wake. Broadcasts fired inside the action are
+              # exempted at their render, like the url_options above.
+              Phlex::Reactive::Dormant.awake { create_action(event) }
             end
           end
         end
@@ -76,7 +80,8 @@ module Phlex
         Phlex::Reactive.with_url_options(Phlex::Reactive.url_options_for(request)) do
           Phlex::Reactive.with_defer_binding(Phlex::Reactive.defer_binding_for(request)) do
             Phlex::Reactive.instrument("defer", event) do
-              deferred_action(event)
+              # Awake (issue #274): the client that fetched this is loaded.
+              Phlex::Reactive::Dormant.awake { deferred_action(event) }
             end
           end
         end

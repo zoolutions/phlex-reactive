@@ -76,8 +76,9 @@ module Phlex
           base_controller_check,
           action_check(components),
           id_check(components),
-          authorization_check(components)
-        ]
+          authorization_check(components),
+          dormant_check(components)
+        ].compact
       end
 
       # --- individual checks ------------------------------------------------
@@ -210,6 +211,24 @@ module Phlex
           fix: "This is a heuristic (a helper may authorize indirectly). If each is intentional, " \
                "confirm it authorizes; if an action is genuinely public, declare " \
                "`skip_verify_authorized`. See the Debugging & tooling docs page.")
+      end
+
+      # Dormant roots (issue #274): how many components declare `reactive_dormant`
+      # and whether a Stimulus entrypoint imports phlex/reactive/early — the
+      # module that wakes them (without it a dormant root never mounts). No line
+      # at all when nothing is dormant. ADVISORY when the import isn't found: it
+      # may live in a file the doctor doesn't scan. A per-render
+      # reactive_root(dormant: true) is invisible here (it isn't a declaration).
+      def dormant_check(components, early: imports_early?)
+        dormant = components.select { it.respond_to?(:reactive_dormant?) && it.reactive_dormant? }
+        return if dormant.empty?
+
+        label = "#{dormant.size} dormant #{dormant.one? ? "component" : "components"} (#{dormant.map(&:name).join(", ")})"
+        return Check.new(:ok, "#{label}; phlex/reactive/early is imported", name: :dormant) if early
+
+        Check.new(:unknown, "#{label}, but no import of phlex/reactive/early was found", name: :dormant,
+          fix: "A dormant root is woken by that module — without it the root never mounts. Add to " \
+               "your entrypoint, before any controller loads:\n  import \"phlex/reactive/early\"")
       end
 
       # --- rendering --------------------------------------------------------
@@ -353,6 +372,15 @@ module Phlex
         File.read(path).include?('application.register("reactive", ReactiveController)')
       rescue StandardError
         false
+      end
+
+      # Does any Stimulus entrypoint candidate import phlex/reactive/early?
+      def imports_early?
+        stimulus_registration_files.any? do
+          File.read(it).match?(%r{import\s+["']phlex/reactive/early["']})
+        rescue StandardError
+          false
+        end
       end
 
       # Only meaningful when importmap is in use. True when importmap is present

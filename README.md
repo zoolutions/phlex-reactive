@@ -118,7 +118,7 @@ instead, import `phlex/reactive/early` eagerly (the engine pins it with
 import "phlex/reactive/early"
 ```
 
-It gzips to under 1 KB and has no Stimulus import. An element-bound trigger (`on(...)` or
+It gzips to under 1.1 KB and has no Stimulus import. An element-bound trigger (`on(...)` or
 `on_client(...)`) that fires before the controller connects — a click while a
 lazily loaded controller is still downloading, a custom event dispatched as soon
 as the page is interactive — is queued, its native default is stopped exactly
@@ -154,6 +154,49 @@ Good to know:
   `on_client(...)` (`reactive#runOps`) are replayed, not the built-in
   `nestedAdd`/`nestedRemove`, `tagsAdd`/`tagsPick`, `listnav*` or `recompute`
   bindings.
+
+**Dormant roots: mount on first use.** Loading the controller lazily only helps
+on pages with no reactive root: a root renders `data-controller="reactive"`, and
+that is what makes Stimulus load and connect it. A root that only matters after
+a gesture (a closed dialog, a menu that loads on open) can stay dormant instead:
+
+```ruby
+class ItemsPanel < ApplicationComponent
+  include Phlex::Reactive::Component
+
+  reactive_dormant # every root of this component (inherited)
+  action :load
+
+  def view_template
+    div(**mix(reactive_root, on(:load, event: "panel:opened", once: true))) { … }
+  end
+end
+
+div(**reactive_root(dormant: true)) { … } # or one render at a time
+```
+
+A dormant root renders `data-reactive-dormant="reactive"` in place of the
+controller attribute, so nothing mounts and a lazily loaded controller is not
+fetched. The first `on(...)`/`on_client(...)` trigger that reaches it wakes it:
+`phlex/reactive/early` moves the identifier into `data-controller`, Stimulus
+loads and connects the controller, and the trigger is replayed once.
+
+- **It needs `import "phlex/reactive/early"`.** Without that module nothing
+  wakes the root. `bin/rails phlex_reactive:doctor` lists the dormant
+  components and says whether it found the import.
+- The actor's own reply (and the defer endpoint) renders the root awake, since
+  that page's controller is loaded by then. The page, a broadcast and a page
+  refresh render it dormant; if one lands on an awake root, the next trigger
+  wakes it again.
+- Use it for a root whose only behavior is its triggers. What the controller
+  does at connect (`reactive_persist` restore, `reactive_compute` seeding,
+  show/filter sync, dirty tracking, a `reactive_lazy` fetch) waits for the wake.
+- With a controller of your own on the same root, list it first:
+  `mix({ data: { controller: "dropdown" } }, reactive_root)`. Waking appends
+  `reactive`, which then matches what an awake reply renders; in the other
+  order the first morph reply reconnects both controllers once.
+- A dormant root nested inside an awake one belongs to the outer root until it
+  wakes.
 </details>
 
 ### Scaffold a component
@@ -421,6 +464,7 @@ Use in controllers: `render turbo_stream: Counter.replace(counter)`.
 | `skip_verify_authorized [ :a, :b ]` | Opt a component (bare) or specific actions out of the default-ON `verify_authorized` guard — for a genuinely public component (a counter, a client-only filter). |
 | `reactive_root(**overrides)` | Spread onto the root element: emits the component `id` **and** `reactive_attrs` together, so the controller root always carries `#id`. Preferred over `id:` + `reactive_attrs`. `**overrides` (`class:`/`data:`) deep-merge. `compute: :name` binds a client-side compute **at the root** — descriptors plus the `input->reactive#recompute` delegation, so no field needs its own wiring; `nil` collapses to no binding. See [Client-side computes](#client-side-computes-reactive_compute--reactive_text). |
 | `reactive_attrs` | Marks an element reactive + carries the signed token (no `id`). Spread alongside `id:` on the **same** element: `div(id:, **reactive_attrs)`. Prefer `reactive_root`, which can't split them. |
+| `reactive_dormant` / `reactive_root(dormant: true)` | Mount the controller on first use: the root renders `data-reactive-dormant="reactive"` instead of `data-controller="reactive"` until one of its triggers fires. Class-level and inherited (`reactive_dormant false` turns it off again), or per render (`reactive_attrs(dormant: true)` too). Needs `import "phlex/reactive/early"`. See the dormant roots note under [Installation](#installation). |
 | `on(:action, event: "click", **params)` | Spread onto a trigger element. Adds `type=button` for clicks. |
 | `on(:action, event: "input", debounce: 300)` | Coalesce rapid events into one round trip after a quiet period (live-as-you-type). |
 | `on(:action, event: "keydown.enter")` | Fire only on a specific key — Enter-to-submit / Escape-to-cancel — via Stimulus's native keyboard filter (`event:` passes straight through). See [Keyboard triggers](#keyboard-triggers-enter-to-submit--escape-to-cancel). |
