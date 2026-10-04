@@ -290,9 +290,10 @@ module Views
               no-ops, because the real render never contains the shell or its
               trigger. `:visible` fires a non-bubbling `reactive:visible` event on
               the shell from an `IntersectionObserver`, so a nested visible shell
-              never materializes its ancestor. A rootMargin grows the observed
-              region, so the shell can load a little before it scrolls into view;
-              in an engine without `IntersectionObserver` it materializes right
+              never materializes its ancestor. A positive rootMargin grows the
+              observed region, so the shell loads a little before it scrolls into
+              view; a negative one shrinks it, so the shell must scroll further in
+              before it loads. In an engine without `IntersectionObserver` it materializes right
               after connect.
 
               Mechanics: an `on:` shell carries the component's **identity token** —
