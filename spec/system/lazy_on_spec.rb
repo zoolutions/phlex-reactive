@@ -21,6 +21,14 @@ RSpec.describe "reactive_lazy(on:) (issue #276)", type: :system do
 
   def reactive_fetches = page.evaluate_script("window.__reactiveFetches")
 
+  # Resource Timing covers the page load itself (the spy installs after
+  # connect). Valid here because every example starts with a full visit.
+  def reactive_resources_on_load
+    page.evaluate_script(<<~JS)
+      performance.getEntriesByType("resource").filter((e) => e.name.includes("/reactive/")).length
+    JS
+  end
+
   def fire_panel_opened
     page.execute_script(%(document.getElementById("lazy-panel").dispatchEvent(new CustomEvent("panel:opened"))))
   end
@@ -33,6 +41,7 @@ RSpec.describe "reactive_lazy(on:) (issue #276)", type: :system do
     expect(page).to have_css("[data-testid='panel-skeleton']")
     # Give a (wrongly) connect-time fetch every chance to happen.
     sleep 0.3
+    expect(reactive_resources_on_load).to eq(0)
     expect(reactive_fetches).to eq(0)
     expect(page).to have_css("[data-testid='panel-skeleton']")
 
@@ -70,6 +79,7 @@ RSpec.describe "reactive_lazy(on:) (issue #276)", type: :system do
 
     expect(page).to have_css("[data-testid='fold-skeleton']", visible: :all)
     sleep 0.3
+    expect(reactive_resources_on_load).to eq(0)
     expect(reactive_fetches).to eq(0)
 
     page.execute_script(%(document.getElementById("lazy-fold").scrollIntoView()))

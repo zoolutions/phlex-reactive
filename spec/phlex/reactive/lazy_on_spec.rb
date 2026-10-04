@@ -92,8 +92,12 @@ RSpec.describe Phlex::Reactive::Component::Lazy do
     end
 
     it "rejects an invalid trigger loudly at declaration" do
-      [:click, "", "a b", "x->reactive#boom", "keydown.enter", { visible: "lots" }, { other: 1 }, 42].each do
-        expect { lazy_class(on: it) }.to raise_error(ArgumentError, /reactive_lazy on:/)
+      bad_triggers = [:click, "", "a b", "x->reactive#boom", "keydown.enter", { visible: "lots" }, { other: 1 }, 42]
+      bad_triggers.each do
+        # Capture first: a bare `it` inside the nested expect block would bind
+        # to THAT block's (nil) argument and test on: nil instead.
+        bad = it
+        expect { lazy_class(on: bad) }.to raise_error(ArgumentError, /reactive_lazy on:/)
       end
     end
 

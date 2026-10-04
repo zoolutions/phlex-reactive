@@ -304,6 +304,11 @@ module Views
               `defer.phlex_reactive`. It answers **403** for any component that is
               not `reactive_lazy(on:)`, and `action :__materialize` is refused at
               declaration.
+
+              The trigger is bound `once`, so a failed materialize (network drop,
+              5xx) is **not retried**: the root gets `data-reactive-error` and the
+              `reactive:error` event fires as for any action, and the shell stays
+              until the next page render.
             MD
           end
         end
@@ -330,10 +335,13 @@ module Views
                 while being rebuilt or rendered (→ **403**) or return `false` from
                 `render?` (→ **204**, keep content).
               - **`reactive_lazy(on:)` uses the identity token, not a defer token.**
-                It grants nothing an action token on that component doesn't already
-                grant — any action reply re-renders the real template too — and
-                `__materialize` is refused (403) for every component that didn't opt
-                in with `on:`.
+                By opting in with `on:`, a component lets its identity token fetch
+                its real render through the action endpoint — even a component that
+                declares no actions. That is the same render a plain lazy shell's
+                defer token fetches, minus the TTL, so treat the render as reachable
+                by anyone holding the page and authorize inside it (raise a
+                registered error, or `render?` false). `__materialize` is refused
+                (403) for every component that didn't opt in with `on:`.
             MD
           end
         end
