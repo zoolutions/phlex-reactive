@@ -2049,19 +2049,36 @@ function bindingMatches(record, event) {
 
 // Two identical descriptors on one element (two mix-ed on_client calls with
 // the same event) are two Stimulus bindings, so runOps runs twice for ONE
-// event. The first call runs every matching record; a repeat for the same
-// (event, listener target) is a no-op. Keyed on currentTarget so the element
-// and window listeners of a click + click@window pair each still run once.
+// event. The first call runs every matching record; a repeat is a no-op.
+// "Repeat" is (controller, listener target, the element's ops attr): Stimulus
+// walks EVERY binding of one window listener with the SAME event object, so
+// keying on currentTarget alone (= window) would drop every other root's
+// window-bound binding — and a sibling element's within one root. The ops attr
+// is the per-element key (a lone record is typecast to a fresh object per
+// binding, so it is compared by its JSON). Two elements in one root carrying
+// byte-identical window-bound records run once — the same ops, applied once.
 const ranBindings = new WeakMap()
-function bindingsAlreadyRan(event) {
+function bindingsAlreadyRan(event, controller) {
   if (event === null || typeof event !== "object") return false
-  let targets = ranBindings.get(event)
-  if (!targets) {
-    targets = new Set()
-    ranBindings.set(event, targets)
+  const raw = event.params?.ops
+  const key = typeof raw === "string" ? raw : JSON.stringify(raw ?? null)
+  let byController = ranBindings.get(event)
+  if (!byController) {
+    byController = new WeakMap()
+    ranBindings.set(event, byController)
   }
-  if (targets.has(event.currentTarget)) return true
-  targets.add(event.currentTarget)
+  let byTarget = byController.get(controller)
+  if (!byTarget) {
+    byTarget = new Map()
+    byController.set(controller, byTarget)
+  }
+  let keys = byTarget.get(event.currentTarget)
+  if (!keys) {
+    keys = new Set()
+    byTarget.set(event.currentTarget, keys)
+  }
+  if (keys.has(key)) return true
+  keys.add(key)
   return false
 }
 
@@ -2724,7 +2741,7 @@ export default class extends Controller {
   // the component resets whatever they toggled (by design — a signed action
   // owns state that must survive re-renders).
   runOps(event) {
-    if (bindingsAlreadyRan(event)) return
+    if (bindingsAlreadyRan(event, this)) return
     const params = event.params ?? {}
     // The trigger element on_client was spread onto (issue #222 ctx: { el }),
     // captured now — currentTarget resets before the confirm resolver's microtask.

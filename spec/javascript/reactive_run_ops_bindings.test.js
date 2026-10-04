@@ -356,3 +356,40 @@ test("zero matching records runs nothing; warns only under the verbose gate", ()
   expect(verbose.hidden).toBe(false)
   expect(loud.some((w) => w.includes("no on_client binding"))).toBe(true)
 })
+
+// --- run-once must not swallow OTHER bindings on the same window event ----------
+// Stimulus walks every binding of the one (window, "click") listener with the
+// SAME event object, so a guard keyed only on currentTarget (= window) would drop
+// every window-bound runOps after the first.
+
+test("two roots with identical outside-close records both close on one outside click", () => {
+  const rootA = makeRoot()
+  const rootB = makeRoot()
+  const a = buildController(rootA)
+  const b = buildController(rootB)
+  const ops = wire({ on: "click", window: true, outside: true, ops: [["hide", { to: "@root" }]] })
+
+  const event = makeEvent({ ops, target: { __inside: false }, currentTarget: globalThis.window })
+  a.runOps(event)
+  event.params = { ops } // Stimulus reassigns params per binding
+  b.runOps(event)
+
+  expect(rootA.hidden).toBe(true)
+  expect(rootB.hidden).toBe(true)
+})
+
+test("a root outside-close and a child window-bound binding in one root both run", () => {
+  const panel = makeEl()
+  const root = makeRoot({ "#panel": [panel] })
+  const controller = buildController(root)
+  const rootOps = wire({ on: "click", window: true, outside: true, ops: [["hide", { to: "@root" }]] })
+  const childOps = wire({ on: "click", window: true, ops: [["hide", { to: "#panel" }]] })
+
+  const event = makeEvent({ ops: rootOps, target: { __inside: false }, currentTarget: globalThis.window })
+  controller.runOps(event)
+  event.params = { ops: childOps }
+  controller.runOps(event)
+
+  expect(root.hidden).toBe(true)
+  expect(panel.hidden).toBe(true)
+})

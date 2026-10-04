@@ -321,13 +321,17 @@ class DemosController < ActionController::Base
   end
 
   # Issue #271: the accessible disclosure menu (on_client only). The outside area
-  # lets the spec prove the window-bound outside close.
+  # lets the spec prove the window-bound outside close; ClientTabsComponent
+  # carries a SECOND window-bound outside close on the same page, so one outside
+  # click must close both (Stimulus shares one event across window bindings).
   def disclosure_menu
     component = render_to_string(DisclosureMenuComponent.new, layout: false)
+    tabs = render_to_string(ClientTabsComponent.new, layout: false)
     outside = <<~HTML
       <div data-testid="dm-outside" style="padding: 4rem">outside the menu</div>
+      <span id="ct-status-global">One</span>
     HTML
-    render html: component + outside.html_safe, layout: true
+    render html: component + tabs + outside.html_safe, layout: true
   end
 
   # Issue #226: the $ops flagship — a one-time-code field whose reducer

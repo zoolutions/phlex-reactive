@@ -102,4 +102,24 @@ RSpec.describe "Disclosure menu (issue #271 — on_client only)", type: :system 
 
     expect_no_round_trip
   end
+
+  # Stimulus walks every binding of the one window click listener with the SAME
+  # event — a run-once guard keyed on currentTarget alone would close only the
+  # first component's menu.
+  it "closes two components' outside-close menus on one outside click" do
+    # Opening either by click is an outside click for the other, so reveal both
+    # directly — the assertion under test is the ONE outside click below.
+    page.execute_script(<<~JS)
+      document.getElementById("dm-menu").hidden = false
+      document.getElementById("ct-menu").hidden = false
+    JS
+    expect(page).to have_css("[data-testid='dm-menu']")
+    expect(page).to have_css("[data-testid='menu']")
+
+    find("[data-testid='dm-outside']").click
+    expect(page).to have_css("[data-testid='dm-menu']", visible: :hidden)
+    expect(page).to have_css("[data-testid='menu']", visible: :hidden)
+
+    expect_no_round_trip
+  end
 end
