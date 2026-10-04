@@ -2631,7 +2631,11 @@ export default class extends Controller {
     if (this.element.getAttribute?.("data-reactive-token-value") != null) {
       this.#lazyWasShell = this.#lazyShellKind() !== null
       if (this.#lazyWasShell) this.#armLazyTrigger(false)
-      this.#boundLazyMorph = () => this.#lazyAfterMorph()
+      // turbo:morph-element BUBBLES: only a morph of the root itself counts,
+      // never one of a descendant (a morphed skeleton child, a nested root).
+      this.#boundLazyMorph = (event) => {
+        if (event.target === this.element) this.#lazyAfterMorph()
+      }
       this.element.addEventListener?.("turbo:morph-element", this.#boundLazyMorph)
     }
 
@@ -2973,8 +2977,9 @@ export default class extends Controller {
     this.#lazyEventName = name
   }
 
-  // turbo:morph-element on the root: the morph is server truth arriving on a
-  // CONNECTED element. Four outcomes:
+  // turbo:morph-element OF the root (the listener filters out descendants'
+  // morphs): the morph is server truth arriving on a CONNECTED element. Four
+  // outcomes:
   //   * now real content            → nothing to load; drop any armed trigger.
   //   * a load is in flight         → leave it; its reply replaces the shell.
   //   * was real, now a shell       → it was loaded and the morph wiped it, so

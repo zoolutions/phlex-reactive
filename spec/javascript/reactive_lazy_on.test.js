@@ -127,12 +127,16 @@ function makeRoot(attrs = {}) {
       listeners[name] = (listeners[name] ?? []).filter((registered) => registered !== fn)
     },
     // Fire a DOM event at the root's own listeners (the controller's, not Stimulus's).
-    fire: (name) => (listeners[name] ?? []).slice().forEach((fn) => fn({ type: name })),
-    // A Turbo morph rewrote the root's attributes in place, then announced it.
+    fire: (name, event = {}) =>
+      (listeners[name] ?? []).slice().forEach((fn) => fn({ type: name, target: el, ...event })),
+    // A Turbo morph rewrote the root's attributes in place, then announced it
+    // (turbo:morph-element fires on the morphed element — here, the root).
     morphTo: (next) => {
       el.attrs = { ...next }
       el.fire("turbo:morph-element")
     },
+    // A morph of a DESCENDANT: the same event, bubbling up to the root.
+    morphChild: () => el.fire("turbo:morph-element", { target: { id: "a-child" } }),
   }
   return el
 }
@@ -417,6 +421,90 @@ test("a shell morphed into real content stops observing and listening", async ()
   observers[0].trigger(true)
   await settle()
   expect(posts).toEqual([])
+})
+
+// --- only a morph of the ROOT counts -------------------------------------------
+
+test("a child morphing inside a failed shell does not re-arm it; a root morph does", async () => {
+  nextResponse = () => Promise.reject(new Error("offline"))
+  const el = makeRoot(eventShell())
+  const controller = connect(el)
+  stimulusFires(controller)
+  await settle()
+  expect(posts.length).toBe(1)
+
+  // turbo:morph-element bubbles: a morphed skeleton <li> reaches the root.
+  nextResponse = () => Promise.resolve(okResponse())
+  el.morphChild()
+  el.fire("panel:opened")
+  await settle()
+  expect(posts.length).toBe(1)
+
+  el.morphTo(eventShell())
+  el.fire("panel:opened")
+  await settle()
+  expect(posts.length).toBe(2)
+})
+
+test("a child morphing inside a failed :visible shell does not re-observe", async () => {
+  nextResponse = () => Promise.reject(new Error("offline"))
+  const el = makeRoot(visibleShell())
+  connect(el)
+  observers[0].trigger(true)
+  await settle()
+
+  el.morphChild()
+  expect(observers.length).toBe(1)
+})
+
+test("a child morphing inside real content never materializes", async () => {
+  const el = makeRoot(realContent())
+  connect(el)
+
+  // Even if the root's attributes changed some other way, a child's morph is
+  // not the root's morph.
+  el.attrs = { ...eventShell() }
+  el.morphChild()
+  await settle()
+  expect(posts).toEqual([])
+})
+
+// --- the token sent after a morph-back ------------------------------------------
+
+test("a morph-back sends the morphed-in shell's token, not one cached from an earlier reply", async () => {
+  const el = makeRoot(realContent("page-token"))
+  const controller = connect(el)
+
+  // An action reply refreshes the token; the controller caches it.
+  nextResponse = () =>
+    Promise.resolve(
+      okResponse('<turbo-stream action="reactive:token" target="lazy-root" data-reactive-token-value="reply-token">'),
+    )
+  controller.dispatch({
+    type: "click",
+    params: { action: "save", params: "{}" },
+    currentTarget: el,
+    target: el,
+    preventDefault: () => {},
+  })
+  await settle()
+
+  // Prove the cache is live: the next action sends the reply's token.
+  nextResponse = () => Promise.resolve(okResponse())
+  controller.dispatch({
+    type: "click",
+    params: { action: "save", params: "{}" },
+    currentTarget: el,
+    target: el,
+    preventDefault: () => {},
+  })
+  await settle()
+  expect(posts.map((post) => post.token)).toEqual(["page-token", "reply-token"])
+
+  // The morph is server truth: its shell's token is the one to materialize with.
+  el.morphTo(eventShell("morphed-token"))
+  await settle()
+  expect(posts[2]).toEqual({ token: "morphed-token", act: "__materialize", params: {} })
 })
 
 // --- cost gate ----------------------------------------------------------------

@@ -164,6 +164,23 @@ RSpec.describe "reactive_lazy(on:) (issue #276)", type: :system do
       expect(page).to have_reactive_requests(0)
     end
 
+    it "a data-turbo-permanent root is left alone by the morph: no reload, no request" do
+      visit "/lazy_on"
+      snapshot("lazy-panel", as: "shell")
+      fire_panel_opened
+      expect(page).to have_css("[data-testid='panel-item']", text: "item:mine")
+      page.execute_script(%(document.getElementById("lazy-panel").setAttribute("data-turbo-permanent", "")))
+
+      reset_reactive_requests!
+      mark_stale("panel-item")
+      morph_to("lazy-panel", snapshot: "shell")
+
+      # Turbo skips a permanent element, so the loaded content simply stays.
+      expect(page).to have_reactive_requests(0)
+      expect(page).to have_css("[data-testid='panel-item'][data-stale]", text: "item:mine")
+      expect(page).to have_no_css("[data-testid='panel-skeleton']")
+    end
+
     it "a failed load is not retried by itself, and is retried by its event after a morph" do
       visit "/lazy_on?scope=forbidden"
       snapshot_fresh_panel_shell

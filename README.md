@@ -2217,8 +2217,12 @@ controller or in the render.
 A failed load is not retried on its own. A Turbo morph of the root handles the
 rest: real content morphed back into the shell re-materializes at once (one
 request), and a shell that is still unloaded is re-armed, which is also a
-failed load's retry path. Give the shell the real root's tag (`tag: :ul`) so
-the morph keeps the same element. See the deferred-rendering docs page.
+failed load's retry path. **Give the shell the real root's tag** (`tag: :ul`
+for a `<ul>` root): with the default `<div>` shell on a `<ul>`/`<tr>` root,
+Turbo swaps the node instead of morphing it, and an already-open panel shows
+its skeleton until its event fires again. A page that refresh-morphs pays one
+request per loaded `on:` component per refresh; `data-turbo-permanent` on the
+real root opts it out. See the deferred-rendering docs page.
 
 > **One edge case:** a `reply.defer(placeholder:)` shell (the action-driven,
 > not page-mount, form) carries no token of its own — the transient directive

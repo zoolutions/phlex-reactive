@@ -321,9 +321,19 @@ module Views
               (below), by `event.detail.retry()` from a `reactive:error` listener,
               or by the next page render.
 
+              **Give the shell the real root's tag.** The shell is a `<div>` unless
+              you say otherwise. If the real root is a `<ul>`, `<tr>`, `<li>`…,
+              declare it: `reactive_lazy on: "x", tag: :ul`. Besides keeping the
+              markup valid, it is what lets a Turbo morph treat the shell and the
+              real render as the **same element** — everything in the next
+              paragraph depends on that. With mismatched tags Turbo swaps the node
+              instead: a fresh shell is mounted, and an already-open event panel
+              shows its skeleton until its event fires again.
+
               **Turbo morphs.** A page-refresh morph (or a `method="morph"` stream)
               rewrites the root in place and runs no Stimulus lifecycle, so the
-              client handles it itself, on every morph of a reactive root:
+              client handles it itself, whenever the **root itself** is morphed (a
+              morph of something inside it changes nothing here):
 
               | The root before the morph | After the morph it is… | What happens |
               |---|---|---|
@@ -332,10 +342,17 @@ module Views
               | the shell (never triggered, or a failed load) | still the shell | it is **re-armed**: `:visible` observes again and loads on the next intersection; an event shell accepts its event again — this is a failed load's retry path, one attempt per morph |
               | the shell, load in flight | still the shell | nothing — the in-flight reply fills it; never a second request |
 
-              This relies on the morph keeping the **same element**. Give the shell
-              the real root's tag (`reactive_lazy on: "x", tag: :ul`): when the tags
-              differ, Turbo swaps the node instead of morphing it, which is a fresh
-              mount — a new shell that waits for its trigger like any other.
+              **The cost of refresh morphs.** A full page render ships the shell, so
+              every page-refresh morph turns each *loaded* `on:` component back
+              into its shell, and each one reloads: **one `__materialize` request
+              per loaded component per refresh**. That is bounded by how often the
+              page refreshes — the client never triggers it on its own — but a page
+              that refreshes on every broadcast pays it every time. To opt a
+              component out, put `data-turbo-permanent` on its real root (it needs
+              its `id`, which a reactive root has): Turbo then skips the element
+              when morphing, so the loaded content stays and no request is made.
+              The trade is the usual one for a permanent element — the refresh no
+              longer updates it; its own actions and broadcasts still do.
             MD
           end
         end
