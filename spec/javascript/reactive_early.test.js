@@ -252,7 +252,7 @@ test("connect() replays an on_client trigger through runOps, carrying the custom
   expect(calls[0].event.detail).toEqual({ n: 1 })
 })
 
-test("a :once trigger replays once and its descriptor is consumed", async () => {
+test("a :once trigger fired three times replays once, leaving the markup alone", async () => {
   const root = await mount(`<div id="p" data-controller="reactive"><button data-action="click->reactive#dispatch:once mouseover->reactive#dispatch">Go</button></div>`)
   const button = root.querySelector("button")
   click(button)
@@ -261,7 +261,83 @@ test("a :once trigger replays once and its descriptor is consumed", async () => 
   const { calls } = connect(root)
 
   expect(calls).toHaveLength(1)
-  expect(button.getAttribute("data-action")).toBe("mouseover->reactive#dispatch")
+  // Untouched: a morph writing the same data-action back re-arms nothing.
+  expect(button.getAttribute("data-action")).toBe("click->reactive#dispatch:once mouseover->reactive#dispatch")
+})
+
+// Count real dispatches through the reactive:before-dispatch veto point (the
+// veto also keeps the test from enqueueing a fetch).
+function countDispatches(root) {
+  const seen = []
+  root.addEventListener("reactive:before-dispatch", (event) => {
+    seen.push(event.detail.action)
+    event.preventDefault()
+  })
+  return seen
+}
+
+function realConnect(root) {
+  const controller = new ReactiveController()
+  controller.element = root
+  controller.connect()
+  return controller
+}
+
+const liveEvent = (el, type) => ({ type, target: el, currentTarget: el, params: { action: "load" }, preventDefault() {} })
+
+test("after a :once replay, the still-armed Stimulus listener's one firing is swallowed", async () => {
+  const root = await mount(`<div id="p" data-controller="reactive"><button data-action="click->reactive#dispatch:once" data-reactive-action-param="load">Go</button></div>`)
+  const button = root.querySelector("button")
+  const seen = countDispatches(root)
+  click(button)
+  click(button)
+  const controller = realConnect(root)
+  expect(seen).toEqual(["load"])
+
+  controller.dispatch(liveEvent(button, "click"))
+  expect(seen).toEqual(["load"])
+})
+
+test("a regular sibling descriptor of the same type still fires after a :once replay", async () => {
+  const root = await mount(`<div id="p" data-controller="reactive"><button data-action="click->reactive#dispatch:once click->reactive#dispatch" data-reactive-action-param="load">Go</button></div>`)
+  const button = root.querySelector("button")
+  const seen = countDispatches(root)
+  click(button)
+  const controller = realConnect(root)
+  expect(seen).toEqual(["load", "load"])
+
+  // The next live click reaches dispatch twice (once binding + regular one):
+  // the spent once call is swallowed, the regular one runs.
+  const event = liveEvent(button, "click")
+  controller.dispatch(event)
+  controller.dispatch(event)
+  expect(seen).toEqual(["load", "load", "load"])
+})
+
+test("entries of a root that left the page are purged by the next connect, warned under verbose", async () => {
+  const wrapper = await mount(`
+    <div>
+      <div id="gone" data-controller="reactive"><button data-action="click->reactive#dispatch">Go</button></div>
+      <div id="here" data-controller="reactive" data-reactive-verbose="true"></div>
+    </div>`)
+  const gone = wrapper.querySelector("#gone")
+  click(gone.querySelector("button"))
+  gone.remove()
+  connect(wrapper.querySelector("#here"))
+
+  expect(state().queue).toHaveLength(0)
+  expect(warns.join("\n")).toContain("left the page")
+})
+
+test("an entry whose element left the root warns under verbose", async () => {
+  const root = await mount(`<div id="p" data-controller="reactive" data-reactive-verbose="true"><button data-action="click->reactive#dispatch">Go</button></div>`)
+  const button = root.querySelector("button")
+  click(button)
+  button.remove()
+  const { calls } = connect(root)
+
+  expect(calls).toHaveLength(0)
+  expect(warns.join("\n")).toContain("left the root")
 })
 
 test("the replay re-checks a key filter in full (modifiers included)", async () => {

@@ -2400,6 +2400,35 @@ function earlyReplayEvent(event, el) {
   }
 }
 
+// A :once trigger that was REPLAYED is spent, but Stimulus's own `once`
+// listener for it is still armed (the replay calls the method directly). The
+// markup is left alone — rewriting data-action would let a morph, which writes
+// the server's attribute back, re-arm it — so the spent descriptor is tracked
+// per trigger element (a WeakMap: a replaced element starts fresh, like a live
+// `once`), and the armed listener's single firing is swallowed.
+const spentEarlyOnce = new WeakMap()
+
+function spendEarlyOnce(el, { token, type, method }) {
+  let spent = spentEarlyOnce.get(el)
+  if (!spent) spentEarlyOnce.set(el, (spent = new Map()))
+  if (spent.has(token)) return false
+  spent.set(token, { type, method, armed: true })
+  return true
+}
+
+// True (once) for the live call that comes from a spent descriptor's listener.
+function earlyOnceSwallows(event, method) {
+  if (event?.[EARLY_KEY]) return false
+  const spent = spentEarlyOnce.get(event?.currentTarget)
+  if (!spent) return false
+  for (const entry of spent.values()) {
+    if (!entry.armed || entry.method !== method || entry.type !== event.type) continue
+    entry.armed = false
+    return true
+  }
+  return false
+}
+
 // Register this controller eagerly OR lazily: with phlex/reactive/early
 // imported, a trigger that fires before connect is replayed on connect (issue
 // #273). The engine auto-pins it with preload: true for importmap apps; see
@@ -2711,6 +2740,10 @@ export default class extends Controller {
   // bubbling reactive:connect, then replay this root's queued triggers.
   #announceConnected() {
     earlyState().connected.add(this.element)
+    // The attribute is a connect-time marker only: an in-place morph writes
+    // the server's attributes back and strips it (re-marking would cost every
+    // root a morph listener — the "a root that never opted in pays nothing"
+    // contract). The WeakSet above is the truth; reactive:connect the signal.
     this.element.setAttribute?.("data-reactive-connected", "")
     // Raw dispatch (as #emit), on the root only: connect() runs on an attached
     // element, so there is no detached-node fallback to make.
@@ -2722,19 +2755,27 @@ export default class extends Controller {
     this.#drainEarly()
   }
 
+  // Takes this root's entries — and those of any root that left the page
+  // before connecting (replaced by a stream), which no controller would ever
+  // claim.
   #drainEarly() {
     const { queue } = earlyState()
     if (queue.length === 0) return
     const mine = []
-    for (let i = queue.length - 1; i >= 0; i--) if (queue[i].root === this.element) mine.unshift(...queue.splice(i, 1))
+    for (let i = queue.length - 1; i >= 0; i--) {
+      const { root } = queue[i]
+      if (root === this.element || !root.isConnected) mine.unshift(...queue.splice(i, 1))
+    }
     const ttl = earlyTtlMs()
     for (const entry of mine) {
       const reason =
-        performance.now() - entry.at > ttl
-          ? `it is older than the ${ttl} ms early-event TTL`
-          : entry.el.isConnected && this.element.contains(entry.el)
-            ? null
-            : "its element left the root before the controller connected"
+        entry.root !== this.element
+          ? "its root left the page before a controller connected"
+          : performance.now() - entry.at > ttl
+            ? `it is older than the ${ttl} ms early-event TTL`
+            : entry.el.isConnected && this.element.contains(entry.el)
+              ? null
+              : "its element left the root before the controller connected"
       if (reason) {
         if (this.#verboseEnabled()) console.warn(`[phlex-reactive] dropped an early "${entry.event.type}" trigger: ${reason}`)
         continue
@@ -2746,20 +2787,20 @@ export default class extends Controller {
   // One queued event, replayed once per matching descriptor — Stimulus calls
   // each binding with the SAME event object, so runOps' duplicate-binding
   // guard behaves as it does live. Each descriptor is re-checked here, where
-  // Stimulus would check it: it must still be on the element (a :once one is
-  // consumed by removing its token, which also drops the still-armed Stimulus
-  // listener; a morph may have removed it), and its key filter must match in
-  // full (early.js only checks the key, coarsely).
+  // Stimulus would check it: it must still be on the element (a morph may
+  // have removed it), its key filter must match in full (early.js only checks
+  // the key, coarsely), and a :once one runs a single time however often it
+  // was queued (spendEarlyOnce).
   #replayEarly({ event, el, descs }) {
     const replay = earlyReplayEvent(event, el)
     const keyMappings = this.application?.schema?.keyMappings
-    for (const { method, once, token, filter } of descs) {
-      const tokens = (el.getAttribute("data-action") ?? "").split(/\s+/)
-      if (!tokens.includes(token)) continue
-      if (filter && !keyFilterMatches(filter, event, keyMappings)) continue
-      if (method === "runOps") this.runOps(replay)
+    const tokens = (el.getAttribute("data-action") ?? "").split(/\s+/)
+    for (const desc of descs) {
+      if (!tokens.includes(desc.token)) continue
+      if (desc.filter && !keyFilterMatches(desc.filter, event, keyMappings)) continue
+      if (desc.once && !spendEarlyOnce(el, desc)) continue
+      if (desc.method === "runOps") this.runOps(replay)
       else this.dispatch(replay)
-      if (once) el.setAttribute("data-action", tokens.filter((t) => t !== token).join(" "))
     }
   }
 
@@ -2827,6 +2868,8 @@ export default class extends Controller {
   // a per-controller promise makes each dispatch wait for the previous one, so
   // it always uses the freshest token.
   dispatch(event) {
+    // A :once trigger already replayed on connect (issue #273) is spent.
+    if (earlyOnceSwallows(event, "dispatch")) return
     // `window` (renamed: never shadow the global) and `outside` are the event-
     // modifier params (issue #80). The client decides preventDefault behavior
     // from event.params — set by the Ruby on() — never by sniffing the
@@ -2919,6 +2962,7 @@ export default class extends Controller {
   // the component resets whatever they toggled (by design — a signed action
   // owns state that must survive re-renders).
   runOps(event) {
+    if (earlyOnceSwallows(event, "runOps")) return
     if (bindingsAlreadyRan(event, this)) return
     const params = event.params ?? {}
     // The trigger element on_client was spread onto (issue #222 ctx: { el }),

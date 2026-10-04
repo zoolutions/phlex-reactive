@@ -5,9 +5,10 @@
     <%= csrf_meta_tags %>
 
     <%# Issue #273: an app that loads the reactive controller LAZILY. early.js is
-        imported eagerly; the controller only after a delayed dynamic import()
-        (the stand-in for stimulus-loading's lazyLoadControllersFrom), so the
-        spec can fire triggers before it connects. %>
+        imported eagerly; the controller only when the spec calls
+        window.__loadReactive() — a delayed dynamic import(), the stand-in for
+        stimulus-loading's lazyLoadControllersFrom — so the spec can fire
+        triggers before it connects. %>
     <script type="importmap">
       {
         "imports": {
@@ -41,10 +42,14 @@
 
       const application = Application.start()
       window.Stimulus = application
-      setTimeout(async () => {
-        const { default: ReactiveController } = await import("reactive_controller")
-        application.register("reactive", ReactiveController)
-      }, 1500)
+      // The spec decides WHEN the controller loads (a fixed delay raced the
+      // test's own clicks on a busy machine): a setTimeout-delayed import().
+      window.__loadReactive = () =>
+        setTimeout(async () => {
+          const { default: ReactiveController } = await import("reactive_controller")
+          application.register("reactive", ReactiveController)
+        }, 50)
+      window.__earlyReady = true
     </script>
   </head>
   <body>

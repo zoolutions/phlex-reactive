@@ -21,7 +21,12 @@ class EarlyTriggersComponent < ApplicationComponent
 
   def bump = @clicks += 1
 
-  def load = @loads += 1
+  # A MORPH keeps the root element (and Stimulus's still-armed `once` listener)
+  # in place — the case where a replayed :once trigger could fire again.
+  def load
+    @loads += 1
+    reply.morph
+  end
 
   def view_template
     div(**mix(reactive_root, on(:load, event: "panel:opened", once: true))) do

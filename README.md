@@ -134,8 +134,17 @@ Change the window with `Phlex::Reactive.early_event_ttl_ms` and a meta tag:
 <meta name="phlex-reactive-early-ttl" content="<%= Phlex::Reactive.early_event_ttl_ms %>">
 ```
 
-Not captured: `window:`/`outside:` triggers (they listen on `window`), and key
-filters beyond Stimulus's default key names.
+Good to know:
+
+- Every firing before connect is replayed (up to 50), so give a high-frequency
+  trigger (`input`, `mouseover`) a `debounce:` or `throttle:` as usual.
+- If you already wait for the controller yourself and then dispatch (a
+  `getControllerForElementAndIdentifier` polling loop), remove that loop when
+  you add the import, or the trigger fires twice.
+- `data-reactive-connected` is set at connect; an in-place morph strips it
+  again. Listen for `reactive:connect` rather than reading the attribute later.
+- Not captured: `window:`/`outside:` triggers (they listen on `window`), and
+  key filters beyond Stimulus's default key names.
 </details>
 
 ### Scaffold a component

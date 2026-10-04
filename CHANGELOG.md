@@ -22,7 +22,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   1 KB gzipped, asserted by a test. Every root now also sets
   `data-reactive-connected` and emits a bubbling `reactive:connect` event when
   its controller connects. Apps that never import `early` see no change beyond
-  that event and attribute.
+  that event and attribute. If you add the import, remove any hand-written
+  "wait for the controller, then dispatch" loop, or the trigger fires twice.
 
 - **Several `on_client` bindings on one element (#271).** Two `on_client`
   calls merged with `mix` now both work — e.g. a root that closes a menu on an
