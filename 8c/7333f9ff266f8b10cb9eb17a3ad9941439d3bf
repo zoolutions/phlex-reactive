@@ -1,0 +1,44 @@
+spec/phlex/reactive/mcp_spec.rb
+  s_b4f052d694d82f::t_1f5c9b83feeb16 111-120
+CHANGELOG.md
+  s_b4f052d694d82f::t_86bf4a880a588b 12-20
+README.md
+  s_b4f052d694d82f::t_86bf4a880a588b 202,207-209
+docs/app/views/docs/pages/tooling.rb
+  s_b4f052d694d82f::t_86bf4a880a588b 86,93-102
+lib/phlex/reactive/inspector.rb
+  s_b4f052d694d82f::t_190cb1af954642 34-37,46-53,178-179,182-189
+lib/tasks/phlex_reactive.rake
+  s_b4f052d694d82f::t_190cb1af954642 15-16,21-22,25-26
+spec/requests/inventory_tasks_spec.rb
+  s_b4f052d694d82f::t_f0e854da6a7118 57-112,114,116-119
+  s_b4f052d694d82f::t_93c354cf86632b 113,115
+  s_b4f052d694d82f::t_ced346fd9b9965 25
+lib/phlex/reactive/mcp/tools/find_tool.rb
+  s_b4f052d694d82f::t_77bc8382c0565a 56-57
+lib/phlex/reactive/mcp/tools/actions_tool.rb
+  s_b4f052d694d82f::t_86bf4a880a588b 18-20
+lib/phlex/reactive/inspector/report.rb
+  s_b4f052d694d82f::t_93c354cf86632b 41-43
+  s_b4f052d694d82f::t_190cb1af954642 18-21,40,44-46,123,125,146-147,149-153
+  s_b4f052d694d82f::t_77bc8382c0565a 124
+spec/phlex/reactive/inspector_spec.rb
+  s_b4f052d694d82f::t_7067c3c5203d45 219-222,225,227-274
+  s_b4f052d694d82f::t_8e74aa55bc8b8d 223-224,226
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "8c7333f9ff266f8b10cb9eb17a3ad9941439d3bf",
+  "prompts": {},
+  "sessions": {
+    "s_b4f052d694d82f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a4f9e839-a934-4e75-9b79-590503d3a110",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
