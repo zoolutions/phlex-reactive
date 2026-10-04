@@ -102,16 +102,19 @@ module Phlex
         #     morph, because a spent `once` binding never fires again.
         #   * data-reactive-lazy-visible="<rootMargin>" — no descriptor at all;
         #     the client's IntersectionObserver materializes directly.
+        #
+        # A `cache:` component (issue #277) adds its fragment URL: the client
+        # then loads with a cacheable GET instead of the __materialize POST.
         def render_trigger_shell(trigger)
-          public_send(
-            self.class.reactive_lazy_tag,
-            **mix(
-              { id:, class: "reactive-defer-placeholder", aria: { busy: "true" } },
-              reactive_attrs,
-              { data: trigger_shell_data(trigger) },
-              { data: { reactive_defer_src: fragment_src } }
-            )
-          ) { render_deferred_placeholder_content }
+          attrs = mix(
+            { id:, class: "reactive-defer-placeholder", aria: { busy: "true" } },
+            reactive_attrs,
+            { data: trigger_shell_data(trigger) }
+          )
+          # Mixed in only when present: a non-cached shell allocates nothing extra.
+          src = fragment_src
+          attrs = mix(attrs, { data: { reactive_defer_src: src } }) if src
+          public_send(self.class.reactive_lazy_tag, **attrs) { render_deferred_placeholder_content }
         end
 
         # The cacheable fragment URL (issue #277) for a `cache:` component, else

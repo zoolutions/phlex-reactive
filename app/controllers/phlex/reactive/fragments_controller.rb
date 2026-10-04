@@ -84,7 +84,6 @@ module Phlex
         # let it be stored under the other viewer's key.
         return super if viewer && !ActiveSupport::SecurityUtils.secure_compare(viewer, params[:u].to_s)
 
-        @fragment_cacheable = true
         # A stored response must not carry Set-Cookie — and a session cookie
         # re-issued by this very reply would change the Cookie the next request
         # sends, defeating `Vary: Cookie` within the same page.
@@ -94,6 +93,8 @@ module Phlex
         # viewers apart; with one, the URL does (and was just checked).
         response.headers["Vary"] = "Cookie" unless viewer
         render turbo_stream: stream if stale?(etag: stream, template: false)
+        # Only now: anything that raised above leaves the reply no-store.
+        @fragment_cacheable = true
       end
 
       def render_uncacheable(stream, component_class)

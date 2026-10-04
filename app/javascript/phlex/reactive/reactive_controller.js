@@ -265,10 +265,37 @@ function deferRequest(source, signal) {
 // A lazy shell's pull-lane source, read off its root: the defer token, else
 // the cacheable fragment URL, else undefined (not a fetching shell).
 function lazyDeferSource(el) {
-  const token = el.getAttribute?.("data-reactive-defer-token")
-  if (token) return token
+  return el.getAttribute?.("data-reactive-defer-token") || fragmentSource(el)
+}
+
+// A `cache:` shell's fragment URL as a pull-lane source, or undefined. Unlike a
+// token (opaque, POSTed to one fixed path) this is a URL read from the DOM, and
+// its response is rendered as a turbo-stream — so it is fetched ONLY when it
+// resolves to this origin's fragment endpoint. Markup that smuggled the
+// attribute in (user HTML that kept data-* attributes) must not be able to
+// point the client at another origin, an upload, or any other same-origin path.
+function fragmentSource(el) {
   const src = el.getAttribute?.("data-reactive-defer-src")
-  return src ? { src } : undefined
+  if (!src) return
+  if (isFragmentUrl(src)) return { src }
+  console.error(`[phlex-reactive] refused data-reactive-defer-src="${src}" — not this app's fragment endpoint`)
+}
+
+function isFragmentUrl(src) {
+  try {
+    const here = new URL(window.location.href)
+    const url = new URL(src, here)
+    return url.origin === here.origin && url.pathname.startsWith(`${fragmentPath()}/`)
+  } catch {
+    return false
+  }
+}
+
+// Phlex::Reactive.fragment_path, for the check above. An app that moves the
+// endpoint renders <meta name="phlex-reactive-fragment-path"> (as for the
+// action and defer paths); the URL itself always comes from the shell.
+function fragmentPath() {
+  return document.querySelector('meta[name="phlex-reactive-fragment-path"]')?.content || "/reactive/fragment"
 }
 
 // The push lane: subscribe a <pgbus-stream-source> to the server-signed
@@ -3054,9 +3081,9 @@ export default class extends Controller {
   // on the first trigger of a later page view, and on every morph-back.
   #materialize() {
     if (this.#lazyInFlight) return
-    const src = this.element.getAttribute?.("data-reactive-defer-src")
-    const run = src
-      ? startFetchDefer(this.element.id, { src })
+    const source = fragmentSource(this.element)
+    const run = source
+      ? startFetchDefer(this.element.id, source)
       : this.#proceed(this.element, LAZY_MATERIALIZE_ACTION, "{}")
     if (!run) return // vetoed by reactive:before-dispatch (or the root has no id)
     this.#lazyInFlight = true

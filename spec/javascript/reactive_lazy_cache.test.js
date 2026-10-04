@@ -35,6 +35,7 @@ let nextResponse
 let rendered
 let byId
 let html
+let metas
 
 class FakeIntersectionObserver {
   constructor(callback) {
@@ -76,7 +77,11 @@ beforeEach(() => {
   byId = {}
   nextResponse = () => Promise.resolve(response())
   globalThis.IntersectionObserver = FakeIntersectionObserver
-  globalThis.window = { Turbo: { StreamActions: {}, renderStreamMessage: (body) => rendered.push(body) } }
+  metas = {}
+  globalThis.window = {
+    Turbo: { StreamActions: {}, renderStreamMessage: (body) => rendered.push(body) },
+    location: { href: "https://app.example/dashboard" },
+  }
   const htmlAttrs = { "data-reactive-verbose": "" }
   html = {
     attrs: htmlAttrs,
@@ -88,7 +93,10 @@ beforeEach(() => {
   globalThis.document = {
     documentElement: html,
     getElementById: (id) => byId[id] ?? null,
-    querySelector: () => null,
+    querySelector: (selector) => {
+      const name = selector.match(/meta\[name="([^"]+)"\]/)?.[1]
+      return name && metas[name] ? { content: metas[name] } : null
+    },
     addEventListener: () => {},
     dispatchEvent: () => {},
   }
@@ -242,6 +250,61 @@ test("a plain shell (defer token, no URL) still POSTs the token to the defer end
   expect(calls[0].url).toBe("/reactive/defer")
   expect(calls[0].options.method).toBe("POST")
   expect(JSON.parse(calls[0].options.body)).toEqual({ token: "defer-token" })
+})
+
+// --- the URL comes from the DOM: only this app's fragment endpoint is fetched ----
+
+const refused = [
+  ["another origin", "https://evil.example/reactive/fragment/abc"],
+  ["a protocol-relative URL", "//evil.example/reactive/fragment/abc"],
+  ["a same-origin path that is not the fragment endpoint", "/uploads/payload.html"],
+  ["a path that only starts like it", "/reactive/fragmentx/abc"],
+  ["a traversal out of the fragment endpoint", "/reactive/fragment/../../uploads/payload.html"],
+  ["a javascript: URL", "javascript:alert(1)"],
+]
+
+for (const [label, src] of refused) {
+  test(`a plain shell whose URL is ${label} is never fetched`, async () => {
+    const el = makeRoot({ [SRC]: src, [PENDING]: "true" })
+    connect(el)
+    await settle()
+
+    expect(calls).toEqual([])
+    expect(rendered).toEqual([])
+  })
+}
+
+test("an on: shell with a refused URL falls back to the signed __materialize POST", async () => {
+  const controller = connect(
+    makeRoot({ [TOKEN]: "shell-token", [ON]: "panel:opened", [SRC]: "https://evil.example/reactive/fragment/abc" }),
+  )
+
+  stimulusFires(controller)
+  await settle()
+
+  expect(calls.length).toBe(1)
+  expect(calls[0].url).toBe("/reactive/actions")
+  expect(JSON.parse(calls[0].options.body)).toEqual({ token: "shell-token", act: "__materialize", params: {} })
+})
+
+test("an absolute same-origin fragment URL is fetched", async () => {
+  const src = "https://app.example/reactive/fragment/abc"
+  connect(makeRoot({ [SRC]: src, [PENDING]: "true" }))
+  await settle()
+
+  expect(calls.map((call) => call.url)).toEqual([src])
+})
+
+test("the fragment path follows the phlex-reactive-fragment-path meta", async () => {
+  metas["phlex-reactive-fragment-path"] = "/_r/frag"
+  connect(makeRoot({ [SRC]: "/_r/frag/abc", [PENDING]: "true" }))
+  const defaultPath = makeRoot({ [SRC]: URL, [PENDING]: "true" })
+  defaultPath.id = "default-path"
+  byId["default-path"] = defaultPath
+  connect(defaultPath)
+  await settle()
+
+  expect(calls.map((call) => call.url)).toEqual(["/_r/frag/abc"])
 })
 
 // --- on: + cache: -------------------------------------------------------------
