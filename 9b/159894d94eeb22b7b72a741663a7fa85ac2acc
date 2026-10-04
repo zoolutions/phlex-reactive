@@ -1,0 +1,50 @@
+docs/app/views/docs/pages/performance.rb
+  s_b4f052d694d82f::t_ea7b2b639cecdc 805-808
+  s_b4f052d694d82f::t_4db5589b8dd3f4 854-856
+  s_b4f052d694d82f::t_d59c857e5e1228 885
+  s_b4f052d694d82f::t_836eeb49ccfe58 817-822,825-844
+spec/phlex/reactive/dormant_spec.rb
+  s_b4f052d694d82f::t_d12e9a76a6b6a3 197-247
+app/controllers/phlex/reactive/actions_controller.rb
+  s_b4f052d694d82f::t_ec461643c1d991 85
+  s_b4f052d694d82f::t_0ab6d89a4d766c 143-145
+lib/phlex/reactive/component/helpers.rb
+  s_b4f052d694d82f::t_8b29dafaea3c00 84-86
+spec/dummy/app/components/dormant_lazy_panel_component.rb
+  s_b4f052d694d82f::t_138565bb80a076 1-11
+spec/javascript/reactive_dormant.test.js
+  s_b4f052d694d82f::t_f6356e49fdc987 253-286
+  s_b4f052d694d82f::t_a2e434f5ca2b93 29-33
+app/javascript/phlex/reactive/reactive_controller.js
+  s_b4f052d694d82f::t_1f2ec4afef86a4 2894-2896,2898-2901
+spec/dummy/app/controllers/demos_controller.rb
+  s_b4f052d694d82f::t_0881e38ae9be7f 31-38
+spec/requests/dormant_reply_spec.rb
+  s_b4f052d694d82f::t_2c8f6e99474250 69-90
+lib/phlex/reactive/dormant.rb
+  s_b4f052d694d82f::t_b00fe0af4cba11 38-50
+spec/system/dormant_root_spec.rb
+  s_b4f052d694d82f::t_80b4bbe0cb1b3f 145-174
+spec/dummy/config/routes.rb
+  s_b4f052d694d82f::t_14f91c2492a93e 14
+README.md
+  s_b4f052d694d82f::t_33c652395542a4 185-197,200-205,211
+CHANGELOG.md
+  s_b4f052d694d82f::t_ccf309911d0dd1 53-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "9b159894d94eeb22b7b72a741663a7fa85ac2acc",
+  "prompts": {},
+  "sessions": {
+    "s_b4f052d694d82f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a4f9e839-a934-4e75-9b79-590503d3a110",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
