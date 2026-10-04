@@ -96,6 +96,8 @@ module Phlex
       # object with a blank to_param). 0 is a viewer.
       def viewer_named?(viewer)
         return false if viewer.nil? || viewer == false
+        # An Enumerator of unknown or infinite size would never finish to_a.
+        return false if viewer.is_a?(::Enumerator) && !viewer.size.is_a?(::Integer)
 
         if viewer.respond_to?(:to_a) && !viewer.respond_to?(:cache_key)
           parts = viewer.to_a

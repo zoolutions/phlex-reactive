@@ -112,15 +112,20 @@ module Phlex
         return true if control[:no_store] || control[:no_cache]
         return true if response.headers["Cache-Control"].to_s.match?(/\bno-(?:store|cache)\b/i)
 
-        app_cache_directives[:max_age]&.zero? && !@fragment_policy&.fetch(:max_age)&.zero?
+        app_max_age = app_cache_directives[:max_age]
+        !app_max_age.nil? && app_max_age.zero?
       end
 
       # What the app's own filters asked for, from expires_in (the response's
       # cache_control hash) or a header set by hand: the smallest max-age, and
-      # whether must-revalidate was requested.
+      # whether must-revalidate was requested. Empty while the policy on the
+      # response is still exactly the one this endpoint applied — so its OWN
+      # max-age (which may be 0) is never mistaken for the app's.
       def app_cache_directives
         control = response.cache_control
         header = response.headers["Cache-Control"].to_s
+        return {} if @applied_policy && control == @applied_policy && header.empty?
+
         ages = [control[:max_age], header[/\bmax-age=(\d+)/i, 1]].compact.map(&:to_i)
         { max_age: ages.min, must_revalidate: control[:must_revalidate] || header.match?(/\bmust-revalidate\b/i) }
       end
@@ -224,10 +229,13 @@ module Phlex
       # (settle_caching).
       def apply_cache_policy
         app = app_cache_directives
-        policy = { max_age: [@fragment_policy[:max_age], app[:max_age]].compact.min, public: false }
-        policy[:must_revalidate] = true if app[:must_revalidate]
+        @fragment_policy[:max_age] = [@fragment_policy[:max_age], app[:max_age]].compact.min
+        @fragment_policy[:must_revalidate] ||= app[:must_revalidate]
+        policy = { max_age: @fragment_policy[:max_age], public: false }
+        policy[:must_revalidate] = true if @fragment_policy[:must_revalidate]
         response.headers.delete("Cache-Control")
         response.cache_control.replace(policy)
+        @applied_policy = policy.dup
         vary_on_cookie if @fragment_policy[:vary]
       end
 

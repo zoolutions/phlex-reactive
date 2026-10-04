@@ -378,14 +378,28 @@ RSpec.describe "cacheable lazy fragments", type: :request do
       end
     end
 
-    it "still answers no-store for its own max-age limit of zero only when the app asked" do
-      original = Phlex::Reactive.fragment_cache_max_age_limit
-      Phlex::Reactive.fragment_cache_max_age_limit = 0
-      get_fragment
+    describe "with a fragment_cache_max_age_limit of zero (revalidate on every use)" do
+      around do
+        original = Phlex::Reactive.fragment_cache_max_age_limit
+        Phlex::Reactive.fragment_cache_max_age_limit = 0
+        it.run
+      ensure
+        Phlex::Reactive.fragment_cache_max_age_limit = original
+      end
 
-      expect(response.headers["Cache-Control"]).to eq("max-age=0, private")
-    ensure
-      Phlex::Reactive.fragment_cache_max_age_limit = original
+      it "answers max-age=0, private on its own" do
+        get_fragment
+
+        expect(response.headers["Cache-Control"]).to eq("max-age=0, private")
+      end
+
+      it "is still no-store when the app's filter asked for max-age=0 as well" do
+        %w[Before After].each do
+          get_fragment(extra_headers: { "X-Dummy-#{it}-Cache" => "expires_in_0" })
+
+          expect(response.headers["Cache-Control"]).to eq("no-store")
+        end
+      end
     end
 
     # A filter that forbids caching wins.

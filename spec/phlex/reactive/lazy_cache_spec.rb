@@ -175,6 +175,11 @@ RSpec.describe "reactive_lazy(cache:)" do # rubocop:disable RSpec/DescribeClass
       end
     end
 
+    it "treats an endless Enumerator as unnamed instead of walking it" do
+      expect(src(viewer_class((1..).each).new.call)).not_to include("u=")
+      expect(src(viewer_class([1, 2].cycle).new.call)).not_to include("u=")
+    end
+
     it "is keyed: not reproducible from the value with a plain digest" do
       u = src(viewer_class(42).new.call)[/u=(\h+)/, 1]
       guesses = ["42", "viewer:42", "phlex-reactive/fragment-viewer:42"].flat_map do
