@@ -172,6 +172,72 @@ RSpec.describe "Dormant roots (issue #274 — mount the controller on first use)
     end
   end
 
+  # A dormant morph-back DISCONNECTS the root (unlike a morph reply), so a :once
+  # trigger that was already replayed must be usable again after the re-wake.
+  context "when a :once trigger was replayed before the root went back to sleep" do
+    def morph_with(html_js)
+      page.execute_script(<<~JS)
+        window.Turbo.renderStreamMessage(
+          '<turbo-stream action="replace" method="morph" target="' + #{html_js}.id + '"><template>' +
+            #{html_js}.html + "</template></turbo-stream>"
+        )
+      JS
+    end
+
+    it "fires again on a plain dormant root" do
+      visit_dormant
+      open_panel
+      expect(page).to have_css("[data-testid='loads']", text: "1")
+      wait_for_reactive
+
+      page.execute_script(<<~JS)
+        fetch("/dormant_stream", { headers: { Accept: "text/vnd.turbo-stream.html" } })
+          .then((response) => response.text())
+          .then((html) => window.Turbo.renderStreamMessage(html))
+      JS
+      expect(page).to have_css("[data-testid='clicks']", text: "7")
+      expect(page).to have_css("#dormant-panel[data-reactive-dormant='reactive']")
+      expect(page).to have_css("[data-testid='loads']", text: "0")
+
+      3.times { open_panel }
+      # Exactly one more request. (Not asserting the count it renders: after a
+      # morph REPLY the controller keeps using its cached token rather than the
+      # one an outside morph brought, on any root — a separate, older matter.)
+      expect(page).to have_no_css("[data-testid='loads']", exact_text: "0")
+      expect_action_posts(2)
+    end
+
+    it "retries a dormant reactive_lazy(on:) shell whose first load failed" do
+      visit "/dormant_lazy?scope=forbidden"
+      expect(page).to have_css("#dormant-lazy-panel[data-reactive-dormant='reactive']")
+      expect(page.evaluate_script("window.__earlyReady === true")).to be(true)
+      # A shell the server WILL render, fetched without visiting.
+      page.execute_script(<<~JS)
+        fetch("/dormant_lazy").then((r) => r.text()).then((html) => {
+          const el = new DOMParser().parseFromString(html, "text/html").getElementById("dormant-lazy-panel")
+          window.__freshShell = { id: el.id, html: el.outerHTML }
+          document.documentElement.setAttribute("data-fresh-shell", "ready")
+        })
+      JS
+      expect(page).to have_css("html[data-fresh-shell='ready']")
+
+      page.execute_script(%(document.getElementById("dormant-lazy-panel").dispatchEvent(new CustomEvent("panel:opened"))))
+      expect(page).to have_css("#dormant-lazy-panel[data-reactive-error]")
+      expect_action_posts(1)
+
+      morph_with("window.__freshShell")
+      expect(page).to have_css("#dormant-lazy-panel[data-reactive-dormant='reactive']")
+
+      3.times do
+        page.execute_script(
+          %(document.getElementById("dormant-lazy-panel").dispatchEvent(new CustomEvent("panel:opened")))
+        )
+      end
+      expect(page).to have_css("[data-testid='panel-item']", text: "item:mine")
+      expect_action_posts(2)
+    end
+  end
+
   context "with an eagerly registered controller" do
     it "does not connect the dormant root on load, and handles the waking click once" do
       visit_dormant(load: "eager")

@@ -32,7 +32,8 @@ class DemosController < ActionController::Base
   # only reactive root — no client until the panel opens, then one request.
   def dormant_lazy
     @reactive_load = "auto"
-    html = render_to_string(DormantLazyPanelComponent.new(scope: "mine"), layout: false)
+    # ?scope=forbidden ships a panel whose materialize is denied (403).
+    html = render_to_string(DormantLazyPanelComponent.new(scope: params.fetch(:scope, "mine")), layout: false)
     render html: html.html_safe, layout: "lazy_controller"
   end
 

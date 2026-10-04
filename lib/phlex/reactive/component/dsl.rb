@@ -329,6 +329,8 @@ module Phlex
           #
           # Not with reactive_lazy(on: :visible): that shell has no trigger to
           # wake on (refused here, or at render for the other declaration order).
+          # A plain reactive_lazy shell ignores it: it fetches on connect, so it
+          # always mounts. reactive_lazy(on: "event") shells do go dormant.
           def reactive_dormant(dormant = true) # rubocop:disable Style/OptionalBooleanParameter
             unless [true, false].include?(dormant)
               raise ArgumentError, "#{self}: reactive_dormant takes true or false, got #{dormant.inspect}"

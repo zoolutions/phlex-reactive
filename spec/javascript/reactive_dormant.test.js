@@ -225,6 +225,28 @@ test("a morph that renders a woken root dormant again lets the next trigger re-w
   expect(second.calls).toHaveLength(1)
 })
 
+// A replayed :once trigger is remembered as spent per element, so a morph REPLY
+// (root still connected) cannot re-arm it. A dormant morph-back DISCONNECTS the
+// root, and Stimulus binds a fresh `once` when it reconnects — the spent memory
+// must go with the disconnect, or the trigger is dead on that element for good.
+test("a replayed :once trigger fires again after the root went back to sleep and re-woke", async () => {
+  const root = await mount(
+    `<div id="menu" data-reactive-dormant="reactive" data-action="panel:opened->reactive#dispatch:once"></div>`,
+  )
+  root.dispatchEvent(new window.CustomEvent("panel:opened"))
+  const first = connect(root)
+  expect(first.calls).toHaveLength(1)
+
+  root.removeAttribute("data-controller")
+  root.setAttribute("data-reactive-dormant", "reactive")
+  first.controller.disconnect()
+
+  root.dispatchEvent(new window.CustomEvent("panel:opened"))
+  root.dispatchEvent(new window.CustomEvent("panel:opened"))
+  const second = connect(root)
+  expect(second.calls).toHaveLength(1)
+})
+
 // --- reactive_controller.js: the waking event is handled once ---------------------
 
 // With the controller registered EAGERLY, moving the identifier into

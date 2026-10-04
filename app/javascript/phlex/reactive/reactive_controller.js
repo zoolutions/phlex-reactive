@@ -2842,6 +2842,10 @@ export default class extends Controller {
     this.#drainEarly()
   }
 
+  // The trigger elements whose :once descriptor THIS connection replayed —
+  // forgotten on disconnect (see disconnect()).
+  #earlySpentOn = new Set()
+
   // Takes this root's entries — and those of any root that left the page
   // before connecting (replaced by a stream), which no controller would ever
   // claim.
@@ -2906,7 +2910,10 @@ export default class extends Controller {
       if (!tokens.includes(desc.token)) continue
       if (desc.filter && !keyFilterMatches(desc.filter, event, keyMappings)) continue
       // (`:once` is read off the token: early.js keeps its records minimal.)
-      if (/#\w+.*:once\b/.test(desc.token) && !spendEarlyOnce(el, desc)) continue
+      if (/#\w+.*:once\b/.test(desc.token)) {
+        if (!spendEarlyOnce(el, desc)) continue
+        this.#earlySpentOn.add(el)
+      }
       if (desc.method === "runOps") this.runOps(replay)
       else this.dispatch(replay)
     }
@@ -2955,6 +2962,13 @@ export default class extends Controller {
     // Early triggers (issue #273): a disconnected root records again.
     earlyState().connected.delete(this.element)
     this.element.removeAttribute?.("data-reactive-connected")
+    // A spent :once replay is remembered per element so a morph REPLY (root
+    // still connected) cannot re-arm it. A disconnect drops Stimulus's own
+    // `once` listeners and the next connect binds fresh ones, so the memory
+    // goes too (issue #274: a dormant morph-back disconnects a root in place —
+    // its :once trigger must work again after the re-wake).
+    for (const el of this.#earlySpentOn) spentEarlyOnce.delete(el)
+    this.#earlySpentOn.clear()
   }
 
   // Which reactive_lazy(on:) shell this root currently is — read live, because
