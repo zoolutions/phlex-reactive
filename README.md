@@ -2149,6 +2149,11 @@ reactive_lazy on: :visible                # IntersectionObserver
 reactive_lazy on: { visible: "200px" }    # …with a rootMargin
 ```
 
+`:visible` fires when the shell first enters the viewport grown by the
+rootMargin, so a margin can load it slightly before it scrolls into view. In an
+engine without `IntersectionObserver` a `:visible` shell materializes right
+after connect, so it still loads, just not lazily.
+
 The shell makes no request on page load and materializes exactly once; the
 real render has no trigger, so later events are no-ops. It carries the
 identity token (no expiry, unlike the defer token), so it works on a page left

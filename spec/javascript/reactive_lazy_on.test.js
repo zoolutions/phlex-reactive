@@ -117,6 +117,31 @@ test("disconnect() tears the observer down", () => {
   expect(observers[0].disconnected).toBe(true)
 })
 
+test("a turbo:morph-element re-showing the shell re-arms the observer (no connect() on a morph)", () => {
+  const el = makeShell({ "data-reactive-lazy-visible": "0px" })
+  const listeners = {}
+  el.addEventListener = (name, fn) => (listeners[name] = fn)
+  connect(el)
+
+  // While still observing, a morph is a no-op (no second observer).
+  listeners["turbo:morph-element"]()
+  expect(observers.length).toBe(1)
+
+  observers[0].trigger(true)
+  expect(observers[0].disconnected).toBe(true)
+
+  // The morph brings the shell back: observe again.
+  listeners["turbo:morph-element"]()
+  expect(observers.length).toBe(2)
+  expect(observers[1].observed).toEqual([el])
+
+  // A morph to the real content (marker gone) does not re-arm.
+  observers[1].trigger(true)
+  delete el.attrs["data-reactive-lazy-visible"]
+  listeners["turbo:morph-element"]()
+  expect(observers.length).toBe(2)
+})
+
 test("an event-triggered on: shell (no defer token, no visible marker) neither observes nor fetches", () => {
   const el = makeShell({ "data-reactive-token-value": "identity" })
   connect(el)

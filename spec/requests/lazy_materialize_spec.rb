@@ -100,8 +100,11 @@ RSpec.describe "reactive_lazy(on:) materialize", type: :request do
   it "instruments as a defer (a read), naming the component" do
     events = []
     sub = ActiveSupport::Notifications.subscribe("defer.phlex_reactive") { |*args| events << args.last }
-    materialize(LazyPanelComponent, { "s" => { "scope" => "mine" } })
-    ActiveSupport::Notifications.unsubscribe(sub)
+    begin
+      materialize(LazyPanelComponent, { "s" => { "scope" => "mine" } })
+    ensure
+      ActiveSupport::Notifications.unsubscribe(sub)
+    end
 
     expect(events.size).to eq(1)
     expect(events.first).to include(component: "LazyPanelComponent", outcome: :ok)

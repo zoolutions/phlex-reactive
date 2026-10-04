@@ -34,7 +34,8 @@ module Phlex
         # no target (@), no descriptor syntax (->, #) — `panel:opened` is fine.
         EVENT_NAME = /\A[A-Za-z][\w:-]*\z/
         # An IntersectionObserver rootMargin: one to four px/% lengths.
-        ROOT_MARGIN = /\A-?\d+(?:\.\d+)?(?:px|%)(?: -?\d+(?:\.\d+)?(?:px|%)){0,3}\z/
+        # Any CSS whitespace between lengths; normalized to single spaces.
+        ROOT_MARGIN = /\A\s*-?\d+(?:\.\d+)?(?:px|%)(?:\s+-?\d+(?:\.\d+)?(?:px|%)){0,3}\s*\z/
 
         # `on:` → { event: "x" } | { visible: "<rootMargin>" }, or raise.
         def self.normalize_trigger(on)
@@ -45,7 +46,9 @@ module Phlex
             return { visible: "0px" }
           when ::Hash
             margin = on[:visible]
-            return { visible: margin } if on.keys == [:visible] && margin.is_a?(String) && margin.match?(ROOT_MARGIN)
+            if on.keys == [:visible] && margin.is_a?(String) && margin.match?(ROOT_MARGIN)
+              return { visible: margin.split.join(" ") }
+            end
           end
           raise ArgumentError,
             "reactive_lazy on: expects a DOM event name (\"panel:opened\"), :visible, or " \

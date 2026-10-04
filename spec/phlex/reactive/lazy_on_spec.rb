@@ -81,6 +81,8 @@ RSpec.describe Phlex::Reactive::Component::Lazy do
       expect(lazy_class(on: "panel:opened").reactive_lazy_trigger).to eq(event: "panel:opened")
       expect(lazy_class(on: :visible).reactive_lazy_trigger).to eq(visible: "0px")
       expect(lazy_class(on: { visible: "10% 0px" }).reactive_lazy_trigger).to eq(visible: "10% 0px")
+      # Any CSS whitespace is accepted, normalized to single spaces.
+      expect(lazy_class(on: { visible: " 10px \t 20px " }).reactive_lazy_trigger).to eq(visible: "10px 20px")
       expect(LazyStatsComponent.reactive_lazy_trigger).to be_nil
       expect(CounterComponent.reactive_lazy_trigger).to be_nil
     end

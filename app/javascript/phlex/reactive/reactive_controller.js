@@ -2408,6 +2408,7 @@ export default class extends Controller {
   // reactive_lazy(on: :visible) (issue #276): the IntersectionObserver that
   // fires the shell's reactive:visible trigger once, held for teardown.
   #lazyVisibleObserver = null
+  #boundRearmLazyVisible
   // Clipboard-trigger availability gate (issue #228): the bound morph re-sync,
   // held for teardown.
   #boundSyncClipboard
@@ -2465,7 +2466,18 @@ export default class extends Controller {
     // reactive_lazy(on:) shells (issue #276) carry NO defer token, so the probe
     // above skips them: an event shell waits for its own once-bound
     // __materialize trigger. A :visible shell also needs the observer below.
-    if (this.element.hasAttribute?.("data-reactive-lazy-visible")) this.#observeLazyVisible()
+    // A Turbo page-refresh morph can re-show the shell while the element stays
+    // connected (no connect()), so re-arm on turbo:morph-element too — the
+    // lazy-defer probe's precedent. Wired only for a root that IS a visible shell.
+    if (this.element.hasAttribute?.("data-reactive-lazy-visible")) {
+      this.#observeLazyVisible()
+      this.#boundRearmLazyVisible = () => {
+        if (!this.#lazyVisibleObserver && this.element.hasAttribute?.("data-reactive-lazy-visible")) {
+          this.#observeLazyVisible()
+        }
+      }
+      this.element.addEventListener?.("turbo:morph-element", this.#boundRearmLazyVisible)
+    }
 
     // Client-only drafts (issue #239) — ONLY when the root declares
     // data-reactive-persist (one attribute read otherwise). Runs FIRST among
@@ -2676,6 +2688,9 @@ export default class extends Controller {
       this.element.removeEventListener?.("turbo:morph-element", this.#boundProbeLazyDefer)
     }
     this.#disconnectLazyVisible()
+    if (this.#boundRearmLazyVisible) {
+      this.element.removeEventListener?.("turbo:morph-element", this.#boundRearmLazyVisible)
+    }
   }
 
   // reactive_lazy(on: :visible) (issue #276): fire the shell's once-bound
