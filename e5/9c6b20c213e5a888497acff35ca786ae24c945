@@ -1,0 +1,65 @@
+docs/app/views/docs/pages/tooling.rb
+  s_b4f052d694d82f::t_d655ad76d50653 86,93-103
+spec/requests/inventory_tasks_spec.rb
+  s_b4f052d694d82f::t_d655ad76d50653 25,57-135
+lib/phlex/reactive/test_helpers/system/reactive_requests_matcher.rb
+  s_b4f052d694d82f::t_d655ad76d50653 1-120
+spec/javascript/reactive_request_count.test.js
+  s_b4f052d694d82f::t_d655ad76d50653 1-254
+lib/phlex/reactive/component/lazy.rb
+  s_b4f052d694d82f::t_d655ad76d50653 49-52
+lib/tasks/phlex_reactive.rake
+  s_b4f052d694d82f::t_d655ad76d50653 15-16,21-22,25-26
+spec/phlex/reactive/lazy_mount_spec.rb
+  s_b4f052d694d82f::t_d655ad76d50653 42-55
+spec/phlex/reactive/test_helpers_system_spec.rb
+  s_b4f052d694d82f::t_d655ad76d50653 105-230
+docs/app/views/docs/pages/testing.rb
+  s_b4f052d694d82f::t_d655ad76d50653 390-414,432-441
+lib/phlex/reactive/inspector/report.rb
+  s_b4f052d694d82f::t_d655ad76d50653 18-24,43-49,126-128,149-150,152-156
+lib/phlex/reactive/claude/skills/phlex-reactive-debugging/SKILL.md
+  s_b4f052d694d82f::t_d655ad76d50653 36,41-44
+lib/phlex/reactive/mcp/tools/find_tool.rb
+  s_b4f052d694d82f::t_d655ad76d50653 18-19,57-58
+lib/phlex/reactive/test_helpers/system.rb
+  s_b4f052d694d82f::t_d655ad76d50653 39-62,119-154,253-254
+spec/phlex/reactive/inspector_spec.rb
+  s_b4f052d694d82f::t_d655ad76d50653 219-286
+spec/system/reactive_request_count_spec.rb
+  s_b4f052d694d82f::t_d655ad76d50653 1-91
+spec/phlex/reactive/mcp_spec.rb
+  s_b4f052d694d82f::t_d655ad76d50653 111-121,138-141
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,3
+lib/phlex/reactive.rb
+  s_b4f052d694d82f::t_d655ad76d50653 1202-1203
+lib/phlex/reactive/inspector.rb
+  s_b4f052d694d82f::t_d655ad76d50653 34-37,46-53,178-179,182-189
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 5,7-8
+app/javascript/phlex/reactive/reactive_controller.js
+  s_b4f052d694d82f::t_d655ad76d50653 305,954-990,4281
+README.md
+  s_b4f052d694d82f::t_d655ad76d50653 237,242-245,3412-3427
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,3
+lib/phlex/reactive/mcp/tools/actions_tool.rb
+  s_b4f052d694d82f::t_d655ad76d50653 18-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e59c6b20c213e5a888497acff35ca786ae24c945",
+  "prompts": {},
+  "sessions": {
+    "s_b4f052d694d82f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a4f9e839-a934-4e75-9b79-590503d3a110",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
