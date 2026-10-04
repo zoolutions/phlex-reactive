@@ -13,12 +13,16 @@ module Phlex
 
       # Mount POST /reactive/actions -> Phlex::Reactive::ActionsController#create
       # and POST /reactive/defer -> #deferred (the pull-lane defer endpoint,
-      # issue #165). Apps can change the paths with Phlex::Reactive.action_path /
-      # .defer_path before boot.
+      # issue #165), and GET /reactive/fragment/:id -> FragmentsController#show
+      # (the privately cacheable lazy render, issue #277). Apps can change the
+      # paths with Phlex::Reactive.action_path / .defer_path / .fragment_path
+      # before boot.
       initializer "phlex_reactive.routes" do
         it.routes.append do
           post Phlex::Reactive.action_path, to: "phlex/reactive/actions#create", as: :phlex_reactive_action
           post Phlex::Reactive.defer_path, to: "phlex/reactive/actions#deferred", as: :phlex_reactive_defer
+          get "#{Phlex::Reactive.fragment_path}/:id", to: "phlex/reactive/fragments#show",
+            as: :phlex_reactive_fragment
         end
       end
 

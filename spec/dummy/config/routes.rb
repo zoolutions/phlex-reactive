@@ -82,6 +82,8 @@ Rails.application.routes.draw do
   get "lazy_stats" => "demos#lazy_stats"
   get "lazy_on" => "demos#lazy_on"
   get "lazy_on_early" => "demos#lazy_on_early"
+  get "cached_menu" => "demos#cached_menu"   # issue #277: cacheable lazy fragment, viewer-keyed
+  get "cached_panel" => "demos#cached_panel" # issue #277: on: + cache:, Vary: Cookie
   get "morph_grid/:id" => "demos#morph_grid"
   get "js_focus/:id" => "demos#js_focus"
   get "partial_grid/:id" => "demos#partial_grid"

@@ -1,0 +1,250 @@
+# frozen_string_literal: true
+
+require "rails_helper"
+
+# reactive_lazy(cache:) (issue #277): the shell carries a STABLE, signed GET
+# URL instead of a per-render defer token, so the browser's private HTTP cache
+# can reuse the fragment across page views.
+RSpec.describe "reactive_lazy(cache:)" do # rubocop:disable RSpec/DescribeClass
+  include ActiveSupport::Testing::TimeHelpers
+
+  def cached_class(name: "LazyCacheProbeComponent", version: :none, **lazy)
+    Class.new(ApplicationComponent) do
+      include Phlex::Reactive::Streamable
+      include Phlex::Reactive::Component
+
+      define_singleton_method(:name) { name }
+      reactive_state :n
+      reactive_lazy(**lazy)
+      define_method(:reactive_cache_version) { version } unless version == :none
+
+      def initialize(n: 0) = @n = n
+      def id = "lazy-cache-probe"
+      def deferred_placeholder = "<span>shimmer</span>".html_safe
+      def view_template = div(id:, **reactive_attrs) { span { "real:#{@n}" } }
+    end
+  end
+
+  around do
+    original = Phlex::Reactive.verbose_errors
+    Phlex::Reactive.verbose_errors = true
+    it.run
+  ensure
+    Phlex::Reactive.verbose_errors = original
+  end
+
+  def attr_value(html, name)
+    CGI.unescapeHTML(html[/ #{name}="([^"]*)"/, 1].to_s)
+  end
+
+  def src(html) = attr_value(html, "data-reactive-defer-src")
+
+  describe "the declaration" do
+    it "stores max_age in seconds, from an Integer or a Duration" do
+      expect(cached_class(cache: { max_age: 600 }).reactive_lazy_cache).to eq(max_age: 600)
+      expect(cached_class(cache: { max_age: 10.minutes }).reactive_lazy_cache).to eq(max_age: 600)
+    end
+
+    it "is nil without cache:" do
+      expect(cached_class(on: "x").reactive_lazy_cache).to be_nil
+      expect(LazyStatsComponent.reactive_lazy_cache).to be_nil
+      expect(CounterComponent.reactive_lazy_cache).to be_nil
+    end
+
+    it "is inherited, and cleared by a subclass that redeclares without it" do
+      parent = cached_class(cache: { max_age: 60 })
+      expect(Class.new(parent).reactive_lazy_cache).to eq(max_age: 60)
+      expect(Class.new(parent) { reactive_lazy }.reactive_lazy_cache).to be_nil
+    end
+
+    [nil, 0, -1, "600", 1.5].each do
+      it "rejects max_age: #{it.inspect}" do
+        expect { cached_class(cache: { max_age: it }) }.to raise_error(ArgumentError, /max_age/)
+      end
+    end
+
+    it "rejects anything but { max_age: }" do
+      expect { cached_class(cache: true) }.to raise_error(ArgumentError, /cache:/)
+      expect { cached_class(cache: { max_age: 60, public: true }) }.to raise_error(ArgumentError, /cache:/)
+    end
+  end
+
+  describe "a cached shell (fetch on connect)" do
+    subject(:html) { cached_class(cache: { max_age: 600 }).new(n: 5).call }
+
+    it "renders the placeholder with the pending markers and the controller" do
+      expect(html).to include('id="lazy-cache-probe"')
+      expect(html).to include('class="reactive-defer-placeholder"')
+      expect(html).to include('data-controller="reactive"')
+      expect(html).to include('data-reactive-defer-pending="true"')
+      expect(html).to include("<span>shimmer</span>")
+      expect(html).not_to include("real:5")
+    end
+
+    it "carries the fragment URL instead of a defer token" do
+      expect(html).not_to include("data-reactive-defer-token")
+      expect(src(html)).to start_with("/reactive/fragment/")
+      expect(src(html)).not_to include("?")
+    end
+
+    it "signs the identity payload under the fragment purpose" do
+      id = src(html).delete_prefix("/reactive/fragment/")
+
+      expect(id).to match(/\A[A-Za-z0-9_-]+\z/)
+      expect(Phlex::Reactive.verify_fragment(id)).to include("c" => "LazyCacheProbeComponent", "s" => { "n" => 5 })
+    end
+
+    it "renders the SAME URL on every render, however much later" do
+      klass = cached_class(cache: { max_age: 600 })
+      first = src(klass.new(n: 5).call)
+
+      travel(3.days) { expect(src(klass.new(n: 5).call)).to eq(first) }
+    end
+
+    it "renders a different URL for a different identity" do
+      klass = cached_class(cache: { max_age: 600 })
+
+      expect(src(klass.new(n: 5).call)).not_to eq(src(klass.new(n: 6).call))
+    end
+
+    it "honours Phlex::Reactive.fragment_path" do
+      original = Phlex::Reactive.fragment_path
+      Phlex::Reactive.fragment_path = "/_r/frag"
+      expect(src(html)).to start_with("/_r/frag/")
+    ensure
+      Phlex::Reactive.fragment_path = original
+    end
+  end
+
+  describe "reactive_cache_version" do
+    it "adds an opaque v that changes with the version" do
+      one = src(cached_class(cache: { max_age: 600 }, version: 1).new.call)
+      two = src(cached_class(cache: { max_age: 600 }, version: 2).new.call)
+
+      expect(one).to match(/\?v=\h{16}\z/)
+      expect(one).not_to eq(two)
+      expect(one.split("?").first).to eq(two.split("?").first)
+    end
+
+    it "keeps the same v for the same version" do
+      klass = cached_class(cache: { max_age: 600 }, version: "abc")
+      first = src(klass.new.call)
+
+      expect(src(klass.new.call)).to eq(first)
+    end
+
+    it "tells two Times in the same second apart" do
+      base = Time.utc(2026, 10, 4, 12, 0, 0)
+      one = src(cached_class(cache: { max_age: 600 }, version: base).new.call)
+      two = src(cached_class(cache: { max_age: 600 }, version: base + 0.5).new.call)
+
+      expect(one).not_to eq(two)
+    end
+
+    it "omits v when the version is nil" do
+      expect(src(cached_class(cache: { max_age: 600 }, version: nil).new.call)).not_to include("?")
+    end
+  end
+
+  describe "reactive_cache_viewer" do
+    def viewer_class(viewer)
+      Class.new(cached_class(cache: { max_age: 600 }, version: 7)) do
+        define_method(:reactive_cache_viewer) { viewer }
+      end
+    end
+
+    it "adds an opaque u after v, different per viewer and stable for one" do
+      alice = src(viewer_class("alice@example").new.call)
+
+      expect(alice).to match(/\?v=\h{16}&u=\h{16}\z/)
+      expect(alice).not_to include("alice@")
+      expect(src(viewer_class("alice@example").new.call)).to eq(alice)
+      expect(src(viewer_class("bob@example").new.call)).not_to eq(alice)
+    end
+
+    it "digests the anonymous (nil) viewer too, so the scope is always explicit" do
+      expect(src(viewer_class(nil).new.call)).to match(/&u=\h{16}\z/)
+    end
+
+    it "never collides with the version digest of the same value" do
+      url = src(viewer_class(7).new.call)
+
+      expect(url[/v=(\h+)/, 1]).not_to eq(url[/u=(\h+)/, 1])
+    end
+
+    it "is absent when the component does not declare a viewer" do
+      expect(src(cached_class(cache: { max_age: 600 }).new.call)).not_to include("u=")
+    end
+  end
+
+  describe "combined with on:" do
+    it "keeps the event trigger shell and adds the fragment URL" do
+      html = cached_class(on: "panel:opened", cache: { max_age: 600 }).new(n: 5).call
+
+      expect(attr_value(html, "data-action")).to eq("panel:opened->reactive#dispatch:once")
+      expect(attr_value(html, "data-reactive-lazy-on")).to eq("panel:opened")
+      expect(html).to include("data-reactive-token-value")
+      expect(html).not_to include("data-reactive-defer-pending")
+      expect(src(html)).to start_with("/reactive/fragment/")
+    end
+
+    it "keeps the :visible shell and adds the fragment URL" do
+      html = cached_class(on: :visible, cache: { max_age: 600 }).new(n: 5).call
+
+      expect(attr_value(html, "data-reactive-lazy-visible")).to eq("0px")
+      expect(src(html)).to start_with("/reactive/fragment/")
+    end
+  end
+
+  describe "without cache: (unchanged, byte for byte)" do
+    it "renders the plain shell with a defer token and no fragment URL" do
+      html = LazyStatsComponent.new(scope: "week").call
+      token = attr_value(html, "data-reactive-defer-token")
+
+      expect(html).to eq(
+        '<div id="lazy-stats" class="reactive-defer-placeholder" aria-busy="true" data-controller="reactive" ' \
+        'data-reactive-defer-pending="true" data-reactive-verbose="true" ' \
+        "data-reactive-defer-token=\"#{CGI.escapeHTML(token)}\">" \
+        '<span data-testid="stats-shimmer">…</span></div>'
+      )
+    end
+
+    it "renders the on: shell with no fragment URL" do
+      expect(LazyPanelComponent.new(scope: "mine").call).not_to include("data-reactive-defer-src")
+    end
+  end
+
+  describe "the fragment id" do
+    let(:payload) { { "c" => "LazyStatsComponent", "s" => { "scope" => "week" } } }
+
+    it "is rejected as an identity token and as a defer token" do
+      id = Phlex::Reactive.sign_fragment(payload)
+
+      expect(Phlex::Reactive.verify(id)).to be_nil
+      expect(Phlex::Reactive.verify(Base64.urlsafe_decode64(id))).to be_nil
+      expect(Phlex::Reactive.verify_defer(Base64.urlsafe_decode64(id))).to be_nil
+    end
+
+    it "does not accept an identity or defer token" do
+      identity = Phlex::Reactive.sign(payload)
+      defer = Phlex::Reactive.sign_defer(payload, unbound: true)
+
+      [identity, defer].each do
+        expect(Phlex::Reactive.verify_fragment(it)).to be_nil
+        expect(Phlex::Reactive.verify_fragment(Base64.urlsafe_encode64(it, padding: false))).to be_nil
+      end
+    end
+
+    it "is nil for garbage" do
+      expect(Phlex::Reactive.verify_fragment("***")).to be_nil
+      expect(Phlex::Reactive.verify_fragment(nil)).to be_nil
+    end
+  end
+
+  describe "the max-age cap" do
+    it "answers with the declared value under the limit, and the limit above it" do
+      expect(Phlex::Reactive::Fragment.max_age_for(cached_class(cache: { max_age: 600 }))).to eq(600)
+      expect(Phlex::Reactive::Fragment.max_age_for(cached_class(cache: { max_age: 1.day }))).to eq(3600)
+    end
+  end
+end

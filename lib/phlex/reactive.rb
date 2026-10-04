@@ -575,6 +575,33 @@ module Phlex
         @defer_path ||= "/reactive/defer"
       end
 
+      # The path prefix of the cacheable-fragment GET endpoint (issue #277):
+      # GET <fragment_path>/<signed id>. Default "/reactive/fragment"; set
+      # before boot if it collides. The shell renders the full URL, so the
+      # client needs no meta override.
+      attr_writer :fragment_path
+
+      def fragment_path
+        @fragment_path ||= "/reactive/fragment"
+      end
+
+      # The longest max-age (seconds) a `reactive_lazy cache:` component may
+      # ask the browser to keep its fragment for. A component declaring more
+      # is answered with this cap. Within max-age the browser reuses its copy
+      # WITHOUT asking the server — so this also bounds how long a revoked
+      # permission can keep showing a stale fragment. Default 1 hour.
+      attr_writer :fragment_cache_max_age_limit
+
+      def fragment_cache_max_age_limit
+        @fragment_cache_max_age_limit ||= 3600
+      end
+
+      # The deterministic, no-expiry, purpose-scoped fragment id of an identity
+      # payload, and its verification (issue #277). See Phlex::Reactive::Fragment.
+      def sign_fragment(payload) = Fragment.sign(payload)
+
+      def verify_fragment(id) = Fragment.verify(id)
+
       # How deferred segments reach the actor: :auto (push iff capable, else
       # pull), :fetch (always pull), :stream (push; degrades to pull with a
       # warning when the capability is absent). Validated at assignment — a

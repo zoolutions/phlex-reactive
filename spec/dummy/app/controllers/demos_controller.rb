@@ -483,6 +483,21 @@ class DemosController < ActionController::Base
     render html: html.html_safe, layout: true
   end
 
+  # reactive_lazy(cache:) (issue #277): a per-viewer menu whose real render is
+  # a privately cacheable GET. The shell's URL is keyed on the viewer (the
+  # `viewer` cookie, via reactive_cache_viewer), so a later page view reuses
+  # the browser's copy.
+  def cached_menu
+    render_component CachedMenuComponent.new(scope: params.fetch(:scope, "main"))
+  end
+
+  # reactive_lazy(on:, cache:): no request on load; the first `panel:opened`
+  # GETs the cacheable fragment. No declared viewer, so the reply varies on the
+  # cookie.
+  def cached_panel
+    render_component CachedPanelComponent.new(scope: "mine")
+  end
+
   def morph_grid
     render_component MorphGridComponent.new(account: Account.find(params[:id]))
   end

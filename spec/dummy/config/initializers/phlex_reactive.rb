@@ -37,4 +37,7 @@ Rails.application.config.after_initialize do
   # reactive_lazy(on:) fixture (issue #276): __materialize shares the defer
   # endpoint's authorization step, so a render-time denial maps to 403.
   Phlex::Reactive.authorization_errors << LazyPanelComponent::Denied
+  # reactive_lazy(cache:) fixture (issue #277): the fragment endpoint shares
+  # that authorization step — a denied render is a 403, and never cacheable.
+  Phlex::Reactive.authorization_errors << CachedMenuComponent::Denied
 end

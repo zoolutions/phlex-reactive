@@ -218,9 +218,13 @@ function settleStreamDeferOnRender(event) {
   if (entry?.via === "stream") deletePendingDefer(targetId)
 }
 
-// The pull lane: mark the target pending and POST the signed defer token to
-// the defer endpoint, in parallel with everything else the page is doing.
-function startFetchDefer(targetId, token) {
+// The pull lane: mark the target pending and fetch the real render, in
+// parallel with everything else the page is doing. `source` is what to fetch:
+// a signed defer token (a string — POSTed to the defer endpoint) or `{ src }`,
+// a `reactive_lazy cache:` component's stable fragment URL (issue #277) —
+// fetched with a plain GET so the browser's private HTTP cache can answer it.
+// Returns the fetch's promise (it never rejects), or undefined when skipped.
+function startFetchDefer(targetId, source) {
   const el = document.getElementById(targetId)
   if (!el) {
     console.warn(`[phlex-reactive] reactive:defer target #${targetId} is not on the page — skipped`)
@@ -230,7 +234,41 @@ function startFetchDefer(targetId, token) {
   markDeferPending(el)
   const entry = { via: "fetch", abort: new AbortController(), timedOut: false }
   setPendingDefer(targetId, entry)
-  performDeferFetch(targetId, entry, token)
+  return performDeferFetch(targetId, entry, source)
+}
+
+// The fetch() arguments for a pull-lane source. A fragment URL is a GET with
+// no CSRF token and no body: rendering has no side effects, and anything that
+// varied per request would defeat the cache (the response is keyed on the URL,
+// Vary: Cookie). The default cache mode is what we want — reuse a fresh copy,
+// revalidate a stale one with its ETag.
+function deferRequest(source, signal) {
+  if (typeof source !== "string") {
+    return [source.src, { headers: { Accept: "text/vnd.turbo-stream.html" }, credentials: "same-origin", signal }]
+  }
+  return [
+    deferPath(),
+    {
+      method: "POST",
+      headers: {
+        Accept: "text/vnd.turbo-stream.html",
+        "Content-Type": "application/json",
+        "X-CSRF-Token": deferCsrfToken(),
+      },
+      body: JSON.stringify({ token: source }),
+      credentials: "same-origin",
+      signal,
+    },
+  ]
+}
+
+// A lazy shell's pull-lane source, read off its root: the defer token, else
+// the cacheable fragment URL, else undefined (not a fetching shell).
+function lazyDeferSource(el) {
+  const token = el.getAttribute?.("data-reactive-defer-token")
+  if (token) return token
+  const src = el.getAttribute?.("data-reactive-defer-src")
+  return src ? { src } : undefined
 }
 
 // The push lane: subscribe a <pgbus-stream-source> to the server-signed
@@ -287,7 +325,7 @@ function deferSourceId(targetId) {
   return `reactive-defer-src-${targetId}`
 }
 
-async function performDeferFetch(targetId, entry, token) {
+async function performDeferFetch(targetId, entry, source) {
   // Bound the wait like the action fetch (issue #101) — a hung defer must not
   // shimmer forever. A manual timer (not AbortSignal.timeout) so the catch can
   // tell a TIMEOUT (fail loudly) from a SUPERSEDED abort (stay silent).
@@ -302,23 +340,16 @@ async function performDeferFetch(targetId, entry, token) {
   // whole fetch + body read, mirroring #perform's AbortSignal.timeout).
   let response
   try {
+    // Counted per fetch() CALL — a fragment GET the browser answers from its
+    // HTTP cache still counts (it is a request the client issued; whether it
+    // touched the network is Resource Timing's transferSize).
     countReactiveRequest("defer")
-    response = await fetch(deferPath(), {
-      method: "POST",
-      headers: {
-        Accept: "text/vnd.turbo-stream.html",
-        "Content-Type": "application/json",
-        "X-CSRF-Token": deferCsrfToken(),
-      },
-      body: JSON.stringify({ token }),
-      credentials: "same-origin",
-      signal: entry.abort.signal,
-    })
+    response = await fetch(...deferRequest(source, entry.abort.signal))
   } catch (error) {
     clearTimeout(timer)
     if (pendingDefers.get(targetId) !== entry) return // superseded — silent
     console.error("[phlex-reactive] deferred render failed", error)
-    failDefer(targetId, token)
+    failDefer(targetId, source)
     return
   }
   if (pendingDefers.get(targetId) !== entry) {
@@ -335,7 +366,7 @@ async function performDeferFetch(targetId, entry, token) {
   if (!response.ok) {
     clearTimeout(timer)
     console.error(`[phlex-reactive] deferred render failed: HTTP ${response.status}`)
-    failDefer(targetId, token, response.status)
+    failDefer(targetId, source, response.status)
     return
   }
 
@@ -346,7 +377,7 @@ async function performDeferFetch(targetId, entry, token) {
     clearTimeout(timer)
     if (pendingDefers.get(targetId) !== entry) return
     console.error("[phlex-reactive] deferred render failed reading the body", error)
-    failDefer(targetId, token)
+    failDefer(targetId, source)
     return
   }
   clearTimeout(timer)
@@ -394,9 +425,10 @@ function settleDefer(targetId) {
 
 // Failure: clear pending (the shimmer must not lie), mark the root
 // (data-reactive-error="defer" — style it in pure CSS), and emit a bubbling
-// reactive:error whose retry() re-enters the defer fetch with the SAME token
-// (still valid inside the TTL; an expired token 400s into this same path).
-function failDefer(targetId, token, status) {
+// reactive:error whose retry() re-enters the defer fetch with the SAME source
+// (a token is still valid inside the TTL; an expired one 400s into this same
+// path. A fragment URL never expires).
+function failDefer(targetId, source, status) {
   deletePendingDefer(targetId)
   const el = document.getElementById(targetId)
   if (!el) return
@@ -409,7 +441,7 @@ function failDefer(targetId, token, status) {
       return
     }
     fresh.removeAttribute("data-reactive-error")
-    startFetchDefer(targetId, token)
+    startFetchDefer(targetId, source)
   }
   el.dispatchEvent(
     new CustomEvent("reactive:error", {
@@ -2615,7 +2647,10 @@ export default class extends Controller {
     // Only wire the morph re-probe for a root that IS a lazy shell (carries the
     // token) — a component that never uses reactive_lazy pays nothing (no
     // listener), matching the dirty-tracking / show-sync gating precedent.
-    if (this.element.getAttribute?.("data-reactive-defer-token")) {
+    // A `cache:` shell (issue #277) carries a fragment URL instead of the token
+    // and takes the same path; an on: shell with a URL is NOT probed — it waits
+    // for its trigger (its root has no pending marker).
+    if (lazyDeferSource(this.element) && this.#lazyShellKind() === null) {
       this.#probeLazyDefer()
       this.#boundProbeLazyDefer = () => this.#probeLazyDefer()
       this.element.addEventListener?.("turbo:morph-element", this.#boundProbeLazyDefer)
@@ -2633,8 +2668,13 @@ export default class extends Controller {
       if (this.#lazyWasShell) this.#armLazyTrigger(false)
       // turbo:morph-element BUBBLES: only a morph of the root itself counts,
       // never one of a descendant (a morphed skeleton child, a nested root).
+      // The same morph can turn real content into a FETCH-ON-CONNECT shell
+      // (plain reactive_lazy, or cache: without on:): probe it too, unless this
+      // root connected as such a shell and already re-probes on every morph.
       this.#boundLazyMorph = (event) => {
-        if (event.target === this.element) this.#lazyAfterMorph()
+        if (event.target !== this.element) return
+        if (!this.#boundProbeLazyDefer) this.#probeLazyDefer()
+        this.#lazyAfterMorph()
       }
       this.element.addEventListener?.("turbo:morph-element", this.#boundLazyMorph)
     }
@@ -3007,10 +3047,18 @@ export default class extends Controller {
   // matter how many of them fire. It rides the ordinary action pipeline
   // (#proceed → the serialized queue → #perform): the reactive:before-dispatch
   // veto, busy markers, error marker/events and the request counter all apply.
+  //
+  // A `cache:` shell (issue #277) carries its fragment URL: the load is then a
+  // GET on the defer pull lane (pending markers, timeout, reactive:error with
+  // retry()) instead of the action POST, so the browser's cache can answer —
+  // on the first trigger of a later page view, and on every morph-back.
   #materialize() {
     if (this.#lazyInFlight) return
-    const run = this.#proceed(this.element, LAZY_MATERIALIZE_ACTION, "{}")
-    if (!run) return // vetoed by reactive:before-dispatch
+    const src = this.element.getAttribute?.("data-reactive-defer-src")
+    const run = src
+      ? startFetchDefer(this.element.id, { src })
+      : this.#proceed(this.element, LAZY_MATERIALIZE_ACTION, "{}")
+    if (!run) return // vetoed by reactive:before-dispatch (or the root has no id)
     this.#lazyInFlight = true
     // Consume the armed trigger (observer or re-armed listener): a failed load
     // is retried by the NEXT morph, not by every later event.
@@ -3053,10 +3101,10 @@ export default class extends Controller {
   #probeLazyDefer() {
     const el = this.element
     if (!el?.id) return
-    const token = el.getAttribute?.("data-reactive-defer-token")
-    if (!token) return
+    const source = lazyDeferSource(el)
+    if (!source) return
     if (el.getAttribute?.("data-reactive-defer-pending") !== "true") return
-    startFetchDefer(el.id, token)
+    startFetchDefer(el.id, source)
   }
 
   // Serialize requests per component. Each round trip rewrites the signed
