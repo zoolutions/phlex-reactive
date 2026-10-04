@@ -1,0 +1,47 @@
+spec/phlex/reactive/component_spec.rb
+  s_a282f06a2bde46::t_8d89303a7ea8e6 1428-1429,1499-1508
+app/javascript/phlex/reactive/reactive_controller.js
+  s_a282f06a2bde46::t_79ba3fe9fb00f4 1995-1998,2005-2013,2047-2052,2054,2060-2078,2783-2791,2794
+benchmark/micro/on_client.rb
+  s_a282f06a2bde46::t_5433bcb767ac0f 29
+CHANGELOG.md
+  s_a282f06a2bde46::t_5433bcb767ac0f 28-29
+spec/system/disclosure_menu_spec.rb
+  s_a282f06a2bde46::t_168b967ca0459d 50,103
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 5,7-8
+spec/javascript/reactive_run_ops_bindings.test.js
+  s_a282f06a2bde46::t_aa5065dc142648 401-453
+  s_a282f06a2bde46::t_9063990570b297 220-223,225-226,228,230-231
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,3
+lib/phlex/reactive/component/helpers.rb
+  s_a282f06a2bde46::t_512071f723e218 426,1423,1427-1429,1431
+spec/dummy/app/components/disclosure_menu_component.rb
+  s_a282f06a2bde46::t_5b8919cf065ed4 41,52
+README.md
+  s_a282f06a2bde46::t_5433bcb767ac0f 949-950
+docs/app/reactive_components/disclosure_menu_component.rb
+  s_a282f06a2bde46::t_5b8919cf065ed4 42,54
+benchmark/client/run_ops.bench.js
+  s_a282f06a2bde46::t_5433bcb767ac0f 16-25,35
+  s_a282f06a2bde46::t_12c5dee7b203dd 26
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "09e6e351572a8cb527d2caf2d6dc854586181473",
+  "prompts": {},
+  "sessions": {
+    "s_a282f06a2bde46": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dc292bb6-8e6b-4ed3-97d7-452b349b1236",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
