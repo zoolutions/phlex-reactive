@@ -301,6 +301,10 @@ module Views
               - Undeclared action → `403 Forbidden` (`kind: :forbidden`)
               - `authorize!` raised (registered error) → `403 Forbidden` (`kind: :forbidden`)
               - Record GlobalID no longer resolves → `404 Not Found` (`kind: :not_found`)
+              - `GET /reactive/fragment/:id` for a component that did not declare
+                `reactive_lazy cache:` → `404 Not Found` (`kind: :not_found`); every non-200
+                reply of that endpoint is `Cache-Control: no-store` — see
+                [Deferred rendering](/docs/deferred-rendering)
 
               The two 400s share a status but carry **distinct diagnostics**: `:unknown_class`
               (the token's class no longer constantizes — a component renamed/removed while a

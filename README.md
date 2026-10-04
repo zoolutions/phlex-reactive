@@ -2225,6 +2225,59 @@ refresh-morphs pays one request per loaded `on:` component per refresh;
 `data-turbo-permanent` on the real root opts it out. See the
 deferred-rendering docs page.
 
+**Reuse across page views** — `cache:` makes the real render a GET the browser
+may keep privately, so a fragment that is the same on every page (a menu, an
+account summary) is not fetched and rendered again on every page view (issue
+#277):
+
+```ruby
+class AccountMenu < ApplicationComponent
+  include Phlex::Reactive::Component
+
+  reactive_lazy cache: { max_age: 10.minutes }   # combine with on: / tag: freely
+
+  def id = "account-menu"
+  def reactive_cache_viewer  = Current.user&.id                   # who this render is for
+  def reactive_cache_version = Current.user&.shortcuts_updated_at # optional: busts the URL
+  def view_template = Current.user.shortcuts.each { |s| a(href: s.url) { s.label } }
+end
+```
+
+The shell carries a stable signed URL (`/reactive/fragment/<signed id>?v=…&u=…`)
+instead of a per-render token; the client GETs it and the endpoint answers
+`Cache-Control: max-age=600, private` with an ETag. With `on:` this is "load on
+first open, reuse across page views" with no app JavaScript, and a refresh morph
+re-materializes from the browser cache instead of costing a request.
+
+What keeps a private cache safe:
+
+- **Never `public`.** `max_age` is capped by
+  `Phlex::Reactive.fragment_cache_max_age_limit` (1 hour). Every error — a 4xx,
+  a 204, and anything your base controller answers first (401, a redirect) — is
+  `no-store`.
+- **One viewer's copy never reaches the next.** By default the reply says
+  `Vary: Cookie`, so a copy is reused only while the browser sends identical
+  cookies. Rails' cookie session store issues a new session cookie on every
+  response, so there that means "within one page" (a refresh morph), not across
+  page views. Define `reactive_cache_viewer` to key the URL on the viewer
+  instead: the endpoint re-computes it in the requesting session and makes the
+  reply cacheable only when the URL names that viewer. Return everything the
+  render depends on besides the identity and the version (user, tenant, locale).
+- **Opt-in only.** The fragment id is signed under its own purpose: it is not
+  an identity or defer token and those are not fragment ids (400 either way). A
+  component without `cache:` is not reachable over GET (404).
+- **A read.** No action, no `around_actions`, no transaction; `v` and `u` only
+  shape the browser's cache key. Authorize in the render, as for any lazy
+  component.
+- **No form tokens.** A render that embeds a form authenticity token is served
+  `no-store` with a warning rather than cached.
+
+Within `max_age` the browser does not ask the server, so a revoked permission
+or a sign-out is not seen until the copy expires: keep `max_age` short for
+sensitive content and send `Clear-Site-Data: "cache"` on sign-out. If you move
+the endpoint (`Phlex::Reactive.fragment_path`), render
+`<meta name="phlex-reactive-fragment-path" content="…">` in your layout.
+
 > **One edge case:** a `reply.defer(placeholder:)` shell (the action-driven,
 > not page-mount, form) carries no token of its own — the transient directive
 > owns its delivery. If a page is snapshotted by Turbo mid-defer and later
@@ -3463,7 +3516,10 @@ kind: nil)` waits until nothing is in flight and asserts exactly `n` action
 totals on `<html data-reactive-requests>` under the verbose gate only. The
 matcher waits for requests in flight, not ones yet to start (a debounced
 trigger, a defer the reply is about to start): wait for the UI outcome first.
-A defer pushed over a pgbus stream makes no request and is not counted.
+A defer pushed over a pgbus stream makes no request and is not counted. A
+`reactive_lazy cache:` fragment GET counts as `:defer` per `fetch()` call, even
+when the browser cache answers it: assert "no network request" with Resource
+Timing (`transferSize === 0`).
 
 ```ruby
 reset_reactive_requests!

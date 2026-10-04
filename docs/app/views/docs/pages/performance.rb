@@ -22,6 +22,7 @@ module Views
           numbers
           verify_and_sign
           deferred_segments
+          cached_fragments
           client_numbers
           loading_the_client
           ci
@@ -712,6 +713,54 @@ module Views
                       'GENUINELY expensive.'
               end
             end
+          end
+        end
+
+        def cached_fragments
+          DocsUI::Section('Cached fragments (reactive_lazy cache:) — the request that never happens') do
+            md <<~MD
+              A lazy fragment that is the same for a viewer on every page was fetched
+              and rendered once **per page view**. `reactive_lazy cache: { max_age: }`
+              (#277) makes that render a privately cacheable GET, so a repeat view
+              costs neither the request nor the render. This is a request-level win,
+              and the only one on this page that removes server work outright rather
+              than moving or shrinking it — but only for the hits: the first view of
+              each (viewer, version) still pays the full render.
+
+              | Page view | Without `cache:` | With `cache:` + `reactive_cache_viewer` |
+              |---|---|---|
+              | first | 1 request, 1 render | 1 request, 1 render |
+              | later, within `max_age` | 1 request, 1 render each | 0 requests, 0 renders |
+              | after `max_age` | 1 request, 1 render | 1 conditional request, 1 render, `304` when the body is unchanged |
+
+              Without `reactive_cache_viewer` the reply varies on the cookie, and
+              Rails' cookie session store changes the cookie on every response — so
+              the reuse is limited to one page (a refresh morph). Declare the viewer
+              to reuse across page views. See
+              [Deferred rendering](/docs/deferred-rendering).
+
+              The shell is not more expensive than the one it replaces. Same machine,
+              `benchmark/micro/fragment.rb` (the plain shell signs a defer token, the
+              cached shell a fragment id plus one SHA-256 per version/viewer):
+
+              | Per call | Throughput | Allocations |
+              |---|---|---|
+              | `sign_fragment` | ~180k i/s (5.6 μs) | 13 objects |
+              | `verify_fragment` (once per origin hit) | ~119k i/s (8.4 μs) | 24 objects |
+              | `sign_defer` (the plain shell's token) | ~98k i/s (10.2 μs) | 30 objects |
+              | plain lazy shell render | ~66k i/s (15.1 μs) | 77 objects |
+              | cached shell render (URL + viewer) | ~65k i/s (15.5 μs) | 45 objects |
+              | `on:` shell render | ~62k i/s (16.2 μs) | 40 objects |
+              | `on:` + `cache:` shell render | ~36k i/s (28.2 μs) | 64 objects |
+
+              An `on:` + `cache:` shell signs twice (the identity token for its
+              trigger, the fragment id for its URL), once per page render. The
+              existing shells are untouched: against `main`, the plain lazy shell
+              and the `on:` shell allocate the same 77 and 40 objects, and
+              `reactive_token` the same 18. Runs on a busy machine swing ±10–25%;
+              read the throughput column as an order of magnitude and the
+              allocation column as exact.
+            MD
           end
         end
 

@@ -9,6 +9,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`reactive_lazy(cache:)` — privately cacheable lazy renders (#277).**
+  `reactive_lazy cache: { max_age: 10.minutes }` (combinable with `on:` and
+  `tag:`) renders a stable signed URL into the shell and the client GETs it; the
+  new `GET /reactive/fragment/:id` answers `Cache-Control: max-age=…, private`
+  with an ETag, so the browser reuses the fragment instead of asking again. With
+  `on:` that is "load on first open, reuse across page views", and a refresh
+  morph re-materializes from the browser cache. By default the reply says
+  `Vary: Cookie`; define `reactive_cache_viewer` to key the URL on the viewer
+  instead (needed for reuse across page views under Rails' cookie session store,
+  whose cookie changes on every response) and `reactive_cache_version` to bust
+  it. Every non-200 reply is `no-store`, a component without `cache:` is 404, the
+  id is purpose-scoped (not an identity or defer token), a cacheable reply never
+  writes the session, and a render that embeds a form authenticity token is
+  served `no-store`. New settings: `Phlex::Reactive.fragment_path`,
+  `Phlex::Reactive.fragment_cache_max_age_limit` (1 hour). Not breaking: opt-in.
+
 - **`reactive_lazy(on:)` — load on an event or on visibility (#276).**
   `reactive_lazy on: "panel:opened"` keeps the placeholder shell until that
   event reaches it (bubbling from inside counts), then fetches the real render
@@ -524,6 +540,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     to settle.
 
 ### Fixed
+
+- **A loaded `reactive_lazy` root morphed back into its shell loads again.**
+  A plain `reactive_lazy` component only re-probed after a Turbo morph when its
+  controller had connected on the shell. Once the real content had replaced it
+  (a new element, a new controller), a page-refresh morph that re-showed the
+  shell left it pending forever. The morph handler every token-bearing root
+  already has now probes a fetch-on-connect shell too (found while wiring
+  `cache:` into the same path, #277).
 
 - **`reactive_compute` never saw a checkbox's checked state (#262).**
   `#recompute` resolved each declared name first-wins and read `.value`, which

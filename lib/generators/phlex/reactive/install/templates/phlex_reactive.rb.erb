@@ -117,6 +117,15 @@
 #   <meta name="phlex-reactive-defer-path" content="<%%= Phlex::Reactive.defer_path %>">
 # Phlex::Reactive.defer_path = "/_r/defer"
 
+# Cacheable lazy fragments (reactive_lazy cache: { max_age: … }): the GET
+# endpoint's path prefix (default "/reactive/fragment") and the longest max-age
+# a component may be answered with (default 1 hour — within it the browser does
+# not ask the server, so it also bounds how long a revoked permission can keep
+# showing a cached fragment). If you change the path, expose it to the client:
+#   <meta name="phlex-reactive-fragment-path" content="<%%= Phlex::Reactive.fragment_path %>">
+# Phlex::Reactive.fragment_path = "/_r/fragment"
+# Phlex::Reactive.fragment_cache_max_age_limit = 10.minutes
+
 # Early triggers (issue #273): with `import "phlex/reactive/early"` in your
 # entry point, a trigger that fires before a lazily loaded controller connects
 # is replayed on connect — unless it is older than this (ms, default 10s).
