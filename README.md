@@ -385,7 +385,7 @@ Use in controllers: `render turbo_stream: Counter.replace(counter)`.
 | `busy_on(:save)` | Mark any element so it carries `data-reactive-busy` **only while `save` is in flight** — a spinner styled with pure CSS, zero Ruby. See [Loading states](#declarative-loading-states-loading--disable_with). |
 | `on(:action, once: true)` | Fire at most once, then unbind (Stimulus's native `:once`). |
 | `on_client(:click, js.toggle("#menu"))` | **Client-only** trigger: applies declared DOM ops with ZERO round trip — no token, no POST, ever. Takes the same `window:`/`once:`/`outside:` modifiers. See [Client-only ops](#client-only-ops-on_client--js--zero-round-trips). |
-| `js` | The immutable op builder behind `on_client`: `show`/`hide`/`toggle` (the `hidden` attribute, with an optional `transition:`), `add_class`/`remove_class`/`toggle_class`, `set_attr`/`remove_attr`/`toggle_attr` (allowlisted names), `focus`/`focus_first`, `text` (set `textContent` — XSS-safe), `dispatch`, `submit` (requestSubmit the target's own form), `paste_into` (read the clipboard into a field, gesture-gated), and `persist_state`/`persist_clear` (the `reactive_persist` draft) — chainable. |
+| `js` | The immutable op builder behind `on_client`: `show`/`hide`/`toggle` (the `hidden` attribute, with an optional `transition:` and `expanded:`), `add_class`/`remove_class`/`toggle_class`, `set_attr`/`remove_attr`/`toggle_attr` (allowlisted names; `toggle_attr` also flips between two values), `focus`/`focus_first`, `text` (set `textContent` — XSS-safe), `dispatch`, `submit` (requestSubmit the target's own form), `paste_into` (read the clipboard into a field, gesture-gated), and `persist_state`/`persist_clear` (the `reactive_persist` draft) — chainable. |
 | `reactive_field(:param, **attrs)` | The attribute hash that binds a control to an action param (no magic `name:`) — spread onto any control: `input(**reactive_field(:value, value: @record.name))`, `select(**reactive_field(:status)) { … }`. |
 | `reactive_text(:name, initial)` | Mirror a compute output (or a declared input) into a **text node** — a live preview heading, a character counter, `"Hello, {name}"` — via `textContent` (XSS-safe). The text sibling of `reactive_field`; carries no `name`, so it's never POSTed. See [Client-side computes](#client-side-computes-reactive_compute--reactive_text). |
 | `reactive_show(if:/if_any:/unless:)` | **Value-conditional visibility** (the `x-show`/`data-show` case): spread onto the element to show/hide — it toggles `hidden` from the fields' **current values**, client-only, zero round trip. One conditions language: a **Hash is an AND**, an **Array is membership**, a **Range is a threshold**, `if_any:` is OR-of-AND, `unless:` negates. `reactive_values` computes first paint; `disable:` disables a hidden section's controls. See [Value-conditional visibility](#value-conditional-visibility-reactive_show). |
@@ -393,7 +393,7 @@ Use in controllers: `render turbo_stream: Counter.replace(counter)`.
 | `reactive_persist(key:, ttl: 7.days)` | **Client-only drafts**: spread on the **root** (once) and the generic controller keeps a `localStorage` draft of every **owned** control — debounced write on `input`, immediate on `change`, flushed on disconnect, restored into **blank** controls on the next connect (`restore: :always` lets the draft win), cleared by a successful Turbo submit / `ttl` / `js.persist_clear`. Never hidden/file/password; `reactive_persist_skip` opts a control out; `fields:` narrows. See [Client-only drafts](#client-only-drafts-reactive_persist). |
 | `js.persist_state(step: 2)` / `js.persist_clear` | The draft ops (actor-only): merge a flat state bag into the draft (restored as `data-reactive-persist-state` + the `reactive:persist-restored` event) / forget the draft. |
 | `reactive_filter(:field, option: nil, group: nil, empty: nil)` | **Client-side option filtering** for a preloaded combobox: spread onto the root and name the **field** that drives it — `reactive_filter(:q)` compiles `:q` to `[name="q"]` (scope-aware) and typing shows/hides the options by their `data-reactive-filter-text` haystack, **zero round trips**. `option:` defaults to `[role=option]`; optional `group:` collapses an all-hidden group header; `empty:` reveals a no-matches node. `input:` is the escape hatch — a raw CSS selector for a **name-less** driving input (`input: "#tags_query"`), the form-builder case. See [Client-side option filtering](#client-side-option-filtering-reactive_filter). |
-| `reactive_listnav("[role=option]")` | The **standalone** combobox keyboard wiring (Arrow/Enter/Escape) for an input that fires **no action** — the preload-and-filter case. Same behavior as `on(…, listnav:)`, minus the POST. |
+| `reactive_listnav("[role=option]")` | The **standalone** combobox keyboard wiring (Arrow/Enter/Escape) for an input that fires **no action** — the preload-and-filter case. Same behavior as `on(…, listnav:)`, minus the POST. `reactive_listnav(focus: true)` is the **roving-focus** variant for a `role="menu"` container: Arrow Down/Up move real focus among `[role=menuitem]` (wrapping), Home/End jump to the edges; Enter/Space stay native and Escape is yours to bind. |
 | `reactive_tags(:tags)` | **Tag-chip input** (the combobox/tags widget): spread onto the root and name the hidden field that stores the **comma-joined** value — the client maintains that field + the chip list entirely client-side (form state, zero round trips), rebuilding chips from your server-owned `<template>`. Composes with `reactive_filter` (type to narrow) and `reactive_listnav` (Enter picks the highlighted option). `name:` is the escape hatch — a **verbatim** wire name (`name: "user[tags]"`, never re-scoped), the form-builder case. See [Tag-chip input](#tag-chip-input-reactive_tags). |
 | `reactive_tags_add` / `reactive_tags_option(tag)` / `reactive_tags_remove(tag)` | The tags triggers, all **client-only**: `reactive_tags_add` on the query input adds the typed text on Enter (mix it **after** `reactive_listnav`; Enter never submits the enclosing form); `reactive_tags_option` makes a preloaded suggestion add its declared tag on click; `reactive_tags_remove` is a chip's remove button (no arg inside the template — the client fills the tag per chip). |
 | `reactive_compute :name, inputs: { title: :string, qty: :number }, outputs:` | **Typed** inputs: a `:string` reaches the JS reducer raw, a `:number` is coerced through `Number`, a `:boolean` is a checkbox's checked state. The array form (`inputs: %i[a b]`) stays all-numeric; the **permit-style** form (`inputs: [:qty, title: :string]`) mixes both — bare symbols default `:number`, a trailing hash types the exceptions. `outputs:` is the field allowlist; a reducer-result key also paints any owned `reactive_text` node by presence and any `mirror:` id, so an `outputs:` entry that exists only to reach a text node is redundant (harmless — a widening). |
@@ -892,7 +892,10 @@ button(**on_client(:click, js
 ```
 
 - **`set_attr(to, name, value)` / `remove_attr(to, name)` / `toggle_attr(to, name)`**
-  mutate an attribute. The **attribute name is allowlisted, enforced twice** — at
+  mutate an attribute. `toggle_attr(to, name, on, off)` (#271) flips **between two
+  values** instead of toggling presence — `toggle_attr("#trigger", "aria-expanded",
+  "true", "false")`; an absent attribute becomes `on`, and one value or two equal
+  values raise at build time. The **attribute name is allowlisted, enforced twice** — at
   build time in Ruby (an offending name raises) and again in the client
   interpreter (a hand-built op is warned and skipped). Refused: **event handlers**
   (`on*` → XSS), **URL-bearing** names (`href`, `src`, `srcdoc`, `action`,
@@ -940,6 +943,13 @@ button(**on_client(:click, js
   (a broadcast that reads every subscriber's clipboard would be hostile). The
   op is async fire-and-forget — chained siblings apply immediately, never
   waiting for the read.
+- **`expanded:`** on `show`/`hide`/`toggle` (#271) keeps a disclosure trigger's
+  `aria-expanded` honest: `js.toggle("#menu", expanded: "#trigger")` writes the
+  op's **intended** state (`show` → `"true"`, `hide` → `"false"`, `toggle` → the
+  pre-flip state) onto the target — set before any transition runs. It resolves
+  with the op's own scoping (`:root`, a root-scoped selector, or document-wide
+  under `global: true`). Pair it with one disclosure target; with several, the
+  last one wins.
 - **`transition: { during:, from:, to: }`** on `show`/`hide`/`toggle` animates the
   visibility flip: `during`+`from` are applied, then `from`→`to` swaps on the next
   frame, and the helper classes are cleaned up on `animationend` (with a timeout
@@ -949,6 +959,32 @@ button(**on_client(:click, js
 `window:`, `once:`, and `outside:` compose exactly like `on(...)`'s event
 modifiers: the dropdown above closes on any click outside the component, and
 window-bound triggers never `preventDefault`, so links elsewhere keep working.
+
+**Several bindings on one element (#271).** Each `on_client` call emits one
+self-describing **binding record** — its descriptor, flags, `confirm:` and ops —
+so two calls compose through `mix`. The descriptors token-join; the records
+space-join (spaces inside a record ride as `\u0020`); the client runs only the
+record whose descriptor matches the firing event (event type, key filter,
+window-boundness):
+
+```ruby
+div(**mix(reactive_root,
+          on_client(:click, js.hide("#menu", expanded: "#trigger"), outside: true),
+          on_client("keydown.esc", js.hide("#menu", expanded: "#trigger").focus("#trigger"))))
+# data-action="click@window->reactive#runOps keydown.esc->reactive#runOps"
+# data-reactive-ops-param='{"on":"click","window":true,"outside":true,"ops":[…]} {"on":"keydown.esc","ops":[…]}'
+```
+
+An outside guard or a `confirm:` belongs to its own binding only — it never
+gates a sibling. Two element-bound `:click` calls on the same `<button>` still
+collide on the forced `type="button"` (`mix` renders `type="button button"`):
+chain the ops into one call instead.
+
+**An accessible menu with no custom JS.** Pair the above with
+`reactive_listnav(focus: true)` on the `role="menu"` list — Arrow Down/Up rove
+real focus among `[role=menuitem]` (wrapping), Home/End jump to the edges — and
+the whole WAI-ARIA menu-button pattern is declared ops. See the
+[client-only ops example](https://phlex-reactive.zoolutions.llc/docs/example-client-ops).
 
 **The general autosubmit story.** With `submit` in the vocabulary, the classic
 `onchange="this.form.requestSubmit()"` filter form is one declared line — no

@@ -9,6 +9,30 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Several `on_client` bindings on one element (#271).** Two `on_client`
+  calls merged with `mix` now both work — e.g. a root that closes a menu on an
+  outside click AND on Escape. Each call carries its own descriptor, flags and
+  `confirm:`, and the client runs only the binding whose event (type, key
+  filter, window-boundness) fired. An outside guard or confirm never leaks onto
+  a sibling binding.
+
+- **`toggle_attr(to, name, on, off)` — flip between two values (#271).**
+  `js.toggle_attr("#trigger", "aria-expanded", "true", "false")` keeps a
+  two-valued attribute (`aria-expanded`, `aria-pressed`, `data-state`) honest;
+  an absent attribute becomes `on`. One value, or two equal values, raise at
+  build time. Without values it is the presence toggle it always was.
+
+- **`expanded:` on `show`/`hide`/`toggle` (#271).** `js.toggle("#menu",
+  expanded: "#trigger")` writes the op's intended state into the trigger's
+  `aria-expanded` (`show` → `"true"`, `hide` → `"false"`, `toggle` → the
+  pre-flip state), before any transition. Resolved with the op's own scoping.
+
+- **`reactive_listnav(focus: true)` — roving focus for menus (#271).** Spread
+  on a `role="menu"` container: Arrow Down/Up move real focus among
+  `[role=menuitem]` (wrapping), Home/End jump to the edges. Enter/Space stay
+  native activation; Escape is the caller's `on_client("keydown.esc", …)`.
+  Without `focus:` the helper is byte-identical to before.
+
 - **`pending_template` — opt-in pending MARKUP for `reply.pending` (#249).** A
   row component that defines `pending_template` now has its markup swapped by
   `reply.pending` (a real "Queued" badge, a genuinely removed button), in
@@ -766,6 +790,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   stay correct) and a self-re-entry-suppression test.
 
 ### Changed
+
+- **`on_client` emits a binding record (#271).** `data-reactive-ops-param` now
+  holds `{"on":…,"ops":[…], "window"?, "outside"?, "confirm"?, "confirmWhen"?}`
+  instead of the bare `[[op, args]]` list, with every space written as
+  `\u0020`. `on_client` no longer writes the element-wide
+  `data-reactive-outside-param` / `-window-param` / `-confirm-param` /
+  `-confirm-when-param` (`on(...)` still does). A hand-built legacy
+  `[[op, args]]` attribute still runs, reading its flags from those params as
+  before. **Upgrade note:** apps served by the engine's importmap pin get the
+  matching client automatically; an app that bundles its own copy of
+  `reactive_controller.js` must rebuild from the shipped source, or its
+  `on_client` triggers go dead (the old client parses only arrays).
 
 - **Client build toolchain: bun 1.3.14 → 1.4.0.** `.bun-version`, the root `engines.bun`
   floor, and the docs `packageManager` pin all move together. The shipped

@@ -324,6 +324,17 @@ module Views
               the standalone `reactive_listnav` helper, composed via `mix`, e.g.
               `mix(on(:search, event: "input"), reactive_listnav)`.
 
+              `reactive_listnav(focus: true)` (#271) is the **roving-focus** variant
+              for a `role="menu"` container: Arrow Down/Up move real focus among the
+              `[role=menuitem]` items (wrapping), Home/End jump to the first/last.
+              Enter/Space stay the focused item's native activation, and Escape is
+              yours to bind with `on_client("keydown.esc", …)` on the same element:
+
+              ```ruby
+              ul(role: "menu", **mix(reactive_listnav(focus: true),
+                                     on_client("keydown.esc", js.hide("#menu").focus("#trigger"))))
+              ```
+
               **Conditional confirm (#179).** `confirm:` also takes a Hash to warn
               *only when the field values look suspect* — soft-validation before submit,
               evaluated client-side over the same collected fields, no bespoke handler:
@@ -377,6 +388,21 @@ module Views
               navigates normally and an `on(:save, event: "submit")` interception
               turns it into a signed action instead. Actor-only like focus: refused
               in broadcasts.
+
+              **Several bindings on one element (#271).** Each `on_client` call carries
+              its own descriptor, flags and `confirm:`, so two calls compose through
+              `mix` — the root below closes the menu on an outside click **and** on
+              Escape, and the outside guard of the first never gates the second:
+
+              ```ruby
+              div(**mix(reactive_root,
+                        on_client(:click, js.hide("#menu", expanded: "#trigger"), outside: true),
+                        on_client("keydown.esc", js.hide("#menu", expanded: "#trigger").focus("#trigger"))))
+              ```
+
+              The one thing that does not compose is two element-bound `:click`
+              bindings on the same `<button>` (both force `type="button"`) — chain
+              the ops into one call instead.
 
               And `paste_into` (#228): `on_client(:click,
               js.paste_into("[name=code]"))` reads the clipboard into a field on the
