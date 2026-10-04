@@ -151,6 +151,25 @@ RSpec.describe "cacheable lazy fragments", type: :request do
       expect(response.headers["Cache-Control"]).to eq("no-store")
     end
 
+    it "is not cacheable when a base-controller filter set ANY cookie (a stored reply must not carry it)" do
+      cookies[:viewer] = "cookied" # the dummy gate sets a last_seen cookie for this viewer
+
+      get_fragment
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers["Set-Cookie"].to_s).to include("last_seen=")
+      expect(response.headers["Cache-Control"]).to eq("no-store")
+    end
+
+    it "is not cacheable when the request's cookie/session state cannot be read (fails closed)" do
+      allow_any_instance_of(ActionDispatch::Cookies::CookieJar).to receive(:to_hash).and_raise("unreadable") # rubocop:disable RSpec/AnyInstance
+
+      get_fragment
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers["Cache-Control"]).to eq("no-store")
+    end
+
     it "keeps a session a filter CREATED on a sessionless request, and is then not cacheable" do
       cookies[:viewer] = "tracked"
 

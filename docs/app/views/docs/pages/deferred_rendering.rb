@@ -400,9 +400,10 @@ module Views
               anything your base controller answers before the endpoint runs (a 401,
               a redirect to sign-in). A cacheable reply carries no `Set-Cookie`: an
               unchanged session is not re-issued, and a request that **changed** the
-              session (a filter stamping an activity time, say) keeps that write and
-              is answered `no-store` instead — so a base-controller filter that
-              writes the session on every request turns the cache off.
+              session or set a cookie (a filter stamping an activity time, say) keeps
+              that write and is answered `no-store` instead — so a base-controller
+              filter that writes the session or a cookie on every request turns the
+              cache off.
 
               **Who a copy is for: `Vary: Cookie`, or `reactive_cache_viewer`.** A
               private cache must never show one viewer's fragment to the next viewer

@@ -2271,7 +2271,8 @@ What keeps a private cache safe:
 - **A read.** No action, no `around_actions`, no transaction; `v` and `u` only
   shape the browser's cache key. Authorize in the render, as for any lazy
   component. A cacheable reply carries no `Set-Cookie`; a request that changed
-  the session keeps that write and is answered `no-store` instead.
+  the session or set a cookie keeps that write and is answered `no-store`
+  instead.
 - **No form tokens.** A render that embeds a form authenticity token is served
   `no-store` with a warning rather than cached.
 

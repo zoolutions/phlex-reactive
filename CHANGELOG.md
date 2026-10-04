@@ -21,7 +21,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   whose cookie changes on every response) and `reactive_cache_version` to bust
   it. Every non-200 reply is `no-store`, a component without `cache:` is 404, the
   id is purpose-scoped (not an identity or defer token), a cacheable reply carries
-  no `Set-Cookie` (a request that changed the session is `no-store` instead), and
+  no `Set-Cookie` (a request that changed the session or set a cookie is
+  `no-store` instead), and
   a render that embeds a form authenticity token is served `no-store`. New
   settings: `Phlex::Reactive.fragment_path` (if you change it, also render
   `<meta name="phlex-reactive-fragment-path">`), and

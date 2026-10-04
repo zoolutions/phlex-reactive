@@ -30,7 +30,8 @@ module Phlex
     #     this controller produces — including one a base-controller filter
     #     rendered before the action ran — is `no-store`;
     #   * a cacheable reply carries no Set-Cookie: an unchanged session is not
-    #     re-issued, and a request that changed the session is not cacheable;
+    #     re-issued, and a request that changed the session or set any cookie
+    #     is not cacheable;
     #   * a render that embeds a form authenticity token is not made cacheable.
     class FragmentsController < ActionsController
       # A form's authenticity token in the render: cached, it would outlive the
@@ -54,7 +55,7 @@ module Phlex
       # controller's own filters produced (a 401, a redirect to sign-in) is
       # no-store too, not only the ones this controller renders.
       def process_action(*)
-        @session_before = session_snapshot
+        @state_before = cookie_state
         super
       ensure
         forbid_caching unless @fragment_cacheable
@@ -86,10 +87,10 @@ module Phlex
         # let it be stored under the other viewer's key.
         return super if viewer && !ActiveSupport::SecurityUtils.secure_compare(viewer, params[:u].to_s)
 
-        # A request that CHANGED the session (a base-controller filter stamping
-        # an activity time, a sign-in side effect) must keep that write, and a
-        # reply carrying its Set-Cookie must not be stored.
-        return super if session_snapshot != @session_before
+        # A request that CHANGED the session or set a cookie (a base-controller
+        # filter stamping an activity time, a sign-in side effect) must keep
+        # that write, and a reply carrying its Set-Cookie must not be stored.
+        return super if cookie_state != @state_before || response.headers["Set-Cookie"].present?
 
         # Unchanged: don't re-issue it. The cookie store would otherwise send a
         # freshly encrypted Set-Cookie with this very reply, changing the Cookie
@@ -104,13 +105,21 @@ module Phlex
         @fragment_cacheable = true
       end
 
-      # The session's data as it stands, without creating one: {} when the
-      # request has no session. Deep-copied, so an in-place change shows up.
-      def session_snapshot
+      # Everything this request could turn into a Set-Cookie, as it stands: the
+      # session's data and the cookie jar. Compared before the callbacks and
+      # after the render. Unreadable state is a fresh object — equal to nothing,
+      # so the reply fails closed (no-store) instead of being assumed unchanged.
+      def cookie_state
+        [session_data, request.cookie_jar.to_hash]
+      rescue StandardError
+        Object.new
+      end
+
+      # The session's data without creating a session: {} when the request has
+      # none. Deep-copied, so an in-place change shows up.
+      def session_data
         session = request.session
         session.respond_to?(:exists?) && !session.exists? && !session.loaded? ? {} : session.to_h.deep_dup
-      rescue StandardError
-        {}
       end
 
       # Add Cookie to whatever the base controller or a middleware already
