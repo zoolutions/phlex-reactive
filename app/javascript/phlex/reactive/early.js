@@ -75,8 +75,9 @@ function record(event) {
     // descriptor already consumed (reactive_controller.js #replayEarly).
     const { queue } = state
     // Bounded: a root whose controller never registers must not grow it forever.
-    // (The entry's age is read off event.timeStamp on connect.)
-    if (queue.push({ event, el, root, descs }) > 50) queue.shift()
+    // `at` is the capture time — not event.timeStamp, which is when the event
+    // object was CREATED (an app may build one and dispatch it much later).
+    if (queue.push({ event, el, root, descs, at: performance.now() }) > 50) queue.shift()
   }
 }
 

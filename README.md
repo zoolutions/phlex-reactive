@@ -109,8 +109,9 @@ import ReactiveController from "phlex/reactive/reactive_controller"
 application.register("reactive", ReactiveController)
 ```
 
-Eager or lazy, both are safe — as long as `phlex/reactive/early` is imported
-eagerly (the engine pins it with `preload: true`):
+Eager registration is the simple, safe default. To load the controller lazily
+instead, import `phlex/reactive/early` eagerly (the engine pins it with
+`preload: true`) so the triggers below are not lost while it loads:
 
 ```js
 // app/javascript/application.js — before any controller loads
@@ -143,8 +144,16 @@ Good to know:
   you add the import, or the trigger fires twice.
 - `data-reactive-connected` is set at connect; an in-place morph strips it
   again. Listen for `reactive:connect` rather than reading the attribute later.
-- Not captured: `window:`/`outside:` triggers (they listen on `window`), and
-  key filters beyond Stimulus's default key names.
+- Until the controller connects, a captured link or form trigger has its
+  native behavior stopped and nothing else happens. If the controller never
+  loads, or the entry is dropped (older than the TTL, its element gone, more
+  than 50 queued), that click or submit does nothing.
+- Not captured, so still lost before connect: `window:`/`outside:` triggers
+  (they listen on `window`); key filters beyond Stimulus's default key names;
+  and every other controller action — only `on(...)` (`reactive#dispatch`) and
+  `on_client(...)` (`reactive#runOps`) are replayed, not the built-in
+  `nestedAdd`/`nestedRemove`, `tagsAdd`/`tagsPick`, `listnav*` or `recompute`
+  bindings.
 </details>
 
 ### Scaffold a component

@@ -49,7 +49,15 @@ beforeEach(() => {
 
 afterEach(() => {
   console.warn = realWarn
+  performance.now = realNow
 })
+
+// Age the queued entries: move the clock both modules read (performance.now).
+const realNow = performance.now
+function advanceClock(ms) {
+  const base = realNow.call(performance)
+  performance.now = () => base + ms
+}
 
 const state = () => globalThis[KEY]
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
@@ -419,7 +427,7 @@ test("connect() drops entries older than the TTL, warning under verbose", async 
   document.head.innerHTML = `<meta name="phlex-reactive-early-ttl" content="50">`
   const root = await mount(`<div id="p" data-controller="reactive" data-reactive-verbose="true"><button data-action="click->reactive#dispatch">Go</button></div>`)
   click(root.querySelector("button"))
-  state().queue[0].at = performance.now() - 51
+  advanceClock(51)
   const { calls } = connect(root)
 
   expect(calls).toHaveLength(0)
@@ -439,10 +447,35 @@ test("connect() drops entries whose element left the root, silently without verb
   expect(warns).toHaveLength(0)
 })
 
+test("an entry's age counts from CAPTURE, not from when its event object was created", async () => {
+  document.head.innerHTML = `<meta name="phlex-reactive-early-ttl" content="50">`
+  const root = await mount(`<div id="p" data-controller="reactive" data-action="panel:opened->reactive#dispatch"></div>`)
+  // An app may build an event once and dispatch it much later.
+  const reused = new window.CustomEvent("panel:opened")
+  Object.defineProperty(reused, "timeStamp", { value: performance.now() - 60_000 })
+  root.dispatchEvent(reused)
+  const { calls } = connect(root)
+
+  expect(calls).toHaveLength(1)
+})
+
+test("two instances of early.js (a bundled copy beside the pinned one) still replay an event once", async () => {
+  const { startEarly: startSecond } = await import("../../app/javascript/phlex/reactive/early.js?second-instance")
+  expect(startSecond).not.toBe(startEarly)
+  startSecond(document)
+  const root = await mount(`<div id="p" data-controller="reactive"><button data-action="click->reactive#dispatch">Go</button></div>`)
+  click(root.querySelector("button"))
+  expect(state().queue).toHaveLength(2)
+  const { calls } = connect(root)
+
+  expect(calls).toHaveLength(1)
+  expect(state().queue).toHaveLength(0)
+})
+
 test("the default TTL is 10 seconds", async () => {
   const root = await mount(`<div id="p" data-controller="reactive"><button data-action="click->reactive#dispatch">Go</button></div>`)
   click(root.querySelector("button"))
-  state().queue[0].at = performance.now() - 9_000
+  advanceClock(9_000)
   const { calls } = connect(root)
 
   expect(calls).toHaveLength(1)

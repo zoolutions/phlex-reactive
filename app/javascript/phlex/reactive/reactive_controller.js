@@ -2812,11 +2812,20 @@ export default class extends Controller {
       if (root === this.element || !root.isConnected) mine.unshift(...queue.splice(i, 1))
     }
     const ttl = earlyTtlMs()
+    // Two module instances of early.js (a bundled copy beside the pinned one)
+    // each queue the same event: replay an (event, element) pair once. (One
+    // event OBJECT dispatched twice on one element before connect also counts
+    // once — indistinguishable here.)
+    const replayed = new Map()
     for (const entry of mine) {
+      const seen = replayed.get(entry.event) ?? new Set()
+      replayed.set(entry.event, seen)
+      if (seen.has(entry.el)) continue
+      seen.add(entry.el)
       const reason =
         entry.root !== this.element
           ? "its root left the page before a controller connected"
-          : performance.now() - (entry.at ?? entry.event.timeStamp) > ttl
+          : performance.now() - entry.at > ttl
             ? `it is older than the ${ttl} ms early-event TTL`
             : entry.el.isConnected && this.element.contains(entry.el)
               ? null

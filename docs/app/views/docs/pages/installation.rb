@@ -122,8 +122,19 @@ module Views
                     'lazily instead, add '
               code { 'import "phlex/reactive/early"' }
               plain ' to your entry point: that module (under 1 KB gzipped, pinned and preloaded by ' \
-                    'the engine) queues a trigger that fires before the controller connects, and the ' \
-                    'controller replays it on connect.'
+                    'the engine) queues an '
+              code { 'on(...)' }
+              plain ' or '
+              code { 'on_client(...)' }
+              plain ' trigger that fires before the controller connects, and the controller replays ' \
+                    'it on connect. Two limits: a captured link or form trigger has its native ' \
+                    'behavior stopped while it waits, so it does nothing if the controller never ' \
+                    'loads; and other controller actions (nested rows, tags, list navigation, ' \
+                    'compute) and '
+              code { 'window:' }
+              plain '/'
+              code { 'outside:' }
+              plain ' triggers are not captured.'
             end
           end
         end
