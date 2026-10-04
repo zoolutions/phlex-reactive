@@ -1,0 +1,35 @@
+lib/phlex/reactive/component/lazy.rb
+  s_b4f052d694d82f::t_dbe27ea6a0ae34 49-52
+docs/app/views/docs/pages/testing.rb
+  s_b4f052d694d82f::t_8073df63a07519 407-413
+spec/phlex/reactive/test_helpers_system_spec.rb
+  s_b4f052d694d82f::t_77fd6ebe98d1f5 167-172
+  s_b4f052d694d82f::t_406c313d593d71 200-210,212-213
+README.md
+  s_b4f052d694d82f::t_cdfef81f8033c8 3378-3381
+lib/phlex/reactive/test_helpers/system/reactive_requests_matcher.rb
+  s_b4f052d694d82f::t_b8d83d5affb844 73-78,82
+  s_b4f052d694d82f::t_cd4457eb03de3f 12-15
+  s_b4f052d694d82f::t_45726299e69b91 56,58-60
+spec/phlex/reactive/lazy_mount_spec.rb
+  s_b4f052d694d82f::t_f64d74c74ed309 42-55
+spec/system/reactive_request_count_spec.rb
+  s_b4f052d694d82f::t_b65d77ef295194 37-46
+  s_b4f052d694d82f::t_5d9323be748996 52-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "098fcc0d29bc61a8639420bc61b55cd7ef4d4e36",
+  "prompts": {},
+  "sessions": {
+    "s_b4f052d694d82f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a4f9e839-a934-4e75-9b79-590503d3a110",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
