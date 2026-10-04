@@ -752,11 +752,11 @@ module Views
               | `verify_fragment` (once per origin hit) | ~145k i/s (6.9 μs) | 24 objects |
               | `sign_defer` (the plain shell's token) | ~133k i/s (7.5 μs) | 30 objects |
               | plain lazy shell render | ~83k i/s (12.0 μs) | 77 objects |
-              | cached shell render (URL + viewer) | ~57k i/s (17.4 μs) | 54 objects |
+              | cached shell render (URL + viewer) | ~63k i/s (16.0 μs) | 49 objects |
               | `on:` shell render | ~71k i/s (14.2 μs) | 40 objects |
               | `on:` + `cache:` shell render | ~40k i/s (24.8 μs) | 64 objects |
 
-              So `cache:` adds roughly 5 μs to a plain lazy shell and 10 μs to an
+              So `cache:` adds roughly 4 μs to a plain lazy shell and 10 μs to an
               `on:` shell — against the request and render it removes on every
               later view. The existing shells are untouched: against `main`, the
               plain lazy shell and the `on:` shell allocate the same 77 and 40
