@@ -418,9 +418,11 @@ module Views
 
               This guarantee covers the controller's callbacks and the flash. A
               session write made **outside** them — in Rack middleware or a routing
-              constraint — is out of sight: one made before the controller runs is
-              already part of the starting state, and one made after it is dropped
-              on a cacheable reply. Keep such writes off the fragment route.
+              constraint — is out of sight, and is **lost** on a cacheable reply
+              either way: one made before the controller runs is already part of the
+              starting state (so the session looks unchanged and is not persisted),
+              and one made after it is simply dropped. Keep such writes off the
+              fragment route.
 
               **Who a copy is for: `Vary: Cookie`, or `reactive_cache_viewer`.** A
               private cache must never show one viewer's fragment to the next viewer

@@ -2339,7 +2339,7 @@ What keeps a private cache safe:
   flash, or wrote a cookie keeps that write and is answered `no-store` instead —
   so an app that writes the session on every request (Devise `timeoutable`) gets
   no caching. Session writes made outside the controller (Rack middleware) are
-  not covered. A filter may tighten the policy (`no_store`, `expires_now`), never
+  not seen, and are lost on a cacheable reply. A filter may tighten the policy (`no_store`, `expires_now`), never
   loosen it.
 - **No CSRF tokens.** A render that embeds a form authenticity token or
   `csrf_meta_tags` is served `no-store` with a warning rather than cached.
