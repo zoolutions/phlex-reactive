@@ -1,0 +1,32 @@
+spec/dummy/app/controllers/demos_controller.rb
+  s_a282f06a2bde46::t_9991a04d68e835 324-326,329,332,334
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,3
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/reactive_controller.js
+  s_a282f06a2bde46::t_e9fa522c5e5bc8 2052-2059,2061,2063-2081,2744
+spec/javascript/reactive_run_ops_bindings.test.js
+  s_a282f06a2bde46::t_d7dd1b4ae305f0 359-395
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 5,7-8
+spec/system/disclosure_menu_spec.rb
+  s_a282f06a2bde46::t_9991a04d68e835 105-109,116-124
+  s_a282f06a2bde46::t_f87a1ad7841a29 110-115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d857782ef783342aff8808f37eb9c7c1857e5b6f",
+  "prompts": {},
+  "sessions": {
+    "s_a282f06a2bde46": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dc292bb6-8e6b-4ed3-97d7-452b349b1236",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
