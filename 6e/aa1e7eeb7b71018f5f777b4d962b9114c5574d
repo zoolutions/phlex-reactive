@@ -1,0 +1,11 @@
+docs/app/views/docs/pages/deferred_rendering.rb
+  ai_agent 421-425
+README.md
+  ai_agent 2342
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "6eaa1e7eeb7b71018f5f777b4d962b9114c5574d",
+  "prompts": {}
+}
