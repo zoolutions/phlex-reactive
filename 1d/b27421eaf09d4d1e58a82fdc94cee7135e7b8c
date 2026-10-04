@@ -1,0 +1,19 @@
+docs/app/reactive_components/disclosure_menu_component.rb
+  s_a282f06a2bde46::t_a3d3283d6d447b 26,50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "1db27421eaf09d4d1e58a82fdc94cee7135e7b8c",
+  "prompts": {},
+  "sessions": {
+    "s_a282f06a2bde46": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dc292bb6-8e6b-4ed3-97d7-452b349b1236",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
