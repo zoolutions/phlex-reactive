@@ -577,8 +577,9 @@ module Phlex
 
       # The path prefix of the cacheable-fragment GET endpoint (issue #277):
       # GET <fragment_path>/<signed id>. Default "/reactive/fragment"; set
-      # before boot if it collides. The shell renders the full URL, so the
-      # client needs no meta override.
+      # before boot if it collides. The shell renders the full URL, but the
+      # client only fetches one under the path it knows: when you change this,
+      # also render <meta name="phlex-reactive-fragment-path" content="…">.
       attr_writer :fragment_path
 
       def fragment_path
@@ -1106,6 +1107,7 @@ module Phlex
       # The controller a correctly-mounted action path resolves to. Used by the
       # route guard below.
       ACTIONS_CONTROLLER = "phlex/reactive/actions"
+      FRAGMENTS_CONTROLLER = "phlex/reactive/fragments"
 
       # True when a POST to `path` resolves to the gem's ActionsController. A host
       # catch-all route (match "*path", ...) appended above the engine's route
@@ -1122,6 +1124,20 @@ module Phlex
         ensure_routes_loaded
         recognized = ::Rails.application.routes.recognize_path(path, method: :post)
         recognized[:controller] == ACTIONS_CONTROLLER
+      rescue ActionController::RoutingError, ActiveRecord::RecordNotFound
+        false
+      end
+
+      # Does GET <fragment_path>/<id> resolve to the gem's FragmentsController
+      # (issue #277)? A host GET catch-all shadows it otherwise, and every
+      # `reactive_lazy cache:` fetch then gets the host's fallback page. The
+      # doctor reports it, like the defer route.
+      def fragment_route_ok?(path = fragment_path)
+        return false unless defined?(::Rails) && ::Rails.application
+
+        ensure_routes_loaded
+        recognized = ::Rails.application.routes.recognize_path("#{path}/probe", method: :get)
+        recognized[:controller] == FRAGMENTS_CONTROLLER
       rescue ActionController::RoutingError, ActiveRecord::RecordNotFound
         false
       end

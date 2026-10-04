@@ -63,6 +63,11 @@ RSpec.describe "reactive_lazy(cache:)" do # rubocop:disable RSpec/DescribeClass
       end
     end
 
+    it "rejects a Duration that is not a whole number of seconds (to_i would truncate it)" do
+      expect { cached_class(cache: { max_age: 1.5.seconds }) }.to raise_error(ArgumentError, /max_age/)
+      expect { cached_class(cache: { max_age: 0.4.seconds }) }.to raise_error(ArgumentError, /max_age/)
+    end
+
     it "rejects anything but { max_age: }" do
       expect { cached_class(cache: true) }.to raise_error(ArgumentError, /cache:/)
       expect { cached_class(cache: { max_age: 60, public: true }) }.to raise_error(ArgumentError, /cache:/)

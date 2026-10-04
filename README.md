@@ -2265,10 +2265,13 @@ What keeps a private cache safe:
   render depends on besides the identity and the version (user, tenant, locale).
 - **Opt-in only.** The fragment id is signed under its own purpose: it is not
   an identity or defer token and those are not fragment ids (400 either way). A
-  component without `cache:` is not reachable over GET (404).
+  component without `cache:` is not reachable over GET (404). The id names no
+  viewer, but it carries the signed state / record GlobalID in a URL — signed,
+  not encrypted, so keep secrets out of `reactive_state`.
 - **A read.** No action, no `around_actions`, no transaction; `v` and `u` only
   shape the browser's cache key. Authorize in the render, as for any lazy
-  component.
+  component. A cacheable reply carries no `Set-Cookie`; a request that changed
+  the session keeps that write and is answered `no-store` instead.
 - **No form tokens.** A render that embeds a form authenticity token is served
   `no-store` with a warning rather than cached.
 

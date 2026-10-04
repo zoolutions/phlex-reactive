@@ -70,6 +70,7 @@ module Phlex
         [
           route_check,
           defer_route_check,
+          fragment_route_check,
           stimulus_check,
           csrf_check,
           verifier_check,
@@ -95,6 +96,21 @@ module Phlex
       # root cause is invisible without this check.
       def defer_route_check
         path_check(Phlex::Reactive.defer_path, :defer_route, "Phlex::Reactive.defer_path")
+      end
+
+      # The cacheable-fragment GET endpoint (issue #277): a host GET catch-all
+      # that shadows it makes every `reactive_lazy cache:` fetch load the host's
+      # fallback page instead of the fragment.
+      def fragment_route_check
+        path = "#{Phlex::Reactive.fragment_path}/:id"
+        if Phlex::Reactive.fragment_route_ok?
+          Check.new(:ok, "GET #{path} routes to phlex/reactive/fragments", name: :fragment_route)
+        else
+          Check.new(:fail, "GET #{path} does not resolve to phlex/reactive/fragments", name: :fragment_route,
+            fix: "A host catch-all route (get \"*path\", ...) likely shadows it. Exempt " \
+                 "#{Phlex::Reactive.fragment_path.delete_prefix("/")} from the catch-all, or set " \
+                 "Phlex::Reactive.fragment_path to an unshadowed path.")
+        end
       end
 
       # Shared body for the two endpoint-route checks: both POST to the gem's

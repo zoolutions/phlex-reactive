@@ -64,7 +64,8 @@ module Phlex
           end
 
           max_age = cache[:max_age]
-          seconds = max_age.is_a?(ActiveSupport::Duration) ? max_age.to_i : max_age
+          # Duration#to_i truncates (1.5.seconds → 1): only an exact one converts.
+          seconds = max_age.is_a?(ActiveSupport::Duration) && max_age.to_i == max_age ? max_age.to_i : max_age
           unless seconds.is_a?(::Integer) && seconds.positive?
             raise ArgumentError,
               "reactive_lazy cache: max_age must be a positive whole number of seconds — got #{max_age.inspect}"

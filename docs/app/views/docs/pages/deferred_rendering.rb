@@ -398,8 +398,11 @@ module Views
 
               Every other response is `no-store`: a 4xx, a `render?` false (204), and
               anything your base controller answers before the endpoint runs (a 401,
-              a redirect to sign-in). A cacheable reply never writes the session, so
-              it carries no `Set-Cookie`.
+              a redirect to sign-in). A cacheable reply carries no `Set-Cookie`: an
+              unchanged session is not re-issued, and a request that **changed** the
+              session (a filter stamping an activity time, say) keeps that write and
+              is answered `no-store` instead — so a base-controller filter that
+              writes the session on every request turns the cache off.
 
               **Who a copy is for: `Vary: Cookie`, or `reactive_cache_viewer`.** A
               private cache must never show one viewer's fragment to the next viewer
@@ -504,8 +507,12 @@ module Views
                 enforced by your base controller or inside `from_identity`/the
                 render itself.
               - **`reactive_lazy(cache:)` adds a GET that renders, and nothing else.**
-                The fragment id is signed under its own purpose with no expiry and no
-                user data: an identity or defer token does not resolve at the
+                The fragment id is signed under its own purpose with no expiry. It
+                names no viewer, but like the identity token it carries the
+                component's signed state or record GlobalID — signed, **not
+                encrypted**, and now in a URL (server logs, browser history of
+                fetches), so keep secrets out of `reactive_state`. An identity or
+                defer token does not resolve at the
                 fragment endpoint (400), a fragment id does not resolve at the action
                 or defer endpoints (400), and a component that did not declare
                 `cache:` is not reachable there at all (404). The GET runs no action,

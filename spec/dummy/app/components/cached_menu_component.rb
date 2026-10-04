@@ -13,10 +13,24 @@ class CachedMenuComponent < ApplicationComponent
 
   class Denied < StandardError; end
 
+  # Spec dials, read and written from the request thread AND the example's:
+  # atomic, so overlapping renders can't lose a count.
+  VERSION = Concurrent::AtomicReference.new
+  RENDERS = Concurrent::AtomicFixnum.new
+
   class << self
-    attr_accessor :version, :renders
+    def version = VERSION.get
+
+    def version=(value)
+      VERSION.set(value)
+    end
+
+    def renders = RENDERS.value
+
+    def renders=(value)
+      RENDERS.value = value
+    end
   end
-  self.renders = 0
 
   reactive_state :scope
 
@@ -39,7 +53,7 @@ class CachedMenuComponent < ApplicationComponent
   def view_template
     raise Denied, "no menu for you" if Viewer.who == "banned"
 
-    self.class.renders += 1
+    RENDERS.increment
     ul(id:, **reactive_attrs) do
       li(data: { testid: "menu-item" }) { "menu:#{@scope}:#{Viewer.who || "guest"}" }
     end

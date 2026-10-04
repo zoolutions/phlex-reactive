@@ -72,6 +72,18 @@ RSpec.describe "cacheable lazy fragments", type: :request do
       expect(vary).to include("Cookie")
     end
 
+    it "adds Cookie to a Vary the base controller already set, instead of replacing it" do
+      get_fragment(extra_headers: { "X-Dummy-Vary" => "Accept-Language" })
+
+      expect(vary).to contain_exactly("Accept-Language", "Cookie")
+    end
+
+    it "does not repeat Cookie when the base controller already varies on it" do
+      get_fragment(extra_headers: { "X-Dummy-Vary" => "Cookie" })
+
+      expect(vary).to eq(["Cookie"])
+    end
+
     it "carries an ETag and answers a matching revalidation with 304, still private" do
       get_fragment
       etag = response.headers["ETag"]
@@ -116,14 +128,37 @@ RSpec.describe "cacheable lazy fragments", type: :request do
       expect(events.first).to include(component: "CachedPanelComponent", outcome: :ok)
     end
 
-    it "never writes the session: a stored reply must not carry Set-Cookie" do
+    it "does not re-issue an unchanged session: a stored reply must not carry Set-Cookie" do
       get "/lazy_stats" # a page view: the layout's CSRF meta tag creates the session
       expect(response.headers["Set-Cookie"].to_s).to include("_dummy_session")
 
       get_fragment
 
       expect(response).to have_http_status(:ok)
+      expect(response.headers["Cache-Control"]).to eq("max-age=600, private")
       expect(response.headers["Set-Cookie"]).to be_blank
+    end
+
+    it "keeps a session write a base-controller filter made, and is then not cacheable" do
+      get "/lazy_stats"
+      cookies[:viewer] = "tracked" # the dummy gate stamps session[:seen_at] for this viewer
+
+      get_fragment
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("panel:mine")
+      expect(response.headers["Set-Cookie"].to_s).to include("_dummy_session")
+      expect(response.headers["Cache-Control"]).to eq("no-store")
+    end
+
+    it "keeps a session a filter CREATED on a sessionless request, and is then not cacheable" do
+      cookies[:viewer] = "tracked"
+
+      get_fragment
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers["Set-Cookie"].to_s).to include("_dummy_session")
+      expect(response.headers["Cache-Control"]).to eq("no-store")
     end
   end
 
@@ -134,6 +169,13 @@ RSpec.describe "cacheable lazy fragments", type: :request do
       expect(menu_url(viewer: "alice")).to eq(alice)
       expect(menu_url(viewer: "bob")).not_to eq(alice)
       expect(menu_url(viewer: nil)).to match(/[?&]u=\h{16}\z/)
+    end
+
+    it "leaves a Vary the base controller set untouched (no Cookie added)" do
+      cookies[:viewer] = "alice"
+      get_fragment(menu_url(viewer: "alice"), extra_headers: { "X-Dummy-Vary" => "Accept-Language" })
+
+      expect(vary).to eq(["Accept-Language"])
     end
 
     it "is cacheable WITHOUT Vary: Cookie when the URL names this session's viewer" do

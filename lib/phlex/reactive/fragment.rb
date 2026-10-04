@@ -11,8 +11,10 @@ module Phlex
     # The id is a DETERMINISTIC signature over the component's identity payload
     # — no expiry, no actor binding, purpose-scoped — so the same component
     # renders the same URL on every page view and the browser's private HTTP
-    # cache can reuse the response. It carries NO user data: the viewer always
-    # comes from the session at the endpoint. The purpose makes it disjoint
+    # cache can reuse the response. It names NO viewer: who the render is for
+    # always comes from the session at the endpoint. (Like the identity token it
+    # does carry the signed state / record gid — signed, not encrypted.) The
+    # purpose makes it disjoint
     # from the identity and defer tokens: a fragment id can't run an action or
     # reach the defer endpoint, and neither of those tokens resolves here.
     #

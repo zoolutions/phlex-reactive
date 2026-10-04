@@ -20,7 +20,7 @@ module Phlex
     # reply's headers differ.
     #
     # What keeps a private cache safe here:
-    #   * the id carries no user data — the viewer always comes from the session;
+    #   * the id names no viewer — who it renders for always comes from the session;
     #   * only a component that declared `cache:` is reachable (404 otherwise);
     #   * a cached copy is never replayed to another viewer: by default the
     #     reply says `Vary: Cookie`; a component that names its viewer
@@ -29,7 +29,8 @@ module Phlex
     #   * the reply is cacheable ONLY on the success path; every other response
     #     this controller produces — including one a base-controller filter
     #     rendered before the action ran — is `no-store`;
-    #   * a cacheable reply never writes the session (no Set-Cookie);
+    #   * a cacheable reply carries no Set-Cookie: an unchanged session is not
+    #     re-issued, and a request that changed the session is not cacheable;
     #   * a render that embeds a form authenticity token is not made cacheable.
     class FragmentsController < ActionsController
       # A form's authenticity token in the render: cached, it would outlive the
@@ -53,6 +54,7 @@ module Phlex
       # controller's own filters produced (a 401, a redirect to sign-in) is
       # no-store too, not only the ones this controller renders.
       def process_action(*)
+        @session_before = session_snapshot
         super
       ensure
         forbid_caching unless @fragment_cacheable
@@ -84,17 +86,38 @@ module Phlex
         # let it be stored under the other viewer's key.
         return super if viewer && !ActiveSupport::SecurityUtils.secure_compare(viewer, params[:u].to_s)
 
-        # A stored response must not carry Set-Cookie — and a session cookie
-        # re-issued by this very reply would change the Cookie the next request
-        # sends, defeating `Vary: Cookie` within the same page.
+        # A request that CHANGED the session (a base-controller filter stamping
+        # an activity time, a sign-in side effect) must keep that write, and a
+        # reply carrying its Set-Cookie must not be stored.
+        return super if session_snapshot != @session_before
+
+        # Unchanged: don't re-issue it. The cookie store would otherwise send a
+        # freshly encrypted Set-Cookie with this very reply, changing the Cookie
+        # the next request sends and defeating `Vary: Cookie` within the page.
         request.session_options[:skip] = true
         expires_in Phlex::Reactive::Fragment.max_age_for(component.class), public: false
         # Without a declared viewer the cookie is the only thing that tells two
         # viewers apart; with one, the URL does (and was just checked).
-        response.headers["Vary"] = "Cookie" unless viewer
+        vary_on_cookie unless viewer
         render turbo_stream: stream if stale?(etag: stream, template: false)
         # Only now: anything that raised above leaves the reply no-store.
         @fragment_cacheable = true
+      end
+
+      # The session's data as it stands, without creating one: {} when the
+      # request has no session. Deep-copied, so an in-place change shows up.
+      def session_snapshot
+        session = request.session
+        session.respond_to?(:exists?) && !session.exists? && !session.loaded? ? {} : session.to_h.deep_dup
+      rescue StandardError
+        {}
+      end
+
+      # Add Cookie to whatever the base controller or a middleware already
+      # varies on — replacing it could let the browser reuse the wrong variant.
+      def vary_on_cookie
+        fields = response.headers["Vary"].to_s.split(",").map(&:strip).reject(&:empty?)
+        response.headers["Vary"] = (fields | ["Cookie"]).join(", ")
       end
 
       def render_uncacheable(stream, component_class)

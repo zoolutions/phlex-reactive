@@ -20,10 +20,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   instead (needed for reuse across page views under Rails' cookie session store,
   whose cookie changes on every response) and `reactive_cache_version` to bust
   it. Every non-200 reply is `no-store`, a component without `cache:` is 404, the
-  id is purpose-scoped (not an identity or defer token), a cacheable reply never
-  writes the session, and a render that embeds a form authenticity token is
-  served `no-store`. New settings: `Phlex::Reactive.fragment_path`,
-  `Phlex::Reactive.fragment_cache_max_age_limit` (1 hour). Not breaking: opt-in.
+  id is purpose-scoped (not an identity or defer token), a cacheable reply carries
+  no `Set-Cookie` (a request that changed the session is `no-store` instead), and
+  a render that embeds a form authenticity token is served `no-store`. New
+  settings: `Phlex::Reactive.fragment_path` (if you change it, also render
+  `<meta name="phlex-reactive-fragment-path">`), and
+  `Phlex::Reactive.fragment_cache_max_age_limit` (1 hour). `phlex_reactive:doctor`
+  checks the GET route. Not breaking: opt-in.
 
 - **`reactive_lazy(on:)` — load on an event or on visibility (#276).**
   `reactive_lazy on: "panel:opened"` keeps the placeholder shell until that

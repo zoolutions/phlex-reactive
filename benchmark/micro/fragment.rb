@@ -25,7 +25,6 @@ BenchSupport.ips do
 end
 
 BenchSupport.header("fragment URL (id + version + viewer digests)")
-viewer = Phlex::Reactive::Fragment.viewer_param(42)
 BenchSupport.ips do
   it.report("src (id only)") { Phlex::Reactive::Fragment.src(payload) }
   it.report("src (version + viewer)") do
@@ -46,7 +45,7 @@ Phlex::Reactive.sign_fragment(payload) # warm
 BenchSupport.allocations("sign_fragment") { Phlex::Reactive.sign_fragment(payload) }
 BenchSupport.allocations("verify_fragment") { Phlex::Reactive.verify_fragment(id) }
 BenchSupport.allocations("src (version + viewer)") do
-  Phlex::Reactive::Fragment.src(payload, version: "2026-10-04", viewer:)
+  Phlex::Reactive::Fragment.src(payload, version: "2026-10-04", viewer: Phlex::Reactive::Fragment.viewer_param(42))
 end
 BenchSupport.allocations("plain lazy shell") { LazyStatsComponent.new(scope: "week").call }
 BenchSupport.allocations("cached shell") { CachedMenuComponent.new(scope: "main").call }

@@ -48,6 +48,22 @@ RSpec.describe Phlex::Reactive::Doctor do
       expect(defer_route).to be_ok
     end
 
+    it "passes the fragment-route check (issue #277 — the GET fragment endpoint resolves)" do
+      fragment_route = doctor.checks.find { it.name == :fragment_route }
+      expect(fragment_route).to be_ok
+    end
+
+    it "fails the fragment-route check when the path does not reach the gem controller" do
+      original = Phlex::Reactive.fragment_path
+      Phlex::Reactive.fragment_path = "/shadowed/fragment"
+      fragment_route = doctor.checks.find { it.name == :fragment_route }
+
+      expect(fragment_route).not_to be_ok
+      expect(fragment_route.fix).to include("Phlex::Reactive.fragment_path")
+    ensure
+      Phlex::Reactive.fragment_path = original
+    end
+
     it "passes the verifier round-trip check" do
       verifier = doctor.checks.find { it.name == :verifier }
       expect(verifier).to be_ok

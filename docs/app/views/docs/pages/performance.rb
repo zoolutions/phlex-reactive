@@ -722,7 +722,7 @@ module Views
               A lazy fragment that is the same for a viewer on every page was fetched
               and rendered once **per page view**. `reactive_lazy cache: { max_age: }`
               (#277) makes that render a privately cacheable GET, so a repeat view
-              costs neither the request nor the render. This is a request-level win,
+              costs neither a network request nor the render. This is a request-level win,
               and the only one on this page that removes server work outright rather
               than moving or shrinking it — but only for the hits: the first view of
               each (viewer, version) still pays the full render.

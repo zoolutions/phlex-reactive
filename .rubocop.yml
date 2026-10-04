@@ -119,9 +119,6 @@ ThreadSafety/ClassAndModuleAttributes:
     # Test-fixture dials (render_delay_ms / suppressed) the defer suite turns
     # per example (issue #165) — never touched concurrently.
     - spec/dummy/app/components/slow_totals_component.rb
-    # The same kind of dials (version / renders) for the cacheable-fragment
-    # suite (issue #277).
-    - spec/dummy/app/components/cached_menu_component.rb
 
 ThreadSafety/NewThread:
   Exclude:
