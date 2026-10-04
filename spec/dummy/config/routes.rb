@@ -11,6 +11,7 @@ Rails.application.routes.draw do
   get "counter" => "demos#counter"
   get "early_triggers" => "demos#early_triggers" # issue #273: lazily loaded controller
   get "dormant" => "demos#dormant" # issue #274: a dormant root, controller loaded on first use
+  get "dormant_lazy" => "demos#dormant_lazy"
   get "dormant_stream" => "demos#dormant_stream"
   get "effects" => "demos#effects"
   get "debug" => "demos#debug"
@@ -82,6 +83,8 @@ Rails.application.routes.draw do
   get "loading_button" => "demos#loading_button"
   get "defer" => "demos#defer"
   get "lazy_stats" => "demos#lazy_stats"
+  get "lazy_on" => "demos#lazy_on"
+  get "lazy_on_early" => "demos#lazy_on_early"
   get "morph_grid/:id" => "demos#morph_grid"
   get "js_focus/:id" => "demos#js_focus"
   get "partial_grid/:id" => "demos#partial_grid"

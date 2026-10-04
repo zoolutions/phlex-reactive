@@ -81,6 +81,9 @@ module Phlex
           dormant = self.class.reactive_dormant? if dormant.nil? && self.class.respond_to?(:reactive_dormant?)
           data =
             if dormant && !Phlex::Reactive::Dormant.awake?
+              # The lazy SHELL (not the real render) of an on: :visible component
+              # can never wake — refuse it rather than ship a dead placeholder.
+              Phlex::Reactive::Dormant.reject_visible_lazy!(self.class) unless Phlex::Reactive::Defer.real_render?
               { reactive_dormant: "reactive" }
             else
               { controller: "reactive" }

@@ -26,7 +26,11 @@ beforeAll(async () => {
   globalThis.CustomEvent = window.CustomEvent
   globalThis.MutationObserver = window.MutationObserver
   mock.module("@hotwired/stimulus", () => ({ Controller: class {} }))
-  ;({ startEarly } = await import("../../app/javascript/phlex/reactive/early.js"))
+  // early.js binds the shared state object once, at import — and another test
+  // file may have replaced it since. A fresh module instance over a fresh
+  // state keeps this file independent of the order the suite runs in.
+  delete globalThis[KEY]
+  ;({ startEarly } = await import("../../app/javascript/phlex/reactive/early.js?dormant"))
   ReactiveController = (await import("../../app/javascript/phlex/reactive/reactive_controller.js")).default
 })
 
@@ -244,6 +248,40 @@ test("the live event that woke a root is not dispatched again after its replay",
   // A later, different click is live again.
   controller.dispatch(liveEventFor(new window.MouseEvent("click"), button))
   expect(seen).toEqual(["load", "load"])
+})
+
+// The mark only has to outlive the propagation the replay happened in: an app
+// that dispatches the SAME event object again later must get a live dispatch.
+test("the replayed event's object is live again once its propagation is over", async () => {
+  const root = await mount(`
+    <div id="menu" data-reactive-dormant="reactive">
+      <button data-action="click->reactive#dispatch" data-reactive-action-param="load">Open</button>
+    </div>`)
+  const button = root.querySelector("button")
+  const seen = countDispatches(root)
+  const event = click(button)
+  const controller = realConnect(root)
+  expect(seen).toEqual(["load"])
+
+  await flush()
+  controller.dispatch(liveEventFor(event, button))
+  expect(seen).toEqual(["load", "load"])
+})
+
+// reactive_lazy(on: "x") + reactive_dormant (issue #276): the event shell's
+// once-bound __materialize trigger is an ordinary descriptor, so it wakes the
+// root and is replayed once.
+test("a dormant reactive_lazy(on:) event shell wakes and materializes once", async () => {
+  const root = await mount(`
+    <div id="panel" class="reactive-defer-placeholder" data-reactive-dormant="reactive"
+         data-action="panel:opened->reactive#dispatch:once" data-reactive-action-param="__materialize"
+         data-reactive-params-param="{}" data-reactive-lazy-on="panel:opened"></div>`)
+  root.dispatchEvent(new window.CustomEvent("panel:opened"))
+  root.dispatchEvent(new window.CustomEvent("panel:opened"))
+  expect(root.getAttribute("data-controller")).toBe("reactive")
+  const { calls } = connect(root)
+
+  expect(calls.map((call) => call.event.params.action)).toEqual(["__materialize"])
 })
 
 test("the same goes for an on_client trigger", async () => {

@@ -24,6 +24,7 @@ module Views
           delivery
           failure
           lazy_mount
+          lazy_on
           security
           config_reference
         end
@@ -263,6 +264,100 @@ module Views
           end
         end
 
+        def lazy_on
+          DocsUI::Section('Load on first use (reactive_lazy on:)') do
+            md <<~MD
+              Plain `reactive_lazy` defers server time but still makes its request
+              on connect. `on:` defers the **request itself** — "load this panel the
+              first time it opens", with no action, no loaded flag and no app
+              JavaScript:
+
+              ```ruby
+              class ItemsPanel < ApplicationComponent
+                include Phlex::Reactive::Component
+                reactive_lazy on: "panel:opened"         # a DOM event on (or bubbling into) the shell
+                # reactive_lazy on: :visible             # the shell first scrolls into view
+                # reactive_lazy on: { visible: "200px" } # …with an IntersectionObserver rootMargin
+
+                def id = "items-panel"
+                def view_template = ul(id:, **reactive_attrs) { Current.user.items.each { li { it.name } } }
+                def deferred_placeholder = ItemsSkeleton.new
+              end
+              ```
+
+              The shell makes **no request on page load**. The first matching event
+              (or the first intersection) materializes it **once**; later events are
+              no-ops, because the real render never contains the shell or its
+              trigger. `:visible` watches the shell itself with an
+              `IntersectionObserver` and starts the request directly — no DOM event
+              is involved, so a nested visible shell cannot trigger its ancestor
+              (each shell loads only when its own observer intersects). A positive
+              rootMargin grows the observed region, so the
+              shell loads a little before it scrolls into view; a negative one
+              shrinks it, so the shell must scroll further in before it loads. In
+              an engine without `IntersectionObserver` it materializes right after
+              connect.
+
+              Mechanics: an `on:` shell carries the component's **identity token** —
+              the same one actions use, with no expiry — and a framework-owned
+              `__materialize` trigger bound `once`, instead of a defer token. So it
+              works on a page left open far longer than `defer_token_ttl`.
+              `__materialize` rides the action endpoint (CSRF and auth from your base
+              controller as usual), runs **no** action and opens no transaction, and
+              renders through the same step as the defer endpoint: a registered
+              authorization error from `from_identity`/render → **403**, `render?`
+              false → an empty stream (the shell stays). It is instrumented as
+              `defer.phlex_reactive` on the server; on the client it travels the
+              action pipeline, so `have_reactive_requests` counts it under
+              `kind: :action`. It answers **403** for any component that is not
+              `reactive_lazy(on:)`, and `action :__materialize` is refused at
+              declaration.
+
+              **Failures.** A failed materialize (network drop, 4xx/5xx) marks the
+              root `data-reactive-error` and fires `reactive:error`, as for any
+              action. It is **not retried on its own**: an event shell's trigger is
+              bound `once` and a visible shell stops observing when its request
+              starts. The shell is re-armed by the next Turbo morph of the root
+              (below), by `event.detail.retry()` from a `reactive:error` listener,
+              or by the next page render.
+
+              **Give the shell the real root's tag.** The shell is a `<div>` unless
+              you say otherwise. If the real root is a `<ul>`, `<tr>`, `<li>`…,
+              declare it: `reactive_lazy on: "x", tag: :ul`. Besides keeping the
+              markup valid, it is what lets a Turbo morph treat the shell and the
+              real render as the **same element** — everything in the next
+              paragraph depends on that. With mismatched tags Turbo swaps the node
+              instead: a fresh shell is mounted, and an already-open event panel
+              shows its skeleton until its event fires again.
+
+              **Turbo morphs.** A page-refresh morph (or a `method="morph"` stream)
+              rewrites the root in place and runs no Stimulus lifecycle, so the
+              client handles it itself, whenever the **root itself** is morphed (a
+              morph of something inside it changes nothing here):
+
+              | The root before the morph | After the morph it is… | What happens |
+              |---|---|---|
+              | real content | real content | nothing — no request |
+              | real content | the shell again | it re-materializes **at once**, one request per morph: it was loaded and the morph wiped it (for an event shell, the panel is already open and its event won't fire again) |
+              | the shell (never triggered, or a failed load) | still the shell | it is **re-armed**: `:visible` observes again and loads on the next intersection; an event shell accepts its event again — this is a failed load's retry path, one attempt per morph |
+              | the shell, load in flight | still the shell | nothing — the in-flight reply fills it; never a second request |
+
+              **The cost of refresh morphs.** A full page render ships the shell, so
+              every page-refresh morph turns each *loaded* `on:` component back
+              into its shell, and each one reloads: **one `__materialize` request
+              per loaded component per refresh** (with matching tags; a mismatched
+              shell is swapped in instead and waits for its trigger). That is bounded by how often the
+              page refreshes — the client never triggers it on its own — but a page
+              that refreshes on every broadcast pays it every time. To opt a
+              component out, put `data-turbo-permanent` on its real root (it needs
+              its `id`, which a reactive root has): Turbo then skips the element
+              when morphing, so the loaded content stays and no request is made.
+              The trade is the usual one for a permanent element — the refresh no
+              longer updates it; its own actions and broadcasts still do.
+            MD
+          end
+        end
+
         def security
           DocsUI::Section('Security') do
             md <<~MD
@@ -284,6 +379,22 @@ module Views
                 that guards visibility can raise a registered authorization error
                 while being rebuilt or rendered (→ **403**) or return `false` from
                 `render?` (→ **204**, keep content).
+              - **`reactive_lazy(on:)` uses the identity token, not a defer token.**
+                By opting in with `on:`, a component lets its identity token fetch
+                its real render through the action endpoint — even a component that
+                declares no actions. That is the same render a plain lazy shell's
+                defer token fetches, minus the TTL, so treat the render as reachable
+                by anyone holding the page and authorize inside it (raise a
+                registered error, or `render?` false). `__materialize` is refused
+                (403) for every component that didn't opt in with `on:`.
+              - **`__materialize` is a read, and skips the action wrappers.** Like
+                the defer endpoint, it does not run `Phlex::Reactive.around_actions`
+                (rate limits, audit logs, tenant wrappers), the `verify_authorized`
+                check, or the pgbus connection-id scope — and unlike a defer token,
+                the token that reaches it never expires. Anything those wrappers
+                enforce for this component (a tenant scope, a rate limit) must be
+                enforced by your base controller or inside `from_identity`/the
+                render itself.
             MD
           end
         end

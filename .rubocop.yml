@@ -155,6 +155,7 @@ Naming/MethodParameterName:
     - p
     - to
     - as
+    - "on"
 
 Naming/VariableNumber:
   Exclude:

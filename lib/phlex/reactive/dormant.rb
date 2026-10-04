@@ -35,6 +35,19 @@ module Phlex
           Thread.current[AWAKE_KEY] = previous
         end
 
+        # A reactive_lazy(on: :visible) shell (issue #276) has no trigger
+        # descriptor — the CONTROLLER's IntersectionObserver materializes it —
+        # so a dormant one could never wake. Refused where it is declared, and
+        # (for the other declaration order) where the shell renders.
+        def reject_visible_lazy!(klass)
+          return unless klass.respond_to?(:reactive_lazy_trigger) && klass.reactive_lazy_trigger&.key?(:visible)
+
+          raise ArgumentError,
+            "#{klass}: reactive_dormant cannot be combined with reactive_lazy(on: :visible) — a dormant " \
+            "root wakes on a trigger event, and a visibility shell has none (the controller's " \
+            "IntersectionObserver loads it). Use reactive_lazy(on: \"an:event\"), or drop reactive_dormant."
+        end
+
         # The inverse, for a render fired INSIDE an awake block that leaves the
         # actor's page — a broadcast. A plain yield when nothing is awake.
         def asleep

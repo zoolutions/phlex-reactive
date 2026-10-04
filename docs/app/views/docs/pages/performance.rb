@@ -802,8 +802,10 @@ module Views
             DocsUI::Callout(:warning) do
               plain 'A dormant root needs '
               code { 'import "phlex/reactive/early"' }
-              plain ' in your entry point. Without that module nothing wakes the root and its triggers '
-              plain 'do nothing. '
+              plain ' in your entry point. Without that module nothing wakes the root: a link or form '
+              plain 'trigger does its native thing (the link navigates, the form posts), and a dormant '
+              plain 'root nested inside an awake one hands its triggers to the outer component, which '
+              plain 'runs its own action of that name or answers 403. '
               code { 'bin/rails phlex_reactive:doctor' }
               plain ' lists the dormant components and says whether it found the import.'
             end
@@ -812,10 +814,34 @@ module Views
               p do
                 plain "The actor's own reply renders a dormant root awake: the reply only exists because "
                 plain "that page's controller is loaded, so a dormant replacement would cost one more "
-                plain 'wake and save nothing. The same goes for the defer endpoint. Every other render '
-                plain 'stays dormant: the page, a broadcast (also one fired inside an action), a page '
-                plain 'refresh. If one of those lands on a root that is already awake, the root goes '
+                plain 'wake and save nothing. The same goes for a '
+                code { 'reactive_lazy(on:)' }
+                plain ' materialize and the defer endpoint. Every other render stays dormant: the page, a '
+                code { 'broadcast_to' }
+                plain ' (also one fired inside an action), a page refresh, a deferred render pushed over '
+                plain 'a stream. If one of those lands on a root that is already awake, the root goes '
                 plain 'back to sleep and the next trigger wakes it again; no trigger is lost.'
+              end
+              p do
+                plain 'One case renders awake where you may not want it: a '
+                code { 'to_stream_replace' }
+                plain ' built inside an action and sent to other pages by hand. Use '
+                code { 'broadcast_to' }
+                plain ' for those.'
+              end
+              h3 { 'With reactive_lazy' }
+              p do
+                plain 'An event shell can be dormant: '
+                code { 'reactive_lazy on: "panel:opened"' }
+                plain ' plus '
+                code { 'reactive_dormant' }
+                plain ' gives "load this the first time it opens, and fetch no JavaScript until then". '
+                plain 'The event wakes the root and loads it in one request, and the content arrives awake. '
+                code { 'on: :visible' }
+                plain ' cannot be dormant, because its shell has no trigger to wake on; declaring both '
+                plain 'raises. A plain '
+                code { 'reactive_lazy' }
+                plain ' shell always mounts, because it fetches on connect.'
               end
               h3 { 'Limits' }
               ul do
@@ -825,9 +851,9 @@ module Views
                   code { 'reactive_persist' }
                   plain ' restore, '
                   code { 'reactive_compute' }
-                  plain ' seeding, show/filter sync, dirty tracking, a '
-                  code { 'reactive_lazy' }
-                  plain ' fetch.'
+                  plain ' seeding, show/filter sync, dirty tracking. The browser inspector ('
+                  code { 'inspect.js' }
+                  plain ') does not list a dormant root.'
                 end
                 li do
                   plain 'Only element-bound '
@@ -856,7 +882,7 @@ module Views
                 li do
                   plain 'Waking costs '
                   code { 'early.js' }
-                  plain ' 53 bytes: 1,007 B → 1,060 B gzipped, under a 1,100 B test budget.'
+                  plain ' 53 bytes: 1,007 B → 1,060 B gzipped (bun, level 9), under a 1,100 B test budget.'
                 end
               end
             end

@@ -213,8 +213,17 @@ module Phlex
           # root's element for content that can't legally hold a <div> — a
           # `reactive_lazy tag: :tr` component rooting at <tr> inside <tbody>
           # ships a <tr> shell, not a <div> the HTML parser would hoist away.
-          def reactive_lazy(tag: :div)
-            Registry.write_scalar(self, :lazy, { tag: tag.to_sym })
+          #
+          # `on:` (issue #276) defers the REQUEST itself, not just server time:
+          #   reactive_lazy on: "panel:opened"        # a DOM event on (or bubbling into) the shell
+          #   reactive_lazy on: :visible              # the shell first scrolls into view
+          #   reactive_lazy on: { visible: "200px" }  # …with an IntersectionObserver rootMargin
+          # The shell then carries the identity token (no TTL) and materializes
+          # once through the action endpoint. See Component::Lazy.
+          def reactive_lazy(tag: :div, on: nil)
+            declaration = { tag: tag.to_sym }
+            declaration[:trigger] = Lazy.normalize_trigger(on) unless on.nil?
+            Registry.write_scalar(self, :lazy, declaration)
           end
 
           # The RAW resolved lazy declaration ({ tag: } or nil) — the reader the
@@ -238,25 +247,12 @@ module Phlex
             value.is_a?(::Hash) ? value.fetch(:tag, :div) : :div
           end
 
-          # Dormant root (issue #274): every root of this component renders
-          # data-reactive-dormant="reactive" instead of data-controller=
-          # "reactive", so the client is neither mounted nor (when loaded
-          # lazily) fetched until one of the root's triggers fires — for a root
-          # that only matters after a gesture (a closed dialog, a menu that
-          # loads on open). The app must import "phlex/reactive/early", which
-          # wakes the root. Inherited; `reactive_dormant false` turns it off
-          # again in a subclass, and reactive_root(dormant:) overrides per
-          # render. See Phlex::Reactive::Dormant.
-          def reactive_dormant(dormant = true) # rubocop:disable Style/OptionalBooleanParameter
-            unless [true, false].include?(dormant)
-              raise ArgumentError, "#{self}: reactive_dormant takes true or false, got #{dormant.inspect}"
-            end
-
-            Registry.write_scalar(self, :dormant, dormant)
-          end
-
-          def reactive_dormant?
-            Registry.resolve_scalar(self, :dormant, :reactive_dormant?) == true
+          # The normalized `on:` trigger of a lazy component — `{ event: "x" }`
+          # or `{ visible: "<rootMargin>" }` — or nil (plain reactive_lazy, or
+          # not lazy at all). The endpoint's `__materialize` gate reads it.
+          def reactive_lazy_trigger
+            value = reactive_lazy_declaration
+            value[:trigger] if value.is_a?(::Hash)
           end
 
           # Declare a client-invokable action with an optional param schema.
@@ -279,6 +275,13 @@ module Phlex
           # ({ "0" => ..., "1" => ... }), so a fields_for collection works either way.
           def action(name, params: {})
             require_server_actions!(:action)
+            # Issue #276: the endpoint routes `__materialize` to the lazy render
+            # before the action registry is consulted — a declared one would be
+            # dead code that looks invokable.
+            if name.to_sym == Lazy::MATERIALIZE_ACTION
+              raise ArgumentError, "action #{name.inspect} is reserved for reactive_lazy(on:)"
+            end
+
             # Issue #184: params: :symbol resolves a registered named schema.
             params = Phlex::Reactive.param_schema(params) if params.is_a?(Symbol)
             # If a scope is already declared, reject a schema nested under the scope
@@ -312,6 +315,32 @@ module Phlex
             raise NoMethodError,
               "reactive_action?(#{name.inspect}) was removed in issue #186 — " \
               "use reactive_actions.key?(#{name.inspect})"
+          end
+
+          # Dormant root (issue #274): every root of this component renders
+          # data-reactive-dormant="reactive" instead of data-controller=
+          # "reactive", so the client is neither mounted nor (when loaded
+          # lazily) fetched until one of the root's triggers fires — for a root
+          # that only matters after a gesture (a closed dialog, a menu that
+          # loads on open). The app must import "phlex/reactive/early", which
+          # wakes the root. Inherited; `reactive_dormant false` turns it off
+          # again in a subclass, and reactive_root(dormant:) overrides per
+          # render. See Phlex::Reactive::Dormant.
+          #
+          # Not with reactive_lazy(on: :visible): that shell has no trigger to
+          # wake on (refused here, or at render for the other declaration order).
+          def reactive_dormant(dormant = true) # rubocop:disable Style/OptionalBooleanParameter
+            unless [true, false].include?(dormant)
+              raise ArgumentError, "#{self}: reactive_dormant takes true or false, got #{dormant.inspect}"
+            end
+
+            Phlex::Reactive::Dormant.reject_visible_lazy!(self) if dormant
+
+            Registry.write_scalar(self, :dormant, dormant)
+          end
+
+          def reactive_dormant?
+            Registry.resolve_scalar(self, :dormant, :reactive_dormant?) == true
           end
 
           # Opt out of the default-ON verify_authorized guard (issue #168).

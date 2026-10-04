@@ -28,6 +28,14 @@ class DemosController < ActionController::Base
     render html: "#{html}#{visit}".html_safe, layout: "lazy_controller"
   end
 
+  # Issue #274 + #276: a dormant reactive_lazy(on:) event shell as the page's
+  # only reactive root — no client until the panel opens, then one request.
+  def dormant_lazy
+    @reactive_load = "auto"
+    html = render_to_string(DormantLazyPanelComponent.new(scope: "mine"), layout: false)
+    render html: html.html_safe, layout: "lazy_controller"
+  end
+
   # Issue #274: what a broadcast or page refresh sends — the root rendered
   # OUTSIDE an actor reply (so dormant), morphed over the live one.
   def dormant_stream
@@ -479,6 +487,25 @@ class DemosController < ActionController::Base
   # client fetches the real content on connect via the defer machinery.
   def lazy_stats
     render_component LazyStatsComponent.new(scope: "week")
+  end
+
+  # reactive_lazy(on:) (issue #276): an event-triggered panel at the top, and a
+  # visibility-triggered shell far below the fold. Neither fetches on load.
+  # reactive_lazy(on:) composed with phlex/reactive/early (issues #276 + #273):
+  # the event shell on the lazily-loaded-controller layout, so its event can
+  # fire before the controller connects.
+  def lazy_on_early
+    html = render_to_string(LazyPanelComponent.new(scope: "mine"), layout: false)
+    render html: html.html_safe, layout: "lazy_controller"
+  end
+
+  # ?scope=forbidden ships a panel whose materialize is denied (403), so specs
+  # can leave a shell in the failed state.
+  def lazy_on
+    html = render_to_string(LazyPanelComponent.new(scope: params.fetch(:scope, "mine")), layout: false) +
+           %(<div data-testid="spacer" style="height: 3000px"></div>).html_safe +
+           render_to_string(LazyFoldComponent.new(label: "below"), layout: false)
+    render html: html.html_safe, layout: true
   end
 
   def morph_grid

@@ -14,8 +14,45 @@ module Phlex
       # the defer endpoint/job, the class stream builders — runs inside
       # Defer.with_real_render, so it renders the REAL template. Anything else
       # would make an action on a lazy component cost two round trips.
+      #
+      # `reactive_lazy(on:)` (issue #276) defers the REQUEST, not just the
+      # server time: the shell carries the identity token (no TTL, unlike the
+      # defer token). An event shell binds a `__materialize` trigger `once` to
+      # its event; a visibility shell has no binding — the client's
+      # IntersectionObserver starts the same `__materialize` request itself.
+      # The action endpoint routes `__materialize` to the same real render the
+      # defer endpoint does. The real render never contains the shell or its
+      # trigger, so `once` cannot re-arm.
       module Lazy
         extend ActiveSupport::Concern
+
+        # The framework-owned act the on: shell dispatches. Reserved: `action`
+        # refuses it, and the endpoint answers it only for reactive_lazy(on:).
+        MATERIALIZE_ACTION = :__materialize
+        # A DOM event name usable in a Stimulus descriptor: no key filter (.),
+        # no target (@), no descriptor syntax (->, #) — `panel:opened` is fine.
+        EVENT_NAME = /\A[A-Za-z][\w:-]*\z/
+        # An IntersectionObserver rootMargin: one to four px/% lengths.
+        # Any CSS whitespace between lengths; normalized to single spaces.
+        ROOT_MARGIN = /\A\s*-?\d+(?:\.\d+)?(?:px|%)(?:\s+-?\d+(?:\.\d+)?(?:px|%)){0,3}\s*\z/
+
+        # `on:` → { event: "x" } | { visible: "<rootMargin>" }, or raise.
+        def self.normalize_trigger(on)
+          case on
+          when String
+            return { event: on } if on.match?(EVENT_NAME)
+          when :visible
+            return { visible: "0px" }
+          when ::Hash
+            margin = on[:visible]
+            if on.keys == [:visible] && margin.is_a?(String) && margin.match?(ROOT_MARGIN)
+              return { visible: margin.split.join(" ") }
+            end
+          end
+          raise ArgumentError,
+            "reactive_lazy on: expects a DOM event name (\"panel:opened\"), :visible, or " \
+            "{ visible: \"200px\" } (a px/% rootMargin) — got #{on.inspect}"
+        end
 
         private
 
@@ -26,10 +63,47 @@ module Phlex
         def around_template(&)
           klass = self.class
           if klass.respond_to?(:reactive_lazy?) && klass.reactive_lazy? && !Phlex::Reactive::Defer.real_render?
-            render_defer_shell
+            (trigger = klass.reactive_lazy_trigger) ? render_trigger_shell(trigger) : render_defer_shell
           else
             super
           end
+        end
+
+        # The on: shell (issue #276): the same placeholder contract as the
+        # defer shell (id, class, aria-busy, deferred_placeholder), but mounted
+        # like a reactive root — reactive_attrs' identity token. No defer token
+        # and no pending marker: the client's lazy probe gates on the token, so
+        # it skips this shell, and nothing is in flight until the trigger fires.
+        #
+        # The marker tells the client which shell this is, on connect AND after
+        # a Turbo morph re-shows it on a connected root (no Stimulus lifecycle):
+        #   * data-reactive-lazy-on="<event>" — plus the once-bound Stimulus
+        #     descriptor for `__materialize`, so the first event takes the
+        #     ordinary action path. The client re-arms the event itself after a
+        #     morph, because a spent `once` binding never fires again.
+        #   * data-reactive-lazy-visible="<rootMargin>" — no descriptor at all;
+        #     the client's IntersectionObserver materializes directly.
+        def render_trigger_shell(trigger)
+          public_send(
+            self.class.reactive_lazy_tag,
+            **mix(
+              { id:, class: "reactive-defer-placeholder", aria: { busy: "true" } },
+              reactive_attrs,
+              { data: trigger_shell_data(trigger) }
+            )
+          ) { render_deferred_placeholder_content }
+        end
+
+        def trigger_shell_data(trigger)
+          return { reactive_lazy_visible: trigger[:visible] } if trigger[:visible]
+
+          event = trigger[:event]
+          {
+            action: "#{event}->reactive#dispatch:once",
+            reactive_action_param: MATERIALIZE_ACTION.to_s,
+            reactive_params_param: Helpers::EMPTY_PARAMS_JSON,
+            reactive_lazy_on: event
+          }
         end
 
         # The shell: owns the component's id (the arrival replaces it by that

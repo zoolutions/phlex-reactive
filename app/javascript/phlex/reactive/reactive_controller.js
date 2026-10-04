@@ -540,6 +540,9 @@ const EFFECT_BUILT_INS = Object.freeze(["fade", "slide", "scale", "highlight", "
 // Marks an incoming template root so the post-render scan finds the inserted
 // CLONE (Turbo clones template content on render — attrs ride the clone).
 const EFFECT_PENDING_ATTR = "data-reactive-fx-pending"
+// The framework-owned act a reactive_lazy(on:) shell sends (issue #276).
+// Lockstep with Phlex::Reactive::Component::Lazy::MATERIALIZE_ACTION.
+const LAZY_MATERIALIZE_ACTION = "__materialize"
 // The hard ceiling on any effect wait — an exit's removal is delayed at most
 // this long even if animationend/transitionend never fire.
 const EFFECT_SETTLE_FALLBACK_MS = 1000
@@ -2553,6 +2556,19 @@ export default class extends Controller {
   // Lazy initial mount (issue #165): the bound re-probe attached to
   // turbo:morph-element so a Turbo page-refresh morph re-fires the defer fetch.
   #boundProbeLazyDefer
+  // reactive_lazy(on:) (issue #276). Whether the root was a trigger shell when
+  // last looked at (connect, then every morph) — a morph that turns REAL
+  // content back into a shell re-materializes; one that leaves a shell a shell
+  // only re-arms it. #lazyInFlight is the ONE dedupe point every materialize
+  // passes (Stimulus binding, observer, re-armed listener, morph-back). The
+  // observer, the re-armed event listener (and the event name it is bound to)
+  // and the bound morph handler are held for teardown.
+  #lazyWasShell = false
+  #lazyInFlight = false
+  #lazyVisibleObserver = null
+  #lazyEventName = null
+  #boundLazyEvent
+  #boundLazyMorph
   // Clipboard-trigger availability gate (issue #228): the bound morph re-sync,
   // held for teardown.
   #boundSyncClipboard
@@ -2611,6 +2627,24 @@ export default class extends Controller {
       this.#probeLazyDefer()
       this.#boundProbeLazyDefer = () => this.#probeLazyDefer()
       this.element.addEventListener?.("turbo:morph-element", this.#boundProbeLazyDefer)
+    }
+    // reactive_lazy(on:) shells (issue #276) carry NO defer token, so the probe
+    // above skips them: an event shell waits for its once-bound __materialize
+    // trigger, a :visible shell for the observer armed here. The morph handler
+    // is wired on EVERY token-bearing root, shell or not: a Turbo morph can
+    // turn a root that connected on REAL content back into a shell while it
+    // stays connected (no Stimulus lifecycle), and only a handler that is
+    // already listening can notice. A tokenless (client-only) root can never
+    // be an on: shell — the shell carries the identity token — so it skips this.
+    if (this.element.getAttribute?.("data-reactive-token-value") != null) {
+      this.#lazyWasShell = this.#lazyShellKind() !== null
+      if (this.#lazyWasShell) this.#armLazyTrigger(false)
+      // turbo:morph-element BUBBLES: only a morph of the root itself counts,
+      // never one of a descendant (a morphed skeleton child, a nested root).
+      this.#boundLazyMorph = (event) => {
+        if (event.target === this.element) this.#lazyAfterMorph()
+      }
+      this.element.addEventListener?.("turbo:morph-element", this.#boundLazyMorph)
     }
 
     // Client-only drafts (issue #239) — ONLY when the root declares
@@ -2857,8 +2891,14 @@ export default class extends Controller {
     const replay = earlyReplayEvent(event, el)
     // The original may still be propagating (issue #274): its live arrival at
     // `el` must not run the same bindings again (earlyOnceSwallows).
+    // The mark lasts for that propagation only — a new task starts after the
+    // whole dispatch is over — so the same event OBJECT dispatched again later
+    // is live.
     let replayedOn = replayedEarly.get(event)
-    if (!replayedOn) replayedEarly.set(event, (replayedOn = new WeakSet()))
+    if (!replayedOn) {
+      replayedEarly.set(event, (replayedOn = new WeakSet()))
+      setTimeout(() => replayedEarly.delete(event))
+    }
     replayedOn.add(el)
     const keyMappings = this.application?.schema?.keyMappings
     const tokens = (el.getAttribute("data-action") ?? "").split(/\s+/)
@@ -2908,9 +2948,118 @@ export default class extends Controller {
     if (this.#boundProbeLazyDefer) {
       this.element.removeEventListener?.("turbo:morph-element", this.#boundProbeLazyDefer)
     }
+    this.#disarmLazyTrigger()
+    if (this.#boundLazyMorph) {
+      this.element.removeEventListener?.("turbo:morph-element", this.#boundLazyMorph)
+    }
     // Early triggers (issue #273): a disconnected root records again.
     earlyState().connected.delete(this.element)
     this.element.removeAttribute?.("data-reactive-connected")
+  }
+
+  // Which reactive_lazy(on:) shell this root currently is — read live, because
+  // a morph rewrites the attributes on a connected element. null = real content.
+  #lazyShellKind() {
+    const el = this.element
+    if (el.getAttribute?.("data-reactive-lazy-visible") != null) return "visible"
+    if (el.getAttribute?.("data-reactive-lazy-on")) return "event"
+    return null
+  }
+
+  // Arm the shell's trigger. A :visible shell gets (at most one) observer. An
+  // event shell's FIRST event rides its Stimulus `once` binding, so on connect
+  // there is nothing to add; after a morph (`rearm`) that binding may be spent
+  // — Stimulus only re-binds when the descriptor attribute itself changed — so
+  // the controller listens for the event itself. Both can fire for one event;
+  // #materialize dedupes. Either trigger is consumed when a request starts
+  // (like `once`): one morph buys one attempt.
+  #armLazyTrigger(rearm) {
+    if (this.#lazyShellKind() === "visible") {
+      if (!this.#lazyVisibleObserver) this.#observeLazyVisible()
+    } else if (rearm) {
+      this.#listenLazyEvent()
+    }
+  }
+
+  #disarmLazyTrigger() {
+    this.#disconnectLazyVisible()
+    if (this.#lazyEventName) this.element.removeEventListener?.(this.#lazyEventName, this.#boundLazyEvent)
+    this.#lazyEventName = null
+  }
+
+  #listenLazyEvent() {
+    const name = this.element.getAttribute("data-reactive-lazy-on")
+    if (this.#lazyEventName === name) return
+    this.#disarmLazyTrigger()
+    this.#boundLazyEvent ??= () => this.#materialize()
+    this.element.addEventListener?.(name, this.#boundLazyEvent)
+    this.#lazyEventName = name
+  }
+
+  // turbo:morph-element OF the root (the listener filters out descendants'
+  // morphs): the morph is server truth arriving on a CONNECTED element. Four
+  // outcomes:
+  //   * now real content            → nothing to load; drop any armed trigger.
+  //   * a load is in flight         → leave it; its reply replaces the shell.
+  //   * was real, now a shell       → it was loaded and the morph wiped it, so
+  //                                   re-materialize now (for an event shell
+  //                                   the event — a panel opening — already
+  //                                   happened and won't fire again).
+  //   * was a shell, still a shell  → never triggered, or a failed load: re-arm
+  //                                   it (this is a failed load's retry path).
+  #lazyAfterMorph() {
+    const shell = this.#lazyShellKind() !== null
+    const wasShell = this.#lazyWasShell
+    this.#lazyWasShell = shell
+    if (!shell) return this.#disarmLazyTrigger()
+    if (this.#lazyInFlight) return
+    // The morphed-in shell's token is the page's current identity; a token
+    // cached from an earlier reply would materialize stale state.
+    this.#tokenCache = undefined
+    if (!wasShell) return this.#materialize()
+    this.#armLazyTrigger(true)
+  }
+
+  // THE materialize entry point: the shell's Stimulus binding (dispatch routes
+  // here), the :visible observer, the re-armed event listener and a morph-back
+  // all land here, so one in-flight flag makes "exactly one request" hold no
+  // matter how many of them fire. It rides the ordinary action pipeline
+  // (#proceed → the serialized queue → #perform): the reactive:before-dispatch
+  // veto, busy markers, error marker/events and the request counter all apply.
+  #materialize() {
+    if (this.#lazyInFlight) return
+    const run = this.#proceed(this.element, LAZY_MATERIALIZE_ACTION, "{}")
+    if (!run) return // vetoed by reactive:before-dispatch
+    this.#lazyInFlight = true
+    // Consume the armed trigger (observer or re-armed listener): a failed load
+    // is retried by the NEXT morph, not by every later event.
+    this.#disarmLazyTrigger()
+    const done = () => {
+      this.#lazyInFlight = false
+    }
+    run.then(done, done)
+    return run
+  }
+
+  // reactive_lazy(on: :visible) (issue #276): materialize the first time the
+  // shell intersects the viewport (grown or shrunk by the rendered
+  // rootMargin). Without IntersectionObserver (very old engines) materialize
+  // right away: the content still loads, just not lazily.
+  #observeLazyVisible() {
+    if (typeof IntersectionObserver === "undefined") return queueMicrotask(() => this.#materialize())
+    const rootMargin = this.element.getAttribute("data-reactive-lazy-visible") || "0px"
+    this.#lazyVisibleObserver = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) this.#materialize()
+      },
+      { rootMargin }
+    )
+    this.#lazyVisibleObserver.observe(this.element)
+  }
+
+  #disconnectLazyVisible() {
+    this.#lazyVisibleObserver?.disconnect()
+    this.#lazyVisibleObserver = null
   }
 
   // Lazy initial mount probe (issue #165): fetch the real content when THIS
@@ -2992,6 +3141,11 @@ export default class extends Controller {
     // the failure revert snaps it back. A `change`-bound trigger is unaffected —
     // `change` isn't cancelable, so preventDefault was already a no-op there.
     if (!windowBound && !this.#keepsNativeToggle(optimistic, target)) event.preventDefault()
+
+    // A reactive_lazy(on:) shell's trigger (issue #276) goes through the one
+    // materialize entry point, which dedupes it against the observer, the
+    // re-armed listener and a morph-back.
+    if (action === LAZY_MATERIALIZE_ACTION) return this.#materialize()
 
     // Resolve the EFFECTIVE confirm message (issue #179): a plain string confirm:
     // is that string (static, #52); a Hash confirm: (confirmWhen) evaluates its

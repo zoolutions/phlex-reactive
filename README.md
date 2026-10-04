@@ -182,21 +182,33 @@ fetched. The first `on(...)`/`on_client(...)` trigger that reaches it wakes it:
 loads and connects the controller, and the trigger is replayed once.
 
 - **It needs `import "phlex/reactive/early"`.** Without that module nothing
-  wakes the root. `bin/rails phlex_reactive:doctor` lists the dormant
-  components and says whether it found the import.
-- The actor's own reply (and the defer endpoint) renders the root awake, since
-  that page's controller is loaded by then. The page, a broadcast and a page
-  refresh render it dormant; if one lands on an awake root, the next trigger
-  wakes it again.
+  wakes the root: a link or form trigger just does its native thing (the link
+  navigates, the form posts), and a dormant root nested inside an awake one
+  hands its triggers to the OUTER component (they run the outer's action of
+  that name with the outer's token, or get a 403).
+  `bin/rails phlex_reactive:doctor` lists the dormant components and says
+  whether it found the import.
+- The actor's own reply, a `reactive_lazy(on:)` materialize and the defer
+  endpoint render the root awake, since that page's controller is loaded by
+  then. Everything else renders it dormant: the page, a broadcast (`broadcast_to`,
+  also inside an action), a page refresh, a deferred render pushed over a
+  stream. If one of those lands on an awake root, the next trigger wakes it
+  again. A `to_stream_replace` you build inside an action and send to other
+  pages yourself is rendered awake, so broadcast with `broadcast_to` instead.
 - Use it for a root whose only behavior is its triggers. What the controller
   does at connect (`reactive_persist` restore, `reactive_compute` seeding,
-  show/filter sync, dirty tracking, a `reactive_lazy` fetch) waits for the wake.
+  show/filter sync, dirty tracking) waits for the wake, and the browser
+  inspector (`inspect.js`) does not list a dormant root.
+- With `reactive_lazy`: an event shell (`reactive_lazy on: "panel:opened"`) can
+  be dormant, and that event wakes and loads it in one go. `on: :visible`
+  cannot (its shell has no trigger to wake on; declaring both raises), and a
+  plain `reactive_lazy` shell always mounts, because it fetches on connect.
 - With a controller of your own on the same root, list it first:
   `mix({ data: { controller: "dropdown" } }, reactive_root)`. Waking appends
   `reactive`, which then matches what an awake reply renders; in the other
   order the first morph reply reconnects both controllers once.
 - A dormant root nested inside an awake one belongs to the outer root until it
-  wakes.
+  wakes: its fields are collected with the outer root's actions.
 </details>
 
 ### Scaffold a component
@@ -2232,6 +2244,42 @@ component whose real root is a `<tr>`/`<li>` sets `reactive_lazy tag: :tr` (etc.
 to ship a matching shell element. The client re-fetches the real content both on
 connect AND after a Turbo page-refresh **morph** (which re-shows the shell while
 keeping the element connected), so a lazy component survives a `turbo:reload`.
+
+**Load on first use** — `on:` defers the *request itself* until an event
+reaches the shell, or until it scrolls into view (issue #276):
+
+```ruby
+reactive_lazy on: "panel:opened"          # a DOM event on (or bubbling into) the shell
+reactive_lazy on: :visible                # IntersectionObserver, no DOM event involved
+reactive_lazy on: { visible: "200px" }    # …with a rootMargin
+```
+
+`:visible` fires when the shell first enters the viewport grown by the
+rootMargin, so a margin can load it slightly before it scrolls into view. In an
+engine without `IntersectionObserver` a `:visible` shell materializes right
+after connect, so it still loads, just not lazily.
+
+The shell makes no request on page load and materializes exactly once; the
+real render has no trigger, so later events are no-ops. It carries the
+identity token (no expiry, unlike the defer token), so it works on a page left
+open past `defer_token_ttl`. The framework-owned `__materialize` act rides the
+action endpoint, runs no action, shares the defer endpoint's authorization
+step (registered error → 403, `render?` false → the shell stays), and answers
+403 for any component that isn't `reactive_lazy(on:)`. Like the defer endpoint
+it is a read: it skips `around_actions`, `verify_authorized` and the pgbus
+connection-id scope, so enforce tenant scoping or rate limits in your base
+controller or in the render.
+
+A failed load is not retried on its own. A Turbo morph of the root handles the
+rest: real content morphed back into the shell re-materializes at once (one
+request), and a shell that is still unloaded is re-armed, which is also a
+failed load's retry path. **Give the shell the real root's tag** (`tag: :ul`
+for a `<ul>` root): with the default `<div>` shell on a `<ul>`/`<tr>` root,
+Turbo swaps the node instead of morphing it, and an already-open panel shows
+its skeleton until its event fires again. With matching tags, a page that
+refresh-morphs pays one request per loaded `on:` component per refresh;
+`data-turbo-permanent` on the real root opts it out. See the
+deferred-rendering docs page.
 
 > **One edge case:** a `reply.defer(placeholder:)` shell (the action-driven,
 > not page-mount, form) carries no token of its own — the transient directive

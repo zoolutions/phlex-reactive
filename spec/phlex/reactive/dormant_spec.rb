@@ -194,6 +194,57 @@ RSpec.describe Phlex::Reactive::Dormant do
     end
   end
 
+  # reactive_lazy(on:) (issue #276) builds its shell on reactive_attrs, so a
+  # dormant lazy component gets a dormant shell.
+  describe "with reactive_lazy(on:)" do
+    let(:refusal) { /reactive_dormant cannot be combined with reactive_lazy\(on: :visible\)/ }
+
+    it "renders an event shell dormant: its once-bound trigger is what wakes it" do
+      klass = component_class do
+        reactive_dormant
+        reactive_lazy on: "panel:opened"
+        def view_template = div(**reactive_root) { "real" }
+      end
+      html = klass.new.call
+
+      expect(html).to include('data-reactive-dormant="reactive"')
+      expect(html).not_to include("data-controller")
+      expect(html).to match(/data-action="panel:opened-(>|&gt;)reactive#dispatch:once"/)
+      expect(html).not_to include("real")
+    end
+
+    # A :visible shell has no trigger descriptor — the controller's own
+    # IntersectionObserver materializes it — so nothing could ever wake it.
+    it "refuses reactive_dormant on a component already declared on: :visible" do
+      expect do
+        component_class do
+          reactive_lazy on: :visible
+          reactive_dormant
+        end
+      end.to raise_error(ArgumentError, refusal)
+    end
+
+    it "refuses the other declaration order when the shell renders" do
+      klass = component_class do
+        reactive_dormant
+        reactive_lazy on: { visible: "200px" }
+        def view_template = div(**reactive_root) { "real" }
+      end
+
+      expect { klass.new.call }.to raise_error(ArgumentError, refusal)
+    end
+
+    it "still renders that component's REAL content (a broadcast) without raising" do
+      klass = component_class do
+        reactive_dormant
+        reactive_lazy on: :visible
+        def view_template = div(**reactive_root) { "real" }
+      end
+
+      expect(klass.new.to_stream_replace.to_s).to include("real")
+    end
+  end
+
   describe "renders outside a reactive request" do
     it "stay dormant in a stream the app builds itself" do
       expect(dsl_class.new.to_stream_replace.to_s).to include('data-reactive-dormant="reactive"')

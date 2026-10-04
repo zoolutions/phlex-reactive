@@ -142,6 +142,36 @@ RSpec.describe "Dormant roots (issue #274 — mount the controller on first use)
     end
   end
 
+  # reactive_lazy(on:) + reactive_dormant (issues #276 + #274): "load this panel
+  # the first time it opens, and fetch no JavaScript until then".
+  context "with a dormant reactive_lazy(on:) event shell" do
+    def open_lazy_panel
+      page.execute_script(
+        %(document.getElementById("dormant-lazy-panel").dispatchEvent(new CustomEvent("panel:opened")))
+      )
+    end
+
+    it "fetches nothing until the event, then wakes and materializes exactly once" do
+      visit "/dormant_lazy"
+      expect(page).to have_css("#dormant-lazy-panel[data-reactive-dormant='reactive']")
+      expect(page).to have_css("[data-testid='panel-skeleton']")
+      expect(page.evaluate_script("window.__earlyReady === true")).to be(true)
+      sleep 0.3
+      expect(controller_fetches).to eq(0)
+      expect(action_posts).to eq(0)
+
+      2.times { open_lazy_panel }
+
+      expect(page).to have_css("[data-testid='panel-item']", text: "item:mine")
+      # The real content arrived awake: no second wake is needed.
+      expect(page).to have_css("#dormant-lazy-panel[data-controller~='reactive']")
+      expect(page).to have_no_css("[data-reactive-dormant]")
+      open_lazy_panel
+      expect_action_posts(1)
+      expect(controller_fetches).to eq(1)
+    end
+  end
+
   context "with an eagerly registered controller" do
     it "does not connect the dormant root on load, and handles the waking click once" do
       visit_dormant(load: "eager")

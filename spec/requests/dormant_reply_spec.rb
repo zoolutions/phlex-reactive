@@ -66,6 +66,28 @@ RSpec.describe "Dormant roots in replies (issue #274)", type: :request do
     end
   end
 
+  # reactive_lazy(on:) (issue #276): the event shell is dormant; the real
+  # content `__materialize` returns is awake, so it needs no second wake.
+  describe "a dormant reactive_lazy(on:) component" do
+    it "ships a dormant shell with its once-bound trigger" do
+      html = DormantLazyPanelComponent.new(scope: "mine").call
+
+      expect(html).to include('data-reactive-dormant="reactive"')
+      expect(html).not_to include("data-controller")
+      expect(html).to include('data-reactive-action-param="__materialize"')
+    end
+
+    it "materializes awake" do
+      post_action(DormantLazyPanelComponent, payload: { "s" => { "scope" => "mine" } }, act: "__materialize")
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("item:mine")
+      expect(response.body).to include('data-controller="reactive"')
+      expect(response.body).not_to include("data-reactive-dormant")
+      expect(Phlex::Reactive::Dormant.awake?).to be(false)
+    end
+  end
+
   describe "the defer endpoint (POST defer_path)" do
     it "renders awake: the client that fetched it is loaded" do
       token = Phlex::Reactive.sign_defer({ "c" => "DormantPanelComponent", **payload })
