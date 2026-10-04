@@ -13,7 +13,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   are replayed, not lost (#273).** Import it eagerly
   (`import "phlex/reactive/early"`; the engine pins it with `preload: true`) and
   the `reactive` controller may load lazily: a click, submit, key or custom
-  event that reaches an `on`/`on_client` trigger before its root connects is
+  event that reaches an element-bound `on`/`on_client` trigger (not a `window:`
+  or `outside:` one) before its root connects is
   queued — its native default stopped where the controller would stop it — and
   replayed once on connect. `:once` triggers replay once. Entries older than
   `Phlex::Reactive.early_event_ttl_ms` (10 s, read from

@@ -2446,21 +2446,24 @@ function earlyReplayEvent(event, el) {
 // `once`), and the armed listener's single firing is swallowed.
 const spentEarlyOnce = new WeakMap()
 
-function spendEarlyOnce(el, { token, type, method }) {
+function spendEarlyOnce(el, { token, type, method, filter }) {
   let spent = spentEarlyOnce.get(el)
   if (!spent) spentEarlyOnce.set(el, (spent = new Map()))
   if (spent.has(token)) return false
-  spent.set(token, { type, method, armed: true })
+  spent.set(token, { type, method, filter, armed: true })
   return true
 }
 
-// True (once) for the live call that comes from a spent descriptor's listener.
-function earlyOnceSwallows(event, method) {
+// True (once) for the live call that comes from a spent descriptor's listener:
+// same element, method, event type AND key filter — a sibling descriptor with
+// another filter (keydown.esc beside a spent keydown.enter:once) is not it.
+function earlyOnceSwallows(event, method, keyMappings) {
   if (event?.[EARLY_KEY]) return false
   const spent = spentEarlyOnce.get(event?.currentTarget)
   if (!spent) return false
   for (const entry of spent.values()) {
     if (!entry.armed || entry.method !== method || entry.type !== event.type) continue
+    if (entry.filter && !keyFilterMatches(entry.filter, event, keyMappings)) continue
     entry.armed = false
     return true
   }
@@ -2561,6 +2564,11 @@ export default class extends Controller {
   // guard above knows the controller was registered (issue #26 part 2).
   connect() {
     reactiveConnected = true
+    // Early triggers (issue #273): from here on Stimulus delivers this root's
+    // events live (its bindings are already wired), so early.js must stop
+    // queueing them NOW — a connect-time seed below (a compute output write)
+    // dispatches real input events. The queue itself drains at the very end.
+    earlyState().connected.add(this.element)
 
     // Root-id guard (issue #48). The token round trip assumes the reactive root
     // element's id == component.id: the server targets component.id and the client
@@ -2773,15 +2781,14 @@ export default class extends Controller {
     this.#announceConnected()
   }
 
-  // Early triggers (issue #273): mark the root connected (the WeakSet is what
-  // early.js trusts; the attribute is for CSS/tests), announce it with a
-  // bubbling reactive:connect, then replay this root's queued triggers.
+  // Early triggers (issue #273): mark the root (the attribute is for CSS and
+  // tests; early.js trusts the WeakSet joined at the top of connect()),
+  // announce it with a bubbling reactive:connect, then replay its queued triggers.
   #announceConnected() {
-    earlyState().connected.add(this.element)
     // The attribute is a connect-time marker only: an in-place morph writes
     // the server's attributes back and strips it (re-marking would cost every
     // root a morph listener — the "a root that never opted in pays nothing"
-    // contract). The WeakSet above is the truth; reactive:connect the signal.
+    // contract). The connected WeakSet is the truth; reactive:connect the signal.
     this.element.setAttribute?.("data-reactive-connected", "")
     // Raw dispatch (as #emit), on the root only: connect() runs on an attached
     // element, so there is no detached-node fallback to make.
@@ -2809,7 +2816,7 @@ export default class extends Controller {
       const reason =
         entry.root !== this.element
           ? "its root left the page before a controller connected"
-          : performance.now() - entry.at > ttl
+          : performance.now() - (entry.at ?? entry.event.timeStamp) > ttl
             ? `it is older than the ${ttl} ms early-event TTL`
             : entry.el.isConnected && this.element.contains(entry.el)
               ? null
@@ -2826,8 +2833,8 @@ export default class extends Controller {
   // each binding with the SAME event object, so runOps' duplicate-binding
   // guard behaves as it does live. Each descriptor is re-checked here, where
   // Stimulus would check it: it must still be on the element (a morph may
-  // have removed it), its key filter must match in full (early.js only checks
-  // the key, coarsely), and a :once one runs a single time however often it
+  // have removed it), its key filter must match under the app's own key
+  // mappings (early.js knows only Stimulus's defaults), and a :once one runs a single time however often it
   // was queued (spendEarlyOnce).
   #replayEarly({ event, el, descs }) {
     const replay = earlyReplayEvent(event, el)
@@ -2836,7 +2843,8 @@ export default class extends Controller {
     for (const desc of descs) {
       if (!tokens.includes(desc.token)) continue
       if (desc.filter && !keyFilterMatches(desc.filter, event, keyMappings)) continue
-      if (desc.once && !spendEarlyOnce(el, desc)) continue
+      // (`:once` is read off the token: early.js keeps its records minimal.)
+      if (/#\w+.*:once\b/.test(desc.token) && !spendEarlyOnce(el, desc)) continue
       if (desc.method === "runOps") this.runOps(replay)
       else this.dispatch(replay)
     }
@@ -2907,7 +2915,7 @@ export default class extends Controller {
   // it always uses the freshest token.
   dispatch(event) {
     // A :once trigger already replayed on connect (issue #273) is spent.
-    if (earlyOnceSwallows(event, "dispatch")) return
+    if (earlyOnceSwallows(event, "dispatch", this.application?.schema?.keyMappings)) return
     // `window` (renamed: never shadow the global) and `outside` are the event-
     // modifier params (issue #80). The client decides preventDefault behavior
     // from event.params — set by the Ruby on() — never by sniffing the
@@ -3000,7 +3008,7 @@ export default class extends Controller {
   // the component resets whatever they toggled (by design — a signed action
   // owns state that must survive re-renders).
   runOps(event) {
-    if (earlyOnceSwallows(event, "runOps")) return
+    if (earlyOnceSwallows(event, "runOps", this.application?.schema?.keyMappings)) return
     if (bindingsAlreadyRan(event, this)) return
     const params = event.params ?? {}
     // The trigger element on_client was spread onto (issue #222 ctx: { el }),

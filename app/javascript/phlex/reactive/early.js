@@ -33,35 +33,33 @@ const ROOT_SELECTOR = '[data-controller~="reactive"]'
 
 const state = (globalThis[KEY] ??= { queue: [], connected: new WeakSet() })
 
-// One Stimulus descriptor token → { token, type, filter, method, once }
-// for a reactive trigger, else undefined. `@window`/`@document` tokens never
-// match (the `@` is excluded before `->`). Stimulus keeps a dot suffix as part
-// of the event name unless the event is a key event (`keydown.enter`).
+// One Stimulus descriptor token → [{ token, type, filter, method }] for a
+// reactive trigger, else [] (flatMap-ready). `@window`/`@document` tokens
+// never match (no `@` before `->`). Like Stimulus, a dot suffix is a key
+// filter only on a key event (`keydown.enter`); otherwise it is part of the
+// event name (`panel.opened`).
 function parseDescriptor(token) {
-  const match = /^([^@>]+?)(?:\.([\w+]+))?->reactive#(dispatch|runOps)((?::!?\w+)*)$/.exec(token)
-  if (!match) return
-  let [, type, filter, method, options] = match
-  if (filter && !type.startsWith("key")) [type, filter] = [`${type}.${filter}`]
-  return { token, type, filter, method, once: options.includes(":once") }
+  const match = /^(?:(key\w+)\.([\w+]+)|([^@>]+))->reactive#(dispatch|runOps)(?::!?\w+)*$/.exec(token)
+  return match ? [{ token, type: match[1] ?? match[3], filter: match[2], method: match[4] }] : []
 }
 
-// A COARSE key-filter check (bytes matter here): the key after the last "+"
-// against Stimulus's default mappings (esc, space, the arrows, page_up/down;
-// letters, digits, enter, tab, home, end map to themselves), modifiers
-// ignored. It only decides what to queue and preventDefault before connect;
-// the replay re-checks the full filter, modifiers and the app's own key
-// mappings included (reactive_controller.js #replayEarly).
+// Stimulus's key-filter rule against its DEFAULT mappings (esc, space, the
+// arrows, page_up/down; letters, digits, enter, tab, home, end map to
+// themselves): the key after the last "+" matches event.key, and the four
+// modifiers match exactly (ctrl+enter is not enter). It decides what to queue
+// and preventDefault before connect; the replay re-checks the filter against
+// the app's own key mappings (reactive_controller.js #replayEarly).
 function keyMatches(filter, event) {
-  const key = filter?.split("+").pop()
-  const name =
-    key === "esc" ? "escape" : key === "space" ? " " : /^(up|down|left|right)$/.test(key) ? `arrow${key}` : key?.replace("_", "")
-  return !key || name === event.key?.toLowerCase()
+  if (!filter) return true
+  const parts = filter.split("+")
+  const key = parts.pop()
+  const name = key === "esc" ? "escape" : key === "space" ? " " : key.replace(/^(?=up|down|left|right)/, "arrow").replace("_", "")
+  return name === event.key?.toLowerCase() && ["meta", "ctrl", "alt", "shift"].every((mod) => parts.includes(mod) === event[`${mod}Key`])
 }
 
-const descriptors = (el) => (el.getAttribute("data-action") ?? "").split(/\s+/).map(parseDescriptor).filter(Boolean)
+const descriptors = (el) => (el.dataset.action ?? "").split(/\s+/).flatMap(parseDescriptor)
 
 function record(event) {
-  if (event[KEY]) return // a replay from #drainEarly
   for (let el = event.target; el?.closest; el = el.parentElement) {
     if (!event.bubbles && el !== event.target) break
     const descs = descriptors(el).filter((d) => d.type === event.type && keyMatches(d.filter, event))
@@ -70,14 +68,15 @@ function record(event) {
     if (!root || state.connected.has(root)) continue
     // dispatch() keeps the native flip of a checked: :keep checkbox/radio;
     // everything else element-bound is prevented now, as the controller would.
-    // (checked: :keep only renders on a checkbox/radio trigger.)
-    const keepsToggle = /"checked":"keep"/.test(el.getAttribute("data-reactive-optimistic-param"))
+    const keepsToggle =
+      /^(checkbox|radio)$/.test(el.type) && /"checked":"keep"/.test(el.dataset.reactiveOptimisticParam)
     if (!keepsToggle || descs.some((d) => d.method === "runOps")) event.preventDefault()
     // Every firing is queued — a `:once` repeat included: the replay skips a
     // descriptor already consumed (reactive_controller.js #replayEarly).
     const { queue } = state
     // Bounded: a root whose controller never registers must not grow it forever.
-    if (queue.push({ event, el, root, descs, at: performance.now() }) > 50) queue.shift()
+    // (The entry's age is read off event.timeStamp on connect.)
+    if (queue.push({ event, el, root, descs }) > 50) queue.shift()
   }
 }
 
@@ -99,4 +98,4 @@ export function startEarly(doc = document) {
   }).observe(doc.documentElement, { childList: true, subtree: true, attributeFilter: ["data-action"] })
 }
 
-if (globalThis.document?.documentElement) startEarly()
+if (globalThis.document) startEarly()

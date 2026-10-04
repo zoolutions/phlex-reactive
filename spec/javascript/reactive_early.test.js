@@ -55,8 +55,11 @@ const state = () => globalThis[KEY]
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 // Mount markup and let the MutationObserver register its trigger event types.
+// happy-dom delivers mutation records on its own timers: wait for them rather
+// than for one tick (one tick lost the race under a loaded full-suite run).
 async function mount(html) {
   document.body.innerHTML = html
+  await window.happyDOM.waitUntilComplete()
   await flush()
   return document.body.firstElementChild
 }
@@ -146,20 +149,46 @@ test("prevents every firing of a :once trigger (the replay, not the recorder, de
   expect(events.every((event) => event.defaultPrevented)).toBe(true)
 })
 
-test("does not record @window bindings, foreign controllers, or replayed events", async () => {
+test("does not record @window bindings or foreign controllers", async () => {
   const root = await mount(`
     <div id="p" data-controller="reactive">
       <button id="w" data-action="click@window->reactive#dispatch">W</button>
       <button id="o" data-action="click->other#go">O</button>
-      <button id="r" data-action="click->reactive#dispatch">R</button>
     </div>`)
-  click(root.querySelector("#w"))
-  click(root.querySelector("#o"))
-  const replay = new window.MouseEvent("click", { bubbles: true, cancelable: true })
-  replay[KEY] = true
-  root.querySelector("#r").dispatchEvent(replay)
+  const events = [click(root.querySelector("#w")), click(root.querySelector("#o"))]
 
   expect(state().queue).toHaveLength(0)
+  expect(events.some((event) => event.defaultPrevented)).toBe(false)
+})
+
+test("a dotted custom event name is an event name, not a key filter", async () => {
+  const root = await mount(`<div id="p" data-controller="reactive" data-action="panel.opened->reactive#dispatch"></div>`)
+  root.dispatchEvent(new window.CustomEvent("panel.opened"))
+
+  expect(state().queue).toHaveLength(1)
+})
+
+test("checked: :keep on anything but a checkbox/radio is still prevented, like dispatch()", async () => {
+  const root = await mount(`
+    <form id="c" data-controller="reactive">
+      <button data-action="click->reactive#dispatch" data-reactive-optimistic-param='{"checked":"keep"}'>Save</button>
+    </form>`)
+  const event = click(root.querySelector("button"))
+
+  expect(event.defaultPrevented).toBe(true)
+})
+
+test("a key filter's modifiers must match: plain Enter is neither queued nor prevented for ctrl+enter", async () => {
+  const root = await mount(`<div id="k" data-controller="reactive"><input data-action="keydown.ctrl+enter->reactive#dispatch"></div>`)
+  const input = root.querySelector("input")
+  const plain = new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })
+  input.dispatchEvent(plain)
+  const withCtrl = new window.KeyboardEvent("keydown", { key: "Enter", ctrlKey: true, bubbles: true, cancelable: true })
+  input.dispatchEvent(withCtrl)
+
+  expect(plain.defaultPrevented).toBe(false)
+  expect(withCtrl.defaultPrevented).toBe(true)
+  expect(state().queue).toHaveLength(1)
 })
 
 test("honours a key filter: only the matching key is recorded and prevented", async () => {
@@ -190,6 +219,7 @@ test("listens for trigger types of roots added after start (MutationObserver)", 
   root.setAttribute("data-controller", "reactive")
   root.setAttribute("data-action", "late:event->reactive#dispatch")
   document.body.appendChild(root)
+  await window.happyDOM.waitUntilComplete()
   await flush()
   root.dispatchEvent(new window.CustomEvent("late:event"))
 
@@ -298,6 +328,22 @@ test("after a :once replay, the still-armed Stimulus listener's one firing is sw
   expect(seen).toEqual(["load"])
 })
 
+test("a sibling descriptor with another key filter is not swallowed by a spent :once", async () => {
+  const root = await mount(`<div id="p" data-controller="reactive"><input data-action="keydown.enter->reactive#dispatch:once keydown.esc->reactive#dispatch" data-reactive-action-param="load"></div>`)
+  const input = root.querySelector("input")
+  const seen = countDispatches(root)
+  input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }))
+  const controller = realConnect(root)
+  expect(seen).toEqual(["load"])
+
+  // Escape comes from the OTHER descriptor: it must run.
+  controller.dispatch({ ...liveEvent(input, "keydown"), key: "Escape" })
+  expect(seen).toEqual(["load", "load"])
+  // Enter comes from the spent one: swallowed.
+  controller.dispatch({ ...liveEvent(input, "keydown"), key: "Enter" })
+  expect(seen).toEqual(["load", "load"])
+})
+
 test("a regular sibling descriptor of the same type still fires after a :once replay", async () => {
   const root = await mount(`<div id="p" data-controller="reactive"><button data-action="click->reactive#dispatch:once click->reactive#dispatch" data-reactive-action-param="load">Go</button></div>`)
   const button = root.querySelector("button")
@@ -340,22 +386,40 @@ test("an entry whose element left the root warns under verbose", async () => {
   expect(warns.join("\n")).toContain("left the root")
 })
 
-test("the replay re-checks a key filter in full (modifiers included)", async () => {
-  const root = await mount(`<div id="k" data-controller="reactive"><input data-action="keydown.ctrl+enter->reactive#dispatch"></div>`)
-  const input = root.querySelector("input")
-  input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }))
-  input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", ctrlKey: true, bubbles: true, cancelable: true }))
-  const { calls } = connect(root)
+test("the replay re-checks a key filter against the app's own key mappings", async () => {
+  const root = await mount(`<div id="k" data-controller="reactive"><input data-action="keydown.enter->reactive#dispatch"></div>`)
+  root.querySelector("input").dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }))
+  const controller = new ReactiveController()
+  controller.element = root
+  // An app schema that remapped `enter` to another key: Stimulus would not fire.
+  controller.application = { schema: { keyMappings: { enter: "F13" } } }
+  const calls = []
+  controller.dispatch = (event) => calls.push(event)
+  controller.connect()
 
-  expect(calls).toHaveLength(1)
-  expect(calls[0].event.ctrlKey).toBe(true)
+  expect(calls).toHaveLength(0)
+})
+
+test("the root stops being recorded from the START of connect() (connect-time seeds dispatch real events)", async () => {
+  const root = await mount(`<div data-controller="reactive"></div>`)
+  let joinedBeforeSetup = null
+  // connect() reads the root's id first thing (the root-id guard).
+  Object.defineProperty(root, "id", {
+    get() {
+      joinedBeforeSetup ??= state().connected.has(root)
+      return "p"
+    },
+  })
+  connect(root)
+
+  expect(joinedBeforeSetup).toBe(true)
 })
 
 test("connect() drops entries older than the TTL, warning under verbose", async () => {
   document.head.innerHTML = `<meta name="phlex-reactive-early-ttl" content="50">`
   const root = await mount(`<div id="p" data-controller="reactive" data-reactive-verbose="true"><button data-action="click->reactive#dispatch">Go</button></div>`)
   click(root.querySelector("button"))
-  state().queue[0].at -= 51
+  state().queue[0].at = performance.now() - 51
   const { calls } = connect(root)
 
   expect(calls).toHaveLength(0)
@@ -378,7 +442,7 @@ test("connect() drops entries whose element left the root, silently without verb
 test("the default TTL is 10 seconds", async () => {
   const root = await mount(`<div id="p" data-controller="reactive"><button data-action="click->reactive#dispatch">Go</button></div>`)
   click(root.querySelector("button"))
-  state().queue[0].at -= 9_000
+  state().queue[0].at = performance.now() - 9_000
   const { calls } = connect(root)
 
   expect(calls).toHaveLength(1)

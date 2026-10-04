@@ -541,7 +541,15 @@ module Phlex
       # in the host layout (the engine can't inject into it):
       #   <meta name="phlex-reactive-early-ttl" content="<%= Phlex::Reactive.early_event_ttl_ms %>">
       # Without the meta the client uses the same 10 s default. nil resets.
-      attr_writer :early_event_ttl_ms
+      # Validated at assignment: the client reads a non-positive TTL as "use
+      # the default", so 0 can never mean "replay nothing" — fail here instead.
+      def early_event_ttl_ms=(value)
+        unless value.nil? || (value.is_a?(Integer) && value.positive?)
+          raise ArgumentError, "early_event_ttl_ms must be a positive Integer (milliseconds) or nil, got #{value.inspect}"
+        end
+
+        @early_event_ttl_ms = value
+      end
 
       def early_event_ttl_ms
         @early_event_ttl_ms ||= 10_000

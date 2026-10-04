@@ -117,7 +117,7 @@ eagerly (the engine pins it with `preload: true`):
 import "phlex/reactive/early"
 ```
 
-It is a < 1 KB module with no Stimulus import. A trigger (`on(...)` or
+It gzips to under 1 KB and has no Stimulus import. An element-bound trigger (`on(...)` or
 `on_client(...)`) that fires before the controller connects — a click while a
 lazily loaded controller is still downloading, a custom event dispatched as soon
 as the page is interactive — is queued, its native default is stopped exactly

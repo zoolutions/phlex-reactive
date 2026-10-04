@@ -23,4 +23,18 @@ RSpec.describe Phlex::Reactive, "early event configuration (issue #273)" do
     described_class.early_event_ttl_ms = nil
     expect(described_class.early_event_ttl_ms).to eq(10_000)
   end
+
+  # The client treats a non-positive TTL as "use the default", so 0 could never
+  # mean "drop everything": reject it where it is set, not silently on the page.
+  def expect_rejected(value)
+    expect { described_class.early_event_ttl_ms = value }
+      .to raise_error(ArgumentError, /early_event_ttl_ms must be a positive Integer/)
+  end
+
+  it "rejects a zero, negative or non-integer TTL at assignment" do
+    expect_rejected(0)
+    expect_rejected(-1)
+    expect_rejected(1.5)
+    expect_rejected("10")
+  end
 end
