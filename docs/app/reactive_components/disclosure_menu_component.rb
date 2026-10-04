@@ -23,7 +23,7 @@ class DisclosureMenuComponent < Phlex::HTML
               on_client(:click, close, outside: true),
               on_client('keydown.esc', close.focus('#dm-trigger')),
               class: 'flex flex-col gap-3')) do
-      div(class: 'relative w-fit') do
+      div(class: 'w-fit') do
         trigger
         menu
       end
@@ -47,7 +47,7 @@ class DisclosureMenuComponent < Phlex::HTML
   def menu
     ul(id: 'dm-menu', role: 'menu', hidden: true, aria_labelledby: 'dm-trigger',
        **mix(reactive_listnav(focus: true),
-             class: 'menu absolute z-10 mt-1 w-40 rounded-box border border-base-300 bg-base-100 p-1 shadow')) do
+             class: 'menu mt-1 w-40 rounded-box border border-base-300 bg-base-100 p-1 shadow')) do
       ITEMS.each do |label|
         li(role: 'none') do
           button(role: 'menuitem', tabindex: '-1',
