@@ -34,4 +34,7 @@ Rails.application.config.after_initialize do
   # Defer :unauthorized contract fixture (issue #186): DeferAuthComponent raises on
   # render, so a deferred render maps to 403 + the defer instrument's :unauthorized.
   Phlex::Reactive.authorization_errors << DeferAuthComponent::Denied
+  # reactive_lazy(on:) fixture (issue #276): __materialize shares the defer
+  # endpoint's authorization step, so a render-time denial maps to 403.
+  Phlex::Reactive.authorization_errors << LazyPanelComponent::Denied
 end

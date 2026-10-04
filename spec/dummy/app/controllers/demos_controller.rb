@@ -457,6 +457,15 @@ class DemosController < ActionController::Base
     render_component LazyStatsComponent.new(scope: "week")
   end
 
+  # reactive_lazy(on:) (issue #276): an event-triggered panel at the top, and a
+  # visibility-triggered shell far below the fold. Neither fetches on load.
+  def lazy_on
+    html = render_to_string(LazyPanelComponent.new(scope: "mine"), layout: false) +
+           %(<div data-testid="spacer" style="height: 3000px"></div>).html_safe +
+           render_to_string(LazyFoldComponent.new(label: "below"), layout: false)
+    render html: html.html_safe, layout: true
+  end
+
   def morph_grid
     render_component MorphGridComponent.new(account: Account.find(params[:id]))
   end

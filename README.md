@@ -2140,6 +2140,23 @@ to ship a matching shell element. The client re-fetches the real content both on
 connect AND after a Turbo page-refresh **morph** (which re-shows the shell while
 keeping the element connected), so a lazy component survives a `turbo:reload`.
 
+**Load on first use** — `on:` defers the *request itself* until an event
+reaches the shell, or until it scrolls into view (issue #276):
+
+```ruby
+reactive_lazy on: "panel:opened"          # a DOM event on (or bubbling into) the shell
+reactive_lazy on: :visible                # IntersectionObserver
+reactive_lazy on: { visible: "200px" }    # …with a rootMargin
+```
+
+The shell makes no request on page load and materializes exactly once; the
+real render has no trigger, so later events are no-ops. It carries the
+identity token (no expiry, unlike the defer token), so it works on a page left
+open past `defer_token_ttl`. The framework-owned `__materialize` act rides the
+action endpoint, runs no action, shares the defer endpoint's authorization
+step (registered error → 403, `render?` false → the shell stays), and answers
+403 for any component that isn't `reactive_lazy(on:)`.
+
 > **One edge case:** a `reply.defer(placeholder:)` shell (the action-driven,
 > not page-mount, form) carries no token of its own — the transient directive
 > owns its delivery. If a page is snapshotted by Turbo mid-defer and later

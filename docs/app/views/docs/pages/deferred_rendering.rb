@@ -24,6 +24,7 @@ module Views
           delivery
           failure
           lazy_mount
+          lazy_on
           security
           config_reference
         end
@@ -263,6 +264,50 @@ module Views
           end
         end
 
+        def lazy_on
+          DocsUI::Section('Load on first use (reactive_lazy on:)') do
+            md <<~MD
+              Plain `reactive_lazy` defers server time but still makes its request
+              on connect. `on:` defers the **request itself** — "load this panel the
+              first time it opens", with no action, no loaded flag and no app
+              JavaScript:
+
+              ```ruby
+              class ItemsPanel < ApplicationComponent
+                include Phlex::Reactive::Component
+                reactive_lazy on: "panel:opened"         # a DOM event on (or bubbling into) the shell
+                # reactive_lazy on: :visible             # the shell first scrolls into view
+                # reactive_lazy on: { visible: "200px" } # …with an IntersectionObserver rootMargin
+
+                def id = "items-panel"
+                def view_template = ul(id:, **reactive_attrs) { Current.user.items.each { li { it.name } } }
+                def deferred_placeholder = ItemsSkeleton.new
+              end
+              ```
+
+              The shell makes **no request on page load**. The first matching event
+              (or the first intersection) materializes it **once**; later events are
+              no-ops, because the real render never contains the shell or its
+              trigger. `:visible` fires a non-bubbling `reactive:visible` event on
+              the shell from an `IntersectionObserver`, so a nested visible shell
+              never materializes its ancestor.
+
+              Mechanics: an `on:` shell carries the component's **identity token** —
+              the same one actions use, with no expiry — and a framework-owned
+              `__materialize` trigger bound `once`, instead of a defer token. So it
+              works on a page left open far longer than `defer_token_ttl`.
+              `__materialize` rides the action endpoint (CSRF and auth from your base
+              controller as usual), runs **no** action and opens no transaction, and
+              renders through the same step as the defer endpoint: a registered
+              authorization error from `from_identity`/render → **403**, `render?`
+              false → an empty stream (the shell stays). It is instrumented as
+              `defer.phlex_reactive`. It answers **403** for any component that is
+              not `reactive_lazy(on:)`, and `action :__materialize` is refused at
+              declaration.
+            MD
+          end
+        end
+
         def security
           DocsUI::Section('Security') do
             md <<~MD
@@ -284,6 +329,11 @@ module Views
                 that guards visibility can raise a registered authorization error
                 while being rebuilt or rendered (→ **403**) or return `false` from
                 `render?` (→ **204**, keep content).
+              - **`reactive_lazy(on:)` uses the identity token, not a defer token.**
+                It grants nothing an action token on that component doesn't already
+                grant — any action reply re-renders the real template too — and
+                `__materialize` is refused (403) for every component that didn't opt
+                in with `on:`.
             MD
           end
         end

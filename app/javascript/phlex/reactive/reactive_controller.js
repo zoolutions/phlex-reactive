@@ -2405,6 +2405,9 @@ export default class extends Controller {
   // Lazy initial mount (issue #165): the bound re-probe attached to
   // turbo:morph-element so a Turbo page-refresh morph re-fires the defer fetch.
   #boundProbeLazyDefer
+  // reactive_lazy(on: :visible) (issue #276): the IntersectionObserver that
+  // fires the shell's reactive:visible trigger once, held for teardown.
+  #lazyVisibleObserver = null
   // Clipboard-trigger availability gate (issue #228): the bound morph re-sync,
   // held for teardown.
   #boundSyncClipboard
@@ -2459,6 +2462,10 @@ export default class extends Controller {
       this.#boundProbeLazyDefer = () => this.#probeLazyDefer()
       this.element.addEventListener?.("turbo:morph-element", this.#boundProbeLazyDefer)
     }
+    // reactive_lazy(on:) shells (issue #276) carry NO defer token, so the probe
+    // above skips them: an event shell waits for its own once-bound
+    // __materialize trigger. A :visible shell also needs the observer below.
+    if (this.element.hasAttribute?.("data-reactive-lazy-visible")) this.#observeLazyVisible()
 
     // Client-only drafts (issue #239) — ONLY when the root declares
     // data-reactive-persist (one attribute read otherwise). Runs FIRST among
@@ -2668,6 +2675,33 @@ export default class extends Controller {
     if (this.#boundProbeLazyDefer) {
       this.element.removeEventListener?.("turbo:morph-element", this.#boundProbeLazyDefer)
     }
+    this.#disconnectLazyVisible()
+  }
+
+  // reactive_lazy(on: :visible) (issue #276): fire the shell's once-bound
+  // `reactive:visible` trigger the first time it intersects the viewport
+  // (grown by the rendered rootMargin). The event does NOT bubble, so a nested
+  // visible shell can't materialize its ancestor. Without IntersectionObserver
+  // (very old engines) materialize right away: the content still loads.
+  #observeLazyVisible() {
+    const fire = () => {
+      this.#disconnectLazyVisible()
+      this.element.dispatchEvent(new CustomEvent("reactive:visible"))
+    }
+    if (typeof IntersectionObserver === "undefined") return queueMicrotask(fire)
+    const rootMargin = this.element.getAttribute("data-reactive-lazy-visible") || "0px"
+    this.#lazyVisibleObserver = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) fire()
+      },
+      { rootMargin }
+    )
+    this.#lazyVisibleObserver.observe(this.element)
+  }
+
+  #disconnectLazyVisible() {
+    this.#lazyVisibleObserver?.disconnect()
+    this.#lazyVisibleObserver = null
   }
 
   // Lazy initial mount probe (issue #165): fetch the real content when THIS
