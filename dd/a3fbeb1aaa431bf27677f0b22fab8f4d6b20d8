@@ -1,0 +1,85 @@
+CHANGELOG.md
+  s_b4f052d694d82f::t_0ff451a46741f8 12-26
+docs/app/views/docs/pages/performance.rb
+  s_b4f052d694d82f::t_1999fda16b92a1 26
+  s_b4f052d694d82f::t_deb0887c63debc 718-748
+lib/generators/phlex/reactive/install/templates/phlex_reactive.rb.erb
+  s_b4f052d694d82f::t_a8a1ef4e851caa 120-126
+app/javascript/phlex/reactive/early.min.js.map
+  ai_agent 1-10
+spec/dummy/public/vendor/early.js
+  ai_agent 1-4
+spec/javascript/reactive_on_complete.test.js
+  s_b4f052d694d82f::t_a7d151448b9ca4 118-119,121
+app/javascript/phlex/reactive/early.min.js
+  ai_agent 1-4
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 5,7-8
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,3
+spec/system/early_triggers_spec.rb
+  s_b4f052d694d82f::t_380a698624f45b 1-15,17-19,22-55
+  s_b4f052d694d82f::t_fb6dc4ffa72c80 16,20-21
+README.md
+  s_b4f052d694d82f::t_2ae3ae64901e17 112-138
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,3
+spec/dummy/config/routes.rb
+  s_b4f052d694d82f::t_9005035120dc51 12
+lib/phlex/reactive.rb
+  s_b4f052d694d82f::t_5d5692f707c3fe 535-549
+tsconfig.json
+  s_b4f052d694d82f::t_688ccba8da6849 10
+spec/dummy/app/components/early_triggers_component.rb
+  s_b4f052d694d82f::t_2eaef501c156ee 1-34
+lib/phlex/reactive/engine.rb
+  s_b4f052d694d82f::t_97307d0a666b78 65-73
+  s_b4f052d694d82f::t_1a3b27ba1847af 40-41
+spec/javascript/reactive_early.test.js
+  s_b4f052d694d82f::t_8023b30c4a8743 267-277
+  s_b4f052d694d82f::t_602a9d23d87859 1-140,142-143,145,147-266,278-318
+  s_b4f052d694d82f::t_cbb995f59bef46 141,144,146
+spec/dummy/app/controllers/demos_controller.rb
+  s_b4f052d694d82f::t_42c658b9c2f272 13-19
+app/javascript/phlex/reactive/early.js
+  s_b4f052d694d82f::t_cc5de88c1a3cb3 48-53,55,57-58
+  s_b4f052d694d82f::t_b27116447153cc 32,40,56
+  s_b4f052d694d82f::t_e12fd003329b96 73-74,102
+  s_b4f052d694d82f::t_3f62f4aa8b982f 76-77
+  s_b4f052d694d82f::t_8a57e38f50b8be 99
+  s_b4f052d694d82f::t_8bcb487d2b02a4 36,45,65,67,79-80,87-88,93
+  s_b4f052d694d82f::t_5e6e7209990810 1-31,33-35,37-39,41-44,46-47,54,59-64,66,68-72,75,78,81-86,89-92,94-98,100-101
+spec/phlex/engine_client_pin_spec.rb
+  s_b4f052d694d82f::t_7a3eb730daa83b 113-118
+  s_b4f052d694d82f::t_11ebf8c8b97738 67-70
+scripts/build_client.js
+  s_b4f052d694d82f::t_3b56c15ce6c738 33
+app/javascript/phlex/reactive/reactive_controller.js
+  s_b4f052d694d82f::t_18252d03dbd954 2703-2714,2722-2747,2753-2754,2760-2761,2763
+  s_b4f052d694d82f::t_2b15bc0f10f38e 2802-2804
+  s_b4f052d694d82f::t_e489eb35948949 2748-2752,2755-2759,2762
+  s_b4f052d694d82f::t_82946f72d7e002 2334-2406
+  s_b4f052d694d82f::t_5a11ba0e83c3a4 2715-2721
+spec/phlex/reactive/early_event_config_spec.rb
+  s_b4f052d694d82f::t_60e4ef0ec0d6d3 1-26
+spec/phlex/vendored_controller_sync_spec.rb
+  s_b4f052d694d82f::t_6081cbb8dfa7fe 22
+spec/dummy/app/views/layouts/lazy_controller.html.erb
+  s_b4f052d694d82f::t_6e6a3376a74fc0 1-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "dda3fbeb1aaa431bf27677f0b22fab8f4d6b20d8",
+  "prompts": {},
+  "sessions": {
+    "s_b4f052d694d82f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a4f9e839-a934-4e75-9b79-590503d3a110",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
