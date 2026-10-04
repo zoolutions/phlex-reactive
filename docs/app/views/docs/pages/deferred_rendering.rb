@@ -393,7 +393,7 @@ module Views
               | Header | Value |
               |---|---|
               | `Cache-Control` | `max-age=<n>, private` — never `public`. `<n>` is the declared `max_age`, capped by `Phlex::Reactive.fragment_cache_max_age_limit` (1 hour). |
-              | `ETag` | derived from the rendered body, so a stale copy revalidates with a `304` |
+              | `ETag` | derived from the rendered body **alone**, so a stale copy revalidates with a `304` |
               | `Vary` | `Cookie` — unless `reactive_cache_viewer` returns a non-blank value (below) |
 
               Every other response is `no-store`: a 4xx, a `render?` false (204), and
@@ -407,14 +407,26 @@ module Views
               does this) gets `no-store` on every fragment reply. That is the safe
               outcome, but the cache is then off — exempt the fragment route from
               that filter if you want it. The **flash** counts too: a flash set
-              during the request reaches the next one, a pending flash the request
-              read is swept, and either makes the reply `no-store` (`flash.now`
-              does not).
+              during the request reaches the next one, a pending flash that **your
+              code** read during the request is swept, and either makes the reply
+              `no-store` (`flash.now` does not; a 304 that consumed a flash is
+              `no-store` with a `Set-Cookie` too). The endpoint itself never reads
+              the flash, so a notice waiting for the next page view survives a
+              fragment load. With a rolling-expiry session (`expire_after`), a
+              cacheable fragment reply does not renew the session, since it does not
+              re-issue it.
 
-              The app can always **tighten** the policy: a `no_store` or
-              `expires_now` in a base-controller filter makes the reply `no-store`.
-              It cannot loosen it — a filter that sets `public` or a longer
-              `max-age` is overridden back to `private, max-age=<n>`.
+              The ETag is the body only: the controller's `etag { }` blocks are
+              **not** mixed in (Rails' own flash etagger would load, and so consume,
+              a pending flash). Vary a cached fragment through
+              `reactive_cache_version` / `reactive_cache_viewer` instead.
+
+              The app can **tighten** the policy from a base-controller filter:
+              `no_store`, `expires_now` or a `max-age` of 0 makes the reply
+              `no-store`; a shorter `max-age` (`expires_in 5`) is kept; and
+              `must-revalidate` is kept. It cannot loosen it — `public`,
+              `s-maxage`, `stale-while-revalidate` and a longer `max-age` are
+              dropped, back to `private, max-age=<n>`.
 
               This guarantee covers the controller's callbacks and the flash. A
               session write made **outside** them — in Rack middleware or a routing
@@ -446,18 +458,21 @@ module Views
               taken from `Accept-Language`, a feature flag — belongs in
               `reactive_cache_viewer` or `reactive_cache_version`.
 
-              **A blank viewer names nobody.** `nil`, `false`, a blank string, an
-              Array or Hash with any blank part at any depth
-              (`[Current.user&.id, locale]` when signed out), or an object whose
-              `to_param` is blank is never turned into a shared "anonymous" key: for
+              **A blank viewer names nobody.** `nil`, `false`, a blank string, a
+              collection (Array, Hash, Set, Struct, …) with any blank part at any
+              depth (`[Current.user&.id, locale]` when signed out), or an object
+              whose `to_param` is blank is never turned into a shared "anonymous" key: for
               that render the component falls back to the default mode — no `u`,
               `Vary: Cookie`. So `Current.user&.id` is safe to return as is;
               signed-out visitors just get the cookie-keyed behaviour.
 
               **Return a value that is unique per viewer.** The value is expanded
               like a cache key (`to_param`), so `0`, `"0"` and `[0]` are one viewer,
-              as are `[1, 2]` and `"1/2"`; `true` is the same viewer for everyone.
-              A user id, or an Array of ids, is the intended shape.
+              as are `[1, 2]` and `"1/2"` (and `["a/b", "c"]` and `["a", "b/c"]`);
+              `true` is the same viewer for everyone, and so is an **unsaved record**
+              (`User.new` has the cache key `users/new` for every guest — return
+              `nil` for guests instead). A user id, or an Array of ids, is the
+              intended shape.
 
               `u` is a **keyed** digest (derived with the same secret that signs the
               tokens): it cannot be reversed to the value, and nobody can compute
@@ -542,6 +557,8 @@ module Views
               - The reply must be the fragment: a response that was redirected, or
                 is not a turbo-stream, is a failed load (`reactive:error`), never
                 rendered.
+              - The route answers `GET` (and `HEAD`: a 200 with the policy headers and
+                an empty body); every other verb is a 404.
               - Only `Cache-Control` and `Vary` are managed. An `Expires` or
                 `Surrogate-Control` header an `after_action` adds is left alone.
               - A filter that **raises** (a `RecordNotFound` turned into a 404 page

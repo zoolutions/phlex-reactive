@@ -752,7 +752,7 @@ module Views
               | `verify_fragment` (once per origin hit) | ~145k i/s (6.9 μs) | 24 objects |
               | `sign_defer` (the plain shell's token) | ~133k i/s (7.5 μs) | 30 objects |
               | plain lazy shell render | ~83k i/s (12.0 μs) | 77 objects |
-              | cached shell render (URL + viewer) | ~63k i/s (16.0 μs) | 49 objects |
+              | cached shell render (URL + viewer) | ~63k i/s (16.0 μs) | 50 objects |
               | `on:` shell render | ~71k i/s (14.2 μs) | 40 objects |
               | `on:` + `cache:` shell render | ~40k i/s (24.8 μs) | 64 objects |
 

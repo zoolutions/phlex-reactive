@@ -2326,7 +2326,8 @@ What keeps a private cache safe:
   with a blank part) names nobody and is never a shared "anonymous" key: that
   render falls back to `Vary: Cookie`, so `Current.user&.id` is safe as is.
   Return a value unique per viewer: it is expanded like a cache key, so `0`,
-  `"0"` and `[0]` are one viewer, and `true` is everyone.
+  `"0"` and `[0]` are one viewer, and `true` — or an unsaved record — is
+  everyone (return `nil` for guests).
 - **Opt-in only.** The fragment id is signed under its own purpose: it is not
   an identity or defer token and those are not fragment ids (400 either way). A
   component without `cache:` is not reachable over GET (404). The id names no
@@ -2339,8 +2340,11 @@ What keeps a private cache safe:
   flash, or wrote a cookie keeps that write and is answered `no-store` instead —
   so an app that writes the session on every request (Devise `timeoutable`) gets
   no caching. Session writes made outside the controller (Rack middleware) are
-  not seen, and are lost on a cacheable reply. A filter may tighten the policy (`no_store`, `expires_now`), never
-  loosen it.
+  not seen, and are lost on a cacheable reply. The endpoint itself never reads
+  the flash, so a notice waiting for the next page view survives a fragment
+  load. A filter may tighten the policy (`no_store`, `expires_now`, a shorter
+  `max-age`, `must-revalidate`), never loosen it. The ETag is the body only —
+  `etag { }` blocks are not applied.
 - **No CSRF tokens.** A render that embeds a form authenticity token or
   `csrf_meta_tags` is served `no-store` with a warning rather than cached.
 - **Nested lazy components render eagerly inside the fragment.** The fragment

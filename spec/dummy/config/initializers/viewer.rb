@@ -25,7 +25,9 @@
 #   * "no_store"       — a before_action that forbids caching (no_store);
 #   * "expires_now_after" — an after_action that calls expires_now.
 # An X-Dummy-Vary request header makes the gate set that Vary, the way a
-# controller that localizes by Accept-Language would.
+# controller that localizes by Accept-Language would. X-Dummy-Before-Cache /
+# X-Dummy-After-Cache make a before / after filter set a cache policy of its
+# own (see dummy_cache_policy).
 module DummyViewerGate
   extend ActiveSupport::Concern
 
@@ -44,6 +46,7 @@ module DummyViewerGate
   def dummy_viewer_before
     Viewer.who = dummy_viewer
     response.headers["Vary"] = request.headers["X-Dummy-Vary"] if request.headers["X-Dummy-Vary"]
+    dummy_cache_policy(request.headers["X-Dummy-Before-Cache"])
 
     case dummy_viewer
     when "expired" then head :unauthorized
@@ -59,7 +62,20 @@ module DummyViewerGate
     end
   end
 
+  def dummy_cache_policy(policy)
+    case policy
+    when "expires_in_5" then expires_in 5
+    when "expires_in_0" then expires_in 0
+    when "must_revalidate" then expires_in 1.hour, must_revalidate: true
+    when "raw_zero" then response.headers["Cache-Control"] = "max-age=0, must-revalidate"
+    when "raw_short" then response.headers["Cache-Control"] = "max-age=30, must-revalidate"
+    when "long_public" then expires_in 1.day, public: true
+    when "shared" then expires_in 1.hour, public: true, "s-maxage": 600, stale_while_revalidate: 60
+    end
+  end
+
   def dummy_viewer_after
+    dummy_cache_policy(request.headers["X-Dummy-After-Cache"])
     case dummy_viewer
     when "tracked_after" then session[:left_at] = dummy_stamp
     when "cookied_after" then cookies[:left_at] = dummy_stamp

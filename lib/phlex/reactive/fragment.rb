@@ -89,15 +89,20 @@ module Phlex
         Digest::SHA256.hexdigest(signed)[0, 32]
       end
 
-      # Every LEAF must name something: an Array or Hash (nested to any depth)
-      # with one blank part is unnamed, and so is a value whose cache key
-      # expands to nothing (an object with a blank to_param). 0 is a viewer.
+      # Every LEAF must name something. A collection — anything
+      # expand_cache_key walks with to_a: an Array, a Hash (keys and values), a
+      # Set, a Struct, an Enumerator, nested to any depth — with one blank part
+      # is unnamed, and so is a value whose cache key expands to nothing (an
+      # object with a blank to_param). 0 is a viewer.
       def viewer_named?(viewer)
-        case viewer
-        when ::Array then viewer.any? && viewer.all? { viewer_named?(it) }
-        when ::Hash then viewer.any? && viewer.values.all? { viewer_named?(it) }
-        else viewer.present? && ActiveSupport::Cache.expand_cache_key(viewer).present?
+        return false if viewer.nil? || viewer == false
+
+        if viewer.respond_to?(:to_a) && !viewer.respond_to?(:cache_key)
+          parts = viewer.to_a
+          return parts.any? && parts.all? { viewer_named?(it) }
         end
+
+        viewer.present? && ActiveSupport::Cache.expand_cache_key(viewer).present?
       end
 
       # The max-age (seconds) the endpoint answers with: the component's

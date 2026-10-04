@@ -286,6 +286,50 @@ RSpec.describe "cacheable lazy fragments", type: :request do
         expect(response.headers["Cache-Control"]).to eq("max-age=600, private")
       end
 
+      # A flash set by an ordinary action is waiting for the next PAGE view. A
+      # fragment GET in between, with nothing in the app reading the flash,
+      # must leave it alone — the endpoint itself never loads it.
+      def set_pending_flash
+        cookies[:viewer] = "flasher"
+        get_fragment
+        cookies[:viewer] = "someone" # no longer the flasher: an ordinary viewer
+      end
+
+      it "leaves a pending flash nobody read: cacheable, no Set-Cookie, and the flash survives" do
+        set_pending_flash
+
+        get_fragment
+
+        expect(response).to have_http_status(:ok)
+        expect(response.headers["Cache-Control"]).to eq("max-age=600, private")
+        expect(response.headers["Set-Cookie"]).to be_blank
+        expect(flash_seen).to eq("alert" => "x")
+      end
+
+      it "leaves it through a 304 revalidation too" do
+        get_fragment
+        etag = response.headers["ETag"]
+        set_pending_flash
+
+        get_fragment(extra_headers: { "If-None-Match" => etag })
+
+        expect(response).to have_http_status(:not_modified)
+        expect(response.headers["Cache-Control"]).to eq("max-age=600, private")
+        expect(response.headers["Set-Cookie"]).to be_blank
+        expect(flash_seen).to eq("alert" => "x")
+      end
+
+      it "leaves it in the viewer mode" do
+        set_pending_flash
+        cookies[:viewer] = "alice"
+
+        get_fragment(menu_url(viewer: "alice"))
+
+        expect(response.headers["Cache-Control"]).to eq("max-age=600, private")
+        expect(response.headers["Set-Cookie"]).to be_blank
+        expect(flash_seen).to eq("alert" => "x")
+      end
+
       it "stays cacheable, with no Set-Cookie, for flash.now" do
         get "/lazy_stats"
         cookies[:viewer] = "flash_now"
@@ -296,8 +340,55 @@ RSpec.describe "cacheable lazy fragments", type: :request do
       end
     end
 
-    # The policy is only ever TIGHTENED by the app: a filter that forbids
-    # caching wins; one that loosens it (public, see above) does not.
+    # The fragment's ETag is its body, nothing else: the controller's `etag {}`
+    # blocks (and Rails' own flash etagger, which would load and sweep the
+    # flash) are deliberately not applied.
+    it "does not mix the base controller's etag {} blocks into the ETag" do
+      original = ActionController::Base.etaggers
+      ActionController::Base.etag { request.headers["X-Dummy-Etag"] }
+      get_fragment(extra_headers: { "X-Dummy-Etag" => "one" })
+      first = response.headers["ETag"]
+      get_fragment(extra_headers: { "X-Dummy-Etag" => "two" })
+
+      expect(first).to be_present
+      expect(response.headers["ETag"]).to eq(first)
+    ensure
+      ActionController::Base.etaggers = original
+    end
+
+    # The app can TIGHTEN the policy from a before or an after filter — a
+    # shorter max-age, must-revalidate, or no caching at all — and never loosen
+    # it: public, s-maxage, stale-while-revalidate and a longer max-age are
+    # overridden.
+    {
+      "expires_in_5" => "max-age=5, private",
+      "must_revalidate" => "max-age=600, private, must-revalidate",
+      "raw_short" => "max-age=30, private, must-revalidate",
+      "expires_in_0" => "no-store",
+      "raw_zero" => "no-store",
+      "long_public" => "max-age=600, private",
+      "shared" => "max-age=600, private"
+    }.to_a.product(%w[Before After]).each do |(policy, expected), filter|
+      it "answers #{expected.inspect} when a #{filter.downcase} filter sets #{policy}" do
+        get_fragment(extra_headers: { "X-Dummy-#{filter}-Cache" => policy })
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include("panel:mine")
+        expect(response.headers["Cache-Control"]).to eq(expected)
+      end
+    end
+
+    it "still answers no-store for its own max-age limit of zero only when the app asked" do
+      original = Phlex::Reactive.fragment_cache_max_age_limit
+      Phlex::Reactive.fragment_cache_max_age_limit = 0
+      get_fragment
+
+      expect(response.headers["Cache-Control"]).to eq("max-age=0, private")
+    ensure
+      Phlex::Reactive.fragment_cache_max_age_limit = original
+    end
+
+    # A filter that forbids caching wins.
     it "honours a before_action that forbids caching (no_store)" do
       cookies[:viewer] = "no_store"
       get_fragment
@@ -418,7 +509,8 @@ RSpec.describe "cacheable lazy fragments", type: :request do
     blank_to_param = Class.new { def to_param = "" }.new
     [
       nil, "", "   ", false, [], [nil, 5], ["", "en"],
-      [[nil]], [1, [nil]], {}, { user: nil }, { user: 1, tenant: "" }, [{ user: nil }], blank_to_param
+      [[nil]], [1, [nil]], {}, { user: nil }, { user: 1, tenant: "" }, [{ user: nil }], blank_to_param,
+      Set[nil, "en"], Struct.new(:id, :locale).new(nil, "en"), [nil, 1].each, { nil => 1 }
     ].each_with_index do |blank, _index|
       it "renders no u for #{blank.inspect}, and two sessions each get a Vary: Cookie reply" do
         CachedProbeComponent.viewer = blank
@@ -442,7 +534,7 @@ RSpec.describe "cacheable lazy fragments", type: :request do
     end
 
     it "keeps the viewer mode for a present value, including 0 and a full Array" do
-      [0, "alice", [7, "en"], { user: 7 }, [1, [2]]].each do
+      [0, "alice", [7, "en"], { user: 7 }, [1, [2]], Set[7, "en"], Struct.new(:id, :locale).new(7, "en")].each do
         CachedProbeComponent.viewer = it
         url = probe_shell_url
         get_fragment(url)

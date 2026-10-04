@@ -39,6 +39,9 @@ module Phlex
       # request_forgery_protection_token. Cached, such a token would outlive
       # the session it was minted for.
       CSRF_TOKEN_NAMES = %w[authenticity_token csrf-token].freeze
+      # One compiled pattern per forgery-protection field name (it is a
+      # class-level setting, so in practice one entry), not one per request.
+      CSRF_TOKEN_PATTERNS = Concurrent::Map.new
 
       # Stands in for the response when asking the cookie jar what it WOULD
       # write (CookieJar#write calls set_cookie / delete_cookie per pending
@@ -99,14 +102,27 @@ module Phlex
         response.headers.delete("ETag")
       end
 
-      # Did the app itself forbid caching this reply — a `no_store` or
-      # `expires_now` in a base-controller filter, or the header set by hand?
-      # The app may always tighten the policy; this endpoint only refuses to
-      # let it be loosened.
+      # Did the app itself forbid caching this reply — `no_store`, `expires_now`
+      # or a max-age of zero in a base-controller filter, or the header set by
+      # hand? The app may always tighten the policy; this endpoint only refuses
+      # to let it be loosened. (This endpoint's OWN max-age can be zero — a
+      # fragment_cache_max_age_limit of 0 — which is revalidate-always, not this.)
       def caching_forbidden?
         control = response.cache_control
-        control[:no_store] || control[:no_cache] ||
-          response.headers["Cache-Control"].to_s.match?(/\bno-(?:store|cache)\b/i)
+        return true if control[:no_store] || control[:no_cache]
+        return true if response.headers["Cache-Control"].to_s.match?(/\bno-(?:store|cache)\b/i)
+
+        app_cache_directives[:max_age]&.zero? && !@fragment_policy&.fetch(:max_age)&.zero?
+      end
+
+      # What the app's own filters asked for, from expires_in (the response's
+      # cache_control hash) or a header set by hand: the smallest max-age, and
+      # whether must-revalidate was requested.
+      def app_cache_directives
+        control = response.cache_control
+        header = response.headers["Cache-Control"].to_s
+        ages = [control[:max_age], header[/\bmax-age=(\d+)/i, 1]].compact.map(&:to_i)
+        { max_age: ages.min, must_revalidate: control[:must_revalidate] || header.match?(/\bmust-revalidate\b/i) }
       end
 
       # True only when it is KNOWN that this request writes no cookie: the
@@ -159,8 +175,6 @@ module Phlex
       # viewer would get.
       def render_real_stream(stream, component)
         return render_uncacheable(stream, component.class) if stream.match?(csrf_token_markup)
-        # A filter that already forbade caching (an app-wide no_store) wins.
-        return super if caching_forbidden?
 
         viewer = component.send(:fragment_viewer_param)
         # The URL must name exactly the viewer of THIS session — or nobody, when
@@ -172,25 +186,48 @@ module Phlex
         # With no viewer named, the cookie is the only thing that tells two
         # viewers apart; with one, the URL does (and was just checked).
         @fragment_policy = { max_age: Phlex::Reactive::Fragment.max_age_for(component.class), vary: viewer.nil? }
+        # A filter that already forbade caching (an app-wide no_store) wins.
+        return super if caching_forbidden?
+
         apply_cache_policy
-        render turbo_stream: stream if stale?(etag: stream, template: false)
+        render_conditional(stream)
         # Only now: anything that raised above leaves the reply no-store.
         @fragment_cacheable = true
+      end
+
+      # The conditional GET, with the ETag set from the BODY ALONE. Not
+      # stale?/fresh_when: those run the controller's etaggers, and Rails' own
+      # flash etagger LOADS the flash — which marks a pending flash as used, so
+      # a fragment GET would eat a notice meant for the next page view. (An
+      # app's `etag { }` blocks are skipped for the same reason; vary a cached
+      # fragment through reactive_cache_version / reactive_cache_viewer.)
+      def render_conditional(stream)
+        response.weak_etag = stream
+        request.fresh?(response) ? head(:not_modified) : render(turbo_stream: stream)
       end
 
       # A `name=` attribute, in any quoting, that names a CSRF token — the
       # well-known names plus this controller's forgery-protection field.
       def csrf_token_markup
-        names = CSRF_TOKEN_NAMES | [request_forgery_protection_token.to_s]
-        /\bname\s*=\s*["']?(?:#{names.reject(&:empty?).map { Regexp.escape(it) }.join("|")})(?![\w-])/i
+        token_name = request_forgery_protection_token.to_s
+        CSRF_TOKEN_PATTERNS.compute_if_absent(token_name) do
+          names = (CSRF_TOKEN_NAMES | [token_name]).reject(&:empty?).map { Regexp.escape(it) }
+          /\bname\s*=\s*["']?(?:#{names.join("|")})(?![\w-])/i
+        end
       end
 
-      # `private, max-age=<n>` and nothing else, plus Vary: Cookie in the default
-      # mode. Applied before the render (the 304 carries it) and again after
-      # every callback ran (settle_caching).
+      # `private, max-age=<n>` plus Vary: Cookie in the default mode — tightened
+      # by whatever the app's filters asked for (a SHORTER max-age,
+      # must-revalidate), never loosened (public, s-maxage,
+      # stale-while-revalidate and a longer max-age are dropped). Applied before
+      # the render (the 304 carries it) and again after every callback ran
+      # (settle_caching).
       def apply_cache_policy
+        app = app_cache_directives
+        policy = { max_age: [@fragment_policy[:max_age], app[:max_age]].compact.min, public: false }
+        policy[:must_revalidate] = true if app[:must_revalidate]
         response.headers.delete("Cache-Control")
-        response.cache_control.replace(max_age: @fragment_policy[:max_age], public: false)
+        response.cache_control.replace(policy)
         vary_on_cookie if @fragment_policy[:vary]
       end
 
