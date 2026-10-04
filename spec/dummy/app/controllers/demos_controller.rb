@@ -10,6 +10,13 @@ class DemosController < ActionController::Base
     render_component CounterComponent.new(count: 0)
   end
 
+  # Issue #273: the lazily loaded controller layout (early.js eager, the
+  # controller after a delayed import()), so triggers fire before connect.
+  def early_triggers
+    html = render_to_string(EarlyTriggersComponent.new, layout: false)
+    render html: html.html_safe, layout: "lazy_controller"
+  end
+
   # Effects (issue #215). The dummy has no asset pipeline, so the page inlines
   # the gem's REAL shipped stylesheet — the browser animations under test are
   # driven by the exact CSS apps get. The duration override AFTER it widens the
@@ -459,6 +466,14 @@ class DemosController < ActionController::Base
 
   # reactive_lazy(on:) (issue #276): an event-triggered panel at the top, and a
   # visibility-triggered shell far below the fold. Neither fetches on load.
+  # reactive_lazy(on:) composed with phlex/reactive/early (issues #276 + #273):
+  # the event shell on the lazily-loaded-controller layout, so its event can
+  # fire before the controller connects.
+  def lazy_on_early
+    html = render_to_string(LazyPanelComponent.new(scope: "mine"), layout: false)
+    render html: html.html_safe, layout: "lazy_controller"
+  end
+
   # ?scope=forbidden ships a panel whose materialize is denied (403), so specs
   # can leave a shell in the failed state.
   def lazy_on

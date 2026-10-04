@@ -2372,9 +2372,111 @@ function streamOpTargets(args, root) {
   return [...document.querySelectorAll(to)]
 }
 
-// Register this controller eagerly (not lazily) so a click immediately after
-// page load is never missed. The phlex-reactive engine auto-pins it with
-// preload: true for importmap apps; see the README for esbuild/webpack.
+// --- Early triggers (issue #273) ----------------------------------------------
+// phlex/reactive/early (imported eagerly by the app) queues trigger events that
+// reach a root before its controller connects. The queue is shared through a
+// Symbol.for key on window — no import edge either way, so either module may
+// load first, and an app that never imports early gets an empty queue.
+const EARLY_KEY = Symbol.for("phlex-reactive.early")
+const DEFAULT_EARLY_TTL_MS = 10000
+
+function earlyState() {
+  globalThis[EARLY_KEY] ??= { queue: [], connected: new WeakSet() }
+  return globalThis[EARLY_KEY]
+}
+
+// <meta name="phlex-reactive-early-ttl" content="ms"> (Phlex::Reactive.
+// early_event_ttl_ms), parsed defensively like the timeout meta.
+function earlyTtlMs() {
+  const ms = Number(globalThis.document?.querySelector?.('meta[name="phlex-reactive-early-ttl"]')?.content)
+  return Number.isFinite(ms) && ms > 0 ? ms : DEFAULT_EARLY_TTL_MS
+}
+
+// Stimulus's param reader (data-reactive-<name>-param, JSON-typecast,
+// camelized) — a replayed trigger carries the same event.params a live one does.
+function stimulusParams(el) {
+  const params = {}
+  for (const { name, value } of Array.from(el.attributes ?? [])) {
+    const match = /^data-reactive-(.+)-param$/i.exec(name)
+    if (!match) continue
+    let typed
+    try {
+      typed = JSON.parse(value)
+    } catch {
+      typed = value
+    }
+    params[match[1].replace(/[-_]([a-z0-9])/g, (_, char) => char.toUpperCase())] = typed
+  }
+  return params
+}
+
+// The event a replay hands to dispatch()/runOps(). It is called DIRECTLY, not
+// re-dispatched on the element: a real event would also re-run every OTHER
+// listener on the trigger (a lazily connected sibling controller that already
+// handled the original click would toggle twice). The original's default was
+// already prevented (or deliberately kept) by early.js, so preventDefault here
+// is a no-op.
+function earlyReplayEvent(event, el) {
+  return {
+    [EARLY_KEY]: true,
+    type: event.type,
+    detail: event.detail,
+    target: event.target,
+    currentTarget: el,
+    params: stimulusParams(el),
+    key: event.key,
+    code: event.code,
+    metaKey: event.metaKey,
+    ctrlKey: event.ctrlKey,
+    altKey: event.altKey,
+    shiftKey: event.shiftKey,
+    button: event.button,
+    submitter: event.submitter,
+    bubbles: event.bubbles,
+    timeStamp: event.timeStamp,
+    defaultPrevented: event.defaultPrevented,
+    preventDefault() {},
+    stopPropagation() {},
+    stopImmediatePropagation() {},
+  }
+}
+
+// A :once trigger that was REPLAYED is spent, but Stimulus's own `once`
+// listener for it is still armed (the replay calls the method directly). The
+// markup is left alone — rewriting data-action would let a morph, which writes
+// the server's attribute back, re-arm it — so the spent descriptor is tracked
+// per trigger element (a WeakMap: a replaced element starts fresh, like a live
+// `once`), and the armed listener's single firing is swallowed.
+const spentEarlyOnce = new WeakMap()
+
+function spendEarlyOnce(el, { token, type, method, filter }) {
+  let spent = spentEarlyOnce.get(el)
+  if (!spent) spentEarlyOnce.set(el, (spent = new Map()))
+  if (spent.has(token)) return false
+  spent.set(token, { type, method, filter, armed: true })
+  return true
+}
+
+// True (once) for the live call that comes from a spent descriptor's listener:
+// same element, method, event type AND key filter — a sibling descriptor with
+// another filter (keydown.esc beside a spent keydown.enter:once) is not it.
+function earlyOnceSwallows(event, method, keyMappings) {
+  if (event?.[EARLY_KEY]) return false
+  const spent = spentEarlyOnce.get(event?.currentTarget)
+  if (!spent) return false
+  for (const entry of spent.values()) {
+    if (!entry.armed || entry.method !== method || entry.type !== event.type) continue
+    if (entry.filter && !keyFilterMatches(entry.filter, event, keyMappings)) continue
+    entry.armed = false
+    return true
+  }
+  return false
+}
+
+// Register this controller eagerly OR lazily: with phlex/reactive/early
+// imported, a trigger that fires before connect is replayed on connect (issue
+// #273). The engine auto-pins it with preload: true for importmap apps; see
+// the README for esbuild/webpack.
 export default class extends Controller {
   static values = {
     token: String, // signed identity token (component + record gid/state)
@@ -2478,6 +2580,11 @@ export default class extends Controller {
   // guard above knows the controller was registered (issue #26 part 2).
   connect() {
     reactiveConnected = true
+    // Early triggers (issue #273): from here on Stimulus delivers this root's
+    // events live (its bindings are already wired), so early.js must stop
+    // queueing them NOW — a connect-time seed below (a compute output write)
+    // dispatches real input events. The queue itself drains at the very end.
+    earlyState().connected.add(this.element)
 
     // Root-id guard (issue #48). The token round trip assumes the reactive root
     // element's id == component.id: the server targets component.id and the client
@@ -2698,6 +2805,88 @@ export default class extends Controller {
       this.element.addEventListener?.("turbo:morph-element", this.#boundSyncClipboard)
       this.#syncClipboardTriggers()
     }
+
+    // LAST, after every feature above is wired: a replayed trigger must find
+    // the controller exactly as a live event after connect would.
+    this.#announceConnected()
+  }
+
+  // Early triggers (issue #273): mark the root (the attribute is for CSS and
+  // tests; early.js trusts the WeakSet joined at the top of connect()),
+  // announce it with a bubbling reactive:connect, then replay its queued triggers.
+  #announceConnected() {
+    // The attribute is a connect-time marker only: an in-place morph writes
+    // the server's attributes back and strips it (re-marking would cost every
+    // root a morph listener — the "a root that never opted in pays nothing"
+    // contract). The connected WeakSet is the truth; reactive:connect the signal.
+    this.element.setAttribute?.("data-reactive-connected", "")
+    // Raw dispatch (as #emit), on the root only: connect() runs on an attached
+    // element, so there is no detached-node fallback to make.
+    if (this.element.isConnected) {
+      this.element.dispatchEvent?.(
+        new CustomEvent("reactive:connect", { bubbles: true, composed: true, detail: { id: this.element.id } }),
+      )
+    }
+    this.#drainEarly()
+  }
+
+  // Takes this root's entries — and those of any root that left the page
+  // before connecting (replaced by a stream), which no controller would ever
+  // claim.
+  #drainEarly() {
+    const { queue } = earlyState()
+    if (queue.length === 0) return
+    const mine = []
+    for (let i = queue.length - 1; i >= 0; i--) {
+      const { root } = queue[i]
+      if (root === this.element || !root.isConnected) mine.unshift(...queue.splice(i, 1))
+    }
+    const ttl = earlyTtlMs()
+    // Two module instances of early.js (a bundled copy beside the pinned one)
+    // each queue the same event: replay an (event, element) pair once. (One
+    // event OBJECT dispatched twice on one element before connect also counts
+    // once — indistinguishable here.)
+    const replayed = new Map()
+    for (const entry of mine) {
+      const seen = replayed.get(entry.event) ?? new Set()
+      replayed.set(entry.event, seen)
+      if (seen.has(entry.el)) continue
+      seen.add(entry.el)
+      const reason =
+        entry.root !== this.element
+          ? "its root left the page before a controller connected"
+          : performance.now() - entry.at > ttl
+            ? `it is older than the ${ttl} ms early-event TTL`
+            : entry.el.isConnected && this.element.contains(entry.el)
+              ? null
+              : "its element left the root before the controller connected"
+      if (reason) {
+        if (this.#verboseEnabled()) console.warn(`[phlex-reactive] dropped an early "${entry.event.type}" trigger: ${reason}`)
+        continue
+      }
+      this.#replayEarly(entry)
+    }
+  }
+
+  // One queued event, replayed once per matching descriptor — Stimulus calls
+  // each binding with the SAME event object, so runOps' duplicate-binding
+  // guard behaves as it does live. Each descriptor is re-checked here, where
+  // Stimulus would check it: it must still be on the element (a morph may
+  // have removed it), its key filter must match under the app's own key
+  // mappings (early.js knows only Stimulus's defaults), and a :once one runs a single time however often it
+  // was queued (spendEarlyOnce).
+  #replayEarly({ event, el, descs }) {
+    const replay = earlyReplayEvent(event, el)
+    const keyMappings = this.application?.schema?.keyMappings
+    const tokens = (el.getAttribute("data-action") ?? "").split(/\s+/)
+    for (const desc of descs) {
+      if (!tokens.includes(desc.token)) continue
+      if (desc.filter && !keyFilterMatches(desc.filter, event, keyMappings)) continue
+      // (`:once` is read off the token: early.js keeps its records minimal.)
+      if (/#\w+.*:once\b/.test(desc.token) && !spendEarlyOnce(el, desc)) continue
+      if (desc.method === "runOps") this.runOps(replay)
+      else this.dispatch(replay)
+    }
   }
 
   // Whether this root opts into dirty tracking (issue #103): track_dirty: puts the
@@ -2740,6 +2929,9 @@ export default class extends Controller {
     if (this.#boundLazyMorph) {
       this.element.removeEventListener?.("turbo:morph-element", this.#boundLazyMorph)
     }
+    // Early triggers (issue #273): a disconnected root records again.
+    earlyState().connected.delete(this.element)
+    this.element.removeAttribute?.("data-reactive-connected")
   }
 
   // Which reactive_lazy(on:) shell this root currently is — read live, because
@@ -2869,6 +3061,8 @@ export default class extends Controller {
   // a per-controller promise makes each dispatch wait for the previous one, so
   // it always uses the freshest token.
   dispatch(event) {
+    // A :once trigger already replayed on connect (issue #273) is spent.
+    if (earlyOnceSwallows(event, "dispatch", this.application?.schema?.keyMappings)) return
     // `window` (renamed: never shadow the global) and `outside` are the event-
     // modifier params (issue #80). The client decides preventDefault behavior
     // from event.params — set by the Ruby on() — never by sniffing the
@@ -2966,6 +3160,7 @@ export default class extends Controller {
   // the component resets whatever they toggled (by design — a signed action
   // owns state that must survive re-renders).
   runOps(event) {
+    if (earlyOnceSwallows(event, "runOps", this.application?.schema?.keyMappings)) return
     if (bindingsAlreadyRan(event, this)) return
     const params = event.params ?? {}
     // The trigger element on_client was spread onto (issue #222 ctx: { el }),

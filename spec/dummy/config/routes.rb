@@ -9,6 +9,7 @@ Rails.application.routes.draw do
 
   # Example pages exercised by system specs.
   get "counter" => "demos#counter"
+  get "early_triggers" => "demos#early_triggers" # issue #273: lazily loaded controller
   get "effects" => "demos#effects"
   get "debug" => "demos#debug"
   get "failure_surface" => "demos#failure_surface"
@@ -80,6 +81,7 @@ Rails.application.routes.draw do
   get "defer" => "demos#defer"
   get "lazy_stats" => "demos#lazy_stats"
   get "lazy_on" => "demos#lazy_on"
+  get "lazy_on_early" => "demos#lazy_on_early"
   get "morph_grid/:id" => "demos#morph_grid"
   get "js_focus/:id" => "demos#js_focus"
   get "partial_grid/:id" => "demos#partial_grid"

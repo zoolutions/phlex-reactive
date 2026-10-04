@@ -77,6 +77,7 @@ function gate() {
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 beforeEach(() => {
+  delete globalThis[Symbol.for("phlex-reactive.early")]
   observers = []
   posts = []
   // Each POST consumes nextResponse(): a response, a rejection, or a pending gate.
@@ -117,6 +118,10 @@ function makeRoot(attrs = {}) {
     dispatchEvent: () => true,
     querySelectorAll: () => [],
     contains: () => true,
+    // Stimulus's param reader (the early replay rebuilds event.params from it).
+    get attributes() {
+      return Object.entries(el.attrs).map(([name, value]) => ({ name, value }))
+    },
     addEventListener: (name, fn) => (listeners[name] ??= []).push(fn),
     removeEventListener: (name, fn) => {
       listeners[name] = (listeners[name] ?? []).filter((registered) => registered !== fn)
@@ -144,6 +149,7 @@ function connect(el) {
 // What Stimulus does when the shell's once-bound descriptor fires.
 function stimulusFires(controller) {
   return controller.dispatch({
+    type: "panel:opened",
     params: { action: "__materialize", params: "{}" },
     currentTarget: controller.element,
     target: controller.element,
@@ -420,4 +426,121 @@ test("a tokenless (client-only) root wires no morph listener", () => {
   connect(el)
 
   expect(el.listeners["turbo:morph-element"] ?? []).toEqual([])
+})
+
+// --- composed with phlex/reactive/early (issue #273) ---------------------------
+// early.js queues a trigger that fires BEFORE the controller connects; connect()
+// replays it by calling dispatch() directly, and marks the `once` descriptor
+// spent so Stimulus's still-armed listener is swallowed the one time it fires.
+
+const EARLY = Symbol.for("phlex-reactive.early")
+const DESCRIPTOR = "panel:opened->reactive#dispatch:once"
+
+// The event shell exactly as the server renders it (descriptor + params).
+const renderedEventShell = (token = "shell-token") => ({
+  ...eventShell(token),
+  "data-action": DESCRIPTOR,
+  "data-reactive-action-param": "__materialize",
+  "data-reactive-params-param": "{}",
+})
+
+// What early.js records for one `panel:opened` on the root before connect.
+function queueEarly(el, count = 1) {
+  globalThis[EARLY] ??= { queue: [], connected: new WeakSet() }
+  for (let i = 0; i < count; i++) {
+    globalThis[EARLY].queue.push({
+      event: { type: "panel:opened", target: el },
+      el,
+      root: el,
+      at: performance.now(),
+      descs: [{ token: DESCRIPTOR, type: "panel:opened", filter: undefined, method: "dispatch" }],
+    })
+  }
+}
+
+test("an event fired before connect is replayed into exactly one __materialize", async () => {
+  const pending = gate()
+  nextResponse = () => pending.promise
+  const el = makeRoot(renderedEventShell())
+  queueEarly(el, 3)
+
+  const controller = connect(el)
+  await settle()
+  expect(posts).toEqual([{ token: "shell-token", act: "__materialize", params: {} }])
+
+  // A second event after connect: Stimulus's `once` listener is still armed
+  // (the replay bypassed it). It must not start a second load.
+  stimulusFires(controller)
+  await settle()
+  expect(posts.length).toBe(1)
+
+  pending.release()
+  await settle()
+  expect(posts.length).toBe(1)
+})
+
+test("after an early replay whose load FAILED, later events stay dead until a morph re-arms", async () => {
+  nextResponse = () => Promise.reject(new Error("offline"))
+  const el = makeRoot(renderedEventShell())
+  queueEarly(el)
+  const controller = connect(el)
+  await settle()
+  expect(posts.length).toBe(1)
+
+  // The armed Stimulus listener fires once (swallowed as spent), then is gone.
+  stimulusFires(controller)
+  el.fire("panel:opened")
+  await settle()
+  expect(posts.length).toBe(1)
+
+  nextResponse = () => Promise.resolve(okResponse())
+  el.morphTo(renderedEventShell())
+  el.fire("panel:opened")
+  await settle()
+  expect(posts.length).toBe(2)
+})
+
+test("a morph re-arm and the early once-swallow do not interfere: one request for one event", async () => {
+  nextResponse = () => Promise.reject(new Error("offline"))
+  const el = makeRoot(renderedEventShell())
+  queueEarly(el)
+  const controller = connect(el)
+  await settle()
+  expect(posts.length).toBe(1)
+
+  // Morph FIRST, while Stimulus's listener is still armed-but-spent: the next
+  // event reaches both it (swallowed) and the re-armed listener (one request).
+  const pending = gate()
+  nextResponse = () => pending.promise
+  el.morphTo(renderedEventShell())
+  stimulusFires(controller)
+  el.fire("panel:opened")
+  await settle()
+  expect(posts.length).toBe(2)
+
+  pending.release()
+  await settle()
+  expect(posts.length).toBe(2)
+})
+
+test("after an early replay, a morph-back on the same element still gives exactly one request", async () => {
+  const el = makeRoot(renderedEventShell())
+  queueEarly(el)
+  connect(el)
+  await settle()
+  expect(posts.length).toBe(1)
+
+  // The load landed as an in-place morph to real content, then a page-refresh
+  // morph turns the root back into the shell.
+  el.morphTo(realContent())
+  const pending = gate()
+  nextResponse = () => pending.promise
+  el.morphTo(renderedEventShell("morphed-token"))
+  await settle()
+  expect(posts.length).toBe(2)
+  expect(posts[1]).toEqual({ token: "morphed-token", act: "__materialize", params: {} })
+
+  pending.release()
+  await settle()
+  expect(posts.length).toBe(2)
 })

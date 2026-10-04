@@ -7,6 +7,7 @@
       "phlex/reactive/confirm_predicate": ["./app/javascript/phlex/reactive/confirm_predicate.js"],
       "phlex/reactive/compute": ["./app/javascript/phlex/reactive/compute.js"],
       "phlex/reactive/inspect": ["./app/javascript/phlex/reactive/inspect.js"],
+      "phlex/reactive/early": ["./app/javascript/phlex/reactive/early.js"],
       "@hotwired/stimulus": ["./benchmark/client/support/stimulus_shim.js"]
     }
   }

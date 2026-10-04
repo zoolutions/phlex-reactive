@@ -190,4 +190,53 @@ RSpec.describe "reactive_lazy(on:) (issue #276)", type: :system do
       expect(page).to have_reactive_requests(1)
     end
   end
+
+  # Composed with phlex/reactive/early (issue #273): the controller loads
+  # lazily, so the shell's event can fire BEFORE it connects. early.js queues
+  # it and connect() replays it into the same materialize entry point.
+  describe "when the event fires before a lazily loaded controller connects" do
+    def visit_unconnected
+      visit "/lazy_on_early"
+      expect(page).to have_css("#lazy-panel [data-testid='panel-skeleton']")
+      expect(page.evaluate_script("window.__earlyReady === true")).to be(true)
+      expect(page).to have_css("[data-testid='connects']", exact_text: "0")
+    end
+
+    def load_controller
+      page.execute_script("window.__loadReactive()")
+      expect(page).to have_css("[data-testid='connects']", text: /\A[1-9]/)
+    end
+
+    it "replays it into exactly one materialize; a second event after connect requests nothing" do
+      visit_unconnected
+      3.times { fire_panel_opened }
+      expect(page.evaluate_script("window.__actionPosts")).to eq(0)
+
+      load_controller
+
+      expect(page).to have_css("[data-testid='panel-item']", text: "item:mine")
+      expect(page).to have_reactive_requests(1, kind: :action)
+      expect(page.evaluate_script("window.__actionPosts")).to eq(1)
+
+      fire_panel_opened
+      expect(page).to have_reactive_requests(1)
+      expect(page.evaluate_script("window.__actionPosts")).to eq(1)
+    end
+
+    it "a morph-back after the replay still costs exactly one request" do
+      visit_unconnected
+      snapshot("lazy-panel", as: "shell")
+      fire_panel_opened
+      load_controller
+      expect(page).to have_css("[data-testid='panel-item']", text: "item:mine")
+
+      reset_reactive_requests!
+      mark_stale("panel-item")
+      morph_to("lazy-panel", snapshot: "shell")
+
+      expect(page).to have_css("[data-testid='panel-item']:not([data-stale])", text: "item:mine")
+      expect(page).to have_reactive_requests(1)
+      expect(page.evaluate_script("window.__actionPosts")).to eq(2)
+    end
+  end
 end
