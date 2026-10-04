@@ -55,18 +55,31 @@ RSpec.describe Phlex::Reactive::Component::Lazy do
       expect(html).not_to include("data-reactive-lazy-visible")
     end
 
+    it "carries the verbose stamp, so its request is counted by the test helpers (#279)" do
+      expect(attr_value(html, "data-reactive-verbose")).to eq("true")
+    end
+
+    it "names its event for the client, which re-arms the shell after a morph" do
+      expect(attr_value(html, "data-reactive-lazy-on")).to eq("panel:opened")
+    end
+
     it "keeps the configured shell tag" do
       expect(lazy_class(on: "x", tag: :section).new.call).to start_with("<section")
     end
   end
 
   describe "a visibility-triggered shell" do
-    it "on: :visible observes with a 0px margin and binds the reactive:visible trigger" do
+    it "on: :visible carries only the observer marker — the client materializes directly" do
       html = lazy_class(on: :visible).new.call
+      payload = Phlex::Reactive.verify(attr_value(html, "data-reactive-token-value"))
 
       expect(attr_value(html, "data-reactive-lazy-visible")).to eq("0px")
-      expect(attr_value(html, "data-action")).to eq("reactive:visible->reactive#dispatch:once")
-      expect(attr_value(html, "data-reactive-action-param")).to eq("__materialize")
+      expect(html).to include('data-controller="reactive"')
+      expect(payload).to include("c" => "LazyOnProbeComponent")
+      # No Stimulus binding: nothing to spend, nothing to re-arm.
+      expect(html).not_to include("data-action")
+      expect(html).not_to include("data-reactive-action-param")
+      expect(html).not_to include("data-reactive-lazy-on")
     end
 
     it "on: { visible: margin } carries the rootMargin" do
@@ -118,9 +131,13 @@ RSpec.describe Phlex::Reactive::Component::Lazy do
     it "still renders the defer-token shell, byte-for-byte" do
       html = LazyStatsComponent.new(scope: "week").call
       token = html[/data-reactive-defer-token="([^"]*)"/, 1]
-      expected = %(<div id="lazy-stats" class="reactive-defer-placeholder" aria-busy="true" ) +
-                 %(data-controller="reactive" data-reactive-defer-pending="true" ) +
-                 %(data-reactive-defer-token="#{token}"><span data-testid="stats-shimmer">…</span></div>)
+      # data-reactive-verbose is the #279 stamp (verbose is on in test).
+      expected = [
+        %(<div id="lazy-stats" class="reactive-defer-placeholder" aria-busy="true"),
+        %(data-controller="reactive" data-reactive-defer-pending="true"),
+        %(data-reactive-verbose="true"),
+        %(data-reactive-defer-token="#{token}"><span data-testid="stats-shimmer">…</span></div>)
+      ].join(" ")
 
       expect(html).to eq(expected)
     end

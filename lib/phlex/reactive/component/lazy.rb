@@ -17,19 +17,18 @@ module Phlex
       #
       # `reactive_lazy(on:)` (issue #276) defers the REQUEST, not just the
       # server time: the shell carries the identity token (no TTL, unlike the
-      # defer token) and a `__materialize` trigger bound `once` to the event —
-      # or to `reactive:visible`, which the client fires from an
-      # IntersectionObserver. The action endpoint routes `__materialize` to the
-      # same real render the defer endpoint does. The real render never
-      # contains the shell or its trigger, so `once` cannot re-arm.
+      # defer token). An event shell binds a `__materialize` trigger `once` to
+      # its event; a visibility shell has no binding — the client's
+      # IntersectionObserver starts the same `__materialize` request itself.
+      # The action endpoint routes `__materialize` to the same real render the
+      # defer endpoint does. The real render never contains the shell or its
+      # trigger, so `once` cannot re-arm.
       module Lazy
         extend ActiveSupport::Concern
 
         # The framework-owned act the on: shell dispatches. Reserved: `action`
         # refuses it, and the endpoint answers it only for reactive_lazy(on:).
         MATERIALIZE_ACTION = :__materialize
-        # The event the client's IntersectionObserver fires on a visible shell.
-        VISIBLE_EVENT = "reactive:visible"
         # A DOM event name usable in a Stimulus descriptor: no key filter (.),
         # no target (@), no descriptor syntax (->, #) — `panel:opened` is fine.
         EVENT_NAME = /\A[A-Za-z][\w:-]*\z/
@@ -72,23 +71,39 @@ module Phlex
 
         # The on: shell (issue #276): the same placeholder contract as the
         # defer shell (id, class, aria-busy, deferred_placeholder), but mounted
-        # like a reactive root — reactive_attrs' identity token — with the
-        # `__materialize` trigger bound once. No defer token and no pending
-        # marker: the client's lazy probe gates on the token, so it skips this
-        # shell, and nothing is in flight until the trigger fires.
+        # like a reactive root — reactive_attrs' identity token. No defer token
+        # and no pending marker: the client's lazy probe gates on the token, so
+        # it skips this shell, and nothing is in flight until the trigger fires.
+        #
+        # The marker tells the client which shell this is, on connect AND after
+        # a Turbo morph re-shows it on a connected root (no Stimulus lifecycle):
+        #   * data-reactive-lazy-on="<event>" — plus the once-bound Stimulus
+        #     descriptor for `__materialize`, so the first event takes the
+        #     ordinary action path. The client re-arms the event itself after a
+        #     morph, because a spent `once` binding never fires again.
+        #   * data-reactive-lazy-visible="<rootMargin>" — no descriptor at all;
+        #     the client's IntersectionObserver materializes directly.
         def render_trigger_shell(trigger)
-          event = trigger[:event] || VISIBLE_EVENT
-          data = {
-            action: "#{event}->reactive#dispatch:once",
-            reactive_action_param: MATERIALIZE_ACTION.to_s,
-            reactive_params_param: Helpers::EMPTY_PARAMS_JSON
-          }
-          data[:reactive_lazy_visible] = trigger[:visible] if trigger[:visible]
-
           public_send(
             self.class.reactive_lazy_tag,
-            **mix({ id:, class: "reactive-defer-placeholder", aria: { busy: "true" } }, reactive_attrs, { data: })
+            **mix(
+              { id:, class: "reactive-defer-placeholder", aria: { busy: "true" } },
+              reactive_attrs,
+              { data: trigger_shell_data(trigger) }
+            )
           ) { render_deferred_placeholder_content }
+        end
+
+        def trigger_shell_data(trigger)
+          return { reactive_lazy_visible: trigger[:visible] } if trigger[:visible]
+
+          event = trigger[:event]
+          {
+            action: "#{event}->reactive#dispatch:once",
+            reactive_action_param: MATERIALIZE_ACTION.to_s,
+            reactive_params_param: Helpers::EMPTY_PARAMS_JSON,
+            reactive_lazy_on: event
+          }
         end
 
         # The shell: owns the component's id (the arrival replaces it by that

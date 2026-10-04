@@ -459,8 +459,10 @@ class DemosController < ActionController::Base
 
   # reactive_lazy(on:) (issue #276): an event-triggered panel at the top, and a
   # visibility-triggered shell far below the fold. Neither fetches on load.
+  # ?scope=forbidden ships a panel whose materialize is denied (403), so specs
+  # can leave a shell in the failed state.
   def lazy_on
-    html = render_to_string(LazyPanelComponent.new(scope: "mine"), layout: false) +
+    html = render_to_string(LazyPanelComponent.new(scope: params.fetch(:scope, "mine")), layout: false) +
            %(<div data-testid="spacer" style="height: 3000px"></div>).html_safe +
            render_to_string(LazyFoldComponent.new(label: "below"), layout: false)
     render html: html.html_safe, layout: true

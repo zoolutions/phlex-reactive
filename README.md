@@ -2150,7 +2150,7 @@ reaches the shell, or until it scrolls into view (issue #276):
 
 ```ruby
 reactive_lazy on: "panel:opened"          # a DOM event on (or bubbling into) the shell
-reactive_lazy on: :visible                # IntersectionObserver
+reactive_lazy on: :visible                # IntersectionObserver, no DOM event involved
 reactive_lazy on: { visible: "200px" }    # …with a rootMargin
 ```
 
@@ -2165,7 +2165,16 @@ identity token (no expiry, unlike the defer token), so it works on a page left
 open past `defer_token_ttl`. The framework-owned `__materialize` act rides the
 action endpoint, runs no action, shares the defer endpoint's authorization
 step (registered error → 403, `render?` false → the shell stays), and answers
-403 for any component that isn't `reactive_lazy(on:)`.
+403 for any component that isn't `reactive_lazy(on:)`. Like the defer endpoint
+it is a read: it skips `around_actions`, `verify_authorized` and the pgbus
+connection-id scope, so enforce tenant scoping or rate limits in your base
+controller or in the render.
+
+A failed load is not retried on its own. A Turbo morph of the root handles the
+rest: real content morphed back into the shell re-materializes at once (one
+request), and a shell that is still unloaded is re-armed, which is also a
+failed load's retry path. Give the shell the real root's tag (`tag: :ul`) so
+the morph keeps the same element. See the deferred-rendering docs page.
 
 > **One edge case:** a `reply.defer(placeholder:)` shell (the action-driven,
 > not page-mount, form) carries no token of its own — the transient directive

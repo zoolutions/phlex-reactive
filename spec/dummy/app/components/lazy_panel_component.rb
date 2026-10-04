@@ -14,7 +14,10 @@ class LazyPanelComponent < ApplicationComponent
 
   reactive_state :scope
 
-  reactive_lazy on: "panel:opened"
+  # tag: :ul matches the real root, so a Turbo morph between the shell and the
+  # real render keeps the SAME element (a tag mismatch makes idiomorph swap the
+  # node instead, which is a fresh mount, not a morph).
+  reactive_lazy on: "panel:opened", tag: :ul
 
   def initialize(scope: "all")
     @scope = scope
@@ -24,7 +27,7 @@ class LazyPanelComponent < ApplicationComponent
 
   def render? = @scope != "hidden"
 
-  def deferred_placeholder = %(<span data-testid="panel-skeleton">…</span>).html_safe
+  def deferred_placeholder = %(<li data-testid="panel-skeleton">…</li>).html_safe
 
   def view_template
     raise Denied, "no panel for you" if @scope == "forbidden"

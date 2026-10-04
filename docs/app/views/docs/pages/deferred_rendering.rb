@@ -288,13 +288,14 @@ module Views
               The shell makes **no request on page load**. The first matching event
               (or the first intersection) materializes it **once**; later events are
               no-ops, because the real render never contains the shell or its
-              trigger. `:visible` fires a non-bubbling `reactive:visible` event on
-              the shell from an `IntersectionObserver`, so a nested visible shell
-              never materializes its ancestor. A positive rootMargin grows the
-              observed region, so the shell loads a little before it scrolls into
-              view; a negative one shrinks it, so the shell must scroll further in
-              before it loads. In an engine without `IntersectionObserver` it materializes right
-              after connect.
+              trigger. `:visible` watches the shell itself with an
+              `IntersectionObserver` and starts the request directly — no DOM event
+              is involved, so a nested visible shell never materializes its
+              ancestor. A positive rootMargin grows the observed region, so the
+              shell loads a little before it scrolls into view; a negative one
+              shrinks it, so the shell must scroll further in before it loads. In
+              an engine without `IntersectionObserver` it materializes right after
+              connect.
 
               Mechanics: an `on:` shell carries the component's **identity token** —
               the same one actions use, with no expiry — and a framework-owned
@@ -305,14 +306,35 @@ module Views
               renders through the same step as the defer endpoint: a registered
               authorization error from `from_identity`/render → **403**, `render?`
               false → an empty stream (the shell stays). It is instrumented as
-              `defer.phlex_reactive`. It answers **403** for any component that is
-              not `reactive_lazy(on:)`, and `action :__materialize` is refused at
+              `defer.phlex_reactive` on the server; on the client it travels the
+              action pipeline, so `have_reactive_requests` counts it under
+              `kind: :action`. It answers **403** for any component that is not
+              `reactive_lazy(on:)`, and `action :__materialize` is refused at
               declaration.
 
-              The trigger is bound `once`, so a failed materialize (network drop,
-              5xx) is **not retried**: the root gets `data-reactive-error` and the
-              `reactive:error` event fires as for any action, and the shell stays
-              until the next page render.
+              **Failures.** A failed materialize (network drop, 4xx/5xx) marks the
+              root `data-reactive-error` and fires `reactive:error`, as for any
+              action. It is **not retried on its own**: an event shell's trigger is
+              bound `once` and a visible shell stops observing when its request
+              starts. The shell is re-armed by the next Turbo morph of the root
+              (below), by `event.detail.retry()` from a `reactive:error` listener,
+              or by the next page render.
+
+              **Turbo morphs.** A page-refresh morph (or a `method="morph"` stream)
+              rewrites the root in place and runs no Stimulus lifecycle, so the
+              client handles it itself, on every morph of a reactive root:
+
+              | The root before the morph | After the morph it is… | What happens |
+              |---|---|---|
+              | real content | real content | nothing — no request |
+              | real content | the shell again | it re-materializes **at once**, one request per morph: it was loaded and the morph wiped it (for an event shell, the panel is already open and its event won't fire again) |
+              | the shell (never triggered, or a failed load) | still the shell | it is **re-armed**: `:visible` observes again and loads on the next intersection; an event shell accepts its event again — this is a failed load's retry path |
+              | the shell, load in flight | still the shell | nothing — the in-flight reply fills it; never a second request |
+
+              This relies on the morph keeping the **same element**. Give the shell
+              the real root's tag (`reactive_lazy on: "x", tag: :ul`): when the tags
+              differ, Turbo swaps the node instead of morphing it, which is a fresh
+              mount — a new shell that waits for its trigger like any other.
             MD
           end
         end
@@ -346,6 +368,14 @@ module Views
                 by anyone holding the page and authorize inside it (raise a
                 registered error, or `render?` false). `__materialize` is refused
                 (403) for every component that didn't opt in with `on:`.
+              - **`__materialize` is a read, and skips the action wrappers.** Like
+                the defer endpoint, it does not run `Phlex::Reactive.around_actions`
+                (rate limits, audit logs, tenant wrappers), the `verify_authorized`
+                check, or the pgbus connection-id scope — and unlike a defer token,
+                the token that reaches it never expires. Anything those wrappers
+                enforce for this component (a tenant scope, a rate limit) must be
+                enforced by your base controller or inside `from_identity`/the
+                render itself.
             MD
           end
         end

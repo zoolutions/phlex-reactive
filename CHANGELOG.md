@@ -18,8 +18,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   replace, and no TTL: the shell carries the identity token and a
   framework-owned `__materialize` trigger, which the action endpoint answers
   with the real render (403 for components that aren't `reactive_lazy(on:)`).
-  `action :__materialize` is now refused at declaration. Plain `reactive_lazy`
-  is unchanged.
+  `action :__materialize` is now refused at declaration. A Turbo morph that
+  turns the loaded root back into the shell re-materializes it at once, and a
+  shell that is still unloaded after a morph is re-armed (a failed load's retry
+  path). Plain `reactive_lazy` is unchanged.
 
 - **`phlex_reactive:actions` tells a deliberate skip from a forgotten check
   (#278).** The `auth` column now has three states: `authorized*` (a call was
