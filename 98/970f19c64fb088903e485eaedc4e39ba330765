@@ -1,0 +1,88 @@
+lib/phlex/reactive.rb
+  s_b4f052d694d82f::t_1932d03db4854d 578-604
+spec/dummy/app/components/cached_form_component.rb
+  s_b4f052d694d82f::t_f46751c024d943 1-30
+spec/dummy/app/components/cached_panel_component.rb
+  s_b4f052d694d82f::t_b9557eff6b56de 1-29
+spec/system/lazy_cache_spec.rb
+  s_b4f052d694d82f::t_e3330e079be93e 1-174
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,3
+app/controllers/phlex/reactive/actions_controller.rb
+  s_b4f052d694d82f::t_9d60625cb67ef7 121-123,130,160-161,163
+  s_b4f052d694d82f::t_86b4113760d8ec 141,162
+spec/dummy/public/vendor/reactive_controller.min.js.map
+  ai_agent 5,7-8
+.rubocop.yml
+  s_b4f052d694d82f::t_7365101f651a68 122-124
+lib/phlex/reactive/component/lazy.rb
+  s_b4f052d694d82f::t_86b4113760d8ec 125-135
+  s_b4f052d694d82f::t_e990d9c897a683 57-75,111-112,117-124,155-158,160,180-181
+spec/phlex/reactive/lazy_cache_spec.rb
+  s_b4f052d694d82f::t_9c80719348ed96 149-156,158-159,163-179
+  s_b4f052d694d82f::t_7ba43a58e6f569 157,160-162
+  s_b4f052d694d82f::t_4b8c3188538c04 1-59,63-130,132,134-148,180-231,235-250
+  s_b4f052d694d82f::t_7365101f651a68 131,133
+  s_b4f052d694d82f::t_ceb63a134d543d 60-62,232-234
+spec/dummy/config/initializers/viewer.rb
+  s_b4f052d694d82f::t_740ec29b23cd77 1-10,12-14
+  s_b4f052d694d82f::t_d50fc23ee3688a 11
+app/controllers/phlex/reactive/fragments_controller.rb
+  s_b4f052d694d82f::t_fa8bc43495cfd2 1-6,8-9,12-16,21-24,29-31,33-75,80,87,96-114
+  s_b4f052d694d82f::t_8b097a22885236 7,10-11,17-20,25-28,32,76-79,81-86,88-95
+lib/phlex/reactive/engine.rb
+  s_b4f052d694d82f::t_9d60625cb67ef7 16-19,24-25
+spec/dummy/app/components/cached_menu_component.rb
+  s_b4f052d694d82f::t_d50fc23ee3688a 40,44
+  s_b4f052d694d82f::t_ba8551c6b3f20b 1-34,37-39,41-43,45-47
+  s_b4f052d694d82f::t_2a48475af9aa0f 35-36
+spec/requests/lazy_fragment_spec.rb
+  s_b4f052d694d82f::t_0ce7ef5868f532 11-15,20,23-26,29-30,33-40,53-54,57,72,85,99,116-131,136-172,178,180,186,189,196,200,207-208,211,219,222,228,246,260,267,273,280-281,287,289-290,296-297,303-304,311,322,332,341,361,376,396
+  s_b4f052d694d82f::t_7365101f651a68 132-135
+  s_b4f052d694d82f::t_ceb63a134d543d 344,352,394
+  s_b4f052d694d82f::t_d3905b559d5614 1-10,16-19,21-22,27-28,31-32,41-52,55-56,58-71,73-84,86-98,100-115,173-177,179,181-185,187-188,190-195,197-199,201-206,209-210,212-218,220-221,223-227,229-245,247-259,261-266,268-272,274-279,282-286,288,291-295,298-302,305-310,312-321,323-325,327-330,334,336-340,342-343,346-351,354-360,371-375,377-393,395,397-404
+  s_b4f052d694d82f::t_973ecded197167 326
+  s_b4f052d694d82f::t_9d60625cb67ef7 331,333,335,362-364,369
+  s_b4f052d694d82f::t_dfcd08944e9d3e 345,353,365-368,370
+app/javascript/phlex/reactive/reactive_controller.js
+  s_b4f052d694d82f::t_7aeb4093b1a0a2 221-227,237-271,328,343-345,347,352,369,380,428-431,444,2650-2653,2671-2673,2675-2677,3050-3054,3057-3061,3104-3105,3107
+spec/javascript/reactive_lazy_cache.test.js
+  s_b4f052d694d82f::t_fc80d9ed066900 1-383
+lib/phlex/reactive/component/dsl.rb
+  s_b4f052d694d82f::t_86b4113760d8ec 229-233
+  s_b4f052d694d82f::t_e990d9c897a683 223-228,234,237,270-275
+spec/dummy/config/initializers/phlex_reactive.rb
+  s_b4f052d694d82f::t_9d60625cb67ef7 40-42
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,3
+spec/dummy/app/models/viewer.rb
+  s_b4f052d694d82f::t_0e35f06a8f675c 1-8,10
+  s_b4f052d694d82f::t_d50fc23ee3688a 9
+spec/dummy/app/controllers/demos_controller.rb
+  s_b4f052d694d82f::t_ff5f975cad0755 486-500
+lib/phlex/reactive/fragment.rb
+  s_b4f052d694d82f::t_86b4113760d8ec 18-25,50-56,58,67-74
+  s_b4f052d694d82f::t_88689acced382f 80
+  s_b4f052d694d82f::t_7c24debcba7f31 1-17,26-44,46-49,57,59-66,75-79,81-84
+  s_b4f052d694d82f::t_9950850b12b4a2 45
+spec/dummy/config/routes.rb
+  s_b4f052d694d82f::t_ff5f975cad0755 85-86
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 5,7-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "98970f19c64fb088903e485eaedc4e39ba330765",
+  "prompts": {},
+  "sessions": {
+    "s_b4f052d694d82f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a4f9e839-a934-4e75-9b79-590503d3a110",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
