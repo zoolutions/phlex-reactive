@@ -15,7 +15,13 @@ module Phlex
         # A plain-text table of every component × action, or a JSON array when
         # `format` is :json. One row per action: component, action, params,
         # file:line, authorization heuristic.
-        def actions(components, format: :text)
+        # `unverified_only:` keeps just the actions whose authorization_state is
+        # :none (the review queue) and drops components left with none.
+        def actions(components, format: :text, unverified_only: false)
+          if unverified_only
+            components = unverified(components)
+            return "no unverified actions" if components.empty? && format != :json
+          end
           return actions_json(components) if format == :json
 
           actions_text(components)
@@ -32,6 +38,13 @@ module Phlex
           lines << ""
           lines.concat(detail_lines(matches.first))
           lines.join("\n")
+        end
+
+        def unverified(components)
+          components.filter_map do
+            actions = it.actions.select { it.authorization_state == :none }
+            it.with(actions:) if actions.any?
+          end
         end
 
         # -- plain text -------------------------------------------------------
@@ -110,7 +123,9 @@ module Phlex
             name: action.name,
             params: action.params,
             source_location: location_str(action.source_location),
-            authorization_call_detected: action.authorization_call_detected?
+            authorization_call_detected: action.authorization_call_detected?,
+            authorization: action.authorization_state.to_s,
+            authorization_skip: action.authorization_skip&.to_s
           }
         end
 
@@ -131,8 +146,14 @@ module Phlex
         end
 
         # The authorization heuristic as a short label — advisory only.
+        # "authorized*" (call detected), "skipped" / "skipped (class)" (declared
+        # skip_verify_authorized), "unverified" (neither).
         def auth_str(action)
-          action.authorization_call_detected? ? "authorized*" : "unverified"
+          case action.authorization_state
+          when :detected then "authorized*"
+          when :skipped then action.authorization_skip == :class ? "skipped (class)" : "skipped"
+          else "unverified"
+          end
         end
       end
     end

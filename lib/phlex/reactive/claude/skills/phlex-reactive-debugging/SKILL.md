@@ -33,13 +33,15 @@ Run this FIRST — most "nothing happens" reports are a red ✗ here.
 ```bash
 bin/rails phlex_reactive:actions            # every component × action: params, file:line, auth
 bin/rails phlex_reactive:actions FORMAT=json
+bin/rails phlex_reactive:actions UNVERIFIED=1   # only the unverified rows (the review queue)
 bin/rails "phlex_reactive:find[counter]"    # fuzzy-find one; prints each action's method source
 ```
 
 Answers "what reactive actions exist, where are they defined, and is each
-authorized?" without grepping. The `auth` column is a heuristic (`authorized*` =
-an authorization call was detected in the body; `unverified` = none — a helper
-may still authorize indirectly).
+authorized?" without grepping. The `auth` column is a heuristic: `authorized*` =
+an authorization call was detected in the body; `skipped` / `skipped (class)` =
+the author opted out with `skip_verify_authorized` (for that action / for the
+whole class); `unverified` = neither — a helper may still authorize indirectly.
 
 ## 3. Scan the live page (browser inspector)
 
