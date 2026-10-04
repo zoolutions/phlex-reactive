@@ -2325,6 +2325,8 @@ What keeps a private cache safe:
   `u` is an opaque keyed digest. A blank value (`nil`, `false`, `""`, an Array
   with a blank part) names nobody and is never a shared "anonymous" key: that
   render falls back to `Vary: Cookie`, so `Current.user&.id` is safe as is.
+  Return a value unique per viewer: it is expanded like a cache key, so `0`,
+  `"0"` and `[0]` are one viewer, and `true` is everyone.
 - **Opt-in only.** The fragment id is signed under its own purpose: it is not
   an identity or defer token and those are not fragment ids (400 either way). A
   component without `cache:` is not reachable over GET (404). The id names no
@@ -2333,17 +2335,23 @@ What keeps a private cache safe:
 - **A read.** No action, no `around_actions`, no transaction; `v` and `u` only
   shape the browser's cache key. Authorize in the render, as for any lazy
   component. A cacheable reply carries no `Set-Cookie`; a request during which
-  any callback (before, around or after) changed the session or wrote a cookie
-  keeps that write and is answered `no-store` instead — so an app that writes
-  the session on every request (Devise `timeoutable`) gets no caching.
+  any callback (before, around or after) changed the session, set or consumed a
+  flash, or wrote a cookie keeps that write and is answered `no-store` instead —
+  so an app that writes the session on every request (Devise `timeoutable`) gets
+  no caching. Session writes made outside the controller (Rack middleware) are
+  not covered. A filter may tighten the policy (`no_store`, `expires_now`), never
+  loosen it.
 - **No CSRF tokens.** A render that embeds a form authenticity token or
   `csrf_meta_tags` is served `no-store` with a warning rather than cached.
-- **Nested lazy components are fine.** The fragment is a real render, so a
-  `reactive_lazy` child inside it renders its template, with no expiring defer
-  token in the cached copy.
+- **Nested lazy components render eagerly inside the fragment.** The fragment
+  is a real render, so a `reactive_lazy` child (whatever its own `on:`/`cache:`)
+  renders its template as part of the parent's copy: no expiring defer token,
+  but under the parent's URL, viewer key and `max_age` — so the parent's viewer
+  and version must cover what the child varies on.
 
 With `on:`, a `cache:` component loads on the defer lane rather than the action
-pipeline: `reactive:before-dispatch` still fires and can veto it, but a failed
+pipeline: `reactive:before-dispatch` still fires and can veto it (a vetoed
+shell, cached or not, ignores later events until the next morph), but a failed
 load emits `reactive:error` (`kind: "defer"`) with a `retry()`. A reply that was
 redirected or is not a turbo-stream is a failed load, never rendered.
 

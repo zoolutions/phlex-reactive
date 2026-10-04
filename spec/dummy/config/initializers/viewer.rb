@@ -16,7 +16,14 @@
 #   * "cookied_after"  — the same from an after_action;
 #   * "rolling"        — re-sets a cookie to the SAME value with a new expiry;
 #   * "forgetful"      — deletes a cookie;
-#   * "publisher"      — an after_action that makes every reply public.
+#   * "publisher"      — an after_action that makes every reply public;
+#   * "flasher"        — a before_action that sets a flash;
+#   * "flasher_after"  — the same from an after_action;
+#   * "flash_now"      — a before_action that sets flash.now;
+#   * "flash_reader"   — a before_action that READS the flash (so this request
+#                        sweeps it) and echoes it in an X-Dummy-Flash header;
+#   * "no_store"       — a before_action that forbids caching (no_store);
+#   * "expires_now_after" — an after_action that calls expires_now.
 # An X-Dummy-Vary request header makes the gate set that Vary, the way a
 # controller that localizes by Accept-Language would.
 module DummyViewerGate
@@ -45,6 +52,10 @@ module DummyViewerGate
     when "cookied" then cookies[:last_seen] = dummy_stamp
     when "rolling" then cookies[:roll] = { value: "same", expires: 1.day }
     when "forgetful" then cookies.delete(:gone)
+    when "flasher" then flash[:alert] = "x"
+    when "flash_now" then flash.now[:alert] = "n"
+    when "flash_reader" then response.headers["X-Dummy-Flash"] = flash.to_h.to_json
+    when "no_store" then no_store
     end
   end
 
@@ -52,6 +63,8 @@ module DummyViewerGate
     case dummy_viewer
     when "tracked_after" then session[:left_at] = dummy_stamp
     when "cookied_after" then cookies[:left_at] = dummy_stamp
+    when "flasher_after" then flash[:alert] = "x"
+    when "expires_now_after" then expires_now
     when "publisher"
       expires_in 1.hour, public: true
       response.headers["Vary"] = "Accept-Encoding"

@@ -23,8 +23,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   id is purpose-scoped (not an identity or defer token), a blank
   `reactive_cache_viewer` falls back to `Vary: Cookie` (never a shared anonymous
   key) and `u` is a keyed digest, a cacheable reply carries no `Set-Cookie` (a
-  request during which any callback changed the session or wrote a cookie is
-  `no-store` instead), a redirected or non-turbo-stream reply is a failed load,
+  request during which any callback changed the session, set or consumed a
+  flash, or wrote a cookie is `no-store` instead; a filter can tighten the policy
+  with `no_store`, never loosen it), a redirected or non-turbo-stream reply is a failed load,
   and
   a render that embeds a form authenticity token is served `no-store`. New
   settings: `Phlex::Reactive.fragment_path` (if you change it, also render

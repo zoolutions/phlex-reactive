@@ -26,7 +26,9 @@ class CachedProbeComponent < ApplicationComponent
     "unquoted" => "<input type=hidden name=authenticity_token value=t0ken>",
     "spaced" => %(<input type="hidden" name = "authenticity_token" value="t0ken">),
     "upper" => %(<INPUT TYPE="hidden" NAME="authenticity_token" VALUE="t0ken">),
-    "meta" => %(<meta name="csrf-token" content="t0ken">)
+    "meta" => %(<meta name="csrf-token" content="t0ken">),
+    # An app whose forgery-protection field has a custom name.
+    "custom" => %(<input type="hidden" name="my_token" value="t0ken">)
   }.freeze
 
   reactive_state :markup

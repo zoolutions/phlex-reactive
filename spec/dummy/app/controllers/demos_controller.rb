@@ -37,6 +37,14 @@ class DemosController < ActionController::Base
     render html: html.html_safe, layout: "lazy_controller"
   end
 
+  # Issues #274 + #276 + #277: a dormant on: + cache: shell as the page's only
+  # reactive root — no client until the panel opens, then one cacheable GET.
+  def dormant_cached
+    @reactive_load = params[:load].presence_in(%w[auto eager]) || "auto"
+    html = render_to_string(DormantCachedPanelComponent.new(scope: "mine"), layout: false)
+    render html: html.html_safe, layout: "lazy_controller"
+  end
+
   # Issue #274: what a broadcast or page refresh sends — the root rendered
   # OUTSIDE an actor reply (so dormant), morphed over the live one.
   def dormant_stream

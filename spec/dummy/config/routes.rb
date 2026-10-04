@@ -12,6 +12,7 @@ Rails.application.routes.draw do
   get "early_triggers" => "demos#early_triggers" # issue #273: lazily loaded controller
   get "dormant" => "demos#dormant" # issue #274: a dormant root, controller loaded on first use
   get "dormant_lazy" => "demos#dormant_lazy"
+  get "dormant_cached" => "demos#dormant_cached" # issues #274 + #276 + #277
   get "dormant_stream" => "demos#dormant_stream"
   get "effects" => "demos#effects"
   get "debug" => "demos#debug"

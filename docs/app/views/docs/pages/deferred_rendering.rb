@@ -406,7 +406,21 @@ module Views
               cookie on every request (an activity timestamp; Devise's `timeoutable`
               does this) gets `no-store` on every fragment reply. That is the safe
               outcome, but the cache is then off — exempt the fragment route from
-              that filter if you want it.
+              that filter if you want it. The **flash** counts too: a flash set
+              during the request reaches the next one, a pending flash the request
+              read is swept, and either makes the reply `no-store` (`flash.now`
+              does not).
+
+              The app can always **tighten** the policy: a `no_store` or
+              `expires_now` in a base-controller filter makes the reply `no-store`.
+              It cannot loosen it — a filter that sets `public` or a longer
+              `max-age` is overridden back to `private, max-age=<n>`.
+
+              This guarantee covers the controller's callbacks and the flash. A
+              session write made **outside** them — in Rack middleware or a routing
+              constraint — is out of sight: one made before the controller runs is
+              already part of the starting state, and one made after it is dropped
+              on a cacheable reply. Keep such writes off the fragment route.
 
               **Who a copy is for: `Vary: Cookie`, or `reactive_cache_viewer`.** A
               private cache must never show one viewer's fragment to the next viewer
@@ -430,12 +444,18 @@ module Views
               taken from `Accept-Language`, a feature flag — belongs in
               `reactive_cache_viewer` or `reactive_cache_version`.
 
-              **A blank viewer names nobody.** `nil`, `false`, a blank string, or an
-              Array with any blank part (`[Current.user&.id, locale]` when signed
-              out) is never turned into a shared "anonymous" key: for that render the
-              component falls back to the default mode — no `u`, `Vary: Cookie`. So
-              `Current.user&.id` is safe to return as is; signed-out visitors just
-              get the cookie-keyed behaviour.
+              **A blank viewer names nobody.** `nil`, `false`, a blank string, an
+              Array or Hash with any blank part at any depth
+              (`[Current.user&.id, locale]` when signed out), or an object whose
+              `to_param` is blank is never turned into a shared "anonymous" key: for
+              that render the component falls back to the default mode — no `u`,
+              `Vary: Cookie`. So `Current.user&.id` is safe to return as is;
+              signed-out visitors just get the cookie-keyed behaviour.
+
+              **Return a value that is unique per viewer.** The value is expanded
+              like a cache key (`to_param`), so `0`, `"0"` and `[0]` are one viewer,
+              as are `[1, 2]` and `"1/2"`; `true` is the same viewer for everyone.
+              A user id, or an Array of ids, is the intended shape.
 
               `u` is a **keyed** digest (derived with the same secret that signs the
               tokens): it cannot be reversed to the value, and nobody can compute
@@ -463,7 +483,10 @@ module Views
               `detail.action` `"__materialize"`), but the busy markers are the
               defer ones (`data-reactive-defer-pending`), and a failed load emits
               `reactive:error` with `kind: "defer"` and a `retry()` — where a plain
-              `on:` shell waits for the next morph.
+              `on:` shell waits for the next morph. A **vetoed** load behaves the
+              same on both lanes: the event's `once` binding is spent, so the shell
+              stays as it is (`aria-busy` included) and ignores later events until
+              the next Turbo morph of the root re-arms it.
 
               **With `reactive_dormant`.** An `on:` + `cache:` shell goes dormant like
               any `on:` shell: the event wakes the root and the load is the cacheable
@@ -476,15 +499,26 @@ module Views
 
               - **A CSRF token.** A `form_with` / `form_authenticity_token` /
                 `csrf_meta_tags` in the render embeds a token that would outlive its
-                session in the cache. The endpoint detects it (any quoting) and
-                serves that render `no-store`, with a warning in the log, rather
-                than cache it — so the component keeps working, just uncached.
+                session in the cache. The endpoint detects a field or meta named
+                `authenticity_token`, `csrf-token` or your controller's
+                `request_forgery_protection_token` (any quoting) and serves that
+                render `no-store`, with a warning in the log, rather than cache it —
+                so the component keeps working, just uncached. It is a name match:
+                a token placed elsewhere (`data-csrf="…"`) or under an
+                entity-encoded name is not detected, so don't put one there.
                 Reactive triggers are unaffected: the client reads the CSRF token
                 from the page's `csrf-token` meta tag at request time.
 
-              Nested lazy components are fine: the fragment is a real render, so a
-              `reactive_lazy` child inside it renders its own template too — no
-              shell, and so no expiring defer token in the cached copy.
+              Nested lazy components are safe, with one thing to know: the fragment
+              is a real render, so a `reactive_lazy` child inside it — whatever its
+              own `on:` / `cache:` — renders its template **eagerly, as part of the
+              parent's fragment**: no shell, no expiring defer token in the cached
+              copy, but also stored under the parent's URL, viewer key and
+              `max_age`. The child's own `cache:`, viewer and version are inert
+              there, so the parent's `reactive_cache_viewer` /
+              `reactive_cache_version` must cover whatever the child varies on. The
+              child's `render?` and authorization still run: a child that denies
+              makes the whole fragment a 403, `no-store`.
 
               **Limits.**
 
@@ -506,6 +540,11 @@ module Views
               - The reply must be the fragment: a response that was redirected, or
                 is not a turbo-stream, is a failed load (`reactive:error`), never
                 rendered.
+              - Only `Cache-Control` and `Vary` are managed. An `Expires` or
+                `Surrogate-Control` header an `after_action` adds is left alone.
+              - A filter that **raises** (a `RecordNotFound` turned into a 404 page
+                by Rails) produces a response this endpoint never sees, with no
+                `Cache-Control` at all — browsers do not store those by default.
               - In system tests the request counter counts `fetch()` calls, so a
                 cache hit still counts (as `kind: :defer`). To assert "no network
                 request", read Resource Timing: an entry the cache answered has

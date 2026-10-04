@@ -254,6 +254,67 @@ RSpec.describe "cacheable lazy fragments", type: :request do
       expect(vary).to include("Cookie")
     end
 
+    # The flash is committed by Rails AFTER the action returns, so the decision
+    # commits it first: a flash this request wrote must reach the next request,
+    # and one this request consumed must be swept — neither on a cached reply.
+    describe "the flash" do
+      def flash_seen
+        cookies[:viewer] = "flash_reader"
+        get_fragment
+        JSON.parse(response.headers["X-Dummy-Flash"])
+      end
+
+      %w[flasher flasher_after].each_with_index do |writer, _index|
+        it "keeps a flash a #{writer == "flasher" ? "before" : "after"} filter set, and is then not cacheable" do
+          cookies[:viewer] = writer
+          get_fragment
+
+          expect(response).to have_http_status(:ok)
+          expect(response.headers["Cache-Control"]).to eq("no-store")
+          expect(response.headers["Set-Cookie"].to_s).to include("_dummy_session")
+          expect(flash_seen).to eq("alert" => "x")
+        end
+      end
+
+      it "sweeps a pending flash this request read — once — and is then not cacheable" do
+        cookies[:viewer] = "flasher"
+        get_fragment
+
+        expect(flash_seen).to eq("alert" => "x")
+        expect(response.headers["Cache-Control"]).to eq("no-store")
+        expect(flash_seen).to eq({})
+        expect(response.headers["Cache-Control"]).to eq("max-age=600, private")
+      end
+
+      it "stays cacheable, with no Set-Cookie, for flash.now" do
+        get "/lazy_stats"
+        cookies[:viewer] = "flash_now"
+        get_fragment
+
+        expect(response.headers["Cache-Control"]).to eq("max-age=600, private")
+        expect(response.headers["Set-Cookie"]).to be_blank
+      end
+    end
+
+    # The policy is only ever TIGHTENED by the app: a filter that forbids
+    # caching wins; one that loosens it (public, see above) does not.
+    it "honours a before_action that forbids caching (no_store)" do
+      cookies[:viewer] = "no_store"
+      get_fragment
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("panel:mine")
+      expect(response.headers["Cache-Control"]).to eq("no-store")
+    end
+
+    it "honours an after_action that calls expires_now" do
+      cookies[:viewer] = "expires_now_after"
+      get_fragment
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers["Cache-Control"]).to eq("no-store")
+    end
+
     it "revalidates (304) without a Set-Cookie when nothing wrote the session" do
       get "/lazy_stats"
       get_fragment
@@ -354,7 +415,11 @@ RSpec.describe "cacheable lazy fragments", type: :request do
     end
 
     # Two block params on purpose: a lone one would have to be `it`, which the examples below shadow.
-    [nil, "", "   ", false, [], [nil, 5], ["", "en"]].each_with_index do |blank, _index|
+    blank_to_param = Class.new { def to_param = "" }.new
+    [
+      nil, "", "   ", false, [], [nil, 5], ["", "en"],
+      [[nil]], [1, [nil]], {}, { user: nil }, { user: 1, tenant: "" }, [{ user: nil }], blank_to_param
+    ].each_with_index do |blank, _index|
       it "renders no u for #{blank.inspect}, and two sessions each get a Vary: Cookie reply" do
         CachedProbeComponent.viewer = blank
         url = probe_shell_url
@@ -377,7 +442,7 @@ RSpec.describe "cacheable lazy fragments", type: :request do
     end
 
     it "keeps the viewer mode for a present value, including 0 and a full Array" do
-      [0, "alice", [7, "en"]].each do
+      [0, "alice", [7, "en"], { user: 7 }, [1, [2]]].each do
         CachedProbeComponent.viewer = it
         url = probe_shell_url
         get_fragment(url)
@@ -645,6 +710,23 @@ RSpec.describe "cacheable lazy fragments", type: :request do
       expect(response.body).to include("stats:week")
       expect(response.body).not_to include("data-reactive-defer-token")
       expect(response.body).not_to include("reactive-defer-placeholder")
+      expect(response.headers["Cache-Control"]).to eq("max-age=600, private")
+    end
+
+    it "detects a field named by a custom request_forgery_protection_token" do
+      original = ActionController::Base.request_forgery_protection_token
+      ActionController::Base.request_forgery_protection_token = :my_token
+      get_fragment(panel_url({ "c" => "CachedProbeComponent", "s" => { "markup" => "custom" } }))
+
+      expect(response.body).to include("t0ken")
+      expect(response.headers["Cache-Control"]).to eq("no-store")
+    ensure
+      ActionController::Base.request_forgery_protection_token = original
+    end
+
+    it "does not treat that name as a token when it is not the configured one" do
+      get_fragment(panel_url({ "c" => "CachedProbeComponent", "s" => { "markup" => "custom" } }))
+
       expect(response.headers["Cache-Control"]).to eq("max-age=600, private")
     end
 

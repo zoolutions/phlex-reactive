@@ -72,7 +72,8 @@ module Phlex
 
       # The `u` of a reactive_cache_viewer value, or nil when the value names
       # NO viewer — nil, false, a blank String, or an Array with any blank part
-      # (`[Current.user&.id, locale]` signed out). A blank viewer must never
+      # or Hash with any blank leaf (`[Current.user&.id, locale]` signed out),
+      # or a value whose cache key is empty. A blank viewer must never
       # become a shared "anonymous" key: every signed-out or mis-resolved
       # session would then store and read ONE url with no Vary. nil sends the
       # component back to the default mode (`Vary: Cookie`) for that render.
@@ -88,10 +89,15 @@ module Phlex
         Digest::SHA256.hexdigest(signed)[0, 32]
       end
 
+      # Every LEAF must name something: an Array or Hash (nested to any depth)
+      # with one blank part is unnamed, and so is a value whose cache key
+      # expands to nothing (an object with a blank to_param). 0 is a viewer.
       def viewer_named?(viewer)
-        return viewer.none?(&:blank?) && viewer.any? if viewer.is_a?(::Array)
-
-        viewer.present?
+        case viewer
+        when ::Array then viewer.any? && viewer.all? { viewer_named?(it) }
+        when ::Hash then viewer.any? && viewer.values.all? { viewer_named?(it) }
+        else viewer.present? && ActiveSupport::Cache.expand_cache_key(viewer).present?
+        end
       end
 
       # The max-age (seconds) the endpoint answers with: the component's

@@ -34,9 +34,11 @@ module Phlex
     #     — in any callback, before or after the action — is not cacheable;
     #   * a render that embeds a CSRF token is not made cacheable.
     class FragmentsController < ActionsController
-      # A CSRF token in the render (a form's hidden field, or csrf_meta_tags):
-      # cached, it would outlive the session it was minted for. Any quoting.
-      CSRF_TOKEN_MARKUP = /\bname\s*=\s*["']?(?:authenticity_token|csrf-token)(?![\w-])/i
+      # The names a CSRF token is rendered under (a form's hidden field, or
+      # csrf_meta_tags), besides the controller's own
+      # request_forgery_protection_token. Cached, such a token would outlive
+      # the session it was minted for.
+      CSRF_TOKEN_NAMES = %w[authenticity_token csrf-token].freeze
 
       # Stands in for the response when asking the cookie jar what it WOULD
       # write (CookieJar#write calls set_cookie / delete_cookie per pending
@@ -78,11 +80,11 @@ module Phlex
       # The single place a reply becomes cacheable: the success path asked for
       # it AND this request leaves the browser's cookies exactly as they were.
       def settle_caching
-        return forbid_caching unless @fragment_cacheable && cookies_untouched?
+        return forbid_caching unless @fragment_cacheable && !caching_forbidden? && cookies_untouched?
 
-        # Re-assert the policy: an inherited after_action may have replaced it
+        # Re-assert the policy: an inherited after_action may have LOOSENED it
         # (expires_in …, public: true would let a shared cache keep a viewer's
-        # fragment) or overwritten the Vary.
+        # fragment) or overwritten the Vary. Tightening was honoured above.
         apply_cache_policy
         # Nothing changed, so don't re-issue the session: the cookie store
         # would otherwise send a freshly encrypted Set-Cookie with this very
@@ -97,6 +99,16 @@ module Phlex
         response.headers.delete("ETag")
       end
 
+      # Did the app itself forbid caching this reply — a `no_store` or
+      # `expires_now` in a base-controller filter, or the header set by hand?
+      # The app may always tighten the policy; this endpoint only refuses to
+      # let it be loosened.
+      def caching_forbidden?
+        control = response.cache_control
+        control[:no_store] || control[:no_cache] ||
+          response.headers["Cache-Control"].to_s.match?(/\bno-(?:store|cache)\b/i)
+      end
+
       # True only when it is KNOWN that this request writes no cookie: the
       # session's data is what it was, it is not being renewed or dropped, and
       # the cookie jar has no pending write or delete. Anything unreadable
@@ -107,6 +119,13 @@ module Phlex
         # A cookie written straight onto the response (response.set_cookie),
         # which never passes through the jar.
         return false if response.headers["Set-Cookie"].present?
+
+        # Rails commits the flash AFTER the action returns (Metal#dispatch), so
+        # commit it now: a flash this request set is then in the session data
+        # compared below, and so is the sweep of one this request consumed.
+        # Either way the session changed, the write is kept and the reply is
+        # not stored; committing twice is harmless.
+        request.commit_flash
 
         session_data == @session_before && pending_cookie_writes.empty?
       rescue StandardError
@@ -139,7 +158,9 @@ module Phlex
       # `v`/`u`), so a 304 is only ever answered for the exact render this
       # viewer would get.
       def render_real_stream(stream, component)
-        return render_uncacheable(stream, component.class) if stream.match?(CSRF_TOKEN_MARKUP)
+        return render_uncacheable(stream, component.class) if stream.match?(csrf_token_markup)
+        # A filter that already forbade caching (an app-wide no_store) wins.
+        return super if caching_forbidden?
 
         viewer = component.send(:fragment_viewer_param)
         # The URL must name exactly the viewer of THIS session — or nobody, when
@@ -155,6 +176,13 @@ module Phlex
         render turbo_stream: stream if stale?(etag: stream, template: false)
         # Only now: anything that raised above leaves the reply no-store.
         @fragment_cacheable = true
+      end
+
+      # A `name=` attribute, in any quoting, that names a CSRF token — the
+      # well-known names plus this controller's forgery-protection field.
+      def csrf_token_markup
+        names = CSRF_TOKEN_NAMES | [request_forgery_protection_token.to_s]
+        /\bname\s*=\s*["']?(?:#{names.reject(&:empty?).map { Regexp.escape(it) }.join("|")})(?![\w-])/i
       end
 
       # `private, max-age=<n>` and nothing else, plus Vary: Cookie in the default

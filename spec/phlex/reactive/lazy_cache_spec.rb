@@ -169,7 +169,7 @@ RSpec.describe "reactive_lazy(cache:)" do # rubocop:disable RSpec/DescribeClass
     end
 
     # Two block params on purpose: a lone one would have to be `it`, which the examples below shadow.
-    [nil, "", " ", false, [], [nil, 1]].each_with_index do |blank, _index|
+    [nil, "", " ", false, [], [nil, 1], [[nil]], [1, [nil]], {}, { user: nil }].each_with_index do |blank, _index|
       it "renders no u for a blank viewer (#{blank.inspect}): it names nobody" do
         expect(src(viewer_class(blank).new.call)).not_to include("u=")
       end
