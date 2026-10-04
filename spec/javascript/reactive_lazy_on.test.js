@@ -326,6 +326,29 @@ test("a failed event load is retried after a morph: the event is accepted again"
   expect(posts[1].act).toBe("__materialize")
 })
 
+test("a re-armed event listener is consumed by its attempt: one morph buys one retry", async () => {
+  nextResponse = () => Promise.reject(new Error("offline"))
+  const el = makeRoot(eventShell())
+  const controller = connect(el)
+  stimulusFires(controller)
+  await settle()
+
+  el.morphTo(eventShell())
+  el.fire("panel:opened")
+  await settle()
+  expect(posts.length).toBe(2)
+
+  // That retry failed too. Without another morph the event is dead again.
+  el.fire("panel:opened")
+  await settle()
+  expect(posts.length).toBe(2)
+
+  el.morphTo(eventShell())
+  el.fire("panel:opened")
+  await settle()
+  expect(posts.length).toBe(3)
+})
+
 test("a never-triggered event shell after a morph requests once when both bindings fire", async () => {
   const pending = gate()
   nextResponse = () => pending.promise

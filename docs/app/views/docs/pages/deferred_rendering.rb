@@ -290,8 +290,9 @@ module Views
               no-ops, because the real render never contains the shell or its
               trigger. `:visible` watches the shell itself with an
               `IntersectionObserver` and starts the request directly — no DOM event
-              is involved, so a nested visible shell never materializes its
-              ancestor. A positive rootMargin grows the observed region, so the
+              is involved, so a nested visible shell cannot trigger its ancestor
+              (each shell loads only when its own observer intersects). A positive
+              rootMargin grows the observed region, so the
               shell loads a little before it scrolls into view; a negative one
               shrinks it, so the shell must scroll further in before it loads. In
               an engine without `IntersectionObserver` it materializes right after
@@ -328,7 +329,7 @@ module Views
               |---|---|---|
               | real content | real content | nothing — no request |
               | real content | the shell again | it re-materializes **at once**, one request per morph: it was loaded and the morph wiped it (for an event shell, the panel is already open and its event won't fire again) |
-              | the shell (never triggered, or a failed load) | still the shell | it is **re-armed**: `:visible` observes again and loads on the next intersection; an event shell accepts its event again — this is a failed load's retry path |
+              | the shell (never triggered, or a failed load) | still the shell | it is **re-armed**: `:visible` observes again and loads on the next intersection; an event shell accepts its event again — this is a failed load's retry path, one attempt per morph |
               | the shell, load in flight | still the shell | nothing — the in-flight reply fills it; never a second request |
 
               This relies on the morph keeping the **same element**. Give the shell

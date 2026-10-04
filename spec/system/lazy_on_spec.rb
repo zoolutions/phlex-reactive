@@ -54,6 +54,12 @@ RSpec.describe "reactive_lazy(on:) (issue #276)", type: :system do
     expect(page).to have_css("html[data-fresh-shell='ready']")
   end
 
+  # Tag the CURRENT real content, so "the content is back" can't be satisfied
+  # by the old render the morph has yet to wipe (Turbo applies streams async).
+  def mark_stale(testid)
+    page.execute_script(%(document.querySelector("[data-testid='#{testid}']").setAttribute("data-stale", "yes")))
+  end
+
   def same_node_marker(id)
     page.execute_script(%(document.getElementById(#{id.to_json}).__same = "yes"))
   end
@@ -121,10 +127,11 @@ RSpec.describe "reactive_lazy(on:) (issue #276)", type: :system do
       expect(page).to have_css("[data-testid='panel-item']", text: "item:mine")
 
       reset_reactive_requests!
+      mark_stale("panel-item")
       morph_to("lazy-panel", snapshot: "shell")
 
       # No event fires again (the panel is already open): the client reloads it.
-      expect(page).to have_css("[data-testid='panel-item']", text: "item:mine")
+      expect(page).to have_css("[data-testid='panel-item']:not([data-stale])", text: "item:mine")
       expect(page).to have_no_css("[data-testid='panel-skeleton']")
       expect(page).to have_reactive_requests(1)
     end
@@ -136,9 +143,10 @@ RSpec.describe "reactive_lazy(on:) (issue #276)", type: :system do
       expect(page).to have_css("[data-testid='fold-value']", text: "loaded:below")
 
       reset_reactive_requests!
+      mark_stale("fold-value")
       morph_to("lazy-fold", snapshot: "shell")
 
-      expect(page).to have_css("[data-testid='fold-value']", text: "loaded:below")
+      expect(page).to have_css("[data-testid='fold-value']:not([data-stale])", text: "loaded:below")
       expect(page).to have_no_css("[data-testid='fold-skeleton']", visible: :all)
       expect(page).to have_reactive_requests(1)
     end

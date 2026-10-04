@@ -24,6 +24,16 @@ RSpec.describe Phlex::Reactive::Component::Lazy do
     end
   end
 
+  # The shells carry the verbose stamp (#279). Pin the flag so these examples
+  # don't depend on what an earlier example left it at.
+  around do
+    original = Phlex::Reactive.verbose_errors
+    Phlex::Reactive.verbose_errors = true
+    it.run
+  ensure
+    Phlex::Reactive.verbose_errors = original
+  end
+
   def attr_value(html, name)
     CGI.unescapeHTML(html[/ #{name}="([^"]*)"/, 1].to_s)
   end

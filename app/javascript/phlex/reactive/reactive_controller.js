@@ -2756,7 +2756,8 @@ export default class extends Controller {
   // there is nothing to add; after a morph (`rearm`) that binding may be spent
   // — Stimulus only re-binds when the descriptor attribute itself changed — so
   // the controller listens for the event itself. Both can fire for one event;
-  // #materialize dedupes.
+  // #materialize dedupes. Either trigger is consumed when a request starts
+  // (like `once`): one morph buys one attempt.
   #armLazyTrigger(rearm) {
     if (this.#lazyShellKind() === "visible") {
       if (!this.#lazyVisibleObserver) this.#observeLazyVisible()
@@ -2814,7 +2815,9 @@ export default class extends Controller {
     const run = this.#proceed(this.element, LAZY_MATERIALIZE_ACTION, "{}")
     if (!run) return // vetoed by reactive:before-dispatch
     this.#lazyInFlight = true
-    this.#disconnectLazyVisible()
+    // Consume the armed trigger (observer or re-armed listener): a failed load
+    // is retried by the NEXT morph, not by every later event.
+    this.#disarmLazyTrigger()
     const done = () => {
       this.#lazyInFlight = false
     }
