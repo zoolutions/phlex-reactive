@@ -320,6 +320,16 @@ class DemosController < ActionController::Base
     render html: component + extras.html_safe, layout: true
   end
 
+  # Issue #271: the accessible disclosure menu (on_client only). The outside area
+  # lets the spec prove the window-bound outside close.
+  def disclosure_menu
+    component = render_to_string(DisclosureMenuComponent.new, layout: false)
+    outside = <<~HTML
+      <div data-testid="dm-outside" style="padding: 4rem">outside the menu</div>
+    HTML
+    render html: component + outside.html_safe, layout: true
+  end
+
   # Issue #226: the $ops flagship — a one-time-code field whose reducer
   # normalizes on input and auto-commits (submit → intercepted signed action)
   # exactly once when the value first becomes complete.

@@ -914,6 +914,47 @@ RSpec.describe Phlex::Reactive::Component do
       expect { instance.send(:reactive_listnav, "  ") }
         .to raise_error(ArgumentError, /selector/)
     end
+
+    it "emits no focus param and no home/end in highlight mode (byte-stable wire)" do
+      attrs = instance.send(:reactive_listnav)
+      expect(attrs[:data]).not_to have_key(:reactive_listnav_focus_param)
+      expect(attrs[:data][:action]).not_to include("home")
+    end
+
+    # Issue #271: roving focus for a role=menu container.
+    describe "focus: true (roving focus among menu items)" do
+      it "binds down/up/home/end only, defaults to [role=menuitem], and flags focus mode" do
+        attrs = instance.send(:reactive_listnav, focus: true)
+
+        expect(attrs[:data][:action]).to eq(
+          "keydown.down->reactive#listnavNext " \
+          "keydown.up->reactive#listnavPrev " \
+          "keydown.home->reactive#listnavFirst " \
+          "keydown.end->reactive#listnavLast"
+        )
+        expect(attrs[:data][:reactive_listnav_option_param]).to eq("[role=menuitem]")
+        expect(attrs[:data][:reactive_listnav_focus_param]).to eq("true")
+      end
+
+      it "accepts an explicit item selector" do
+        attrs = instance.send(:reactive_listnav, "[data-item]", focus: true)
+        expect(attrs[:data][:reactive_listnav_option_param]).to eq("[data-item]")
+      end
+
+      it "still rejects a blank selector" do
+        expect { instance.send(:reactive_listnav, " ", focus: true) }.to raise_error(ArgumentError, /selector/)
+      end
+
+      it "composes with an on_client binding on the same container via mix" do
+        attrs = Object.new.extend(Phlex::Helpers).send(:mix,
+          instance.send(:reactive_listnav, focus: true),
+          instance.send(:on_client, "keydown.esc", instance.js.hide("#menu")))
+
+        expect(attrs[:data][:action]).to end_with("keydown.end->reactive#listnavLast keydown.esc->reactive#runOps")
+        expect(attrs[:data][:reactive_listnav_focus_param]).to eq("true")
+        expect(JSON.parse(attrs[:data][:reactive_ops_param])["on"]).to eq("keydown.esc")
+      end
+    end
   end
 
   describe "#on confirm gate (issue #52)" do
@@ -997,7 +1038,7 @@ RSpec.describe Phlex::Reactive::Component do
       attrs = instance.send(:on_client, :click, instance.js.text("#draft", ""),
         confirm: { when: { count: 0 }, message: "Discard?" })
 
-      payload = JSON.parse(attrs[:data][:reactive_confirm_when_param])
+      payload = JSON.parse(attrs[:data][:reactive_ops_param])["confirmWhen"]
       expect(payload["message"]).to eq("Discard?")
       expect(payload.dig("groups", "any", 0, 0)["field"]).to eq("count")
     end
@@ -1353,34 +1394,75 @@ RSpec.describe Phlex::Reactive::Component do
       expect(instance.js).to be_a(Phlex::Reactive::JS)
     end
 
-    it "binds the event to runOps and carries ONLY the ops (no token, no action, no params)" do
+    # Issue #271: every on_client call emits ONE self-describing binding record
+    # ({on, ops, window?, outside?, confirm?, confirmWhen?}) in
+    # data-reactive-ops-param, so several bindings on one element compose
+    # through mix (the records space-join) and the client runs the record whose
+    # descriptor matches the firing event.
+    def binding_record(attrs) = JSON.parse(attrs[:data][:reactive_ops_param])
+
+    it "binds the event to runOps and carries ONLY a binding record (no token, no action, no params)" do
       attrs = instance.send(:on_client, :click, ops)
 
       expect(attrs[:data][:action]).to eq("click->reactive#runOps")
-      expect(attrs[:data][:reactive_ops_param]).to eq('[["toggle",{"to":"#menu"}]]')
+      expect(attrs[:data][:reactive_ops_param]).to eq('{"on":"click","ops":[["toggle",{"to":"#menu"}]]}')
       expect(attrs[:data]).not_to have_key(:reactive_action_param)
       expect(attrs[:data]).not_to have_key(:reactive_params_param)
       expect(attrs[:data]).not_to have_key(:reactive_token_value)
+    end
+
+    it "no longer writes the element-wide outside/window/confirm params (they would leak across bindings)" do
+      attrs = instance.send(:on_client, :click, ops, outside: true, confirm: "Sure?")
+
+      expect(attrs[:data].keys).to contain_exactly(:action, :reactive_ops_param)
     end
 
     it "forces type=button for click triggers (a bare button in a form must not submit)" do
       expect(instance.send(:on_client, :click, ops)[:type]).to eq("button")
     end
 
-    it "composes window:/once: into the descriptor and skips type=button when window-bound" do
+    it "composes window:/once: into the descriptor, window into the record, and skips type=button" do
       attrs = instance.send(:on_client, :click, ops, window: true, once: true)
 
       expect(attrs[:data][:action]).to eq("click@window->reactive#runOps:once")
-      expect(attrs[:data][:reactive_window_param]).to eq("true")
+      expect(binding_record(attrs)).to eq("on" => "click", "window" => true, "ops" => [["toggle", { "to" => "#menu" }]])
       expect(attrs).not_to have_key(:type)
     end
 
-    it "outside: implies the window binding and emits BOTH flags as string params" do
+    it "outside: implies the window binding and records BOTH flags" do
       attrs = instance.send(:on_client, :click, ops, outside: true)
 
       expect(attrs[:data][:action]).to eq("click@window->reactive#runOps")
-      expect(attrs[:data][:reactive_outside_param]).to eq("true")
-      expect(attrs[:data][:reactive_window_param]).to eq("true")
+      expect(binding_record(attrs)).to include("on" => "click", "window" => true, "outside" => true)
+    end
+
+    it "keeps a keyboard filter in the record's on (it is what the client matches)" do
+      attrs = instance.send(:on_client, "keydown.esc", ops)
+
+      expect(attrs[:data][:action]).to eq("keydown.esc->reactive#runOps")
+      expect(binding_record(attrs)["on"]).to eq("keydown.esc")
+    end
+
+    it "encodes spaces as \\u0020 so the record survives mix's space-join" do
+      attrs = instance.send(:on_client, :click, instance.js.hide("#menu .item").text("#status", "Hello world"))
+
+      expect(attrs[:data][:reactive_ops_param]).not_to include(" ")
+      expect(attrs[:data][:reactive_ops_param]).to include('\u0020')
+      expect(binding_record(attrs)["ops"]).to eq([["hide", { "to" => "#menu .item" }],
+                                                  ["text", { "to" => "#status", "value" => "Hello world" }]])
+    end
+
+    it "composes two bindings on one element through mix (descriptors token-join, records space-join)" do
+      attrs = Object.new.extend(Phlex::Helpers).send(:mix,
+        instance.send(:on_client, :click, instance.js.hide("#menu"), outside: true),
+        instance.send(:on_client, "keydown.esc", instance.js.hide("#menu .x")))
+
+      expect(attrs[:data][:action]).to eq("click@window->reactive#runOps keydown.esc->reactive#runOps")
+      records = attrs[:data][:reactive_ops_param].split.map { JSON.parse(it) }
+      expect(records.pluck("on")).to eq(%w[click keydown.esc])
+      expect(records.first).to include("window" => true, "outside" => true)
+      expect(records.last).not_to have_key("outside")
+      expect(records.last["ops"]).to eq([["hide", { "to" => "#menu .x" }]])
     end
 
     it "rejects anything that is not a Phlex::Reactive::JS chain" do
@@ -1393,27 +1475,29 @@ RSpec.describe Phlex::Reactive::Component do
         .to raise_error(ArgumentError, /no ops/)
     end
 
-    # Issue #178: confirm: on on_client emits the SAME data-reactive-confirm-param
-    # as on(...), so the client-op path routes through the identical confirmResolver
-    # gate — a destructive client op gets the app's themed dialog, no round trip.
-    it "emits data-reactive-confirm-param when confirm: is given" do
+    # Issue #178: confirm: gates the chain behind the same confirmResolver as
+    # on(...). Issue #271: the message rides IN the binding record, so a sibling
+    # binding on the same element is never gated by it.
+    it "records confirm: in the binding when given" do
       attrs = instance.send(:on_client, :click, ops, confirm: "Discard this draft?")
 
-      expect(attrs[:data][:reactive_confirm_param]).to eq("Discard this draft?")
+      expect(binding_record(attrs)["confirm"]).to eq("Discard this draft?")
       expect(attrs[:data][:action]).to eq("click->reactive#runOps")
     end
 
-    it "omits the confirm param when confirm: is absent (byte-stable wire for existing callers)" do
-      attrs = instance.send(:on_client, :click, ops)
-
-      expect(attrs[:data]).not_to have_key(:reactive_confirm_param)
+    it "omits confirm from the record when confirm: is absent" do
+      expect(binding_record(instance.send(:on_client, :click, ops))).not_to have_key("confirm")
     end
 
     it "composes confirm: with window:/outside: (the gate rides any binding)" do
       attrs = instance.send(:on_client, :click, ops, outside: true, confirm: "Sure?")
 
-      expect(attrs[:data][:reactive_confirm_param]).to eq("Sure?")
-      expect(attrs[:data][:reactive_outside_param]).to eq("true")
+      expect(binding_record(attrs)).to include("confirm" => "Sure?", "outside" => true)
+    end
+
+    it "raises the shared guided error for a confirm: that is neither String nor Hash" do
+      expect { instance.send(:on_client, :click, ops, confirm: true) }
+        .to raise_error(ArgumentError, /confirm: takes a String/)
     end
 
     # Issue #226: requestSubmit dispatches the very `submit` event an
@@ -1434,7 +1518,7 @@ RSpec.describe Phlex::Reactive::Component do
       attrs = instance.send(:on_client, :change, instance.js.submit)
 
       expect(attrs[:data][:action]).to eq("change->reactive#runOps")
-      expect(attrs[:data][:reactive_ops_param]).to eq('[["submit",{"to":"@root"}]]')
+      expect(binding_record(attrs)["ops"]).to eq([["submit", { "to" => "@root" }]])
     end
 
     it "allows non-submit ops on the submit event (a busy-state chain is fine)" do
@@ -1450,7 +1534,7 @@ RSpec.describe Phlex::Reactive::Component do
       attrs = instance.send(:on_client, :click, instance.js.paste_into("#code"))
 
       expect(attrs[:data][:reactive_clipboard]).to eq("true")
-      expect(attrs[:data][:reactive_ops_param]).to eq('[["paste_into",{"to":"#code"}]]')
+      expect(binding_record(attrs)["ops"]).to eq([["paste_into", { "to" => "#code" }]])
     end
 
     it "marks the trigger even when paste_into is buried in a longer chain" do

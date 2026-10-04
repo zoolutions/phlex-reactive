@@ -163,18 +163,30 @@ function eventOf(dataAction) {
 }
 
 // Client-only op triggers ([data-reactive-ops-param]) — a menu toggle, a DOM op
-// chain that never round-trips. Report the parsed ops (names) when decodable.
+// chain that never round-trips. Issue #271: the attr holds one on_client
+// binding record per call ({on, window?, ops, …}, space-joined when mix-ed),
+// reported as one { event, ops } entry each. A legacy [[op, args]] list keeps
+// the data-action prefix as its event; an undecodable attr is reported raw.
 function ownedClientOps(root, allRoots) {
-  return scopedQuery(root, "[data-reactive-ops-param]", allRoots).map((el) => {
+  return scopedQuery(root, "[data-reactive-ops-param]", allRoots).flatMap((el) => {
     const raw = el.getAttribute("data-reactive-ops-param")
-    let ops = raw
-    try {
-      ops = JSON.parse(raw)
-    } catch {
-      // leave the raw string — a malformed ops attr shouldn't break the scan
-    }
-    return { event: eventOf(el.getAttribute("data-action")), ops }
+    const event = eventOf(el.getAttribute("data-action"))
+    const legacy = parseJson(raw)
+    if (Array.isArray(legacy)) return [{ event, ops: legacy }]
+    const records = (raw ?? "").split(" ").map(parseJson).filter((r) => r && typeof r === "object" && !Array.isArray(r))
+    if (records.length === 0) return [{ event, ops: raw }]
+    return records.map((r) => ({ event: r.on ? `${r.on}${r.window ? "@window" : ""}` : event, ops: r.ops }))
   })
+}
+
+// JSON.parse that answers undefined instead of throwing — a malformed attr
+// must never break the scan.
+function parseJson(raw) {
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return undefined
+  }
 }
 
 // Compute reducers bound on this root ([data-reactive-compute-reducer-param]) —

@@ -172,6 +172,87 @@ test("toggle_attr adds a missing attr (value '') and removes a present one", () 
   expect(el.hasAttribute("aria-expanded")).toBe(false)
 })
 
+// --- issue #271: two-value toggle_attr + expanded: -------------------------
+
+test("toggle_attr with values flips between them; an absent attr becomes the on value", () => {
+  const root = makeRoot()
+  const el = makeEl({ owner: root })
+  root.querySelectorAll = () => [el]
+  const controller = buildController(root)
+  const op = [["toggle_attr", { to: "#x", name: "aria-expanded", values: ["true", "false"] }]]
+
+  fire(controller, { ops: op })
+  expect(el.getAttribute("aria-expanded")).toBe("true")
+  fire(controller, { ops: op })
+  expect(el.getAttribute("aria-expanded")).toBe("false")
+  fire(controller, { ops: op })
+  expect(el.getAttribute("aria-expanded")).toBe("true")
+})
+
+test("toggle_attr with values still refuses an off-allowlist name", () => {
+  const root = makeRoot()
+  const el = makeEl({ owner: root })
+  root.querySelectorAll = () => [el]
+  const controller = buildController(root)
+
+  const warns = captureWarnings(() =>
+    fire(controller, { ops: [["toggle_attr", { to: "#x", name: "onclick", values: ["a", "b"] }]] }),
+  )
+
+  expect(el.hasAttribute("onclick")).toBe(false)
+  expect(warns.some((w) => w.includes("refused"))).toBe(true)
+})
+
+test("show/hide/toggle with expanded set aria-expanded from the intended state", () => {
+  const root = makeRoot()
+  const menu = makeEl({ owner: root })
+  const trigger = makeEl({ owner: root })
+  menu.hidden = true
+  root.querySelectorAll = (sel) => ({ "#menu": [menu], "#trigger": [trigger] })[sel] ?? []
+  const controller = buildController(root)
+
+  fire(controller, { ops: [["toggle", { to: "#menu", expanded: "#trigger" }]] })
+  expect(menu.hidden).toBe(false)
+  expect(trigger.getAttribute("aria-expanded")).toBe("true")
+
+  fire(controller, { ops: [["toggle", { to: "#menu", expanded: "#trigger" }]] })
+  expect(menu.hidden).toBe(true)
+  expect(trigger.getAttribute("aria-expanded")).toBe("false")
+
+  fire(controller, { ops: [["show", { to: "#menu", expanded: "#trigger" }]] })
+  expect(trigger.getAttribute("aria-expanded")).toBe("true")
+
+  fire(controller, { ops: [["hide", { to: "#menu", expanded: "@root" }]] })
+  expect(root.getAttribute("aria-expanded")).toBe("false")
+})
+
+test("expanded is set synchronously, before a transition's next frame", () => {
+  const root = makeRoot()
+  const menu = makeEl({ owner: root })
+  const trigger = makeEl({ owner: root })
+  menu.hidden = true
+  root.querySelectorAll = (sel) => ({ "#menu": [menu], "#trigger": [trigger] })[sel] ?? []
+  const controller = buildController(root)
+  globalThis.requestAnimationFrame = () => 1 // never runs the swap
+
+  fire(controller, { ops: [["toggle", { to: "#menu", expanded: "#trigger", transition: ["t", "f", "to"] }]] })
+
+  expect(trigger.getAttribute("aria-expanded")).toBe("true")
+})
+
+test("global: true resolves the expanded target document-wide", () => {
+  const root = makeRoot()
+  const overlay = makeEl()
+  const pageTrigger = makeEl()
+  overlay.hidden = true
+  const controller = buildController(root, { documentMatches: { "#overlay": [overlay], "#page-trigger": [pageTrigger] } })
+
+  fire(controller, { ops: [["show", { to: "#overlay", expanded: "#page-trigger", global: true }]] })
+
+  expect(overlay.hidden).toBe(false)
+  expect(pageTrigger.getAttribute("aria-expanded")).toBe("true")
+})
+
 // --- interpret-time allowlist (defense in depth) ----------------------------
 
 test("a forged event-handler attr op warns and is skipped (interpret-time deny)", () => {

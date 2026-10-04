@@ -123,6 +123,26 @@ describe("scan(document)", () => {
     expect(root.computes).toContain("split")
   })
 
+  test("decodes on_client binding records — one entry per record (issue #271)", () => {
+    const records = [
+      { on: "click", window: true, outside: true, ops: [["hide", { to: "#menu .item" }]] },
+      { on: "keydown.esc", ops: [["hide", { to: "#menu" }]] },
+    ]
+    const attr = records.map((r) => JSON.stringify(r).replaceAll(" ", "\\u0020")).join(" ").replaceAll('"', "&quot;")
+    document.body.innerHTML = `
+      <div id="m" data-controller="reactive" data-reactive-token-value="${signedToken({ c: "MenuComponent", v: 1 })}">
+        <div data-reactive-ops-param="${attr}" data-action="click@window->reactive#runOps keydown.esc->reactive#runOps"></div>
+        <button data-reactive-ops-param="[[&quot;toggle&quot;,{&quot;to&quot;:&quot;#x&quot;}]]" data-action="click->reactive#runOps">legacy</button>
+      </div>`
+
+    const [root] = scan(document)
+    expect(root.clientOps).toEqual([
+      { event: "click@window", ops: [["hide", { to: "#menu .item" }]] },
+      { event: "keydown.esc", ops: [["hide", { to: "#menu" }]] },
+      { event: "click", ops: [["toggle", { to: "#x" }]] },
+    ])
+  })
+
   test("scopes triggers to the NEAREST root (nested roots aren't double-attributed)", () => {
     document.body.innerHTML = `
       <div id="outer" data-controller="reactive" data-reactive-token-value="${signedToken({ c: "OuterComponent", v: 1 })}">

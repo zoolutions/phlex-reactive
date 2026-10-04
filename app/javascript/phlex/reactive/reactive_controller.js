@@ -1524,16 +1524,18 @@ function persistClearRoot(root) {
 // Frozen so nothing can be registered into it at runtime — extending the
 // vocabulary is a gem change, not an app hook.
 const CLIENT_OPS = Object.freeze({
-  show: (el, args) => setHidden(el, false, args),
-  hide: (el, args) => setHidden(el, true, args),
-  toggle: (el, args) => setHidden(el, !el.hidden, args),
+  show: (el, args, resolveTargets) => setVisibility(el, false, args, resolveTargets),
+  hide: (el, args, resolveTargets) => setVisibility(el, true, args, resolveTargets),
+  toggle: (el, args, resolveTargets) => setVisibility(el, !el.hidden, args, resolveTargets),
   add_class: (el, args) => el.classList.add(...(args.classes ?? [])),
   remove_class: (el, args) => el.classList.remove(...(args.classes ?? [])),
   toggle_class: (el, args) => (args.classes ?? []).forEach((c) => el.classList.toggle(c)),
 
   // Attribute ops (issue #96), interpret-time allowlisted. set_attr writes the
   // (already-stringified) value; toggle_attr adds a missing attr (value "") or
-  // removes a present one; remove_attr removes it. A refused name warns + skips.
+  // removes a present one — or, given values [on, off] (issue #271), flips
+  // between them (an absent attr becomes `on`); remove_attr removes it. A
+  // refused name warns + skips.
   set_attr: (el, args) => {
     if (guardAttr(args.name)) el.setAttribute(args.name, args.value ?? "")
   },
@@ -1542,7 +1544,10 @@ const CLIENT_OPS = Object.freeze({
   },
   toggle_attr: (el, args) => {
     if (!guardAttr(args.name)) return
-    if (el.hasAttribute(args.name)) el.removeAttribute(args.name)
+    if (Array.isArray(args.values)) {
+      const [on, off] = args.values
+      el.setAttribute(args.name, el.getAttribute(args.name) === on ? off : on)
+    } else if (el.hasAttribute(args.name)) el.removeAttribute(args.name)
     else el.setAttribute(args.name, "")
   },
 
@@ -1640,6 +1645,18 @@ function pasteClipboardInto(field) {
 function setHidden(el, hidden, args) {
   if (args?.transition) runTransition(el, args.transition, () => (el.hidden = hidden))
   else el.hidden = hidden
+}
+
+// show/hide/toggle (issue #271): flip visibility, then mirror the INTENDED
+// state into the `expanded:` target's aria-expanded — computed before the flip,
+// so a transition never delays or races it. The expanded target resolves with
+// the op's own scoping (root-scoped, or document-wide under global: true).
+function setVisibility(el, hidden, args, resolveTargets) {
+  setHidden(el, hidden, args)
+  if (args?.expanded == null || typeof resolveTargets !== "function") return
+  for (const target of resolveTargets({ ...args, to: args.expanded })) {
+    target.setAttribute?.("aria-expanded", String(!hidden))
+  }
 }
 
 // The interpret-time attribute guard: refuse (warn + skip) a name off the
@@ -1947,6 +1964,107 @@ function parseOps(raw) {
   }
 }
 
+// --- on_client binding records (issue #271) -----------------------------------
+// Each on_client call emits ONE record ({on, ops, window?, outside?, confirm?,
+// confirmWhen?}); mix space-joins several onto one element (spaces inside a
+// record ride as \u0020, so the join is unambiguous). Stimulus hands every
+// runOps descriptor on an element the SAME event.params, so runOps selects the
+// record(s) whose descriptor matches the firing event: event.type, the key
+// filter, and window-boundness.
+
+// Stimulus's default keyMappings (letters and digits map to themselves). A
+// custom Stimulus schema is not mirrored — an unknown filter never matches.
+const KEY_FILTER_MAP = Object.freeze({
+  enter: "Enter",
+  tab: "Tab",
+  esc: "Escape",
+  space: " ",
+  up: "ArrowUp",
+  down: "ArrowDown",
+  left: "ArrowLeft",
+  right: "ArrowRight",
+  home: "Home",
+  end: "End",
+  page_up: "PageUp",
+  page_down: "PageDown",
+})
+const KEY_FILTER_MODIFIERS = Object.freeze(["meta", "ctrl", "alt", "shift"])
+
+// Stimulus's rule: the four modifiers must match EXACTLY (ctrl+k is not k);
+// the remaining token is compared to event.key case-insensitively. A
+// non-keyboard event (no event.key) checks the modifiers only.
+function keyFilterMatches(filter, event) {
+  const parts = filter.split("+")
+  for (const mod of KEY_FILTER_MODIFIERS) {
+    if (parts.includes(mod) !== Boolean(event[`${mod}Key`])) return false
+  }
+  const token = parts.find((part) => !KEY_FILTER_MODIFIERS.includes(part))
+  if (token === undefined || typeof event.key !== "string") return true
+  const key = Object.hasOwn(KEY_FILTER_MAP, token) ? KEY_FILTER_MAP[token] : /^[a-z0-9]$/.test(token) ? token : null
+  return key !== null && key.toLowerCase() === event.key.toLowerCase()
+}
+
+// Parse data-reactive-ops-param into binding records. Stimulus typecasts a
+// lone record to an object; several records stay a string (JSON.parse fails on
+// the join) and are split here. A LEGACY [[op, args]] list (array or JSON
+// string — a hand-built attr) becomes one record flagged `legacy`: it has no
+// `on`, so it always matches, and runOps reads its flags from event.params. A
+// malformed piece warns and is skipped; its siblings still run (default-deny).
+function parseBindingRecords(raw) {
+  if (Array.isArray(raw)) return [{ ops: raw, legacy: true }]
+  if (raw && typeof raw === "object") return [raw]
+  if (typeof raw !== "string") return []
+  const text = raw.trim()
+  if (text.startsWith("[")) return [{ ops: parseOps(text), legacy: true }]
+  const records = []
+  for (const piece of text.split(" ")) {
+    if (piece === "") continue
+    let record = null
+    try {
+      record = JSON.parse(piece)
+    } catch {
+      record = null
+    }
+    if (record && typeof record === "object" && !Array.isArray(record)) records.push(record)
+    else console.warn(`[phlex-reactive] malformed on_client binding record ${JSON.stringify(piece)} — skipped`)
+  }
+  return records
+}
+
+// Does this record's descriptor match the firing event? The window check
+// matters for an element carrying both `click` and `click@window`: one inside
+// click reaches both listeners, and only currentTarget tells them apart. The
+// `window != null` guard keeps a window-less harness from classifying every
+// undefined currentTarget as window-bound.
+function bindingMatches(record, event) {
+  const on = record.on
+  if (typeof on !== "string" || on === "") return true
+  const dot = on.indexOf(".")
+  if (event.type !== (dot < 0 ? on : on.slice(0, dot))) return false
+  const win = globalThis.window
+  const windowBound = win != null && event.currentTarget === win
+  if (Boolean(record.window) !== windowBound) return false
+  return dot < 0 || keyFilterMatches(on.slice(dot + 1), event)
+}
+
+// Two identical descriptors on one element (two mix-ed on_client calls with
+// the same event) are two Stimulus bindings, so runOps runs twice for ONE
+// event. The first call runs every matching record; a repeat for the same
+// (event, listener target) is a no-op. Keyed on currentTarget so the element
+// and window listeners of a click + click@window pair each still run once.
+const ranBindings = new WeakMap()
+function bindingsAlreadyRan(event) {
+  if (event === null || typeof event !== "object") return false
+  let targets = ranBindings.get(event)
+  if (!targets) {
+    targets = new Set()
+    ranBindings.set(event, targets)
+  }
+  if (targets.has(event.currentTarget)) return true
+  targets.add(event.currentTarget)
+  return false
+}
+
 // The TEXT reading of a compute control (issue #262) — what a :string input
 // hands the reducer and what the identity/cross-root mirrors paint. A checkbox
 // reads its CHECKED STATE ("true"/"false", the strings reactive_show compares
@@ -2067,7 +2185,7 @@ function applyOps(list, resolveTargets, onZeroTargets) {
     }
     const targets = resolveTargets(args)
     if (targets.length === 0 && onZeroTargets) onZeroTargets(name, args)
-    for (const el of targets) CLIENT_OPS[name](el, args)
+    for (const el of targets) CLIENT_OPS[name](el, args, resolveTargets)
   }
 }
 
@@ -2606,11 +2724,24 @@ export default class extends Controller {
   // the component resets whatever they toggled (by design — a signed action
   // owns state that must survive re-renders).
   runOps(event) {
-    const { ops, confirm, confirmWhen, outside, window: windowBound } = event.params
+    if (bindingsAlreadyRan(event)) return
+    const params = event.params ?? {}
     // The trigger element on_client was spread onto (issue #222 ctx: { el }),
     // captured now — currentTarget resets before the confirm resolver's microtask.
     const trigger = event.currentTarget ?? event.target
+    // Issue #271: run only the binding record(s) whose descriptor fired. A
+    // legacy [[op, args]] attr reads its flags from the element-wide params.
+    const records = parseBindingRecords(params.ops)
+    const matching = records.filter((record) => bindingMatches(record, event))
+    if (matching.length === 0 && records.length > 0) return this.#warnNoBinding(event)
+    for (const record of matching) {
+      this.#runBinding(record.legacy ? { ...params, ops: record.ops } : record, event, trigger)
+    }
+  }
 
+  // One on_client binding (issue #95): its outside guard, preventDefault rule,
+  // confirm gate, then its ops — every flag read from the binding itself.
+  #runBinding({ ops, confirm, confirmWhen, outside, window: windowBound }, event, trigger) {
     // Outside guard FIRST — identical semantics to dispatch() (issue #80): an
     // outside: trigger is a COMPLETE no-op for events inside this root, before
     // preventDefault and before any op runs.
@@ -2646,6 +2777,17 @@ export default class extends Controller {
       .then((ok) => {
         if (ok) this.#applyOps(this.#parseOps(ops))
       })
+  }
+
+  // Issue #271: runOps fired but no record matched the event — a hand-edited
+  // attr or a descriptor the matcher doesn't know. Verbose gate only, deduped.
+  #warnNoBinding(event) {
+    if (!this.#verboseEnabled()) return
+    const key = `no-binding|${event.type}|${this.element?.id || "?"}`
+    if (zeroTargetAlreadyWarned(key)) return
+    console.warn(
+      `[phlex-reactive] runOps on #${this.element?.id || "?"} found no on_client binding matching a "${event.type}" event — nothing ran`,
+    )
   }
 
   // Dirty tracking (issue #103). Wired by reactive_field(dirty: true) /
@@ -2882,12 +3024,25 @@ export default class extends Controller {
   // CLICKING IT (so its own on(:select) reactive trigger fires — selection stays
   // a signed action); Escape clears. Ephemeral highlight state lives on the DOM
   // (data-reactive-highlighted), never shipped to the client as trusted state.
+  //
+  // Issue #271: a container spread with reactive_listnav(focus: true) carries
+  // data-reactive-listnav-focus-param="true" — ROVING-FOCUS mode for a
+  // role=menu: the same moves shift real focus among the items instead of a
+  // highlight, and Home/End (listnavFirst/listnavLast) jump to the edges.
   listnavNext(event) {
-    this.#moveHighlight(event, +1)
+    this.#listnavMove(event, (current, length) => (current < 0 ? 0 : (current + 1) % length))
   }
 
   listnavPrev(event) {
-    this.#moveHighlight(event, -1)
+    this.#listnavMove(event, (current, length) => (current < 0 ? length - 1 : (current - 1 + length) % length))
+  }
+
+  listnavFirst(event) {
+    this.#listnavMove(event, () => 0)
+  }
+
+  listnavLast(event) {
+    this.#listnavMove(event, (_current, length) => length - 1)
   }
 
   // Enter: activate the highlighted option (fires its reactive select). No-op if
@@ -2905,21 +3060,37 @@ export default class extends Controller {
     for (const el of this.#listnavOptions(event)) el.removeAttribute("data-reactive-highlighted")
   }
 
-  // Move the highlight by `step` (with wrap-around) among THIS root's options.
-  // preventDefault stops Arrow keys from moving the caret in the search input.
-  #moveHighlight(event, step) {
+  // Move among THIS root's options: `pick(current, length)` returns the next
+  // index (current is -1 when nothing is highlighted/focused). preventDefault
+  // stops Arrow keys moving the caret in a search input, and the page scrolling
+  // under a menu. Highlight mode writes data-reactive-highlighted; focus mode
+  // (issue #271) focuses the chosen item, current being the item that is or
+  // contains document.activeElement.
+  #listnavMove(event, pick) {
     const options = this.#listnavOptions(event)
     if (!options.length) return
     event.preventDefault()
 
-    const current = options.findIndex((el) => el.hasAttribute("data-reactive-highlighted"))
-    // From nothing: Down highlights the first option, Up the last.
-    const next = current < 0 ? (step > 0 ? 0 : options.length - 1) : (current + step + options.length) % options.length
+    const focusMode = this.#listnavFocusMode(event)
+    const active = globalThis.document?.activeElement
+    const current = focusMode
+      ? options.findIndex((el) => el === active || (active != null && el.contains?.(active)))
+      : options.findIndex((el) => el.hasAttribute("data-reactive-highlighted"))
+    const chosen = options[pick(current, options.length)]
 
-    for (const el of options) el.removeAttribute("data-reactive-highlighted")
-    const chosen = options[next]
-    chosen.setAttribute("data-reactive-highlighted", "true")
+    if (focusMode) {
+      chosen.focus?.()
+    } else {
+      for (const el of options) el.removeAttribute("data-reactive-highlighted")
+      chosen.setAttribute("data-reactive-highlighted", "true")
+    }
     chosen.scrollIntoView?.({ block: "nearest" })
+  }
+
+  // Focus mode is read off the TRIGGER like the option selector (issue #271).
+  #listnavFocusMode(event) {
+    const trigger = event?.currentTarget ?? event?.target ?? this.element
+    return trigger.getAttribute?.("data-reactive-listnav-focus-param") === "true"
   }
 
   // The option elements this root owns (skips nested reactive roots, issue #15),
