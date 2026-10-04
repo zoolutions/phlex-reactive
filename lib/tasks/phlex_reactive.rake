@@ -22,7 +22,7 @@ namespace :phlex_reactive do
     # nor a skip_verify_authorized — the review queue (issue #278).
     Rails.application.eager_load!
     format = ENV["FORMAT"].to_s.downcase == "json" ? :json : :text
-    unverified_only = ENV["UNVERIFIED"].to_s == "1"
+    unverified_only = %w[1 true yes].include?(ENV["UNVERIFIED"].to_s.downcase)
     puts Phlex::Reactive::Inspector::Report.actions(Phlex::Reactive::Inspector.components, format:, unverified_only:)
   end
 
