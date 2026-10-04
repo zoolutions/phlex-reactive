@@ -109,7 +109,33 @@ import ReactiveController from "phlex/reactive/reactive_controller"
 application.register("reactive", ReactiveController)
 ```
 
-Register eagerly (not lazily) so a click immediately after load is never missed.
+Eager or lazy, both are safe — as long as `phlex/reactive/early` is imported
+eagerly (the engine pins it with `preload: true`):
+
+```js
+// app/javascript/application.js — before any controller loads
+import "phlex/reactive/early"
+```
+
+It is a < 1 KB module with no Stimulus import. A trigger (`on(...)` or
+`on_client(...)`) that fires before the controller connects — a click while a
+lazily loaded controller is still downloading, a custom event dispatched as soon
+as the page is interactive — is queued, its native default is stopped exactly
+where the controller would stop it, and the controller replays it when it
+connects. Each root announces that moment with a bubbling `reactive:connect`
+event and a `data-reactive-connected` attribute. Without the import, register
+the controller eagerly: an event that fires before connect is otherwise lost.
+
+A queued trigger older than 10 s when its controller connects is dropped (a
+warning under `data-reactive-verbose`), as is one whose element left the page.
+Change the window with `Phlex::Reactive.early_event_ttl_ms` and a meta tag:
+
+```erb
+<meta name="phlex-reactive-early-ttl" content="<%= Phlex::Reactive.early_event_ttl_ms %>">
+```
+
+Not captured: `window:`/`outside:` triggers (they listen on `window`), and key
+filters beyond Stimulus's default key names.
 </details>
 
 ### Scaffold a component

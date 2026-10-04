@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>phlex-reactive dummy (lazy controller)</title>
+    <%= csrf_meta_tags %>
+
+    <%# Issue #273: an app that loads the reactive controller LAZILY. early.js is
+        imported eagerly; the controller only after a delayed dynamic import()
+        (the stand-in for stimulus-loading's lazyLoadControllersFrom), so the
+        spec can fire triggers before it connects. %>
+    <script type="importmap">
+      {
+        "imports": {
+          "@hotwired/turbo-rails": "/vendor/turbo_rails_shim.js",
+          "@hotwired/stimulus": "/vendor/stimulus.js",
+          "reactive_controller": "/vendor/reactive_controller.js",
+          "phlex/reactive/early": "/vendor/early.js",
+          "phlex/reactive/confirm": "/vendor/confirm.js",
+          "phlex/reactive/confirm_predicate": "/vendor/confirm_predicate.js",
+          "phlex/reactive/compute": "/vendor/compute.js"
+        }
+      }
+    </script>
+
+    <script type="module">
+      // Count action POSTs from the very start, before any controller exists.
+      window.__actionPosts = 0
+      const originalFetch = window.fetch
+      window.fetch = (input, init) => {
+        if (String(input?.url ?? input).includes("/reactive/actions")) window.__actionPosts += 1
+        return originalFetch(input, init)
+      }
+      document.addEventListener("reactive:connect", () => {
+        const probe = document.querySelector("[data-testid='connects']")
+        probe.textContent = String(Number(probe.textContent) + 1)
+      })
+
+      import "@hotwired/turbo-rails"
+      import "phlex/reactive/early"
+      import { Application } from "@hotwired/stimulus"
+
+      const application = Application.start()
+      window.Stimulus = application
+      setTimeout(async () => {
+        const { default: ReactiveController } = await import("reactive_controller")
+        application.register("reactive", ReactiveController)
+      }, 1500)
+    </script>
+  </head>
+  <body>
+    <span data-testid="connects">0</span>
+    <%= yield %>
+  </body>
+</html>

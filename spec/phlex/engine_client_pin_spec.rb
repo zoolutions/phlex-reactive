@@ -64,6 +64,10 @@ RSpec.describe Phlex::Reactive::Engine do
       expect(assets.precompile).not_to include("phlex/reactive/reactive_controller.js")
     end
 
+    it "precompiles the early-event capture module and its sourcemap (issue #273)" do
+      expect(assets.precompile).to include("phlex/reactive/early.min.js", "phlex/reactive/early.min.js.map")
+    end
+
     it "precompiles the effects stylesheet (issue #215)" do
       expect(assets.precompile).to include("phlex/reactive/effects.css")
     end
@@ -104,6 +108,12 @@ RSpec.describe Phlex::Reactive::Engine do
     it "pins the controller's bare specifier to the minified build" do
       expect(importmap.pins["phlex/reactive/reactive_controller"])
         .to eq(to: "phlex/reactive/reactive_controller.min.js", preload: true)
+    end
+
+    it "pins phlex/reactive/early to its minified build, preloaded (issue #273)" do
+      # Preloaded: it must be running before a lazily loaded controller is, or
+      # the triggers it exists to capture are already lost.
+      expect(importmap.pins["phlex/reactive/early"]).to eq(to: "phlex/reactive/early.min.js", preload: true)
     end
 
     it "pins the confirm and compute seams to their minified builds" do

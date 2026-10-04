@@ -9,6 +9,7 @@ Rails.application.routes.draw do
 
   # Example pages exercised by system specs.
   get "counter" => "demos#counter"
+  get "early_triggers" => "demos#early_triggers" # issue #273: lazily loaded controller
   get "effects" => "demos#effects"
   get "debug" => "demos#debug"
   get "failure_surface" => "demos#failure_surface"

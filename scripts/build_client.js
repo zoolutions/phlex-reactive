@@ -30,7 +30,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..")
 const srcDir = join(root, "app/javascript/phlex/reactive")
 
 // The modules that ship to the browser. Order is cosmetic (build log only).
-const ENTRIES = ["reactive_controller", "confirm", "confirm_predicate", "compute", "inspect"]
+const ENTRIES = ["reactive_controller", "early", "confirm", "confirm_predicate", "compute", "inspect"]
 
 // Kept external so a minified module imports its sibling by the SAME bare
 // specifier the source uses — the import map (engine.rb pins) maps each to its

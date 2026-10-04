@@ -532,6 +532,21 @@ module Phlex
         instance.view_context
       end
 
+      # --- Early triggers (issue #273) -----------------------------------
+
+      # How long (ms) a trigger captured by phlex/reactive/early before the
+      # controller connected stays replayable. Older entries are dropped on
+      # connect (warned under data-reactive-verbose): a click from long ago must
+      # not fire a request out of nowhere. The client reads it from a meta tag
+      # in the host layout (the engine can't inject into it):
+      #   <meta name="phlex-reactive-early-ttl" content="<%= Phlex::Reactive.early_event_ttl_ms %>">
+      # Without the meta the client uses the same 10 s default. nil resets.
+      attr_writer :early_event_ttl_ms
+
+      def early_event_ttl_ms
+        @early_event_ttl_ms ||= 10_000
+      end
+
       # --- Deferred reply segments (issue #165) --------------------------
 
       # Lifetime (seconds) of a defer token. It only needs to cover the

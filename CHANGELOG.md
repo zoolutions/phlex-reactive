@@ -9,6 +9,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`phlex/reactive/early`: triggers that fire before the controller connects
+  are replayed, not lost (#273).** Import it eagerly
+  (`import "phlex/reactive/early"`; the engine pins it with `preload: true`) and
+  the `reactive` controller may load lazily: a click, submit, key or custom
+  event that reaches an `on`/`on_client` trigger before its root connects is
+  queued — its native default stopped where the controller would stop it — and
+  replayed once on connect. `:once` triggers replay once. Entries older than
+  `Phlex::Reactive.early_event_ttl_ms` (10 s, read from
+  `<meta name="phlex-reactive-early-ttl">`) or whose element left the page are
+  dropped, with a warning under `data-reactive-verbose`. The module is under
+  1 KB gzipped, asserted by a test. Every root now also sets
+  `data-reactive-connected` and emits a bubbling `reactive:connect` event when
+  its controller connects. Apps that never import `early` see no change beyond
+  that event and attribute.
+
 - **Several `on_client` bindings on one element (#271).** Two `on_client`
   calls merged with `mix` now both work — e.g. a root that closes a menu on an
   outside click AND on Escape. Each call carries its own descriptor, flags and

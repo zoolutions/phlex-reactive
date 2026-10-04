@@ -115,8 +115,10 @@ class FakeNode {
   emit(name, event = {}) {
     for (const fn of this.listeners[name] ?? []) fn(event)
   }
+  // Records the ops' events only: every connect() also announces itself with
+  // reactive:connect (issue #273), which is not what these tests count.
   dispatchEvent(event) {
-    this.dispatched.push(event)
+    if (event.type !== "reactive:connect") this.dispatched.push(event)
     return true
   }
 }

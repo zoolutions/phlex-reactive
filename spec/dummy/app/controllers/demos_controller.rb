@@ -10,6 +10,13 @@ class DemosController < ActionController::Base
     render_component CounterComponent.new(count: 0)
   end
 
+  # Issue #273: the lazily loaded controller layout (early.js eager, the
+  # controller after a delayed import()), so triggers fire before connect.
+  def early_triggers
+    html = render_to_string(EarlyTriggersComponent.new, layout: false)
+    render html: html.html_safe, layout: "lazy_controller"
+  end
+
   # Effects (issue #215). The dummy has no asset pipeline, so the page inlines
   # the gem's REAL shipped stylesheet — the browser animations under test are
   # driven by the exact CSS apps get. The duration override AFTER it widens the
