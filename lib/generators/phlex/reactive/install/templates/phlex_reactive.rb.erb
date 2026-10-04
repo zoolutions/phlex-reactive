@@ -117,6 +117,13 @@
 #   <meta name="phlex-reactive-defer-path" content="<%%= Phlex::Reactive.defer_path %>">
 # Phlex::Reactive.defer_path = "/_r/defer"
 
+# Early triggers (issue #273): with `import "phlex/reactive/early"` in your
+# entry point, a trigger that fires before a lazily loaded controller connects
+# is replayed on connect — unless it is older than this (ms, default 10s).
+# Render it into your layout head for the client to read:
+#   <meta name="phlex-reactive-early-ttl" content="<%%= Phlex::Reactive.early_event_ttl_ms %>">
+# Phlex::Reactive.early_event_ttl_ms = 10_000
+
 # Client request timeout (default 30s). There is NO server-side setting — a hung
 # request aborts client-side after this window (reactive:error kind "timeout"),
 # so the per-component queue never wedges. Override in your layout head:

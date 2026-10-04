@@ -23,6 +23,7 @@ module Views
           verify_and_sign
           deferred_segments
           client_numbers
+          loading_the_client
           ci
           every_change
           adding_a_benchmark
@@ -709,6 +710,37 @@ module Views
                       'per keystroke and turned out to be 2+N queries fixed by one eager load. Make the ' \
                       'synchronous path cheap before making it async; defer only a segment that is ' \
                       'GENUINELY expensive.'
+              end
+            end
+          end
+        end
+
+        def loading_the_client
+          DocsUI::Section('Loading the client lazily') do
+            DocsUI::Prose() do
+              p do
+                plain 'An app that keeps light pages light loads its Stimulus controllers on demand '
+                plain '(stimulus-loading, a '
+                code { 'preload: false' }
+                plain ' pin). The reactive controller can load that way too, as long as '
+                code { 'phlex/reactive/early' }
+                plain ' is imported eagerly (issue #273). It is under 1 KB gzipped (a test asserts '
+                plain 'it) and has no Stimulus import. Until a root connects, it queues the trigger events '
+                plain 'that reach it and stops their native default where the controller would; the '
+                plain 'controller replays them when it connects. Without it, a click in the load window '
+                plain 'is lost, so the only safe choice used to be loading the full client on every page '
+                plain 'that might contain a root.'
+              end
+              p do
+                plain 'Each root marks the moment with '
+                code { 'data-reactive-connected' }
+                plain ' and a bubbling '
+                code { 'reactive:connect' }
+                plain ' event. Queued triggers older than '
+                code { 'Phlex::Reactive.early_event_ttl_ms' }
+                plain ' (10 s by default, read from '
+                code { '<meta name="phlex-reactive-early-ttl">' }
+                plain ') are dropped rather than fired out of nowhere.'
               end
             end
           end

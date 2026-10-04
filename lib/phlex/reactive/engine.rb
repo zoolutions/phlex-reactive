@@ -37,6 +37,8 @@ module Phlex
           it.config.assets.precompile += %w[
             phlex/reactive/reactive_controller.min.js
             phlex/reactive/reactive_controller.min.js.map
+            phlex/reactive/early.min.js
+            phlex/reactive/early.min.js.map
             phlex/reactive/confirm.min.js
             phlex/reactive/confirm.min.js.map
             phlex/reactive/confirm_predicate.min.js
@@ -58,6 +60,15 @@ module Phlex
           it.importmap.pin(
             "phlex/reactive/reactive_controller",
             to: "phlex/reactive/reactive_controller.min.js",
+            preload: true
+          )
+          # The early-trigger capture (issue #273): a < 1 KB module the app
+          # imports EAGERLY (`import "phlex/reactive/early"`) so a trigger that
+          # fires before a lazily loaded controller connects is replayed on
+          # connect instead of lost. Preloaded: it must run before the triggers.
+          it.importmap.pin(
+            "phlex/reactive/early",
+            to: "phlex/reactive/early.min.js",
             preload: true
           )
           # The overridable confirm resolver (issue #55). reactive_controller.js

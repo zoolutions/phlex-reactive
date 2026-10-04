@@ -109,7 +109,51 @@ import ReactiveController from "phlex/reactive/reactive_controller"
 application.register("reactive", ReactiveController)
 ```
 
-Register eagerly (not lazily) so a click immediately after load is never missed.
+Eager registration is the simple, safe default. To load the controller lazily
+instead, import `phlex/reactive/early` eagerly (the engine pins it with
+`preload: true`) so the triggers below are not lost while it loads:
+
+```js
+// app/javascript/application.js — before any controller loads
+import "phlex/reactive/early"
+```
+
+It gzips to under 1 KB and has no Stimulus import. An element-bound trigger (`on(...)` or
+`on_client(...)`) that fires before the controller connects — a click while a
+lazily loaded controller is still downloading, a custom event dispatched as soon
+as the page is interactive — is queued, its native default is stopped exactly
+where the controller would stop it, and the controller replays it when it
+connects. Each root announces that moment with a bubbling `reactive:connect`
+event and a `data-reactive-connected` attribute. Without the import, register
+the controller eagerly: an event that fires before connect is otherwise lost.
+
+A queued trigger older than 10 s when its controller connects is dropped (a
+warning under `data-reactive-verbose`), as is one whose element left the page.
+Change the window with `Phlex::Reactive.early_event_ttl_ms` and a meta tag:
+
+```erb
+<meta name="phlex-reactive-early-ttl" content="<%= Phlex::Reactive.early_event_ttl_ms %>">
+```
+
+Good to know:
+
+- Every firing before connect is replayed (up to 50), so give a high-frequency
+  trigger (`input`, `mouseover`) a `debounce:` or `throttle:` as usual.
+- If you already wait for the controller yourself and then dispatch (a
+  `getControllerForElementAndIdentifier` polling loop), remove that loop when
+  you add the import, or the trigger fires twice.
+- `data-reactive-connected` is set at connect; an in-place morph strips it
+  again. Listen for `reactive:connect` rather than reading the attribute later.
+- Until the controller connects, a captured link or form trigger has its
+  native behavior stopped and nothing else happens. If the controller never
+  loads, or the entry is dropped (older than the TTL, its element gone, more
+  than 50 queued), that click or submit does nothing.
+- Not captured, so still lost before connect: `window:`/`outside:` triggers
+  (they listen on `window`); key filters beyond Stimulus's default key names;
+  and every other controller action — only `on(...)` (`reactive#dispatch`) and
+  `on_client(...)` (`reactive#runOps`) are replayed, not the built-in
+  `nestedAdd`/`nestedRemove`, `tagsAdd`/`tagsPick`, `listnav*` or `recompute`
+  bindings.
 </details>
 
 ### Scaffold a component
