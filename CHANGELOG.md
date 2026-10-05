@@ -902,11 +902,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     the three override seams), nothing fetched on demand, every feature
     connected inside `connect()` as before. Existing importmap pins, bundler
     aliases and vendored copies keep working as they are. It contains no
-    `import()` at all. It is 24,670 B gzipped, 2,398 B more than the 22,272 B
+    `import()` at all. It is 24,675 B gzipped, 2,403 B more than the 22,272 B
     it was before the split. The split first left it at 26,132 B; #305 builds
     it with `__SPLIT__` false, so the runtime imports every feature statically
     and calls it directly — no feature table, no loader, no `withFeature` —
-    and recovers 1,462 B of that. What remains is how the features are written
+    and recovers 1,457 B of that. What remains is how the features are written
     as modules (per-root state records where the controller had private
     fields, exported wrappers, the `core` handle), not the boundary between
     them; the budget test prints the 22,700 B target and holds 24,900 B.

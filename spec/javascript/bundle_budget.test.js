@@ -58,7 +58,7 @@ const SLACK = 250
 // The split left it at 26,132 B — 3,860 B more. Issue #305 builds it with
 // __SPLIT__ false: the runtime imports every feature statically and calls it
 // directly, so the loader, the feature table and the hand-over fold away
-// (24,670 B, 1,462 B recovered).
+// (24,675 B, 1,457 B recovered).
 //
 // BUDGET OUTCOME (issue #305): the target is TARGET_BUNDLE_GZIP, 22,700 B (the
 // pre-split size plus a loader's worth). It is reported on every run, and is
