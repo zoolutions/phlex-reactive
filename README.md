@@ -251,6 +251,7 @@ which covers the controller, its seams (`confirm`, `compute`,
 
 ```js
 // esbuild (build script)
+import * as esbuild from "esbuild"
 import { execSync } from "node:child_process"
 const gemJs = `${execSync("bundle show phlex-reactive").toString().trim()}/app/javascript`
 
@@ -1373,8 +1374,13 @@ wire attr: `data-reactive-persist='{"key":"village-apply","ttl":604800,"debounce
   `reactive_on_complete` (armed, never fired), `reactive_filter` and a
   `reactive_compute` root all read the restored values — no synthetic events.
   Until the restore has run, nothing is drafted from the blanks the server
-  rendered, an action the user fires waits for it (and posts the restored
-  values), and what they typed into a field stays there. A morph or broadcast
+  rendered, and a successful submit still forgets the draft. An action the
+  user fires waits for the restore and posts the restored values — for at
+  most the feature timeout (10 s); if the module is slower than that, or
+  fails to load, the action goes out with the values on the page. With the
+  default `restore: :blank`, what the user typed into a field before the
+  restore stays there; `restore: :always` overwrites it, as it overwrites
+  anything else in the field. A morph or broadcast
   re-render is server truth and is **never** re-restored. To take the request
   out of the first visit, pin the module with `preload: true` in your
   importmap (`pin "phlex/reactive/features/persist", to:

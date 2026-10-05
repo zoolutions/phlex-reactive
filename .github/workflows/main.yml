@@ -213,9 +213,12 @@ jobs:
         run: bun test spec/javascript
       - name: Minified client is in sync (drift guard)
         # The committed *.min.js/*.min.js.map must match a fresh build — the bun
-        # minifier output is deterministic (and byte-identical across bun patch
-        # releases), so a rebuild that changes a tracked byte means someone edited
-        # the source without running `rake build:js`. Runs only under one cell.
+        # minifier output is deterministic for ONE bun version, the one pinned in
+        # .bun-version (build with that one: bun 1.4.0 prepends an unused require
+        # shim to every module once any of them has a dynamic import(), 1.4.2
+        # does not). So a rebuild that changes a tracked byte means someone
+        # edited the source without running `rake build:js`, or built with
+        # another bun. Runs only under one cell.
         if: matrix.server == 'puma' && matrix.transport == 'cable'
         run: bundle exec rake build:js_check
       - name: Prepare Postgres + pgbus schema

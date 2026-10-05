@@ -1194,6 +1194,89 @@ test("a persist op on a root that is not connected runs at once", async () => {
   expect(controller.featuresReady).toBeDefined()
 })
 
+// Before the split the submit listener existed from connect(). Now the
+// feature may still be loading when the form is submitted — and a draft that
+// survived a successful submit would come back on the next visit.
+function submitEnd(form, success = true) {
+  form.dispatchEvent(new window.CustomEvent("turbo:submit-end", { bubbles: true, detail: { success } }))
+}
+
+test("a successful submit before the restore forgets the draft, and the late restore brings nothing back", async () => {
+  seedDraft({ "form[name]": "Ada" })
+  const { controller, q } = mount(FORM)
+
+  controller.connect()
+  submitEnd(document.getElementById("f"))
+  await controller.featuresReady
+  await settle()
+
+  expect(storage.raw(KEY)).toBeUndefined()
+  expect(q('[name="form[name]"]').value).toBe("")
+})
+
+test("a successful submit before the restore forgets the draft even when the root leaves at once", async () => {
+  seedDraft({ "form[name]": "Ada" })
+  const { controller } = mount(FORM)
+
+  controller.connect()
+  submitEnd(document.getElementById("f"))
+  // Turbo's redirect visit: the root is gone before the module arrived.
+  controller.disconnect()
+  await settle()
+  await settle()
+
+  expect(storage.raw(KEY)).toBeUndefined()
+})
+
+test("a failed submit, or another form's, before the restore keeps the draft", async () => {
+  seedDraft({ "form[name]": "Ada" })
+  const { controller, q } = mount(FORM)
+
+  controller.connect()
+  submitEnd(document.getElementById("f"), false)
+  submitEnd(document.getElementById("other"))
+  await controller.featuresReady
+  await settle()
+
+  expect(storage.json(KEY).fields).toEqual({ "form[name]": "Ada" })
+  expect(q('[name="form[name]"]').value).toBe("Ada")
+})
+
+test("once the feature has connected the core's stand-in submit listener is gone", async () => {
+  seedDraft({ "form[name]": "Ada" })
+  const { controller } = mount(FORM)
+  const added = []
+  const removed = []
+  const add = document.addEventListener.bind(document)
+  const remove = document.removeEventListener.bind(document)
+  document.addEventListener = (type, ...rest) => {
+    if (type === "turbo:submit-end") added.push(rest[0])
+    return add(type, ...rest)
+  }
+  document.removeEventListener = (type, ...rest) => {
+    if (type === "turbo:submit-end") removed.push(rest[0])
+    return remove(type, ...rest)
+  }
+
+  await connect(controller)
+
+  // Two were added — the core's stand-in, then the feature's own — and the
+  // stand-in was removed again.
+  expect(added).toHaveLength(2)
+  expect(removed).toEqual([added[0]])
+})
+
+test("restore: always overwrites what was typed before the restore (as it does for a field typed in before connect)", async () => {
+  seedDraft({ "form[name]": "Ada" })
+  const { controller, q } = mount(FORM, { payload: { ...PAYLOAD, restore: "always" } })
+
+  controller.connect()
+  q('[name="form[name]"]').value = "Grace"
+  await controller.featuresReady
+
+  expect(q('[name="form[name]"]').value).toBe("Ada")
+})
+
 test("disconnect before the feature arrives restores nothing and wires nothing", async () => {
   seedDraft({ "form[name]": "Ada" })
   const { controller, q } = mount(FORM)

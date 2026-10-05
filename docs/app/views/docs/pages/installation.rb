@@ -171,6 +171,7 @@ module Views
               end
             end
             DocsUI::Code(<<~JS, lexer: :javascript, filename: 'esbuild.config.mjs')
+              import * as esbuild from "esbuild"
               import { execSync } from "node:child_process"
               const gemJs = `${execSync("bundle show phlex-reactive").toString().trim()}/app/javascript`
 

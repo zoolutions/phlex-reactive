@@ -78,8 +78,9 @@ vendored at `spec/dummy/public/vendor/features/<name>.js`. A NEW feature is
 named in four places that must agree — `ENTRIES` in `scripts/build_client.js`,
 `CLIENT_FEATURES` in `lib/phlex/reactive/engine.rb`, the controller's feature
 table (a literal `import()`), and a ceiling in
-`spec/javascript/bundle_budget.test.js` — plus the dummy layouts' import maps;
-`spec/phlex/engine_client_pin_spec.rb` and the budget test fail when they don't.
+`spec/javascript/bundle_budget.test.js` — plus a pin in each dummy layout's
+import map. `spec/phlex/engine_client_pin_spec.rb` (the three lists and the
+layouts) and the budget test (the ceiling) fail when they don't.
 
 Commit the source, the rebuilt `.min.js`/`.map`, AND the re-synced vendored copy
 together. Two guards enforce it: `rake build:js_check` (committed min build matches

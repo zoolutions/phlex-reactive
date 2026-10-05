@@ -954,6 +954,114 @@ test("a request waits no longer than the feature timeout for a hung import", asy
   expect(posts.map((post) => [post.act, post.params.note])).toEqual([["save", ""]])
 })
 
+test("a request queued behind a hung import is released when the root disconnects", async () => {
+  const posts = requestRig()
+  const { controller } = fieldRoot()
+  controller.connect()
+  const done = controller.dispatch(triggerEvent("save"))
+  await sleep(0)
+  expect(posts).toEqual([])
+
+  // The import never settles and the 10 s timeout is far away: only the
+  // disconnect can release what is waiting on it.
+  controller.disconnect()
+  await done
+  await controller.queue
+
+  expect(posts.map((post) => post.act)).toEqual(["save"])
+})
+
+test("after such a disconnect the same controller reconnects and posts again", async () => {
+  const posts = requestRig()
+  const { controller, arrive } = fieldRoot()
+  controller.connect()
+  controller.dispatch(triggerEvent("first"))
+  controller.disconnect()
+
+  controller.connect()
+  arrive()
+  await controller.featuresReady
+  await controller.dispatch(triggerEvent("second"))
+  await controller.queue
+
+  expect(posts.map((post) => post.act)).toEqual(["first", "second"])
+})
+
+// --- A feature's "while loading" hook ---------------------------------------------
+
+test("a feature's waiting hook runs while its import is pending and is undone when it connects", async () => {
+  const log = []
+  let arrive
+  setFeature(
+    "fake",
+    (root) => root.hasAttribute(MARKER),
+    () => new Promise((resolve) => (arrive = () => resolve({ connect: () => log.push("connect") }))),
+    (root) => {
+      log.push(`waiting ${root.id}`)
+      return () => log.push("stopped waiting")
+    },
+  )
+  const controller = controllerFor(mountRoot())
+
+  controller.connect()
+  expect(log).toEqual(["waiting root"])
+  arrive()
+  await controller.featuresReady
+
+  expect(log).toEqual(["waiting root", "stopped waiting", "connect"])
+})
+
+test("the waiting hook is undone when the root disconnects before the feature arrives", async () => {
+  const log = []
+  setFeature(
+    "fake",
+    (root) => root.hasAttribute(MARKER),
+    () => new Promise(() => {}),
+    () => {
+      log.push("waiting")
+      return () => log.push("stopped waiting")
+    },
+  )
+  const controller = controllerFor(mountRoot())
+
+  controller.connect()
+  controller.disconnect()
+  controller.disconnect()
+
+  expect(log).toEqual(["waiting", "stopped waiting"])
+})
+
+test("a waiting hook that throws is reported and does not stop connect()", async () => {
+  const failure = new Error("hook")
+  const fake = { log: [] }
+  let arrive
+  setFeature(
+    "fake",
+    (root) => root.hasAttribute(MARKER),
+    () => new Promise((resolve) => (arrive = () => resolve({ connect: () => fake.log.push("connect") }))),
+    () => {
+      throw failure
+    },
+  )
+  const root = mountRoot()
+  const errors = []
+  root.addEventListener("reactive:error", (event) => errors.push([event.detail.phase, event.detail.error]))
+  const consoleError = console.error
+  console.error = () => {}
+  const controller = controllerFor(root)
+
+  try {
+    expect(() => controller.connect()).not.toThrow()
+    arrive()
+    await controller.featuresReady
+  } finally {
+    console.error = consoleError
+  }
+
+  expect(errors).toEqual([["detect", failure]])
+  expect(fake.log).toEqual(["connect"])
+})
+
 test("once the features have connected a dispatch does not wait on them again", async () => {
   const posts = requestRig()
   const { controller, arrive } = fieldRoot()

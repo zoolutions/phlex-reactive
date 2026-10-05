@@ -34,7 +34,8 @@
 // writes no draft (a keystroke typed in that window is kept in its field and
 // drafted by the next one), the core holds the root's action requests back
 // (they would post the server's blanks), and a persist_state op waits (its
-// snapshot would overwrite the draft with those blanks).
+// snapshot would overwrite the draft with those blanks). The core also stands
+// in for the submit listener below while the import is on its way (forget()).
 
 const PERSIST_VERSION = 1
 const PERSIST_PREFIX = "phlex-reactive:persist:"
@@ -596,4 +597,12 @@ export function writeState(root, state) {
 
 export function clearRoot(root) {
   afterRestore(root, () => persistClearRoot(root))
+}
+
+// The form around `root` was submitted successfully while this module was
+// still loading (the core's stand-in listener saw it): forget the draft NOW,
+// not after a restore — the restore that follows then finds nothing, and a
+// root that has already left takes no stale draft into its next visit.
+export function forget(root) {
+  persistClearRoot(root)
 }

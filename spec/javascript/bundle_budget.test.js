@@ -46,13 +46,13 @@ const EARLY_GZIP_BUDGET = 1100
 const SLACK = 250
 
 // The monolith was 22,272 B; phase 1 (the loader) brought it to 22,787 B.
-// Phase 2 (persist + editors out): 21,055 B.
-const CORE_GZIP_CEILING = 21_250
+// Phase 2 (persist + editors out): 21,230 B.
+const CORE_GZIP_CEILING = 21_400
 const FEATURE_GZIP_CEILINGS = {
-  "features/persist": 3_000,
+  "features/persist": 3_100,
 }
-// Phase 2: 21,055 B core + 2,987 B persist = 24,042 B.
-const TOTAL_GZIP_CEILING = 24_250
+// Phase 2: 21,230 B core + 2,999 B persist = 24,229 B.
+const TOTAL_GZIP_CEILING = 24_400
 // NOT asserted yet — see the header.
 const TARGET_CORE_GZIP = 10 * 1024
 

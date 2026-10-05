@@ -161,6 +161,17 @@ RSpec.describe Phlex::Reactive::Engine do
       expect(described_class::CLIENT_FEATURES).to match_array(imported.uniq)
     end
 
+    it "is pinned in each of the dummy app's hand-written import maps" do
+      # The dummy has no importmap-rails; a feature missing from a layout's map
+      # fails to import in the browser suite only, far from its cause.
+      layouts = Dir[File.join(root, "spec/dummy/app/views/layouts/*.html.erb")]
+
+      expect(layouts.size).to be >= 2
+      layouts.product(described_class::CLIENT_FEATURES).each do |layout, feature|
+        expect(File.read(layout)).to include(%("phlex/reactive/features/#{feature}":)), "#{layout} has no pin for #{feature}"
+      end
+    end
+
     it "has a source file for every feature" do
       described_class::CLIENT_FEATURES.each do
         expect(File).to exist(File.join(root, "app/javascript/phlex/reactive/features/#{it}.js"))

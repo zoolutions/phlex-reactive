@@ -2040,12 +2040,16 @@ function streamOpTargets(args, root) {
 
 // --- Feature modules (issue #275) ---------------------------------------------
 // The client is a small core plus feature modules a page loads only when one
-// of its roots asks for them. Each entry is [needs, load]:
+// of its roots asks for them. Each entry is [needs, load, waiting?]:
 //
-//   needs(root)  a cheap marker read — does this root use the feature?
-//   load()       a LITERAL import("phlex/reactive/features/<name>"), so a
-//                bundler can see the specifier and the import map resolves it
-//                to its own digested file (never a computed specifier).
+//   needs(root)    a cheap marker read — does this root use the feature?
+//   load()         a LITERAL import("phlex/reactive/features/<name>"), so a
+//                  bundler can see the specifier and the import map resolves
+//                  it to its own digested file (never a computed specifier).
+//   waiting(root)  optional: what must not be missed WHILE the import is on
+//                  its way. Runs when a root starts waiting and returns its
+//                  own undo, called when the feature connects or the root
+//                  disconnects. Core bytes — keep it to what cannot wait.
 //
 // TABLE ORDER IS CONNECT ORDER (and disconnect order): persist is first
 // because its restore writes the values every other connect-time seed reads.
@@ -2074,6 +2078,20 @@ const PRODUCTION_FEATURES = [
         return Boolean(declared) && declared !== "off"
       },
       () => import("phlex/reactive/features/persist"),
+      // A successful submit of the form around the root forgets its draft.
+      // The feature listens for that itself once it has connected; until then
+      // this stands in, or a draft submitted during the import would outlive
+      // the submit and come back on the next visit.
+      (root) => {
+        const onSubmitEnd = (event) => {
+          const form = event.target
+          if (event.detail?.success && form?.tagName === "FORM" && form.contains?.(root)) {
+            withFeature("persist", (persist) => persist.forget(root))
+          }
+        }
+        document.addEventListener("turbo:submit-end", onSubmitEnd)
+        return () => document.removeEventListener("turbo:submit-end", onSubmitEnd)
+      },
     ],
   ],
 ]
@@ -2132,8 +2150,8 @@ export function reactiveFeatureNames() {
   return [...FEATURES.keys()]
 }
 
-export function __setReactiveFeatureForTest(name, needs, load) {
-  FEATURES.set(name, [needs, load])
+export function __setReactiveFeatureForTest(name, needs, load, waiting) {
+  FEATURES.set(name, [needs, load, waiting])
 }
 
 // Test-only: back to the shipped table, with nothing loaded or logged.
@@ -2388,7 +2406,8 @@ export default class extends Controller {
   #features = new Map() // name -> module connected on this connection
   #featuresWanted = new Set() // names this connection has asked for
   #featuresSettling = false // true while featuresReady is still pending
-  #featureTimers = new Set() // pending import-timeout timers
+  #featureWaits = new Map() // pending import-timeout timer -> its wait's resolve
+  #featureUndos = new Map() // name -> undo of the feature's `waiting` hook
   #featureEpoch = 0
   #featureHandle // the `core` handle features receive, built on first use
 
@@ -2664,7 +2683,15 @@ export default class extends Controller {
       }
     }
     if (names.length === 0) return
-    for (const name of names) this.#featuresWanted.add(name)
+    for (const name of names) {
+      this.#featuresWanted.add(name)
+      try {
+        const undo = FEATURES.get(name)[2]?.(this.element)
+        if (undo) this.#featureUndos.set(name, undo)
+      } catch (error) {
+        this.#featureFailed(name, "detect", error)
+      }
+    }
     const loads = names.map((name) => this.#awaitFeature(epoch, name))
     this.#featuresSettling = true
     const ready = Promise.all([this.featuresReady, ...loads]).then(([, ...features]) => {
@@ -2683,15 +2710,17 @@ export default class extends Controller {
     return new Promise((resolve) => {
       let timedOut = false
       const timer = setTimeout(() => {
-        this.#featureTimers.delete(timer)
+        this.#featureWaits.delete(timer)
         timedOut = true
         if (current()) this.#featureFailed(name, "timeout", new Error(`not loaded after ${featureTimeoutMs()} ms`))
         resolve(null)
       }, featureTimeoutMs())
-      this.#featureTimers.add(timer)
+      // Kept with its resolve: a disconnect ends the wait (#disconnectFeatures),
+      // or whatever is queued behind featuresReady would hang on a stuck import.
+      this.#featureWaits.set(timer, resolve)
       const settled = () => {
         clearTimeout(timer)
-        this.#featureTimers.delete(timer)
+        this.#featureWaits.delete(timer)
       }
       loadFeature(name).then(
         (feature) => {
@@ -2710,11 +2739,23 @@ export default class extends Controller {
 
   #connectFeature(epoch, name, feature) {
     if (epoch !== this.#featureEpoch) return
+    this.#stopWaitingFor(name)
     try {
       feature.connect?.(this, this.#featureCore())
       this.#features.set(name, feature)
     } catch (error) {
       this.#featureFailed(name, "connect", error)
+    }
+  }
+
+  // The feature is here (or its root is leaving): undo its `waiting` hook.
+  #stopWaitingFor(name) {
+    const undo = this.#featureUndos.get(name)
+    this.#featureUndos.delete(name)
+    try {
+      undo?.()
+    } catch (error) {
+      console.error(`[phlex-reactive] the "${name}" feature module failed to stop waiting`, error)
     }
   }
 
@@ -2755,8 +2796,14 @@ export default class extends Controller {
   // throws must not keep the others, or the rest of disconnect(), from running.
   #disconnectFeatures() {
     this.#featureEpoch++
-    for (const timer of this.#featureTimers) clearTimeout(timer)
-    this.#featureTimers.clear()
+    // End every wait still open: nothing will connect on this connection, and
+    // a request queued behind featuresReady must not hang on a stuck import.
+    for (const [timer, resolve] of this.#featureWaits) {
+      clearTimeout(timer)
+      resolve(null)
+    }
+    this.#featureWaits.clear()
+    for (const name of [...this.#featureUndos.keys()]) this.#stopWaitingFor(name)
     this.#featuresWanted.clear()
     this.#featuresSettling = false
     const connected = [...this.#features]

@@ -900,8 +900,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `reactive_controller` into `phlex/reactive/features/persist`, which the
   controller imports only on a page with a `reactive_persist` root (or when a
   `persist_state` / `persist_clear` op runs). A page without one no longer
-  downloads it: the controller went from 22,272 B to 21,055 B gzipped, and
-  the feature is 2,987 B (bun's zlib, level 9, as
+  downloads it: the controller is 21,230 B gzipped — it was 22,272 B
+  before the split began and 22,787 B once the feature loader had landed —
+  and the feature is 2,999 B (bun's zlib, level 9, as
   `spec/javascript/bundle_budget.test.js` measures and now holds — the
   controller, each feature and their total).
   - **Importmap apps change nothing**: the engine pins every feature
@@ -912,9 +913,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - **The draft restore now runs when the module has arrived**, not inside
     `connect()`: one small request later on a first visit, immediately after
     that. The client re-runs its connect-time bindings afterwards; an action
-    fired before the restore waits for it and posts the restored values; a
-    `persist_state` / `persist_clear` op waits too; nothing is drafted from
-    the server's blanks in between.
+    fired before the restore waits for it (for at most the feature timeout)
+    and posts the restored values; a `persist_state` / `persist_clear` op
+    waits too; nothing is drafted from the server's blanks in between, and a
+    successful submit in that window still forgets the draft.
   - **`controller.featuresReady`** is a promise that resolves once the
     features a root needs have connected (already resolved for a root that
     needs none). It never rejects.
