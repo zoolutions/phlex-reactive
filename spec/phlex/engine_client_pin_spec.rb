@@ -68,6 +68,16 @@ RSpec.describe Phlex::Reactive::Engine do
       expect(assets.precompile).to include("phlex/reactive/early.min.js", "phlex/reactive/early.min.js.map")
     end
 
+    it "precompiles every feature module and its sourcemap (issue #275)" do
+      expect(described_class::CLIENT_FEATURES).to include("persist")
+      described_class::CLIENT_FEATURES.each do
+        expect(assets.precompile).to include(
+          "phlex/reactive/features/#{it}.min.js",
+          "phlex/reactive/features/#{it}.min.js.map"
+        )
+      end
+    end
+
     it "precompiles the effects stylesheet (issue #215)" do
       expect(assets.precompile).to include("phlex/reactive/effects.css")
     end
@@ -116,9 +126,56 @@ RSpec.describe Phlex::Reactive::Engine do
       expect(importmap.pins["phlex/reactive/early"]).to eq(to: "phlex/reactive/early.min.js", preload: true)
     end
 
+    it "pins every feature module to its minified build, never preloaded (issue #275)" do
+      # Not preloaded: a feature is fetched only by a page whose markup asks
+      # for it. A preload would put it back on every page.
+      described_class::CLIENT_FEATURES.each do
+        expect(importmap.pins["phlex/reactive/features/#{it}"])
+          .to eq(to: "phlex/reactive/features/#{it}.min.js", preload: false)
+      end
+    end
+
     it "pins the confirm and compute seams to their minified builds" do
       expect(importmap.pins["phlex/reactive/confirm"][:to]).to eq("phlex/reactive/confirm.min.js")
       expect(importmap.pins["phlex/reactive/compute"][:to]).to eq("phlex/reactive/compute.min.js")
+    end
+  end
+
+  # The feature list lives in three places that cannot share code: the build
+  # script (JS), the engine (pins + precompile) and the controller's table
+  # (literal import() calls a bundler must be able to see). They must agree.
+  describe "CLIENT_FEATURES (issue #275)" do
+    let(:root) { File.expand_path("../..", __dir__) }
+
+    it "matches the feature entries the build script emits" do
+      entries = File.read(File.join(root, "scripts/build_client.js"))[/const ENTRIES = \[([^\]]*)\]/, 1]
+      built = entries.scan(%r{"features/([^"]+)"}).flatten
+
+      expect(described_class::CLIENT_FEATURES).to match_array(built)
+    end
+
+    it "matches the features the controller can import" do
+      source = File.read(File.join(root, "app/javascript/phlex/reactive/reactive_controller.js"))
+      imported = source.scan(%r{import\("phlex/reactive/features/([\w-]+)"\)}).flatten
+
+      expect(described_class::CLIENT_FEATURES).to match_array(imported.uniq)
+    end
+
+    it "is pinned in each of the dummy app's hand-written import maps" do
+      # The dummy has no importmap-rails; a feature missing from a layout's map
+      # fails to import in the browser suite only, far from its cause.
+      layouts = Dir[File.join(root, "spec/dummy/app/views/layouts/*.html.erb")]
+
+      expect(layouts.size).to be >= 2
+      layouts.product(described_class::CLIENT_FEATURES).each do |layout, feature|
+        expect(File.read(layout)).to include(%("phlex/reactive/features/#{feature}":)), "#{layout} has no pin for #{feature}"
+      end
+    end
+
+    it "has a source file for every feature" do
+      described_class::CLIENT_FEATURES.each do
+        expect(File).to exist(File.join(root, "app/javascript/phlex/reactive/features/#{it}.js"))
+      end
     end
   end
 end

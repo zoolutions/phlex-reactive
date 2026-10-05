@@ -3,11 +3,17 @@
 // (data-reactive-persist = {key, ttl, debounce[, fields][, restore]}); the
 // controller writes a snapshot of every persistable owned control on `input`
 // (trailing-edge debounce) and `change` (immediate), flushes a pending write on
-// disconnect, restores the draft FIRST in connect() (so every later seed —
-// show/on-complete/filter/compute — reads the restored DOM; no synthetic
-// events, no morph re-restore), and clears it on a successful turbo:submit-end
+// disconnect, restores the draft when its feature module has loaded and then
+// has the core re-run the connect-time seeds (so show/on-complete/filter/
+// compute read the restored DOM; no synthetic events, no morph re-restore),
+// and clears it on a successful turbo:submit-end
 // of the owning form, on TTL expiry, or via the persist_clear op. The
 // persist_state op merges a flat state bag into the same draft.
+//
+// The draft code is a FEATURE MODULE (issue #275,
+// app/javascript/phlex/reactive/features/persist.js): connect() only starts
+// its import, so every test awaits controller.featuresReady before it looks.
+// The last section pins what that timing must not break.
 //
 // Uses happy-dom for a real DOM (closest/contains/select multiple/CustomEvent)
 // and a Map-backed localStorage stub so storage failures can be simulated.
@@ -103,6 +109,20 @@ afterEach(() => {
   console.warn = REAL.warn
 })
 
+// connect() only STARTS the persist feature's import (issue #275); the restore
+// and the write listeners exist once featuresReady has resolved.
+async function connect(controller) {
+  controller.connect()
+  await controller.featuresReady
+}
+
+// The same, for "nothing may throw out of connect": a feature that threw is
+// caught by the loader and reported on the root instead.
+async function connectCleanly(controller) {
+  await connect(controller)
+  expect(controller.element.getAttribute("data-reactive-error")).toBeNull()
+}
+
 function drainTimers() {
   const due = timers
   timers = []
@@ -143,29 +163,29 @@ function fire(el, type) {
 
 // --- gating ---------------------------------------------------------------
 
-test("a root without reactive_persist touches no storage and installs no timer", () => {
+test("a root without reactive_persist touches no storage and installs no timer", async () => {
   const { controller, q } = mount(FORM, { payload: null })
-  controller.connect()
+  await connect(controller)
   q('[name="form[name]"]').value = "Ada"
   fire(q('[name="form[name]"]'), "input")
   drainTimers()
   expect(storage.calls).toEqual({ get: 0, set: 0, remove: 0 })
 })
 
-test("a malformed payload warns once and disables persistence", () => {
+test("a malformed payload warns once and disables persistence", async () => {
   document.body.innerHTML = `<div id="pf" data-controller="reactive" data-reactive-persist="{oops"></div>`
   const controller = new ReactiveController()
   controller.element = document.getElementById("pf")
-  controller.connect()
+  await connect(controller)
   expect(warns.some((w) => w.includes("reactive_persist"))).toBe(true)
   expect(storage.calls.get).toBe(0)
 })
 
 // --- write ----------------------------------------------------------------
 
-test("input debounces (trailing edge) and writes the owned, persistable snapshot", () => {
+test("input debounces (trailing edge) and writes the owned, persistable snapshot", async () => {
   const { controller, q } = mount(FORM)
-  controller.connect()
+  await connect(controller)
   q('[name="form[name]"]').value = "Ada"
   fire(q('[name="form[name]"]'), "input")
   expect(storage.calls.set).toBe(0)
@@ -189,9 +209,9 @@ test("input debounces (trailing edge) and writes the owned, persistable snapshot
   }
 })
 
-test("change writes immediately and cancels a pending debounce", () => {
+test("change writes immediately and cancels a pending debounce", async () => {
   const { controller, q } = mount(FORM)
-  controller.connect()
+  await connect(controller)
   fire(q('[name="form[name]"]'), "input")
   expect(timers.length).toBe(1)
   q('[name="form[gift]"]').checked = true
@@ -200,25 +220,25 @@ test("change writes immediately and cancels a pending debounce", () => {
   expect(storage.json(KEY).fields["form[gift]"]).toBe(true)
 })
 
-test("fields: narrows the snapshot to the declared names", () => {
+test("fields: narrows the snapshot to the declared names", async () => {
   const { controller, q } = mount(FORM, { payload: { ...PAYLOAD, fields: ["form[name]"] } })
-  controller.connect()
+  await connect(controller)
   q('[name="form[name]"]').value = "Ada"
   q('[name="form[gift]"]').checked = true
   fire(q('[name="form[gift]"]'), "change")
   expect(storage.json(KEY).fields).toEqual({ "form[name]": "Ada" })
 })
 
-test("an unchecked radio group is stored as null (so restore leaves it alone)", () => {
+test("an unchecked radio group is stored as null (so restore leaves it alone)", async () => {
   const { controller, q } = mount(FORM)
-  controller.connect()
+  await connect(controller)
   fire(q('[name="form[name]"]'), "change")
   expect(storage.json(KEY).fields["form[size]"]).toBeNull()
 })
 
-test("disconnect flushes a pending debounce synchronously", () => {
+test("disconnect flushes a pending debounce synchronously", async () => {
   const { controller, q } = mount(FORM)
-  controller.connect()
+  await connect(controller)
   q('[name="form[name]"]').value = "Ad"
   fire(q('[name="form[name]"]'), "input")
   expect(storage.calls.set).toBe(0)
@@ -233,10 +253,10 @@ function seedDraft(fields, extra = {}) {
   storage.seed(KEY, { v: 1, savedAt: now - 1000, fields, ...extra })
 }
 
-test("connect restores the draft into BLANK owned controls and leaves server values alone", () => {
+test("connect restores the draft into BLANK owned controls and leaves server values alone", async () => {
   seedDraft({ "form[name]": "Ada", "form[size]": "l", "form[gift]": true, "form[tags][]": ["a", "b"] })
   const { controller, q } = mount(FORM.replace('name="form[name]"', 'name="form[name]" value="Server"'))
-  controller.connect()
+  await connect(controller)
   expect(q('[name="form[name]"]').value).toBe("Server") // non-blank server value wins
   expect(q('[name="form[size]"][value="l"]').checked).toBe(true)
   expect(q('[name="form[gift]"]').checked).toBe(true)
@@ -246,84 +266,84 @@ test("connect restores the draft into BLANK owned controls and leaves server val
   expect(storage.calls.set).toBe(0)
 })
 
-test("restore: always overwrites a server-rendered value", () => {
+test("restore: always overwrites a server-rendered value", async () => {
   seedDraft({ "form[name]": "Ada" })
   const { controller, q } = mount(FORM.replace('name="form[name]"', 'name="form[name]" value="Server"'), {
     payload: { ...PAYLOAD, restore: "always" },
   })
-  controller.connect()
+  await connect(controller)
   expect(q('[name="form[name]"]').value).toBe("Ada")
 })
 
-test("a draft never reaches an excluded control", () => {
+test("a draft never reaches an excluded control", async () => {
   seedDraft({ "form[pw]": "leak", "form[tz]": "Mars", fuckery: "bot", inner: "nope", "form[name]": "" })
   const { controller, q } = mount(FORM.replace('name="form[pw]" value="secret"', 'name="form[pw]"'))
-  controller.connect()
+  await connect(controller)
   expect(q('[name="form[pw]"]').value).toBe("")
   expect(q('[name="form[tz]"]').value).toBe("UTC")
   expect(q('[name="fuckery"]').value).toBe("")
   expect(q('[name="inner"]').value).toBe("x")
 })
 
-test("restore stamps the state bag on the root and emits reactive:persist-restored", () => {
+test("restore stamps the state bag on the root and emits reactive:persist-restored", async () => {
   seedDraft({ "form[name]": "Ada" }, { state: { step: 2 } })
   const { controller, el } = mount(FORM)
   const seen = []
   el.addEventListener("reactive:persist-restored", (e) => seen.push(e.detail))
-  controller.connect()
+  await connect(controller)
   expect(el.getAttribute("data-reactive-persist-state")).toBe('{"step":2}')
   expect(seen).toEqual([{ key: "apply", fields: { "form[name]": "Ada" }, state: { step: 2 } }])
 })
 
-test("no event and no attr when there is no draft", () => {
+test("no event and no attr when there is no draft", async () => {
   const { controller, el } = mount(FORM)
   const seen = []
   el.addEventListener("reactive:persist-restored", (e) => seen.push(e.detail))
-  controller.connect()
+  await connect(controller)
   expect(seen).toEqual([])
   expect(el.hasAttribute("data-reactive-persist-state")).toBe(false)
 })
 
-test("an expired draft is removed on read and not restored", () => {
+test("an expired draft is removed on read and not restored", async () => {
   storage.seed(KEY, { v: 1, savedAt: now - 61_000, fields: { "form[name]": "Old" } })
   const { controller, q } = mount(FORM)
-  controller.connect()
+  await connect(controller)
   expect(q('[name="form[name]"]').value).toBe("")
   expect(storage.raw(KEY)).toBeUndefined()
 })
 
-test("a draft with another schema version or malformed JSON is discarded silently", () => {
+test("a draft with another schema version or malformed JSON is discarded silently", async () => {
   storage.seed(KEY, { v: 2, savedAt: now, fields: { "form[name]": "Future" } })
   let m = mount(FORM)
-  m.controller.connect()
+  await connect(m.controller)
   expect(m.q('[name="form[name]"]').value).toBe("")
 
   storage.setItem(KEY, "{nope")
   m = mount(FORM)
-  m.controller.connect()
+  await connect(m.controller)
   expect(m.q('[name="form[name]"]').value).toBe("")
   expect(warns).toEqual([])
 })
 
-test("the restore runs BEFORE the show seed, so a reactive_show section reads the restored value", () => {
+test("the show seed is re-run after the restore, so a reactive_show section reads the restored value", async () => {
   seedDraft({ "form[size]": "l" })
   const show = JSON.stringify({ any: [[{ field: "form[size]", equals: "l" }]] })
   const { controller, q } = mount(`${FORM}<div id="sec" data-reactive-show='${show}' hidden>large</div>`)
-  controller.connect()
+  await connect(controller)
   expect(q("#sec").hidden).toBe(false)
 })
 
-test("a restore never FIRES reactive_on_complete (arm-without-fire)", () => {
+test("a restore never FIRES reactive_on_complete (arm-without-fire)", async () => {
   seedDraft({ "form[name]": "123456" })
   const oc = JSON.stringify([{ any: [[{ field: "form[name]", len_eq: 6 }]], ops: [["add_class", { to: "@root", name: "done" }]] }])
   const { controller, el } = mount(FORM, { rootAttrs: `data-reactive-on-complete='${oc}'` })
-  controller.connect()
+  await connect(controller)
   expect(el.classList.contains("done")).toBe(false)
 })
 
-test("turbo:morph-element does NOT re-restore (a morph is server truth)", () => {
+test("turbo:morph-element does NOT re-restore (a morph is server truth)", async () => {
   const { controller, el, q } = mount(FORM)
-  controller.connect()
+  await connect(controller)
   seedDraft({ "form[name]": "Later" })
   el.dispatchEvent(new window.Event("turbo:morph-element", { bubbles: true }))
   expect(q('[name="form[name]"]').value).toBe("")
@@ -335,18 +355,18 @@ function submitEnd(form, success) {
   form.dispatchEvent(new window.CustomEvent("turbo:submit-end", { bubbles: true, detail: { success } }))
 }
 
-test("a successful turbo:submit-end on the owning form clears the draft", () => {
+test("a successful turbo:submit-end on the owning form clears the draft", async () => {
   seedDraft({ "form[name]": "Ada" })
   const { controller } = mount(FORM)
-  controller.connect()
+  await connect(controller)
   submitEnd(document.getElementById("f"), true)
   expect(storage.raw(KEY)).toBeUndefined()
 })
 
-test("a successful submit also drops a pending keystroke write (no resurrection on the disconnect flush)", () => {
+test("a successful submit also drops a pending keystroke write (no resurrection on the disconnect flush)", async () => {
   seedDraft({ "form[name]": "Ada" })
   const { controller, q } = mount(FORM)
-  controller.connect()
+  await connect(controller)
   q('[name="form[name]"]').value = "Ada!"
   fire(q('[name="form[name]"]'), "input")
   submitEnd(document.getElementById("f"), true)
@@ -354,19 +374,19 @@ test("a successful submit also drops a pending keystroke write (no resurrection 
   expect(storage.raw(KEY)).toBeUndefined()
 })
 
-test("a failed submit or an unrelated form leaves the draft", () => {
+test("a failed submit or an unrelated form leaves the draft", async () => {
   seedDraft({ "form[name]": "Ada" })
   const { controller } = mount(FORM)
-  controller.connect()
+  await connect(controller)
   submitEnd(document.getElementById("f"), false)
   submitEnd(document.getElementById("other"), true)
   expect(storage.json(KEY).fields["form[name]"]).toBe("Ada")
 })
 
-test("disconnect removes the document-level submit-end listener", () => {
+test("disconnect removes the document-level submit-end listener", async () => {
   seedDraft({ "form[name]": "Ada" })
   const { controller } = mount(FORM)
-  controller.connect()
+  await connect(controller)
   controller.disconnect()
   submitEnd(document.getElementById("f"), true)
   expect(storage.json(KEY).fields["form[name]"]).toBe("Ada")
@@ -374,60 +394,63 @@ test("disconnect removes the document-level submit-end listener", () => {
 
 // --- ops ------------------------------------------------------------------
 
-test("persist_state merges the bag, re-snapshots the fields and stamps the root", () => {
+test("persist_state merges the bag, re-snapshots the fields and stamps the root", async () => {
   seedDraft({ "form[name]": "" }, { state: { step: 1, mode: "wizard" } })
   const { controller, el, q } = mount(FORM)
-  controller.connect()
+  await connect(controller)
   q('[name="form[name]"]').value = "Ada"
   controller.runOps({ preventDefault() {}, params: { ops: JSON.stringify([["persist_state", { to: "@root", state: { step: 2 } }]]) } })
+  await settle()
   const draft = storage.json(KEY)
   expect(draft.state).toEqual({ step: 2, mode: "wizard" })
   expect(draft.fields["form[name]"]).toBe("Ada")
   expect(el.getAttribute("data-reactive-persist-state")).toBe('{"step":2,"mode":"wizard"}')
 })
 
-test("persist_clear removes the draft and the state attr", () => {
+test("persist_clear removes the draft and the state attr", async () => {
   seedDraft({ "form[name]": "Ada" }, { state: { step: 3 } })
   const { controller, el } = mount(FORM)
-  controller.connect()
+  await connect(controller)
   controller.runOps({ preventDefault() {}, params: { ops: JSON.stringify([["persist_clear", { to: "@root" }]]) } })
+  await settle()
   expect(storage.raw(KEY)).toBeUndefined()
   expect(el.hasAttribute("data-reactive-persist-state")).toBe(false)
 })
 
-test("persist_state on a root without reactive_persist warns and skips", () => {
+test("persist_state on a root without reactive_persist warns and skips", async () => {
   const { controller } = mount(FORM, { payload: null })
-  controller.connect()
+  await connect(controller)
   controller.runOps({ preventDefault() {}, params: { ops: JSON.stringify([["persist_state", { to: "@root", state: { step: 2 } }]]) } })
+  await settle()
   expect(storage.calls.set).toBe(0)
   expect(warns.some((w) => w.includes("persist_state"))).toBe(true)
 })
 
 // --- storage failures -----------------------------------------------------
 
-test("a throwing storage never throws out of connect/write and stays silent without debug", () => {
+test("a throwing storage never throws out of connect/write and stays silent without debug", async () => {
   storage.throws = true
   const { controller, q } = mount(FORM)
-  expect(() => controller.connect()).not.toThrow()
+  await connectCleanly(controller)
   q('[name="form[name]"]').value = "Ada"
   expect(() => fire(q('[name="form[name]"]'), "change")).not.toThrow()
   expect(infos).toEqual([])
 })
 
-test("with data-reactive-debug the storage failure is reported once via console.info", () => {
+test("with data-reactive-debug the storage failure is reported once via console.info", async () => {
   storage.throws = true
   const { controller, q } = mount(FORM, { rootAttrs: 'data-reactive-debug="true"' })
-  controller.connect()
+  await connect(controller)
   fire(q('[name="form[name]"]'), "change")
   fire(q('[name="form[name]"]'), "change")
   expect(infos.length).toBe(1)
   expect(infos[0]).toContain("reactive_persist")
 })
 
-test("a missing localStorage global disables persistence quietly", () => {
+test("a missing localStorage global disables persistence quietly", async () => {
   delete globalThis.localStorage
   const { controller, q } = mount(FORM)
-  expect(() => controller.connect()).not.toThrow()
+  await connectCleanly(controller)
   expect(() => fire(q('[name="form[name]"]'), "change")).not.toThrow()
 })
 
@@ -545,9 +568,9 @@ const EDITORS = `
   <div data-controller="reactive" id="nested"><lexxy-editor name="inner_body"></lexxy-editor></div>
 `
 
-test("the snapshot includes named editors under their resolved names, never the paired hidden input", () => {
+test("the snapshot includes named editors under their resolved names, never the paired hidden input", async () => {
   const { controller, q } = mountEditors(EDITORS)
-  controller.connect()
+  await connect(controller)
   q("lexxy-editor[name='draft[body]']").value = "<p>Essay</p>"
   q("trix-editor[input]").value = "<div>Notes</div>"
   q("trix-editor[name='draft[aside]']").value = "<div>Aside</div>"
@@ -563,7 +586,7 @@ test("the snapshot includes named editors under their resolved names, never the 
   })
 })
 
-test("an editor's own chrome (toolbar selects/inputs inside lexxy-editor, a trix-toolbar) is never a control", () => {
+test("an editor's own chrome (toolbar selects/inputs inside lexxy-editor, a trix-toolbar) is never a control", async () => {
   const html = EDITORS.replace(
     '<lexxy-editor name="draft[body]"></lexxy-editor>',
     `<lexxy-editor name="draft[body]">
@@ -574,7 +597,7 @@ test("an editor's own chrome (toolbar selects/inputs inside lexxy-editor, a trix
   ).replace("<trix-editor", '<trix-toolbar><input type="url" name="href" value=""></trix-toolbar><trix-editor')
   seedDraft({ "lexxy-code-language": "ruby", href: "https://evil.example", "draft[body]": "<p>Draft</p>" })
   const { controller, q } = mountEditors(html)
-  controller.connect()
+  await connect(controller)
   expect(q('[name="lexxy-code-language"]').value).toBe("plain")
   for (const input of el_all(q, '[name="href"]')) expect(input.value).toBe("")
   fire(q("[name='draft[title]']"), "change")
@@ -586,7 +609,7 @@ test("an editor's own chrome (toolbar selects/inputs inside lexxy-editor, a trix
 
 const el_all = (q, sel) => [...q(sel).ownerDocument.querySelectorAll(sel)]
 
-test("restore replays through the editors' own value setters / textContent — never innerHTML", () => {
+test("restore replays through the editors' own value setters / textContent — never innerHTML", async () => {
   seedDraft({
     "draft[body]": "<p>Essay</p>",
     "draft[notes]": "<div>Notes</div>",
@@ -594,7 +617,7 @@ test("restore replays through the editors' own value setters / textContent — n
     "draft[summary]": "Plain <b>summary</b>",
   })
   const { controller, q } = mountEditors(EDITORS)
-  controller.connect()
+  await connect(controller)
   expect(q("lexxy-editor[name='draft[body]']").value).toBe("<p>Essay</p>")
   expect(q("trix-editor[input]").value).toBe("<div>Notes</div>")
   expect(q("#notes_trix_input").value).toBe("<div>Notes</div>") // via loadHTML → the hidden input
@@ -605,7 +628,7 @@ test("restore replays through the editors' own value setters / textContent — n
   expect(storage.calls.set).toBe(0) // the editors' own change events are not `input`/`change`
 })
 
-test("restore: blank asks the editor — an empty-looking Lexxy value restores, a non-empty server body wins", () => {
+test("restore: blank asks the editor — an empty-looking Lexxy value restores, a non-empty server body wins", async () => {
   seedDraft({ "draft[body]": "<p>Draft</p>", "draft[notes]": "<div>Draft notes</div>", "draft[summary]": "Draft summary" })
   const html = EDITORS.replace(
     'id="notes_trix_input" value=""',
@@ -613,28 +636,28 @@ test("restore: blank asks the editor — an empty-looking Lexxy value restores, 
   ).replace('name="draft[summary]">', 'name="draft[summary]">Server summary')
   const { controller, q } = mountEditors(html)
   // Lexxy's initial value is "<p><br></p>" — non-empty as a string, empty per isEmpty
-  controller.connect()
+  await connect(controller)
   expect(q("lexxy-editor[name='draft[body]']").value).toBe("<p>Draft</p>")
   expect(q("trix-editor[input]").value).toBe("<div>Server notes</div>")
   expect(q("[name='draft[summary]']").textContent).toBe("Server summary")
 })
 
-test("restore: always lets the draft overwrite a server-rendered editor value", () => {
+test("restore: always lets the draft overwrite a server-rendered editor value", async () => {
   seedDraft({ "draft[body]": "<p>Draft</p>", "draft[notes]": "<div>Draft notes</div>", "draft[summary]": "Draft summary" })
   const html = EDITORS.replace('name="draft[body]">', 'name="draft[body]" value="<p>Server</p>">')
     .replace('id="notes_trix_input" value=""', 'id="notes_trix_input" value="<div>Server notes</div>"')
     .replace('name="draft[summary]">', 'name="draft[summary]">Server summary')
   const { controller, q } = mountEditors(html, { payload: { ...PAYLOAD, restore: "always" } })
-  controller.connect()
+  await connect(controller)
   expect(q("lexxy-editor[name='draft[body]']").value).toBe("<p>Draft</p>")
   expect(q("trix-editor[input]").value).toBe("<div>Draft notes</div>")
   expect(q("[name='draft[summary]']").textContent).toBe("Draft summary")
 })
 
-test("fields:, reactive_persist_skip and nested-root ownership apply to editors", () => {
+test("fields:, reactive_persist_skip and nested-root ownership apply to editors", async () => {
   seedDraft({ "draft[body]": "<p>Draft</p>", "draft[private]": "<p>leak</p>", inner_body: "<p>leak</p>", "draft[summary]": "x" })
   const { controller, q } = mountEditors(EDITORS, { payload: { ...PAYLOAD, fields: ["draft[body]", "draft[private]"] } })
-  controller.connect()
+  await connect(controller)
   expect(q("lexxy-editor[name='draft[body]']").value).toBe("<p>Draft</p>")
   expect(q("[name='draft[private]']").value).toBe("<p><br></p>")
   expect(q("[name='inner_body']").value).toBe("<p><br></p>")
@@ -647,7 +670,7 @@ test("fields:, reactive_persist_skip and nested-root ownership apply to editors"
 test("an editor that has not upgraded yet is omitted from the snapshot and restored once it is defined", async () => {
   seedDraft({ "draft[body]": "<p>Draft</p>", "draft[notes]": "<div>Draft notes</div>", "draft[title]": "T" })
   const { controller, q } = mountEditors(EDITORS, { late: true })
-  controller.connect()
+  await connect(controller)
   expect(q("[name='draft[title]']").value).toBe("T")
   fire(q("[name='draft[title]']"), "change")
   expect(storage.json(KEY).fields).not.toHaveProperty("draft[body]")
@@ -666,7 +689,7 @@ test("a deferred restore still honours restore: blank and skips a root that left
     '<lexxy-editor name="draft[extra]"></lexxy-editor><trix-editor',
   )
   const { controller, q, el } = mountEditors(html, { late: true })
-  controller.connect()
+  await connect(controller)
   defineLexxy()
   await settle()
   expect(q("lexxy-editor[name='draft[body]']").value).toBe("<p>Server</p>") // blank re-checked at apply time
@@ -678,9 +701,9 @@ test("a deferred restore still honours restore: blank and skips a root that left
   expect(editorSets).toBe(1) // the root left the document: no Trix apply
 })
 
-test("an editor's own change event schedules the draft write (Lexical and Trix don't bubble a native input)", () => {
+test("an editor's own change event schedules the draft write (Lexical and Trix don't bubble a native input)", async () => {
   const { controller, q } = mountEditors(EDITORS)
-  controller.connect()
+  await connect(controller)
   q("lexxy-editor[name='draft[body]']").value = "<p>Typed</p>" // the stub dispatches lexxy:change
   expect(timers.length).toBe(1) // the same trailing-edge debounce as `input`
   drainTimers()
@@ -693,21 +716,21 @@ test("an editor's own change event schedules the draft write (Lexical and Trix d
   expect(timers.length).toBe(0) // listeners dropped on disconnect
 })
 
-test("a throwing editor setter never throws out of connect and is reported once under debug only", () => {
+test("a throwing editor setter never throws out of connect and is reported once under debug only", async () => {
   seedDraft({ "draft[body]": "<p>Draft</p>" })
   const { controller, q } = mountEditors(EDITORS, { rootAttrs: 'data-reactive-debug="true"' })
   Object.defineProperty(q("lexxy-editor[name='draft[body]']"), "editor", { get: () => undefined })
-  expect(() => controller.connect()).not.toThrow()
+  await connectCleanly(controller)
   expect(infos.length).toBe(1)
   expect(infos[0]).toContain("reactive_persist")
   expect(infos[0]).toContain("draft[body]")
 })
 
-test("without debug a throwing editor setter is silent", () => {
+test("without debug a throwing editor setter is silent", async () => {
   seedDraft({ "draft[body]": "<p>Draft</p>" })
   const { controller, q } = mountEditors(EDITORS)
   Object.defineProperty(q("lexxy-editor[name='draft[body]']"), "editor", { get: () => undefined })
-  expect(() => controller.connect()).not.toThrow()
+  await connectCleanly(controller)
   expect(infos).toEqual([])
 })
 
@@ -719,9 +742,9 @@ const GROUP = `
   <input type="checkbox" name="features[]" value="maps">
 `
 
-test("a group drafts the TICKED VALUES, not one box's checked state", () => {
+test("a group drafts the TICKED VALUES, not one box's checked state", async () => {
   const { controller, el } = mount(GROUP)
-  controller.connect()
+  await connect(controller)
   el.querySelector('[value="news"]').checked = true
   el.querySelector('[value="maps"]').checked = true
   fire(el.querySelector('[value="maps"]'), "change")
@@ -731,20 +754,20 @@ test("a group drafts the TICKED VALUES, not one box's checked state", () => {
   expect(draft["features[]"]).toEqual(["news", "maps"])
 })
 
-test("restoring a group ticks exactly the drafted boxes, not all of them", () => {
+test("restoring a group ticks exactly the drafted boxes, not all of them", async () => {
   // The bug this guards: with one boolean in the draft, the restore applied it
   // to every box of the group — a draft of "the last box was ticked" came back
   // as "everything is ticked".
   seedDraft({ "features[]": ["events"] })
   const { controller, el } = mount(GROUP)
-  controller.connect()
+  await connect(controller)
 
   expect(el.querySelector('[value="news"]').checked).toBe(false)
   expect(el.querySelector('[value="events"]').checked).toBe(true)
   expect(el.querySelector('[value="maps"]').checked).toBe(false)
 })
 
-test("restoring a group with SEVERAL drafted values ticks all of them", () => {
+test("restoring a group with SEVERAL drafted values ticks all of them", async () => {
   // The single-value case above cannot see this: the restore decides "did the
   // server have a say?" per box, and the loop writes `checked` as it goes — so
   // asking from inside it reads this restore's own work, and every box after
@@ -752,12 +775,12 @@ test("restoring a group with SEVERAL drafted values ticks all of them", () => {
   // ["news","maps"] came back as ["news"] alone.
   seedDraft({ "features[]": ["news", "maps"] })
   const { controller, el } = mount(GROUP)
-  controller.connect()
+  await connect(controller)
 
   expect([...el.querySelectorAll("input")].filter((b) => b.checked).map((b) => b.value)).toEqual(["news", "maps"])
 })
 
-test("a group the server rendered ticked still beats the draft", () => {
+test("a group the server rendered ticked still beats the draft", async () => {
   // The counterweight: the guard must keep working, and it reads the state the
   // SERVER left, not the one the restore is writing.
   seedDraft({ "features[]": ["news", "maps"] })
@@ -766,14 +789,14 @@ test("a group the server rendered ticked still beats the draft", () => {
     <input type="checkbox" name="features[]" value="events" checked>
     <input type="checkbox" name="features[]" value="maps">
   `)
-  controller.connect()
+  await connect(controller)
 
   expect([...el.querySelectorAll("input")].filter((b) => b.checked).map((b) => b.value)).toEqual(["events"])
 })
 
-test("a lone checkbox keeps drafting its boolean", () => {
+test("a lone checkbox keeps drafting its boolean", async () => {
   const { controller, el } = mount(`<input type="checkbox" name="gift">`)
-  controller.connect()
+  await connect(controller)
   el.querySelector('[name="gift"]').checked = true
   fire(el.querySelector('[name="gift"]'), "change")
   drainTimers()
@@ -781,7 +804,7 @@ test("a lone checkbox keeps drafting its boolean", () => {
   expect(storage.json(KEY).fields.gift).toBe(true)
 })
 
-test("a contenteditable sharing a group's name appends instead of clobbering the array", () => {
+test("a contenteditable sharing a group's name appends instead of clobbering the array", async () => {
   // Editors and contenteditables are collected after the native controls, so
   // before the fix the last writer won per name: the contenteditable's string
   // replaced the checkbox's entry and the draft held only "typed" — the
@@ -792,7 +815,7 @@ test("a contenteditable sharing a group's name appends instead of clobbering the
     <input type="checkbox" name="notes[]" value="a">
     <div contenteditable="true" name="notes[]">typed</div>
   `)
-  controller.connect()
+  await connect(controller)
   el.querySelector('[value="a"]').checked = true
   fire(el.querySelector('[value="a"]'), "change")
   drainTimers()
@@ -800,12 +823,12 @@ test("a contenteditable sharing a group's name appends instead of clobbering the
   expect(storage.json(KEY).fields["notes[]"]).toEqual(["a", "typed"])
 })
 
-test("a radio group keeps its single value even under a [] name", () => {
+test("a radio group keeps its single value even under a [] name", async () => {
   const { controller, el } = mount(`
     <input type="radio" name="plan[]" value="free">
     <input type="radio" name="plan[]" value="pro">
   `)
-  controller.connect()
+  await connect(controller)
   el.querySelector('[value="pro"]').checked = true
   fire(el.querySelector('[value="pro"]'), "change")
   drainTimers()
@@ -813,7 +836,7 @@ test("a radio group keeps its single value even under a [] name", () => {
   expect(storage.json(KEY).fields["plan[]"]).toBe("pro")
 })
 
-test("a text control sharing the group's name does not kill the draft silently", () => {
+test("a text control sharing the group's name does not kill the draft silently", async () => {
   // The bug this guards is invisible by construction: `.push` on the string a
   // non-checkbox left in the slot throws inside the draft write, persistWrite
   // swallows it, and the root then persists NOTHING — no draft, no console
@@ -822,7 +845,7 @@ test("a text control sharing the group's name does not kill the draft silently",
     <input type="text" name="features[]" value="freeform">
     <input type="checkbox" name="features[]" value="news">
   `)
-  controller.connect()
+  await connect(controller)
   el.querySelector('[value="news"]').checked = true
   fire(el.querySelector('[value="news"]'), "change")
   drainTimers()
@@ -831,7 +854,7 @@ test("a text control sharing the group's name does not kill the draft silently",
   expect(storage.json(KEY).fields["features[]"]).toEqual(["freeform", "news"])
 })
 
-test("a lone control under a [] name keeps its draft round-tripping", () => {
+test("a lone control under a [] name keeps its draft round-tripping", async () => {
   // A name ending in `[]` with no second contributor is a list JS maintains,
   // not a group with an ambiguous mapping: the draft has exactly one entry and
   // it can only have come from this control. Measured before the group slot
@@ -839,12 +862,12 @@ test("a lone control under a [] name keeps its draft round-tripping", () => {
   // rule dropped it silently.
   seedDraft({ "tags[]": ["typed"] })
   const { controller, el } = mount(`<input type="text" name="tags[]" value="">`)
-  controller.connect()
+  await connect(controller)
 
   expect(el.querySelector("input").value).toBe("typed")
 })
 
-test("a list whose rows shrank between visits keeps what the server rendered", () => {
+test("a list whose rows shrank between visits keeps what the server rendered", async () => {
   // The DOM decides the group SIZE, the draft decides its LENGTH, and the two
   // describe different moments: a JS-maintained row list can have three rows
   // when the draft is written and one when the page comes back. One entry per
@@ -853,12 +876,12 @@ test("a list whose rows shrank between visits keeps what the server rendered", (
   // field never held.
   seedDraft({ "tags[]": ["one", "two", "three"] })
   const { controller, el } = mount(`<input type="text" name="tags[]" value="">`)
-  controller.connect()
+  await connect(controller)
 
   expect(el.querySelector("input").value).toBe("")
 })
 
-test("two generic controls under one [] name keep what the server rendered", () => {
+test("two generic controls under one [] name keep what the server rendered", async () => {
   // Two contributors and nothing in the draft says which entry was whose, so
   // the ambiguity stands and both keep the server's value.
   seedDraft({ "tags[]": ["one", "two"] })
@@ -866,12 +889,12 @@ test("two generic controls under one [] name keep what the server rendered", () 
     <input type="text" name="tags[]" value="">
     <input type="text" name="tags[]" value="">
   `)
-  controller.connect()
+  await connect(controller)
 
   expect([...el.querySelectorAll("input")].map((i) => i.value)).toEqual(["", ""])
 })
 
-test("restoring a mixed group leaves the text control alone instead of pasting the list", () => {
+test("restoring a mixed group leaves the text control alone instead of pasting the list", async () => {
   // The draft of a mixed group is ["freeform", "news"] — the text value and the
   // ticked box, in document order. Nothing in it says which element belonged to
   // the text field, so the restore must not guess: it would write
@@ -881,18 +904,18 @@ test("restoring a mixed group leaves the text control alone instead of pasting t
     <input type="text" name="features[]" value="">
     <input type="checkbox" name="features[]" value="news">
   `)
-  controller.connect()
+  await connect(controller)
 
   expect(el.querySelector('input[type="text"]').value).toBe("")
   expect(el.querySelector('[value="news"]').checked).toBe(true)
 })
 
-test("a group with nothing ticked drafts an empty array", () => {
+test("a group with nothing ticked drafts an empty array", async () => {
   const { controller, el } = mount(`
     <input type="checkbox" name="features[]" value="news">
     <input type="checkbox" name="features[]" value="events">
   `)
-  controller.connect()
+  await connect(controller)
   el.querySelector('[value="news"]').checked = true
   fire(el.querySelector('[value="news"]'), "change")
   drainTimers()
@@ -903,7 +926,7 @@ test("a group with nothing ticked drafts an empty array", () => {
   expect(storage.json(KEY).fields["features[]"]).toEqual([])
 })
 
-test("restoring a mixed group leaves a contenteditable alone, not 'a,typed'", () => {
+test("restoring a mixed group leaves a contenteditable alone, not 'a,typed'", async () => {
   // The mirror of the snapshot test above. The restore's array guard has to sit
   // ABOVE the editor branch: below it, the very controls that land last in the
   // snapshot — editors and contenteditables — would still receive the whole
@@ -913,13 +936,13 @@ test("restoring a mixed group leaves a contenteditable alone, not 'a,typed'", ()
     <input type="checkbox" name="notes[]" value="a">
     <div contenteditable="true" name="notes[]"></div>
   `)
-  controller.connect()
+  await connect(controller)
 
   expect(el.querySelector("[contenteditable]").textContent).toBe("")
   expect(el.querySelector('[value="a"]').checked).toBe(true)
 })
 
-test("a draft from before the group fix does not tick every box of the group", () => {
+test("a draft from before the group fix does not tick every box of the group", async () => {
   // The upgrade path: 0.13.2 wrote ONE boolean under `features[]` (the bug),
   // and the draft outlives the upgrade — default ttl 7 days. Restoring it the
   // ordinary way hands `true` to every box in the group, which is the very
@@ -930,12 +953,12 @@ test("a draft from before the group fix does not tick every box of the group", (
     <input type="checkbox" name="features[]" value="events">
     <input type="checkbox" name="features[]" value="maps">
   `)
-  controller.connect()
+  await connect(controller)
 
   expect([...el.querySelectorAll("input")].filter((b) => b.checked)).toEqual([])
 })
 
-test("a stale string under a group name leaves the boxes alone too", () => {
+test("a stale string under a group name leaves the boxes alone too", async () => {
   // The mixed-group shape of the same old draft: the LAST control to write won,
   // so the key could hold a text value. Boolean("freeform") is true, so without
   // the guard the box ticks on a value that never belonged to it.
@@ -944,19 +967,19 @@ test("a stale string under a group name leaves the boxes alone too", () => {
     <input type="text" name="features[]" value="">
     <input type="checkbox" name="features[]" value="news">
   `)
-  controller.connect()
+  await connect(controller)
 
   expect(el.querySelector('[value="news"]').checked).toBe(false)
   expect(el.querySelector('input[type="text"]').value).toBe("freeform")
 })
 
-test("a lone checkbox still restores from a boolean draft", () => {
+test("a lone checkbox still restores from a boolean draft", async () => {
   // The counterweight: the guard asks for the `[]` suffix, and a checkbox
   // without one keeps the boolean it has held since #239. Drop the suffix test
   // and this example goes red.
   seedDraft({ "form[gift]": true })
   const { controller, el } = mount(`<input type="checkbox" name="form[gift]">`)
-  controller.connect()
+  await connect(controller)
 
   expect(el.querySelector("input").checked).toBe(true)
 })
@@ -972,7 +995,7 @@ test("a late editor under a group name is left alone by the DEFERRED restore too
      <lexxy-editor name="notes[]"></lexxy-editor>`,
     { late: true },
   )
-  controller.connect()
+  await connect(controller)
   defineLexxy()
   await settle()
 
@@ -981,7 +1004,7 @@ test("a late editor under a group name is left alone by the DEFERRED restore too
   expect(q('[value="a"]').checked).toBe(true)
 })
 
-test("a stale group key does not wipe a multi-select's server selection under restore: always", () => {
+test("a stale group key does not wipe a multi-select's server selection under restore: always", async () => {
   // 0.13.2 wrote one value per NAME, last writer wins, so a checkbox in a
   // mixed group could leave its boolean under the select's name. Under
   // `restore: "always"` the select branch skips the "the server rendered it"
@@ -998,7 +1021,7 @@ test("a stale group key does not wipe a multi-select's server selection under re
      <input type="text" name="note" value="">`,
     { payload: { ...PAYLOAD, restore: "always" } },
   )
-  controller.connect()
+  await connect(controller)
 
   expect([...el.querySelector("select").options].filter((o) => o.selected).map((o) => o.value)).toEqual(["blue"])
   expect(el.querySelector('input[type="checkbox"]').checked).toBe(false)
@@ -1016,7 +1039,7 @@ test("a late editor does not adopt the single entry a checkbox left in the group
      <lexxy-editor name="notes[]"></lexxy-editor>`,
     { late: true },
   )
-  controller.connect()
+  await connect(controller)
   defineLexxy()
   await settle()
 
@@ -1025,7 +1048,7 @@ test("a late editor does not adopt the single entry a checkbox left in the group
   expect(q('[value="a"]').checked).toBe(true)
 })
 
-test("a multi-select in a MIXED group keeps the selection the server rendered", () => {
+test("a multi-select in a MIXED group keeps the selection the server rendered", async () => {
   // A multi-select reads a list by matching option values, which only holds
   // when the list is its own. Here a text field contributes too, and its value
   // happens to equal an option — measured before the fix, the select came back
@@ -1040,8 +1063,248 @@ test("a multi-select in a MIXED group keeps the selection the server rendered", 
      <input type="text" name="note" value="">`,
     { payload: { ...PAYLOAD, restore: "always" } },
   )
-  controller.connect()
+  await connect(controller)
 
   expect([...el.querySelector("select").options].filter((o) => o.selected).map((o) => o.value)).toEqual(["blue"])
   expect(el.querySelector('[name="note"]').value).toBe("drafted")
+})
+
+// --- The restore runs after connect() (issue #275) ----------------------------
+//
+// The persist module is imported on demand, so the restore runs a moment after
+// connect() instead of inside it. Until it has run the root still shows the
+// server's blanks — and nothing may treat those blanks as the user's values.
+
+function requestRig() {
+  const posts = []
+  window.Turbo = { renderStreamMessage: () => {} }
+  globalThis.fetch = (_url, options) => {
+    posts.push(JSON.parse(options.body))
+    return Promise.resolve({
+      redirected: false,
+      ok: true,
+      status: 200,
+      headers: { get: () => "text/vnd.turbo-stream.html" },
+      text: () => Promise.resolve(""),
+    })
+  }
+  return posts
+}
+
+test("connect() returns before the restore; featuresReady resolves after it", async () => {
+  seedDraft({ "form[name]": "Ada" })
+  const { controller, q } = mount(FORM)
+
+  controller.connect()
+  expect(q('[name="form[name]"]').value).toBe("")
+
+  await controller.featuresReady
+  expect(q('[name="form[name]"]').value).toBe("Ada")
+})
+
+test("an action dispatched before the restore posts the RESTORED values, once", async () => {
+  seedDraft({ "form[name]": "Ada" })
+  const posts = requestRig()
+  const { controller } = mount(FORM)
+  let prevented = false
+
+  controller.connect()
+  const done = controller.dispatch({ params: { action: "save", params: "{}" }, preventDefault: () => (prevented = true) })
+  expect(prevented).toBe(true)
+  await done
+  await controller.queue
+
+  expect(posts.map((post) => [post.act, post.params["form[name]"]])).toEqual([["save", "Ada"]])
+})
+
+test("a keystroke before the restore writes no draft of the server's blanks", async () => {
+  seedDraft({ "form[name]": "Ada", "form[gift]": true })
+  const { controller, q } = mount(FORM)
+
+  controller.connect()
+  fire(q('[name="form[size]"]'), "change")
+  fire(q('[name="form[name]"]'), "input")
+  // Nothing wrote, and no debounce is pending: the one timer is the loader's
+  // import timeout (not drained — this file's fake clock would fire it).
+  expect(storage.calls.set).toBe(0)
+  expect(timers.length).toBe(1)
+  expect(storage.json(KEY).fields).toEqual({ "form[name]": "Ada", "form[gift]": true })
+
+  await controller.featuresReady
+  expect(q('[name="form[name]"]').value).toBe("Ada")
+  expect(q('[name="form[gift]"]').checked).toBe(true)
+})
+
+test("a field the user filled in before the restore keeps what they typed; the rest of the draft still restores", async () => {
+  seedDraft({ "form[name]": "Ada", "form[gift]": true })
+  const { controller, q } = mount(FORM)
+
+  controller.connect()
+  q('[name="form[name]"]').value = "Grace"
+  await controller.featuresReady
+
+  // restore: blank — a non-blank control is never overwritten, whoever filled it.
+  expect(q('[name="form[name]"]').value).toBe("Grace")
+  expect(q('[name="form[gift]"]').checked).toBe(true)
+})
+
+test("persist_state before the restore waits for it instead of drafting the server's blanks", async () => {
+  seedDraft({ "form[name]": "Ada" }, { state: { step: 1 } })
+  const { controller, el, q } = mount(FORM)
+
+  controller.connect()
+  controller.runOps({ preventDefault() {}, params: { ops: JSON.stringify([["persist_state", { to: "@root", state: { step: 2 } }]]) } })
+  await controller.featuresReady
+  await settle()
+
+  const draft = storage.json(KEY)
+  expect(draft.fields["form[name]"]).toBe("Ada")
+  expect(draft.state).toEqual({ step: 2 })
+  expect(q('[name="form[name]"]').value).toBe("Ada")
+  expect(el.getAttribute("data-reactive-persist-state")).toBe('{"step":2}')
+})
+
+test("persist_clear before the restore runs after it: the fields restore, then the draft is gone", async () => {
+  seedDraft({ "form[name]": "Ada" })
+  const { controller, q } = mount(FORM)
+
+  controller.connect()
+  controller.runOps({ preventDefault() {}, params: { ops: JSON.stringify([["persist_clear", { to: "@root" }]]) } })
+  await controller.featuresReady
+  await settle()
+
+  expect(q('[name="form[name]"]').value).toBe("Ada")
+  expect(storage.raw(KEY)).toBeUndefined()
+})
+
+test("a persist op on a root that is not connected runs at once", async () => {
+  seedDraft({ "form[name]": "Ada" })
+  const { controller, el } = mount(FORM)
+  // Another root's controller carries the op to this one, which never connects.
+  el.id = "pf"
+  document.body.insertAdjacentHTML("beforeend", `<div id="other-root" data-controller="reactive"></div>`)
+  const other = new ReactiveController()
+  other.element = document.getElementById("other-root")
+  other.connect()
+
+  other.runOps({ preventDefault() {}, params: { ops: JSON.stringify([["persist_clear", { to: "#pf", global: true }]]) } })
+  await settle()
+
+  expect(storage.raw(KEY)).toBeUndefined()
+  expect(controller.featuresReady).toBeDefined()
+})
+
+// Before the split the submit listener existed from connect(). Now the
+// feature may still be loading when the form is submitted — and a draft that
+// survived a successful submit would come back on the next visit.
+function submitEnd(form, success = true) {
+  form.dispatchEvent(new window.CustomEvent("turbo:submit-end", { bubbles: true, detail: { success } }))
+}
+
+test("a successful submit before the restore forgets the draft, and the late restore brings nothing back", async () => {
+  seedDraft({ "form[name]": "Ada" })
+  const { controller, q } = mount(FORM)
+
+  controller.connect()
+  submitEnd(document.getElementById("f"))
+  await controller.featuresReady
+  await settle()
+
+  expect(storage.raw(KEY)).toBeUndefined()
+  expect(q('[name="form[name]"]').value).toBe("")
+})
+
+test("a successful submit before the restore forgets the draft even when the root leaves at once", async () => {
+  seedDraft({ "form[name]": "Ada" })
+  const { controller } = mount(FORM)
+
+  controller.connect()
+  submitEnd(document.getElementById("f"))
+  // Turbo's redirect visit: the root is gone before the module arrived.
+  controller.disconnect()
+  await settle()
+  await settle()
+
+  expect(storage.raw(KEY)).toBeUndefined()
+})
+
+test("a failed submit, or another form's, before the restore keeps the draft", async () => {
+  seedDraft({ "form[name]": "Ada" })
+  const { controller, q } = mount(FORM)
+
+  controller.connect()
+  submitEnd(document.getElementById("f"), false)
+  submitEnd(document.getElementById("other"))
+  await controller.featuresReady
+  await settle()
+
+  expect(storage.json(KEY).fields).toEqual({ "form[name]": "Ada" })
+  expect(q('[name="form[name]"]').value).toBe("Ada")
+})
+
+test("once the feature has connected the core's stand-in submit listener is gone", async () => {
+  seedDraft({ "form[name]": "Ada" })
+  const { controller } = mount(FORM)
+  const added = []
+  const removed = []
+  const add = document.addEventListener.bind(document)
+  const remove = document.removeEventListener.bind(document)
+  document.addEventListener = (type, ...rest) => {
+    if (type === "turbo:submit-end") added.push(rest[0])
+    return add(type, ...rest)
+  }
+  document.removeEventListener = (type, ...rest) => {
+    if (type === "turbo:submit-end") removed.push(rest[0])
+    return remove(type, ...rest)
+  }
+
+  await connect(controller)
+
+  // Two were added — the core's stand-in, then the feature's own — and the
+  // stand-in was removed again.
+  expect(added).toHaveLength(2)
+  expect(removed).toEqual([added[0]])
+})
+
+test("restore: always overwrites what was typed before the restore (as it does for a field typed in before connect)", async () => {
+  seedDraft({ "form[name]": "Ada" })
+  const { controller, q } = mount(FORM, { payload: { ...PAYLOAD, restore: "always" } })
+
+  controller.connect()
+  q('[name="form[name]"]').value = "Grace"
+  await controller.featuresReady
+
+  expect(q('[name="form[name]"]').value).toBe("Ada")
+})
+
+test("disconnect before the feature arrives restores nothing and wires nothing", async () => {
+  seedDraft({ "form[name]": "Ada" })
+  const { controller, q } = mount(FORM)
+
+  controller.connect()
+  const ready = controller.featuresReady
+  controller.disconnect()
+  await ready
+  fire(q('[name="form[name]"]'), "change")
+
+  expect(q('[name="form[name]"]').value).toBe("")
+  expect(storage.calls.set).toBe(0)
+})
+
+test("the feature's editor constants match the core's (a feature never imports the core)", async () => {
+  const core = await import("../../app/javascript/phlex/reactive/reactive_controller.js")
+  const persist = await import("../../app/javascript/phlex/reactive/features/persist.js")
+
+  expect(persist.PERSIST_EDITOR_SELECTOR).toBe(core.EDITOR_SELECTOR)
+  expect([...persist.PERSIST_EDITOR_TAGS]).toEqual([...core.EDITOR_TAGS])
+})
+
+test("a root without reactive_persist never imports the feature", async () => {
+  const { controller } = mount(FORM, { payload: null })
+  const before = controller.featuresReady
+
+  controller.connect()
+
+  // No scan hit: featuresReady is the shared, already-resolved promise.
+  expect(controller.featuresReady).toBe(before)
 })

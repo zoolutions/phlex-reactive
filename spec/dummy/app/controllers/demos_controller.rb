@@ -6,6 +6,10 @@
 class DemosController < ActionController::Base
   layout "application"
 
+  # slow_persist_feature answers a module import with JavaScript; Rails would
+  # refuse a non-XHR GET for JS as a cross-origin script include.
+  skip_after_action :verify_same_origin_request, only: :slow_persist_feature
+
   def counter
     render_component CounterComponent.new(count: 0)
   end
@@ -419,6 +423,24 @@ class DemosController < ActionController::Base
 
   def persist_form_submit
     redirect_to "/persist_form?submitted=1"
+  end
+
+  # Issue #275: the draft code is a feature module the client imports on
+  # demand. ?slow=<ms> pins that module to a delayed copy, so a spec can act
+  # in the window between the controller connecting and the draft restoring;
+  # ?layout=lazy uses the lazily loading layout (early.js, controller later).
+  def persist_action
+    @slow_feature_ms = params[:slow].to_i.clamp(0, 5000) if params[:slow].present?
+    html = render_to_string(PersistActionComponent.new, layout: false)
+    return render(html: html.html_safe, layout: true) unless params[:layout] == "lazy"
+
+    @reactive_load = params[:load].presence_in(%w[auto eager]) || ""
+    render html: html.html_safe, layout: "lazy_controller"
+  end
+
+  def slow_persist_feature
+    sleep(params[:ms].to_i.clamp(0, 5000) / 1000.0)
+    send_file Rails.public_path.join("vendor/features/persist.js"), type: "text/javascript", disposition: "inline"
   end
 
   # Issue #241: reactive_persist over rich editors. ?body= / ?notes= render

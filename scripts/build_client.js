@@ -6,7 +6,7 @@
 // developers read and the JS test suite imports directly — it is intentionally
 // comment-dense (the source IS the documentation). Browsers, though, should not
 // pay for ~86 KB of comments on every page load, so the gem also ships a
-// minified twin of each module (108 KB → 22 KB for the controller) with a
+// minified twin of each module (about a fifth of the source) with a
 // linked sourcemap so devtools still shows the real code.
 //
 // Why per-file minify, NOT a single bundle:
@@ -30,7 +30,11 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..")
 const srcDir = join(root, "app/javascript/phlex/reactive")
 
 // The modules that ship to the browser. Order is cosmetic (build log only).
-const ENTRIES = ["reactive_controller", "early", "confirm", "confirm_predicate", "compute", "inspect"]
+// A "features/<name>" entry is a feature module (issue #275): the controller
+// imports it on demand, by the bare specifier phlex/reactive/features/<name>.
+// lib/phlex/reactive/engine.rb (CLIENT_FEATURES) pins and precompiles the same
+// names; spec/phlex/engine_client_pin_spec.rb fails when the two lists differ.
+const ENTRIES = ["reactive_controller", "early", "confirm", "confirm_predicate", "compute", "inspect", "features/persist"]
 
 // Kept external so a minified module imports its sibling by the SAME bare
 // specifier the source uses — the import map (engine.rb pins) maps each to its
@@ -40,6 +44,9 @@ const EXTERNAL = [
   "phlex/reactive/confirm",
   "phlex/reactive/confirm_predicate",
   "phlex/reactive/compute",
+  // Every feature module: the controller's import("phlex/reactive/features/…")
+  // must stay a real dynamic import of its own file, never be inlined.
+  "phlex/reactive/features/*",
 ]
 
 // Remove stale artifacts first so a renamed/removed entry can't leave a ghost.
@@ -51,6 +58,9 @@ for (const name of ENTRIES) {
 const result = await Bun.build({
   entrypoints: ENTRIES.map((name) => join(srcDir, `${name}.js`)),
   outdir: srcDir,
+  // Entries live in more than one directory (features/): anchor the output
+  // layout on the source directory so features/persist.js lands beside it.
+  root: srcDir,
   minify: true,
   sourcemap: "linked",
   external: EXTERNAL,

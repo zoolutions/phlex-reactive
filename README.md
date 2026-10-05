@@ -237,10 +237,41 @@ import ReactiveController from "phlex/reactive/reactive_controller"
 application.register("reactive", ReactiveController)
 ```
 
-The gem ships a prebuilt, minified `reactive_controller.min.js` (~22 KB vs the
-~106 KB commented source) with a linked sourcemap, and auto-pins it for importmap
-apps — so browsers load the small file while devtools still shows the real code.
-Point your bundler at the gem path or copy the `.min.js` (+ its `.map`) in. See
+The gem ships prebuilt, minified modules with linked sourcemaps and auto-pins
+them for importmap apps — so browsers load the small files while devtools
+still shows the real code.
+
+The client is **a core plus feature modules**. The core
+(`reactive_controller`) imports a feature — today the `reactive_persist`
+drafts — only on a page that uses it, by a bare specifier such as
+`phlex/reactive/features/persist`. Importmap apps get every pin from the
+engine. A bundler needs **one alias** for the gem's JavaScript directory,
+which covers the controller, its seams (`confirm`, `compute`,
+`confirm_predicate`) and every feature, now and later:
+
+```js
+// esbuild (build script)
+import * as esbuild from "esbuild"
+import { execSync } from "node:child_process"
+const gemJs = `${execSync("bundle show phlex-reactive").toString().trim()}/app/javascript`
+
+await esbuild.build({
+  // …
+  splitting: true, format: "esm", // each feature becomes its own chunk
+  plugins: [{
+    name: "phlex-reactive",
+    setup(build) {
+      build.onResolve({ filter: /^phlex\/reactive\// }, ({ path }) => ({ path: `${gemJs}/${path}.min.js` }))
+    },
+  }],
+})
+```
+
+(Vite/webpack: the same rule as a `resolve.alias` for `phlex/reactive`.)
+Without code splitting the features are bundled into your entry — it works,
+you just ship them on every page. Copying `reactive_controller.min.js` alone
+into your app is **no longer enough**: copy the whole `phlex/reactive`
+directory, `features/` included, or use the alias. See
 [docs/installation.md](https://phlex-reactive.zoolutions.llc/docs/installation).
 </details>
 
@@ -1335,11 +1366,25 @@ wire attr: `data-reactive-persist='{"key":"village-apply","ttl":604800,"debounce
   a fast Turbo navigation never loses the last keystrokes. The snapshot is a
   full pass over the owned controls: radios store the checked value, checkboxes
   the checked state, `<select multiple>` an array, everything else `.value`.
-- **Restore** — on connect, **first** among the client bindings, so a
-  `reactive_show` section, `reactive_on_complete` (armed, never fired),
-  `reactive_filter` and a `reactive_compute` root all read the restored values
-  on first paint — no synthetic events. A morph or broadcast re-render is
-  server truth and is **never** re-restored.
+- **Restore** — when the root connects, as soon as the draft module is there.
+  The draft code is a feature module the client fetches only on a page with a
+  `reactive_persist` root: on a first visit the restore follows the connect by
+  one small request (about 3 KB), on any later one it is immediate. The
+  client then re-runs its connect-time bindings, so a `reactive_show` section,
+  `reactive_on_complete` (armed, never fired), `reactive_filter` and a
+  `reactive_compute` root all read the restored values — no synthetic events.
+  Until the restore has run, nothing is drafted from the blanks the server
+  rendered, and a successful submit still forgets the draft. An action the
+  user fires waits for the restore and posts the restored values — for at
+  most the feature timeout (10 s); if the module is slower than that, or
+  fails to load, the action goes out with the values on the page. With the
+  default `restore: :blank`, what the user typed into a field before the
+  restore stays there; `restore: :always` overwrites it, as it overwrites
+  anything else in the field. A morph or broadcast
+  re-render is server truth and is **never** re-restored. To take the request
+  out of the first visit, pin the module with `preload: true` in your
+  importmap (`pin "phlex/reactive/features/persist", to:
+  "phlex/reactive/features/persist.min.js", preload: true`).
 - **`restore: :blank`** (default) — a draft value lands only in a control the
   server rendered **blank**, so a 422 re-render's submitted values beat an
   older draft. `restore: :always` lets the draft win.
@@ -2525,6 +2570,15 @@ latency, veto a dispatch, or build retry UI **without forking the controller**:
 | `offline` | the browser was offline (`navigator.onLine === false`) when the action fired — the fetch was never sent | `retry` |
 | `network` | `fetch` itself rejected (DNS, connection reset, an interface drop mid-flight) — the server never saw the request | `retry` |
 | `apply` | the server processed the action successfully, but something AFTER the fetch threw (a malformed response, a Turbo render error) | no `retry` |
+| `feature` | a part of the client that loads on demand (a feature module, e.g. the `reactive_persist` drafts) could not be used on this root | `feature`, `phase`, `error`; no `action`, no `retry` |
+
+A `feature` error carries the module's name and a `phase`: `"load"` (the
+import failed — it stays failed until the page is reloaded, because browsers
+cache a failed module), `"timeout"` (not there after 10 s; the root carried on
+without it, and it still connects if it arrives), `"connect"` (it threw while
+wiring the root) or `"detect"`. The root's other behavior keeps working. The
+10 s is `<meta name="phlex-reactive-feature-timeout" content="ms">` in
+`<head>`; a root's actions wait for its features for at most that long.
 
 `apply` covers a throw in the controller's own post-fetch code — not a
 throwing listener on `reactive:applied` itself. Per the DOM spec,

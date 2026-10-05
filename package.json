@@ -8,7 +8,7 @@
     "build:js": "bun run scripts/build_client.js"
   },
   "devDependencies": {
-    "happy-dom": "^20.10.6",
+    "happy-dom": "^20.14.5",
     "mitata": "^1.0.34",
     "playwright": "^1.50.0"
   }
