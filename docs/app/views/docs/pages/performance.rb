@@ -864,7 +864,7 @@ module Views
               code { 'phlex/reactive/early' }
               plain ' pin: the doctor names each map without it. Set '
               code { 'Phlex::Reactive.importmaps = -> { { "landing" => landing_map } }' }
-              plain 'to have it check maps other than '
+              plain ' to have it check maps other than '
               code { 'Rails.application.importmap' }
               plain '.'
             end
