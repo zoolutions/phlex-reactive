@@ -575,6 +575,44 @@ module Phlex
         @defer_path ||= "/reactive/defer"
       end
 
+      # The path prefix of the cacheable-fragment GET endpoint (issue #277):
+      # GET <fragment_path>/<signed id>. Default "/reactive/fragment"; set
+      # before boot if it collides. The shell renders the full URL, but the
+      # client only fetches one under the path it knows: when you change this,
+      # also render <meta name="phlex-reactive-fragment-path" content="…">.
+      attr_writer :fragment_path
+
+      def fragment_path
+        @fragment_path ||= "/reactive/fragment"
+      end
+
+      # The longest max-age (seconds) a `reactive_lazy cache:` component may
+      # ask the browser to keep its fragment for. A component declaring more
+      # is answered with this cap. Within max-age the browser reuses its copy
+      # WITHOUT asking the server — so this also bounds how long a revoked
+      # permission can keep showing a stale fragment. Default 1 hour; nil
+      # restores it; 0 makes every cached fragment revalidate on each use.
+      def fragment_cache_max_age_limit=(value)
+        seconds = value.is_a?(ActiveSupport::Duration) && value.to_i == value ? value.to_i : value
+        unless seconds.nil? || (seconds.is_a?(::Integer) && !seconds.negative?)
+          raise ArgumentError,
+            "Phlex::Reactive.fragment_cache_max_age_limit must be a whole, non-negative number of seconds " \
+            "(or nil for the default) — got #{value.inspect}"
+        end
+
+        @fragment_cache_max_age_limit = seconds
+      end
+
+      def fragment_cache_max_age_limit
+        @fragment_cache_max_age_limit ||= 3600
+      end
+
+      # The deterministic, no-expiry, purpose-scoped fragment id of an identity
+      # payload, and its verification (issue #277). See Phlex::Reactive::Fragment.
+      def sign_fragment(payload) = Fragment.sign(payload)
+
+      def verify_fragment(id) = Fragment.verify(id)
+
       # How deferred segments reach the actor: :auto (push iff capable, else
       # pull), :fetch (always pull), :stream (push; degrades to pull with a
       # warning when the capability is absent). Validated at assignment — a
@@ -1079,6 +1117,7 @@ module Phlex
       # The controller a correctly-mounted action path resolves to. Used by the
       # route guard below.
       ACTIONS_CONTROLLER = "phlex/reactive/actions"
+      FRAGMENTS_CONTROLLER = "phlex/reactive/fragments"
 
       # True when a POST to `path` resolves to the gem's ActionsController. A host
       # catch-all route (match "*path", ...) appended above the engine's route
@@ -1095,6 +1134,20 @@ module Phlex
         ensure_routes_loaded
         recognized = ::Rails.application.routes.recognize_path(path, method: :post)
         recognized[:controller] == ACTIONS_CONTROLLER
+      rescue ActionController::RoutingError, ActiveRecord::RecordNotFound
+        false
+      end
+
+      # Does GET <fragment_path>/<id> resolve to the gem's FragmentsController
+      # (issue #277)? A host GET catch-all shadows it otherwise, and every
+      # `reactive_lazy cache:` fetch then gets the host's fallback page. The
+      # doctor reports it, like the defer route.
+      def fragment_route_ok?(path = fragment_path)
+        return false unless defined?(::Rails) && ::Rails.application
+
+        ensure_routes_loaded
+        recognized = ::Rails.application.routes.recognize_path("#{path}/probe", method: :get)
+        recognized[:controller] == FRAGMENTS_CONTROLLER
       rescue ActionController::RoutingError, ActiveRecord::RecordNotFound
         false
       end

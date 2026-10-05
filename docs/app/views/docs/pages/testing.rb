@@ -440,6 +440,20 @@ module Views
                 expect(page).to have_reactive_requests(1)  # still one: reused
                 expect(page).to have_reactive_requests(0, kind: :defer)
               end
+
+              # A reactive_lazy(cache:) fragment GET counts as kind: :defer per fetch()
+              # call — also when the browser cache answers it. "No network request":
+              it "reuses the cached fragment on the next page view" do
+                2.times do
+                  visit "/"
+                  expect(page).to have_css("#account-menu a")
+                end
+                transfers = page.evaluate_script(<<~JS)
+                  performance.getEntriesByType("resource")
+                    .filter((e) => e.name.includes("/reactive/fragment/")).map((e) => e.transferSize)
+                JS
+                expect(transfers).to eq([0])               # this page's fetch never left the browser
+              end
             RUBY
           end
         end

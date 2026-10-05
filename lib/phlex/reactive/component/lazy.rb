@@ -54,6 +54,26 @@ module Phlex
             "{ visible: \"200px\" } (a px/% rootMargin) — got #{on.inspect}"
         end
 
+        # `cache:` → { max_age: <seconds> }, or raise. Only a whole, positive
+        # number of seconds (an Integer or an ActiveSupport::Duration) is a
+        # lifetime; the endpoint caps it at fragment_cache_max_age_limit.
+        def self.normalize_cache(cache)
+          unless cache.is_a?(::Hash) && cache.keys == [:max_age]
+            raise ArgumentError,
+              "reactive_lazy cache: expects { max_age: <seconds> } (e.g. { max_age: 10.minutes }) — got #{cache.inspect}"
+          end
+
+          max_age = cache[:max_age]
+          # Duration#to_i truncates (1.5.seconds → 1): only an exact one converts.
+          seconds = max_age.is_a?(ActiveSupport::Duration) && max_age.to_i == max_age ? max_age.to_i : max_age
+          unless seconds.is_a?(::Integer) && seconds.positive?
+            raise ArgumentError,
+              "reactive_lazy cache: max_age must be a positive whole number of seconds — got #{max_age.inspect}"
+          end
+
+          { max_age: seconds }
+        end
+
         private
 
         # Phlex 2's render hook: the template runs inside the block. Overridden
@@ -83,15 +103,41 @@ module Phlex
         #     morph, because a spent `once` binding never fires again.
         #   * data-reactive-lazy-visible="<rootMargin>" — no descriptor at all;
         #     the client's IntersectionObserver materializes directly.
+        #
+        # A `cache:` component (issue #277) adds its fragment URL: the client
+        # then loads with a cacheable GET instead of the __materialize POST.
         def render_trigger_shell(trigger)
-          public_send(
-            self.class.reactive_lazy_tag,
-            **mix(
-              { id:, class: "reactive-defer-placeholder", aria: { busy: "true" } },
-              reactive_attrs,
-              { data: trigger_shell_data(trigger) }
-            )
-          ) { render_deferred_placeholder_content }
+          attrs = mix(
+            { id:, class: "reactive-defer-placeholder", aria: { busy: "true" } },
+            reactive_attrs,
+            { data: trigger_shell_data(trigger) }
+          )
+          # Mixed in only when present: a non-cached shell allocates nothing extra.
+          src = fragment_src
+          attrs = mix(attrs, { data: { reactive_defer_src: src } }) if src
+          public_send(self.class.reactive_lazy_tag, **attrs) { render_deferred_placeholder_content }
+        end
+
+        # The cacheable fragment URL (issue #277) for a `cache:` component, else
+        # nil (Phlex omits a nil attribute, so a non-cached shell is unchanged).
+        # Deterministic: the same identity (+ version) renders the same URL on
+        # every page view, which is what lets the browser's HTTP cache hit.
+        def fragment_src
+          return unless self.class.reactive_lazy_cache
+
+          version = respond_to?(:reactive_cache_version, true) ? send(:reactive_cache_version) : nil
+          Phlex::Reactive::Fragment.src(reactive_identity_payload, version:, viewer: fragment_viewer_param)
+        end
+
+        # The `u` of the fragment URL: the keyed digest of reactive_cache_viewer
+        # when the component declares who its render is for AND that value names
+        # someone, else nil (the default, `Vary: Cookie` mode). The shell renders
+        # it; the endpoint recomputes it in the requesting session and compares
+        # (see FragmentsController).
+        def fragment_viewer_param
+          return unless respond_to?(:reactive_cache_viewer, true)
+
+          Phlex::Reactive::Fragment.viewer_param(send(:reactive_cache_viewer), owner: self.class)
         end
 
         def trigger_shell_data(trigger)
@@ -111,7 +157,12 @@ module Phlex
         # ROOT attribute — the controller's connect() probes it and enters the
         # same module-level fetch path a reply directive uses. Pending markers
         # + the .reactive-defer-placeholder class are the CSS hooks.
+        #
+        # A `cache:` component (issue #277) carries its stable fragment URL in
+        # data-reactive-defer-src INSTEAD of the token: the client GETs it, and
+        # the browser's private cache can answer.
         def render_defer_shell
+          src = fragment_src
           public_send(
             self.class.reactive_lazy_tag,
             id:,
@@ -131,7 +182,8 @@ module Phlex
               # small leak surface); the TTL + `authorize!` are its bound. Only
               # reply.defer tokens (in action responses that can transit proxies)
               # are actor-bound.
-              reactive_defer_token: Phlex::Reactive.sign_defer(reactive_identity_payload, unbound: true)
+              reactive_defer_token: (Phlex::Reactive.sign_defer(reactive_identity_payload, unbound: true) unless src),
+              reactive_defer_src: src
             }
           ) { render_deferred_placeholder_content }
         end

@@ -220,9 +220,21 @@ module Phlex
           #   reactive_lazy on: { visible: "200px" }  # …with an IntersectionObserver rootMargin
           # The shell then carries the identity token (no TTL) and materializes
           # once through the action endpoint. See Component::Lazy.
-          def reactive_lazy(tag: :div, on: nil)
+          #
+          # `cache:` (issue #277) makes the real render a privately cacheable GET:
+          #   reactive_lazy cache: { max_age: 10.minutes }   # combine with on:/tag: freely
+          # The shell carries a stable signed URL instead of a per-render token,
+          # and the endpoint answers `Cache-Control: private, max-age=…`, so the
+          # browser reuses the fragment across page views. Define
+          # `reactive_cache_version` to bust the URL when the content changes,
+          # and `reactive_cache_viewer` (e.g. Current.user&.id) to key the URL
+          # on the viewer instead of `Vary: Cookie` — needed for reuse ACROSS
+          # page views when the session cookie changes on every response
+          # (Rails' cookie store does).
+          def reactive_lazy(tag: :div, on: nil, cache: nil)
             declaration = { tag: tag.to_sym }
             declaration[:trigger] = Lazy.normalize_trigger(on) unless on.nil?
+            declaration[:cache] = Lazy.normalize_cache(cache) unless cache.nil?
             Registry.write_scalar(self, :lazy, declaration)
           end
 
@@ -253,6 +265,14 @@ module Phlex
           def reactive_lazy_trigger
             value = reactive_lazy_declaration
             value[:trigger] if value.is_a?(::Hash)
+          end
+
+          # The normalized `cache:` of a lazy component — `{ max_age: <seconds> }`
+          # — or nil. The fragment endpoint's opt-in gate reads it: only a
+          # component that declared `cache:` is reachable over GET.
+          def reactive_lazy_cache
+            value = reactive_lazy_declaration
+            value[:cache] if value.is_a?(::Hash)
           end
 
           # Declare a client-invokable action with an optional param schema.

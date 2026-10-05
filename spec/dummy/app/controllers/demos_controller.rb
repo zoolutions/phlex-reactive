@@ -37,6 +37,14 @@ class DemosController < ActionController::Base
     render html: html.html_safe, layout: "lazy_controller"
   end
 
+  # Issues #274 + #276 + #277: a dormant on: + cache: shell as the page's only
+  # reactive root — no client until the panel opens, then one cacheable GET.
+  def dormant_cached
+    @reactive_load = params[:load].presence_in(%w[auto eager]) || "auto"
+    html = render_to_string(DormantCachedPanelComponent.new(scope: "mine"), layout: false)
+    render html: html.html_safe, layout: "lazy_controller"
+  end
+
   # Issue #274: what a broadcast or page refresh sends — the root rendered
   # OUTSIDE an actor reply (so dormant), morphed over the live one.
   def dormant_stream
@@ -507,6 +515,21 @@ class DemosController < ActionController::Base
            %(<div data-testid="spacer" style="height: 3000px"></div>).html_safe +
            render_to_string(LazyFoldComponent.new(label: "below"), layout: false)
     render html: html.html_safe, layout: true
+  end
+
+  # reactive_lazy(cache:) (issue #277): a per-viewer menu whose real render is
+  # a privately cacheable GET. The shell's URL is keyed on the viewer (the
+  # `viewer` cookie, via reactive_cache_viewer), so a later page view reuses
+  # the browser's copy.
+  def cached_menu
+    render_component CachedMenuComponent.new(scope: params.fetch(:scope, "main"))
+  end
+
+  # reactive_lazy(on:, cache:): no request on load; the first `panel:opened`
+  # GETs the cacheable fragment. No declared viewer, so the reply varies on the
+  # cookie.
+  def cached_panel
+    render_component CachedPanelComponent.new(scope: "mine")
   end
 
   def morph_grid

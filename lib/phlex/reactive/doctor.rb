@@ -70,6 +70,8 @@ module Phlex
         [
           route_check,
           defer_route_check,
+          fragment_route_check,
+          fragment_path_meta_check,
           stimulus_check,
           csrf_check,
           verifier_check,
@@ -96,6 +98,45 @@ module Phlex
       # root cause is invisible without this check.
       def defer_route_check
         path_check(Phlex::Reactive.defer_path, :defer_route, "Phlex::Reactive.defer_path")
+      end
+
+      # The cacheable-fragment GET endpoint (issue #277): a host GET catch-all
+      # that shadows it makes every `reactive_lazy cache:` fetch load the host's
+      # fallback page instead of the fragment.
+      def fragment_route_check
+        path = "#{Phlex::Reactive.fragment_path}/:id"
+        if Phlex::Reactive.fragment_route_ok?
+          Check.new(:ok, "GET #{path} routes to phlex/reactive/fragments", name: :fragment_route)
+        else
+          Check.new(:fail, "GET #{path} does not resolve to phlex/reactive/fragments", name: :fragment_route,
+            fix: "A host catch-all route (get \"*path\", ...) likely shadows it. Exempt " \
+                 "#{Phlex::Reactive.fragment_path.delete_prefix("/")} from the catch-all, or set " \
+                 "Phlex::Reactive.fragment_path to an unshadowed path.")
+        end
+      end
+
+      # A custom fragment_path the client was never told about (issue #277): the
+      # client only fetches a fragment URL under the path it knows — the meta
+      # tag, else the default — so every `reactive_lazy cache:` shell would be
+      # refused (reactive:error, the shell never loads). Only checked when the
+      # path was changed; nil (no check) otherwise.
+      def fragment_path_meta_check
+        path = Phlex::Reactive.fragment_path
+        return if path == "/reactive/fragment"
+
+        # A file must name the meta AND supply this path — literally, or from
+        # the setting (`Phlex::Reactive.fragment_path`). A tag left behind with
+        # an old path is as broken as none. Whether it sits in <head> (the only
+        # place the client reads it) can't be told from source; the fix says so.
+        if layout_references?("phlex-reactive-fragment-path") { it.include?(path) || it.include?("fragment_path") }
+          Check.new(:ok, "phlex-reactive-fragment-path meta found for #{path} (it must be in <head>)",
+            name: :fragment_path_meta)
+        else
+          Check.new(:fail, "Phlex::Reactive.fragment_path is #{path} but no layout renders its meta tag with that path",
+            name: :fragment_path_meta,
+            fix: "Add <meta name=\"phlex-reactive-fragment-path\" content=\"#{path}\"> to your layout's " \
+                 "<head> — the client refuses a fragment URL outside the path it knows.")
+        end
       end
 
       # Shared body for the two endpoint-route checks: both POST to the gem's
@@ -415,6 +456,12 @@ module Phlex
 
       # Grep ERB layouts AND Phlex layout files for a csrf_meta_tags reference.
       def csrf_meta_referenced?
+        layout_references?("csrf_meta_tags")
+      end
+
+      # Does any ERB view / Phlex view or component mention `needle` (and, with
+      # a block, satisfy it for that file's source)?
+      def layout_references?(needle)
         globs = %w[
           app/views/**/*.erb
           app/views/**/*.rb
@@ -423,7 +470,8 @@ module Phlex
         ].map { app_path(it) }
 
         ::Dir.glob(globs).any? do
-          File.read(it).include?("csrf_meta_tags")
+          source = File.read(it)
+          source.include?(needle) && (!block_given? || yield(source))
         rescue StandardError
           false
         end

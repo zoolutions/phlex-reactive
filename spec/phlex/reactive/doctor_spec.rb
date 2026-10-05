@@ -48,6 +48,73 @@ RSpec.describe Phlex::Reactive::Doctor do
       expect(defer_route).to be_ok
     end
 
+    it "passes the fragment-route check (issue #277 — the GET fragment endpoint resolves)" do
+      fragment_route = doctor.checks.find { it.name == :fragment_route }
+      expect(fragment_route).to be_ok
+    end
+
+    it "fails the fragment-route check when the path does not reach the gem controller" do
+      original = Phlex::Reactive.fragment_path
+      Phlex::Reactive.fragment_path = "/shadowed/fragment"
+      fragment_route = doctor.checks.find { it.name == :fragment_route }
+
+      expect(fragment_route).not_to be_ok
+      expect(fragment_route.fix).to include("Phlex::Reactive.fragment_path")
+    ensure
+      Phlex::Reactive.fragment_path = original
+    end
+
+    it "says nothing about the fragment-path meta while the path is the default" do
+      expect(doctor.checks.map(&:name)).not_to include(:fragment_path_meta)
+    end
+
+    it "flags a custom fragment_path whose meta tag is in no layout (the client would refuse every URL)" do
+      original = Phlex::Reactive.fragment_path
+      Phlex::Reactive.fragment_path = "/_r/fragment"
+      meta = doctor.checks.find { it.name == :fragment_path_meta }
+
+      expect(meta).not_to be_ok
+      expect(meta.fix).to include('<meta name="phlex-reactive-fragment-path"')
+    ensure
+      Phlex::Reactive.fragment_path = original
+    end
+
+    # The layout lives in a scratch app root, NOT the dummy's app/ — a file
+    # appearing there would trip Rails' reloader mid-suite.
+    describe "the fragment-path meta check against layout files" do
+      let(:app_root) { Pathname(Dir.mktmpdir("doctor-fragment-meta")) }
+      let(:layout) { app_root.join("app/views/layouts/application.html.erb") }
+
+      around do
+        original = Phlex::Reactive.fragment_path
+        Phlex::Reactive.fragment_path = "/_r/fragment"
+        it.run
+      ensure
+        Phlex::Reactive.fragment_path = original
+        FileUtils.rm_rf(app_root)
+      end
+
+      def meta_check(head)
+        FileUtils.mkdir_p(layout.dirname)
+        File.write(layout, head)
+        allow(Rails).to receive(:root).and_return(app_root)
+        doctor.checks.find { it.name == :fragment_path_meta }
+      end
+
+      it "passes when a layout renders the meta with the configured path" do
+        expect(meta_check(%(<meta name="phlex-reactive-fragment-path" content="/_r/fragment">))).to be_ok
+      end
+
+      it "passes when a layout renders it from the setting" do
+        expect(meta_check(%(<meta name="phlex-reactive-fragment-path" content="<%= Phlex::Reactive.fragment_path %>">)))
+          .to be_ok
+      end
+
+      it "fails when the meta carries a stale path" do
+        expect(meta_check(%(<meta name="phlex-reactive-fragment-path" content="/old/fragment">))).not_to be_ok
+      end
+    end
+
     it "passes the verifier round-trip check" do
       verifier = doctor.checks.find { it.name == :verifier }
       expect(verifier).to be_ok

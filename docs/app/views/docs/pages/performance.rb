@@ -22,6 +22,7 @@ module Views
           numbers
           verify_and_sign
           deferred_segments
+          cached_fragments
           client_numbers
           loading_the_client
           dormant_roots
@@ -713,6 +714,54 @@ module Views
                       'GENUINELY expensive.'
               end
             end
+          end
+        end
+
+        def cached_fragments
+          DocsUI::Section('Cached fragments (reactive_lazy cache:) — the request that never happens') do
+            md <<~MD
+              A lazy fragment that is the same for a viewer on every page was fetched
+              and rendered once **per page view**. `reactive_lazy cache: { max_age: }`
+              (#277) makes that render a privately cacheable GET, so a repeat view
+              costs neither a network request nor the render. This is a request-level win,
+              and the only one on this page that removes server work outright rather
+              than moving or shrinking it — but only for the hits: the first view of
+              each (viewer, version) still pays the full render.
+
+              | Page view | Without `cache:` | With `cache:` + `reactive_cache_viewer` |
+              |---|---|---|
+              | first | 1 request, 1 render | 1 request, 1 render |
+              | later, within `max_age` | 1 request, 1 render each | 0 requests, 0 renders |
+              | after `max_age` | 1 request, 1 render | 1 conditional request, 1 render, `304` when the body is unchanged |
+
+              Without `reactive_cache_viewer` the reply varies on the cookie, and
+              Rails' cookie session store changes the cookie on every response — so
+              the reuse is limited to one page (a refresh morph). Declare the viewer
+              to reuse across page views. See
+              [Deferred rendering](/docs/deferred-rendering).
+
+              The shell costs a few microseconds more than the one it replaces: it
+              signs a fragment id where the plain shell signs a defer token, plus one
+              keyed digest for a declared viewer; an `on:` + `cache:` shell signs the
+              identity token for its trigger as well. Once per page render, same
+              machine, `benchmark/micro/fragment.rb`:
+
+              | Per call | Throughput | Allocations |
+              |---|---|---|
+              | `sign_fragment` | ~195k i/s (5.1 μs) | 13 objects |
+              | `verify_fragment` (once per origin hit) | ~145k i/s (6.9 μs) | 24 objects |
+              | `sign_defer` (the plain shell's token) | ~133k i/s (7.5 μs) | 30 objects |
+              | plain lazy shell render | ~83k i/s (12.0 μs) | 77 objects |
+              | cached shell render (URL + viewer) | ~63k i/s (16.0 μs) | 50 objects |
+              | `on:` shell render | ~71k i/s (14.2 μs) | 40 objects |
+              | `on:` + `cache:` shell render | ~40k i/s (24.8 μs) | 64 objects |
+
+              So `cache:` adds roughly 4 μs to a plain lazy shell and 10 μs to an
+              `on:` shell — against the request and render it removes on every
+              later view. The existing shells are untouched: against `main`, the
+              plain lazy shell and the `on:` shell allocate the same 77 and 40
+              objects, and `reactive_token` the same 18.
+            MD
           end
         end
 

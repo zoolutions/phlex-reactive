@@ -122,14 +122,16 @@ module Phlex
       # route); `empty:` picks the render? false reply — :no_content for the
       # defer client (it clears pending on 204), :stream (an empty turbo-stream)
       # for the action client, which treats a non-stream body as an error.
-      def render_real_component(event, permit: nil, empty: :no_content)
+      # `denied:` is the status for a class that fails `permit:` — :forbidden for
+      # an undeclared act, :not_found for a GET route the class never opted into.
+      def render_real_component(event, permit: nil, empty: :no_content, denied: :forbidden)
         payload = yield
         component_class = resolve_component(payload["c"])
         event[:component] = component_class.name
 
         if permit && !(component_class.respond_to?(permit) && component_class.public_send(permit))
           event[:outcome] = :denied_undeclared
-          return reactive_error(:forbidden, unpermitted_render_message(component_class), kind: :forbidden)
+          return reactive_error(denied, unpermitted_render_message(component_class), kind: denied)
         end
 
         component = component_class.from_identity(payload)
@@ -143,7 +145,7 @@ module Phlex
         # Awake (issue #274): the client that asked for this render is loaded
         # and connected, so a dormant root would only cost one more wake.
         stream = Phlex::Reactive::Dormant.awake { component.to_stream_replace(morph: payload["m"] == "morph") }
-        render turbo_stream: stream
+        render_real_stream(stream, component)
       rescue Phlex::Reactive::InvalidToken => e
         event[:outcome] = :invalid_token
         reactive_error(:bad_request, e.message, kind: e.diagnostic || :tampered)
@@ -160,6 +162,12 @@ module Phlex
         # adapters treat a nil action gracefully (transaction is the component).
         report_action_error(e, event)
         raise
+      end
+
+      # The read leg's success reply. A seam: the fragment endpoint (issue #277)
+      # overrides it to add its cache headers and conditional GET.
+      def render_real_stream(stream, _component)
+        render turbo_stream: stream
       end
 
       def verified_defer_payload

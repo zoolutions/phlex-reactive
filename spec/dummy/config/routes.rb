@@ -12,6 +12,7 @@ Rails.application.routes.draw do
   get "early_triggers" => "demos#early_triggers" # issue #273: lazily loaded controller
   get "dormant" => "demos#dormant" # issue #274: a dormant root, controller loaded on first use
   get "dormant_lazy" => "demos#dormant_lazy"
+  get "dormant_cached" => "demos#dormant_cached" # issues #274 + #276 + #277
   get "dormant_stream" => "demos#dormant_stream"
   get "effects" => "demos#effects"
   get "debug" => "demos#debug"
@@ -85,6 +86,8 @@ Rails.application.routes.draw do
   get "lazy_stats" => "demos#lazy_stats"
   get "lazy_on" => "demos#lazy_on"
   get "lazy_on_early" => "demos#lazy_on_early"
+  get "cached_menu" => "demos#cached_menu"   # issue #277: cacheable lazy fragment, viewer-keyed
+  get "cached_panel" => "demos#cached_panel" # issue #277: on: + cache:, Vary: Cookie
   get "morph_grid/:id" => "demos#morph_grid"
   get "js_focus/:id" => "demos#js_focus"
   get "partial_grid/:id" => "demos#partial_grid"
