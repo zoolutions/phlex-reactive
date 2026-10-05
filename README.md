@@ -272,7 +272,7 @@ imports one the first time a root on the page needs it:
 | Module | Gzipped | Default client | Split client |
 |---|---:|---|---|
 | `phlex/reactive/reactive_controller` | 26.1 KB | loaded with your controllers | not loaded |
-| `phlex/reactive/core` | 12.3 KB | not loaded (it is inside the file above) | loaded with your controllers |
+| `phlex/reactive/core` | 12.4 KB | not loaded (it is inside the file above) | loaded with your controllers |
 | `phlex/reactive/features/persist` (`reactive_persist` drafts) | 3.2 KB | inside the one file | fetched when a root declares `reactive_persist`, or a `persist_state` / `persist_clear` op runs |
 | `phlex/reactive/features/defer` (`reply.defer`, `reactive_lazy`) | 2.8 KB | inside the one file | fetched when a root is a `reactive_lazy` shell, a morph turns one into a shell, or a `reply.defer` arrives |
 | `phlex/reactive/features/form` (dirty tracking, `warn_unsaved`, the paste-trigger gate) | 1.0 KB | inside the one file | fetched when a root tracks dirty fields or holds a `paste_into` trigger |

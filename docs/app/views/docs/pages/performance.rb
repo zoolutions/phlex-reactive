@@ -1153,7 +1153,7 @@ module Views
                             [[:code, 'phlex/reactive/reactive_controller'], '26.1 KB',
                              'When your controllers load (or at the first trigger, for a page whose only roots are dormant).',
                              'Never.'],
-                            [[:code, 'phlex/reactive/core'], '12.3 KB',
+                            [[:code, 'phlex/reactive/core'], '12.4 KB',
                              'Never: it is inside the one file.',
                              'When your controllers load (or at the first trigger, for a page whose only roots are dormant).'],
                             [[:code, 'phlex/reactive/features/persist'], '3.2 KB',
