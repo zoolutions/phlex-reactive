@@ -909,7 +909,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     and recovers 1,457 B of that. What remains is how the features are written
     as modules (per-root state records where the controller had private
     fields, exported wrappers, the `core` handle), not the boundary between
-    them; the budget test prints the 22,700 B target and holds 24,900 B.
+    them. The budget test holds a 24,900 B ratchet; getting back to the
+    22,700 B target (the pre-split size plus a loader's worth) is #310.
   - **`phlex/reactive/core` — new, opt-in — is the controller without its
     feature modules** (12,467 B gzipped). It imports a feature the first time
     something on the page needs it, by a literal bare-specifier `import()`:

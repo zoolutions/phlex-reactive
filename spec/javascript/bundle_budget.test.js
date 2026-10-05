@@ -60,7 +60,7 @@ const SLACK = 250
 // directly, so the loader, the feature table and the hand-over fold away
 // (24,675 B, 1,457 B recovered).
 //
-// BUDGET OUTCOME (issue #305): the target is TARGET_BUNDLE_GZIP, 22,700 B (the
+// BUDGET OUTCOME (issue #305; the rest is #310): the target is TARGET_BUNDLE_GZIP, 22,700 B (the
 // pre-split size plus a loader's worth). It is reported on every run, and is
 // the ratchet itself when met. What the flag cannot recover is how the
 // features are WRITTEN as modules — per-root state records where the
