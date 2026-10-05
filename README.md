@@ -2339,14 +2339,17 @@ What keeps a private cache safe:
   any callback (before, around or after) changed the session, set or consumed a
   flash, minted a CSRF token, or wrote a cookie keeps that write and is answered `no-store` instead —
   so an app that writes the session on every request (Devise `timeoutable`) gets
-  no caching. Session writes made outside the controller (Rack middleware) are
-  not seen, and are lost on a cacheable reply. The endpoint itself never reads
+  no caching. Session writes made outside the controller (Rack middleware, a
+  CSP nonce generator that writes the session) are not seen, and are lost on a
+  cacheable reply. The endpoint itself never reads
   the flash, so a notice waiting for the next page view survives a fragment
   load. A filter may tighten the policy (`no_store`, `expires_now`, a shorter
   `max-age`, `must-revalidate`), never loosen it. The ETag is the body only —
   `etag { }` blocks are not applied.
 - **No CSRF tokens.** A render that embeds a form authenticity token or
   `csrf_meta_tags` is served `no-store` with a warning rather than cached.
+- **No CSP nonces.** A `nonce="…"` inside a cached fragment is replayed from the
+  cache and will not match the page's.
 - **Nested lazy components render eagerly inside the fragment.** The fragment
   is a real render, so a `reactive_lazy` child (whatever its own `on:`/`cache:`)
   renders its template as part of the parent's copy: no expiring defer token,

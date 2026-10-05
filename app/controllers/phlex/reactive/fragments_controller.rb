@@ -180,11 +180,18 @@ module Phlex
       #   * ActionDispatch::Cookies (middleware) → cookie_jar.write(response)
       #       nothing new: it flushes the jar's pending writes, which
       #       pending_cookie_writes reads through that same method.
-      #   * Response#before_committed, Rack::ETag / ConditionalGet, the CSP and
+      #   * Response#before_committed, Rack::ETag / ConditionalGet, the
       #       permissions-policy middleware, request id, runtime, server timing
       #       → response headers only; none touches the session or cookies.
+      #   * ActionDispatch::ContentSecurityPolicy::Middleware
+      #       → response headers, but it calls the APP's nonce generator after
+      #       the controller returned. The stock generator
+      #       (request.session.id.to_s) only reads. A generator that WRITES the
+      #       session is app code running outside the controller — see below.
       #
-      # Not covered, and cannot be from here: third-party Rack middleware.
+      # Not covered, and cannot be from here: a session write made outside the
+      # controller — third-party Rack middleware, or a CSP nonce generator that
+      # writes the session. Such a write is dropped on a cacheable reply.
       def commit_deferred_writes
         request.commit_flash
         request.commit_csrf_token if request.respond_to?(:commit_csrf_token)
@@ -251,7 +258,9 @@ module Phlex
       # A `name=` attribute, in any quoting, that names a CSRF token — the
       # well-known names plus this controller's forgery-protection field.
       def csrf_token_markup
-        token_name = request_forgery_protection_token.to_s
+        # An API base controller has no forgery protection (and so no such
+        # setting): the built-in names alone are checked then.
+        token_name = respond_to?(:request_forgery_protection_token, true) ? request_forgery_protection_token.to_s : ""
         CSRF_TOKEN_PATTERNS.compute_if_absent(token_name) do
           names = (CSRF_TOKEN_NAMES | [token_name]).reject(&:empty?).map { Regexp.escape(it) }
           /\bname\s*=\s*["']?(?:#{names.join("|")})(?![\w-])/i

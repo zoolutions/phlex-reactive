@@ -33,7 +33,12 @@ module Phlex
       # a collection is walked, so no value can make the shell render slow.
       VIEWER_PART_LIMIT = 32
       VIEWER_NODE_LIMIT = 64
-      VIEWER_WARNED = Concurrent::AtomicBoolean.new
+      # Components already warned about (by class name): once per component.
+      VIEWER_WARNED = Concurrent::Map.new
+
+      # A reactive_cache_viewer value that cannot name a viewer. Internal: it
+      # carries the reason from the walk to viewer_param, which logs it.
+      class UnusableViewer < StandardError; end
 
       module_function
 
@@ -90,16 +95,17 @@ module Phlex
       # NEVER RAISES and never takes long, whatever the hook returned: this runs
       # inside the host page's render. A value that cannot be turned into a key
       # (it raises, it is endless, it is huge) names nobody — the fail-closed
-      # default mode — and is logged once.
-      def viewer_param(viewer)
+      # default mode — and is logged once per component (`owner`, its class).
+      def viewer_param(viewer, owner: nil)
         return nil unless viewer_named?(viewer)
 
         signed = Phlex::Reactive.verifier.generate(ActiveSupport::Cache.expand_cache_key(viewer),
           purpose: VIEWER_PURPOSE)
         Digest::SHA256.hexdigest(signed)[0, 32]
+      rescue UnusableViewer => e
+        warn_unusable_viewer(owner, e.message)
       rescue StandardError => e
-        warn_viewer_unusable!("#{e.class}: #{e.message}")
-        nil
+        warn_unusable_viewer(owner, "#{e.class}: #{e.message}")
       end
 
       def viewer_named?(viewer)
@@ -118,15 +124,15 @@ module Phlex
       # `budget` is a one-element counter shared by the whole walk.
       def named_within?(value, budget)
         return false if value.nil? || value == false
-        return viewer_unusable!("a Range is not an identity") if value.is_a?(::Range)
-        return viewer_unusable!("too deep or self-referential") if (budget[0] -= 1).negative?
+        raise UnusableViewer, "a Range is not an identity" if value.is_a?(::Range)
+        raise UnusableViewer, "too deep or self-referential" if (budget[0] -= 1).negative?
         return viewer_leaf?(value) unless value.respond_to?(:to_a) && !value.respond_to?(:cache_key)
 
         size = value.respond_to?(:size) ? value.size : nil
-        return viewer_unusable!("a collection of unknown or excessive size") unless viewer_size_ok?(size, value)
+        raise UnusableViewer, "a collection of unknown or excessive size" unless viewer_size_ok?(size, value)
 
         parts = value.to_a
-        return viewer_unusable!("more than #{VIEWER_PART_LIMIT} parts") if parts.size > VIEWER_PART_LIMIT
+        raise UnusableViewer, "more than #{VIEWER_PART_LIMIT} parts" if parts.size > VIEWER_PART_LIMIT
 
         parts.any? && parts.all? { named_within?(it, budget) }
       end
@@ -142,26 +148,24 @@ module Phlex
         !value.is_a?(::Enumerator) && size.nil?
       end
 
-      # Logs why, and answers nil (falsy): "this value names nobody".
-      def viewer_unusable!(reason)
-        warn_viewer_unusable!(reason)
+      # Logs why — once per COMPONENT, naming it, since the cause is that
+      # component's hook — and answers nil: "this value names nobody".
+      def warn_unusable_viewer(owner, reason)
+        name = owner.respond_to?(:name) ? owner.name.to_s : owner.to_s
+        return nil if VIEWER_WARNED.put_if_absent(name, true)
+        return nil unless defined?(::Rails) && ::Rails.respond_to?(:logger)
+
+        ::Rails.logger&.warn(
+          "[phlex-reactive] #{name.presence || "a component"}#reactive_cache_viewer returned a value that " \
+          "cannot name a viewer (#{reason}) — treated as no viewer (Vary: Cookie). Return an id, or a small " \
+          "Array of ids."
+        )
         nil
       end
 
-      # Once per process: the cause is a component's hook, not a request.
-      def warn_viewer_unusable!(reason)
-        return unless VIEWER_WARNED.make_true
-        return unless defined?(::Rails) && ::Rails.respond_to?(:logger)
-
-        ::Rails.logger&.warn(
-          "[phlex-reactive] a reactive_cache_viewer value cannot name a viewer (#{reason}) — treated as no " \
-          "viewer (Vary: Cookie). Return an id, or a small Array of ids."
-        )
-      end
-
-      # Test seam: let the once-only warning fire again.
+      # Test seam: let the once-per-component warnings fire again.
       def reset_viewer_warning!
-        VIEWER_WARNED.make_false
+        VIEWER_WARNED.clear
       end
 
       # The max-age (seconds) the endpoint answers with: the component's

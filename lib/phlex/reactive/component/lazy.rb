@@ -137,7 +137,7 @@ module Phlex
         def fragment_viewer_param
           return unless respond_to?(:reactive_cache_viewer, true)
 
-          Phlex::Reactive::Fragment.viewer_param(send(:reactive_cache_viewer))
+          Phlex::Reactive::Fragment.viewer_param(send(:reactive_cache_viewer), owner: self.class)
         end
 
         def trigger_shell_data(trigger)

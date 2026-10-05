@@ -216,14 +216,23 @@ RSpec.describe "reactive_lazy(cache:)" do # rubocop:disable RSpec/DescribeClass
         expect(shell_for(Array.new(32, 1)).first).to include("u=")
       end
 
-      it "logs why, once" do
+      # Once per COMPONENT, naming it and the cause: a second broken component
+      # must not lose its viewer-keyed caching silently.
+      it "logs why once per component, naming the component and the error" do
         logged = []
         allow(Rails.logger).to receive(:warn) { logged << it }
         Phlex::Reactive::Fragment.reset_viewer_warning!
+        params = ActionController::Parameters.new(user: 1)
+        first = Class.new(viewer_class(params)) { def self.name = "FirstBrokenViewerComponent" }
+        second = Class.new(viewer_class(1..)) { def self.name = "SecondBrokenViewerComponent" }
 
-        2.times { shell_for(ActionController::Parameters.new(user: 1)) }
+        2.times { first.new.call }
+        2.times { second.new.call }
 
-        expect(logged.grep(/reactive_cache_viewer/).size).to eq(1)
+        warnings = logged.grep(/reactive_cache_viewer/)
+        expect(warnings.size).to eq(2)
+        expect(warnings.first).to include("FirstBrokenViewerComponent").and include("UnfilteredParameters")
+        expect(warnings.last).to include("SecondBrokenViewerComponent").and include("Range")
       end
     end
 

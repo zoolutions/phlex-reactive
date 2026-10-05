@@ -441,9 +441,12 @@ module Views
               filter that merely adds a directive gets `no-store` — both fail
               closed.
 
-              This guarantee covers the controller's callbacks and the flash. A
-              session write made **outside** them — in Rack middleware or a routing
-              constraint — is out of sight, and is **lost** on a cacheable reply
+              This guarantee covers the controller's callbacks, the flash and the
+              CSRF token. A session write made **outside** them — in Rack
+              middleware, a routing constraint, or a Content-Security-Policy nonce
+              generator that writes the session (Rails calls it after the
+              controller returns; the stock `request.session.id.to_s` generator only
+              reads) — is out of sight, and is **lost** on a cacheable reply
               either way: one made before the controller runs is already part of the
               starting state (so the session looks unchanged and is not persisted),
               and one made after it is simply dropped. Keep such writes off the
@@ -486,10 +489,13 @@ module Views
               (`User.new` has the cache key `users/new` for every guest — return
               `nil` for guests instead). A user id, or an Array of ids, is the
               intended shape — a viewer is an identity, never a collection to
-              enumerate: a `Range`, a collection of more than 32 parts, an
-              unsized Enumerator, or a value that raises when turned into a key
-              names nobody (default mode, logged once), and a `Time` is
-              unreliable (Rails expands it through `to_a`).
+              enumerate. Two caps apply: a collection of more than **32 parts**, or
+              a value that takes more than **64 values in total** to walk (nested
+              collections count every level — a 22-entry Hash is already 67), names
+              nobody. So does a `Range`, an unsized Enumerator, and a value that
+              raises when turned into a key. Each falls back to the default mode
+              and is logged once per component, with the component's name and the
+              reason. A `Time` is unreliable (Rails expands it through `to_a`).
 
               `u` is a **keyed** digest (derived with the same secret that signs the
               tokens): it cannot be reversed to the value, and nobody can compute
@@ -531,6 +537,11 @@ module Views
 
               **What a cached fragment must not contain.**
 
+              - **A CSP nonce.** A `nonce="…"` on an inline script or style in the
+                fragment is replayed from the cache and will not match the page's
+                nonce. (It is wrong uncached too: the render uses the off-request
+                view context, not this request.) Keep nonce-bearing inline scripts
+                and styles out of a cached fragment.
               - **A CSRF token.** A `form_with` / `form_authenticity_token` /
                 `csrf_meta_tags` in the render embeds a token that would outlive its
                 session in the cache. The endpoint detects a field or meta named
