@@ -9,6 +9,8 @@
 //   * real content morphed back into a cached shell GETs again (a cache hit in
 //     a browser), instead of POSTing __materialize.
 // A shell WITHOUT the URL keeps its POST (the defer endpoint, or __materialize).
+// A cache: shell carries no identity token (issue #306): a URL the client
+// refuses falls back to a GET of the same id under the fragment path it knows.
 //
 // Run with: bun test spec/javascript
 import { test, expect, mock, beforeAll, beforeEach, afterEach } from "bun:test"
@@ -186,8 +188,8 @@ function stimulusFires(controller) {
 
 const cachedShell = () => ({ [SRC]: URL, [PENDING]: "true" })
 const plainShell = () => ({ [DEFER_TOKEN]: "defer-token", [PENDING]: "true" })
-const cachedEventShell = () => ({ [TOKEN]: "shell-token", [ON]: "panel:opened", [SRC]: URL })
-const cachedVisibleShell = () => ({ [TOKEN]: "shell-token", [VISIBLE]: "0px", [SRC]: URL })
+const cachedEventShell = () => ({ [ON]: "panel:opened", [SRC]: URL })
+const cachedVisibleShell = () => ({ [VISIBLE]: "0px", [SRC]: URL })
 const realContent = () => ({ [TOKEN]: "real-token" })
 
 function expectFragmentGet(call) {
@@ -267,11 +269,51 @@ test("a plain shell (defer token, no URL) still POSTs the token to the defer end
 
 // --- the URL comes from the DOM: only this app's fragment endpoint is fetched ----
 
+// The refused URL is never fetched. When its last path segment can be a
+// fragment id, the shell falls back to a GET of THAT id under the fragment
+// path the client knows (issue #306) — same origin, the signed id verified by
+// the endpoint, kept out of the HTTP cache (cache: "no-store": the server
+// never issued that URL). Anything else fails loudly.
+const refusedWithId = [
+  ["another origin", "https://evil.example/reactive/fragment/abc?v=0011", "/reactive/fragment/abc?v=0011"],
+  ["a protocol-relative URL", "//evil.example/reactive/fragment/abc", "/reactive/fragment/abc"],
+  ["a path that only starts like it", "/reactive/fragmentx/abc", "/reactive/fragment/abc"],
+]
+
+for (const [label, src, fallback] of refusedWithId) {
+  test(`a plain shell whose URL is ${label} GETs the id under the fragment path instead`, async () => {
+    const el = makeRoot({ [SRC]: src, [PENDING]: "true" })
+    connect(el)
+    await settle()
+
+    expect(calls.map((call) => call.url)).toEqual([fallback])
+    expect(calls[0].options.method).toBeUndefined()
+    expect(calls[0].options.body).toBeUndefined()
+    expect(calls[0].options.cache).toBe("no-store")
+    expect(calls[0].options.headers).toEqual({ Accept: "text/vnd.turbo-stream.html" })
+    expect(el.attrs[PENDING]).toBeUndefined()
+    expect(el.attrs["data-reactive-error"]).toBeUndefined()
+  })
+
+  test(`…and a failed fallback is a failed load with retry() (${label})`, async () => {
+    nextResponse = () => Promise.resolve(response(404, ""))
+    const el = makeRoot({ [SRC]: src, [PENDING]: "true" })
+    connect(el)
+    await settle()
+
+    expect(el.attrs["data-reactive-error"]).toBe("defer")
+    const error = el.dispatched.find((event) => event.type === "reactive:error")
+    expect(error.detail).toMatchObject({ kind: "defer", target: "cached-root", status: 404 })
+
+    nextResponse = () => Promise.resolve(response())
+    error.detail.retry()
+    await settle()
+    expect(calls.map((call) => call.url)).toEqual([fallback, fallback])
+  })
+}
+
 const refused = [
-  ["another origin", "https://evil.example/reactive/fragment/abc"],
-  ["a protocol-relative URL", "//evil.example/reactive/fragment/abc"],
   ["a same-origin path that is not the fragment endpoint", "/uploads/payload.html"],
-  ["a path that only starts like it", "/reactive/fragmentx/abc"],
   ["a traversal out of the fragment endpoint", "/reactive/fragment/../../uploads/payload.html"],
   ["a javascript: URL", "javascript:alert(1)"],
 ]
@@ -310,12 +352,29 @@ test("a refused URL morphed in supersedes the in-flight fetch for the same root"
   await settle()
   expect(calls.length).toBe(1)
 
-  el.morphTo({ [SRC]: "https://evil.example/reactive/fragment/abc", [PENDING]: "true" })
+  el.morphTo({ [SRC]: "/uploads/payload.html", [PENDING]: "true" })
   pending.release()
   await settle()
 
   expect(rendered).toEqual([])
-  expect(el.attrs[SRC]).toBe("https://evil.example/reactive/fragment/abc")
+  expect(el.attrs[SRC]).toBe("/uploads/payload.html")
+  expect(el.attrs["data-reactive-error"]).toBe("defer")
+})
+
+test("…and so does its fallback GET: only the fallback's own reply counts", async () => {
+  const pending = gate()
+  nextResponse = () => pending.promise
+  const el = makeRoot(cachedShell())
+  connect(el)
+  await settle()
+
+  nextResponse = () => Promise.resolve(response(404, ""))
+  el.morphTo({ [SRC]: "https://evil.example/reactive/fragment/abc", [PENDING]: "true" })
+  pending.release()
+  await settle()
+
+  expect(calls.map((call) => call.url)).toEqual([URL, "/reactive/fragment/abc"])
+  expect(rendered).toEqual([])
   expect(el.attrs["data-reactive-error"]).toBe("defer")
 })
 
@@ -324,7 +383,7 @@ test("a fragment-path meta injected into <body> is ignored — only <head> can w
   connect(makeRoot({ [SRC]: "/uploads/payload", [PENDING]: "true" }))
   await settle()
 
-  expect(calls).toEqual([])
+  expect(calls.map((call) => call.url)).toEqual(["/reactive/fragment/payload"])
 })
 
 // --- the response must BE a fragment --------------------------------------------
@@ -361,17 +420,41 @@ test("the same holds for the token (POST) lane", async () => {
   expect(el.attrs["data-reactive-error"]).toBe("defer")
 })
 
-test("an on: shell with a refused URL falls back to the signed __materialize POST", async () => {
-  const controller = connect(
-    makeRoot({ [TOKEN]: "shell-token", [ON]: "panel:opened", [SRC]: "https://evil.example/reactive/fragment/abc" }),
-  )
+test("an on: shell with a refused URL falls back to a GET under the fragment path — never a POST", async () => {
+  const controller = connect(makeRoot({ [ON]: "panel:opened", [SRC]: "https://evil.example/reactive/fragment/abc?v=1" }))
 
   stimulusFires(controller)
   await settle()
 
   expect(calls.length).toBe(1)
-  expect(calls[0].url).toBe("/reactive/actions")
-  expect(JSON.parse(calls[0].options.body)).toEqual({ token: "shell-token", act: "__materialize", params: {} })
+  expect(calls[0].url).toBe("/reactive/fragment/abc?v=1")
+  expect(calls[0].options.method).toBeUndefined()
+  expect(calls[0].options.cache).toBe("no-store")
+  expect(rendered.length).toBe(1)
+})
+
+test("an on: shell whose refused URL names no id fails loudly instead of loading nothing", async () => {
+  const el = makeRoot({ [ON]: "panel:opened", [SRC]: "/uploads/payload.html" })
+  const controller = connect(el)
+
+  stimulusFires(controller)
+  await settle()
+
+  expect(calls).toEqual([])
+  expect(el.attrs["data-reactive-error"]).toBe("defer")
+  const error = el.dispatched.find((event) => event.type === "reactive:error")
+  expect(error.detail).toMatchObject({ kind: "defer", target: "cached-root", reason: "refused-url" })
+})
+
+test("a refused URL with no id fails the shell even when it also carries a token — never a POST", async () => {
+  const el = makeRoot({ [TOKEN]: "shell-token", [ON]: "panel:opened", [SRC]: "/uploads/x.html" })
+  const controller = connect(el)
+
+  stimulusFires(controller)
+  await settle()
+
+  expect(calls).toEqual([])
+  expect(el.attrs["data-reactive-error"]).toBe("defer")
 })
 
 test("an absolute same-origin fragment URL is fetched", async () => {
@@ -391,7 +474,9 @@ test("the fragment path follows the phlex-reactive-fragment-path meta", async ()
   connect(defaultPath)
   await settle()
 
-  expect(calls.map((call) => call.url)).toEqual(["/_r/frag/abc"])
+  // The default-path URL is refused under the moved path, and falls back to
+  // the same id under it.
+  expect(calls.map((call) => call.url)).toEqual(["/_r/frag/abc", "/_r/frag/abc123?v=0011223344556677"])
 })
 
 // --- on: + cache: -------------------------------------------------------------
@@ -475,6 +560,18 @@ test("a cached :visible shell GETs when it intersects, once", async () => {
   expect(calls.length).toBe(1)
   expectFragmentGet(calls[0])
   expect(observers[0].disconnected).toBe(true)
+})
+
+test("a tokenless cached event shell re-arms after a morph that keeps it a shell", async () => {
+  const el = makeRoot(cachedEventShell())
+  connect(el)
+  el.morphTo(cachedEventShell())
+
+  el.fire("panel:opened")
+  await settle()
+
+  expect(calls.length).toBe(1)
+  expectFragmentGet(calls[0])
 })
 
 test("an on: shell WITHOUT the URL keeps the __materialize POST", async () => {

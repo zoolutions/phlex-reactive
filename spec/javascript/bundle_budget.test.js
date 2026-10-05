@@ -92,7 +92,8 @@ const FEATURE_GZIP_CEILINGS = {
 }
 // Phase 5: 12,383 B core + 5,360 + 2,846 + 2,084 + 1,024 + 1,693 + 3,210 + 1,015 + 1,589 B of
 // features = 31,204 B. Issue #305 (the default entry's static path) costs the
-// core 84 B: 12,467 + 18,821 = 31,288 B.
+// core 84 B: 12,467 + 18,821 = 31,288 B. Issue #306 (a cache: shell's refused
+// URL falls back to a GET; no __materialize POST without a token) adds ~90 B.
 const SPLIT_TOTAL_GZIP_CEILING = 31_500
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024

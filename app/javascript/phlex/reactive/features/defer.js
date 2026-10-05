@@ -150,10 +150,14 @@ function startFetchDefer(targetId, source) {
 // no CSRF token and no body: rendering has no side effects, and anything that
 // varied per request would defeat the cache (the response is keyed on the URL,
 // Vary: Cookie). The default cache mode is what we want — reuse a fresh copy,
-// revalidate a stale one with its ETag.
+// revalidate a stale one with its ETag. A fallback GET (see
+// fallbackFragmentSource) is the exception: the server never issued that URL,
+// so its reply is kept out of the HTTP cache.
 function deferRequest(source, signal) {
   if (typeof source !== "string") {
-    return [source.src, { headers: { Accept: "text/vnd.turbo-stream.html" }, credentials: "same-origin", signal }]
+    const init = { headers: { Accept: "text/vnd.turbo-stream.html" }, credentials: "same-origin", signal }
+    if (source.fallback) init.cache = "no-store"
+    return [source.src, init]
   }
   return [
     deferPath(),
@@ -171,27 +175,21 @@ function deferRequest(source, signal) {
   ]
 }
 
-// A lazy shell's pull-lane source, read off its root: the defer token, else
-// the cacheable fragment URL, else undefined (not a fetching shell).
-function lazyDeferSource(el) {
-  return el.getAttribute?.("data-reactive-defer-token") || fragmentSource(el)
-}
-
-// A `cache:` shell's fragment URL as a pull-lane source, or undefined. Unlike a
-// token (opaque, POSTed to one fixed path) this is a URL read from the DOM, and
-// its response is rendered as a turbo-stream — so it is fetched ONLY when it
-// resolves to this origin's fragment endpoint. Markup that smuggled the
-// attribute in (user HTML that kept data-* attributes) must not be able to
-// point the client at another origin, an upload, or any other same-origin path.
+// A `cache:` shell's fragment URL as a pull-lane source, or undefined (no
+// URL). Unlike a token (opaque, POSTed to one fixed path) this is a URL read
+// from the DOM, and its response is rendered as a turbo-stream — so it is
+// fetched ONLY when it resolves to this origin's fragment endpoint. Markup that
+// smuggled the attribute in (user HTML that kept data-* attributes) must not be
+// able to point the client at another origin, an upload, or any other
+// same-origin path. A refused URL is logged and loads through the fallback GET
+// below (issue #306); with no fallback the shell is failed, and this answers
+// undefined.
 function fragmentSource(el) {
   const src = el.getAttribute?.("data-reactive-defer-src")
-  if (src && isFragmentUrl(src)) return { src }
-}
-
-// The fragment URL a root carries but the client will not fetch, or undefined.
-function refusedFragmentSrc(el) {
-  const src = el.getAttribute?.("data-reactive-defer-src")
-  if (src && !isFragmentUrl(src)) return src
+  if (!src) return
+  if (isFragmentUrl(src)) return { src }
+  console.error(refusedFragmentMessage(src))
+  return fallbackFragmentSource(src) || failRefusedFragment(el)
 }
 
 function refusedFragmentMessage(src) {
@@ -202,14 +200,31 @@ function refusedFragmentMessage(src) {
   )
 }
 
-// A fetch-on-connect shell whose URL was refused has no other way to load, so
-// it must not shimmer forever: clear pending, mark the root, and emit the same
+// The way a shell with a refused URL still loads (issue #306): a GET of the
+// SAME signed id under the fragment path this client knows — so the request
+// can only ever reach this app's own fragment endpoint, which verifies the id.
+// It catches an app that renders absolute fragment URLs for another host
+// name, or moved fragment_path without the meta (then the GET answers 404 and
+// the shell fails with retry(), like any failed load). Undefined when the
+// URL's last path segment cannot be a fragment id.
+function fallbackFragmentSource(src) {
+  let url
+  try {
+    url = new URL(src, window.location.href)
+  } catch {
+    return
+  }
+  const id = url.pathname.split("/").pop()
+  if (/^[\w-]+$/.test(id)) return { src: `${fragmentPath()}/${id}${url.search}`, fallback: true }
+}
+
+// A shell whose URL was refused and has no fallback has no other way to load,
+// so it must not shimmer forever: clear pending, mark the root, and emit the same
 // bubbling reactive:error a failed load does (no retry() — the URL won't change).
 // It supersedes whatever load is in flight for this root first (issue #293):
 // that load was for the shell this morph replaced, and its late arrival must
 // neither paint over this one nor clear its error marker.
-function failRefusedFragment(el, src) {
-  console.error(refusedFragmentMessage(src))
+function failRefusedFragment(el) {
   supersedeDefer(el.id)
   clearDeferPending(el)
   el.setAttribute("data-reactive-error", "defer")
@@ -502,7 +517,8 @@ export function connect(controller, core, morphed) {
   // A `cache:` shell (issue #277) carries a fragment URL instead of the token
   // and takes the same path; an on: shell with a URL is NOT probed — it waits
   // for its trigger (its root has no pending marker).
-  if ((lazyDeferSource(el) || refusedFragmentSrc(el)) && shellKind(el) === null) {
+  const fetches = el.getAttribute?.("data-reactive-defer-token") || el.getAttribute?.("data-reactive-defer-src")
+  if (fetches && shellKind(el) === null) {
     probe(el)
     state.onProbe = () => probe(el)
     el.addEventListener?.("turbo:morph-element", state.onProbe)
@@ -510,10 +526,11 @@ export function connect(controller, core, morphed) {
 
   // reactive_lazy(on:) shells (issue #276) carry NO defer token, so the probe
   // above skips them: an event shell waits for its once-bound __materialize
-  // trigger, a :visible shell for the observer armed here. A tokenless
-  // (client-only) root can never be an on: shell — the shell carries the
-  // identity token — so it skips this.
-  if (el.getAttribute?.("data-reactive-token-value") == null) return
+  // trigger, a :visible shell for the observer armed here. An on: shell
+  // carries either the identity token or (with cache:, issue #306) its
+  // fragment URL; a root with neither is client-only, never an on: shell.
+  const tokenless = el.getAttribute?.("data-reactive-token-value") == null
+  if (tokenless && el.getAttribute?.("data-reactive-defer-src") == null) return
   // turbo:morph-element BUBBLES: only a morph of the root itself counts, never
   // one of a descendant (a morphed skeleton child, a nested root). The same
   // morph can turn real content into a FETCH-ON-CONNECT shell (plain
@@ -611,10 +628,8 @@ export function materialize(controller) {
   if (!state || state.inFlight) return
   const el = controller.element
   const source = fragmentSource(el)
-  // A refused URL on an on: shell still has a safe way to load: the signed
-  // __materialize POST below. Say why the cacheable GET was skipped.
-  const refused = !source && refusedFragmentSrc(el)
-  if (refused) console.error(refusedFragmentMessage(refused))
+  // A URL refused with no fallback has already failed the shell: never POST.
+  if (!source && el.getAttribute("data-reactive-defer-src") != null) return
   // The GET skips the action pipeline, so raise its veto here: an app's
   // reactive:before-dispatch listener controls a materialize either way.
   if (source && materializeVetoed(el, state.core)) return
@@ -662,8 +677,6 @@ function observeVisible(controller, state) {
 function probe(el) {
   if (!el?.id) return
   if (el.getAttribute?.("data-reactive-defer-pending") !== "true") return
-  const source = lazyDeferSource(el)
-  if (source) return startFetchDefer(el.id, source)
-  const refused = refusedFragmentSrc(el)
-  if (refused) failRefusedFragment(el, refused)
+  const source = el.getAttribute?.("data-reactive-defer-token") || fragmentSource(el)
+  if (source) startFetchDefer(el.id, source)
 }

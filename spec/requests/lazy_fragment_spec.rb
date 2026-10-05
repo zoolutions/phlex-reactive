@@ -30,6 +30,13 @@ RSpec.describe "cacheable lazy fragments", type: :request do
     Phlex::Reactive::Fragment.src(payload)
   end
 
+  # A fragment id exactly as the release before #306 minted it.
+  def legacy_fragment_id(payload)
+    token = Phlex::Reactive.verifier.generate(payload.merge("v" => Phlex::Reactive::TOKEN_VERSION),
+      purpose: Phlex::Reactive::Fragment::PURPOSE)
+    Base64.urlsafe_encode64(token, padding: false)
+  end
+
   def get_fragment(url = panel_url, extra_headers: {})
     get url, headers: headers.merge(extra_headers)
   end
@@ -43,6 +50,28 @@ RSpec.describe "cacheable lazy fragments", type: :request do
   end
 
   before { CachedMenuComponent.version = nil }
+
+  # Issue #306: a page or fragment URL minted before the id format changed may
+  # still be cached in a browser — it keeps loading.
+  describe "a URL minted in the previous id format" do
+    it "renders, and stays privately cacheable" do
+      get_fragment("#{Phlex::Reactive.fragment_path}/#{legacy_fragment_id(panel_payload)}")
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("panel:mine")
+      expect(response.headers["Cache-Control"]).to eq("max-age=600, private")
+    end
+
+    it "renders for the session, but is not stored, when it names a viewer with the old 32-hex u" do
+      cookies[:viewer] = "alice"
+      old_u = Digest::SHA256.hexdigest("anything")[0, 32]
+      get_fragment("#{Phlex::Reactive.fragment_path}/#{legacy_fragment_id(menu_payload)}?u=#{old_u}")
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("menu:")
+      expect(response.headers["Cache-Control"]).to eq("no-store")
+    end
+  end
 
   describe "a successful render" do
     it "returns the real template as a replace stream carrying a fresh identity token" do
@@ -539,7 +568,7 @@ RSpec.describe "cacheable lazy fragments", type: :request do
     it "keys the URL on the viewer: the same for one viewer, different for another" do
       alice = menu_url(viewer: "alice")
 
-      expect(alice).to match(/[?&]u=\h{32}\z/)
+      expect(alice).to match(/[?&]u=[\w-]{22}\z/)
       expect(menu_url(viewer: "alice")).to eq(alice)
       expect(menu_url(viewer: "bob")).not_to eq(alice)
     end
@@ -645,7 +674,7 @@ RSpec.describe "cacheable lazy fragments", type: :request do
         url = probe_shell_url
         get_fragment(url)
 
-        expect(url).to match(/[?&]u=\h{32}\z/)
+        expect(url).to match(/[?&]u=[\w-]{22}\z/)
         expect(response.headers["Cache-Control"]).to eq("max-age=600, private")
         expect(vary).not_to include("Cookie")
       end
@@ -762,8 +791,16 @@ RSpec.describe "cacheable lazy fragments", type: :request do
       expect_no_store(:bad_request)
     end
 
-    it "400s an id whose class was swapped (the signature covers it)" do
-      token = Base64.urlsafe_decode64(Phlex::Reactive.sign_fragment(panel_payload))
+    it "400s an id whose class was swapped (the MAC covers it)" do
+      id = Phlex::Reactive.sign_fragment(panel_payload)
+      data = Base64.urlsafe_decode64(id[0...-22]).sub("CachedPanelComponent", "CachedMenuComponent")
+      get_fragment("#{Phlex::Reactive.fragment_path}/#{Base64.urlsafe_encode64(data, padding: false)}#{id[-22..]}")
+
+      expect_no_store(:bad_request)
+    end
+
+    it "400s a previous-format id whose class was swapped (the signature covers it)" do
+      token = Base64.urlsafe_decode64(legacy_fragment_id(panel_payload))
       data, digest = token.split("--")
       swapped = Base64.strict_encode64(Base64.decode64(data).sub("CachedPanelComponent", "CachedMenuComponent"))
       get_fragment("#{Phlex::Reactive.fragment_path}/#{Base64.urlsafe_encode64("#{swapped}--#{digest}", padding: false)}")
@@ -826,16 +863,23 @@ RSpec.describe "cacheable lazy fragments", type: :request do
     let(:json_headers) { headers.merge("Content-Type" => "application/json") }
     let(:id) { Phlex::Reactive.sign_fragment(panel_payload) }
 
-    it "400s as an action token, wrapped or unwrapped" do
-      [id, Base64.urlsafe_decode64(id)].each do
+    # The previous id format wrapped the verifier's own token; it must not
+    # resolve there either, wrapped or unwrapped.
+    let(:legacy) do
+      Phlex::Reactive.verifier.generate(panel_payload.merge("v" => Phlex::Reactive::TOKEN_VERSION),
+        purpose: Phlex::Reactive::Fragment::PURPOSE)
+    end
+
+    it "400s as an action token, in either format" do
+      [id, legacy, Base64.urlsafe_encode64(legacy, padding: false)].each do
         post Phlex::Reactive.action_path, params: { token: it, act: "__materialize", params: {} }.to_json,
           headers: json_headers
         expect(response).to have_http_status(:bad_request)
       end
     end
 
-    it "400s as a defer token, wrapped or unwrapped" do
-      [id, Base64.urlsafe_decode64(id)].each do
+    it "400s as a defer token, in either format" do
+      [id, legacy, Base64.urlsafe_encode64(legacy, padding: false)].each do
         post Phlex::Reactive.defer_path, params: { token: it }.to_json, headers: json_headers
         expect(response).to have_http_status(:bad_request)
       end
