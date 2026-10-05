@@ -1,0 +1,48 @@
+spec/phlex/vendored_controller_sync_spec.rb
+  s_b4f052d694d82f::t_cc632d455c5fe2 37-43
+app/javascript/phlex/reactive/runtime.js
+  s_b4f052d694d82f::t_cc632d455c5fe2 1980,1983-1984
+docs/app/views/docs/pages/performance.rb
+  s_b4f052d694d82f::t_f485366619c6d8 1300,1302,1309-1311,1317-1338
+  s_b4f052d694d82f::t_05d79612ce105e 1205
+app/javascript/phlex/reactive/core.min.js
+  ai_agent 1,3
+README.md
+  s_b4f052d694d82f::t_f485366619c6d8 308-311,341-344,353-354,360-362,365-372
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 5,16-17
+spec/javascript/reactive_split_final.test.js
+  s_b4f052d694d82f::t_cc632d455c5fe2 311-326,329-330,332-334,336-342
+  s_b4f052d694d82f::t_e4b78319fdb5c2 327-328,331,335
+spec/dummy/public/vendor/core.js
+  ai_agent 1,3
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,3
+spec/javascript/bundle_budget.test.js
+  s_b4f052d694d82f::t_05d79612ce105e 58,67,70,82-83
+app/javascript/phlex/reactive/core.min.js.map
+  ai_agent 5,8-9
+spec/dummy/public/vendor/reactive_controller.min.js.map
+  ai_agent 5,16-17
+CHANGELOG.md
+  s_b4f052d694d82f::t_f485366619c6d8 975-982
+  s_b4f052d694d82f::t_05d79612ce105e 905,909,931,972
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "b3e239c777fc672871e136c40551a7bdbf3b82b7",
+  "prompts": {},
+  "sessions": {
+    "s_b4f052d694d82f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a4f9e839-a934-4e75-9b79-590503d3a110",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
