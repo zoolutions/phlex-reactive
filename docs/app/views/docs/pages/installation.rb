@@ -162,12 +162,19 @@ module Views
             JS
             DocsUI::Prose() do
               p do
-                plain 'The client is a core plus feature modules. The core ('
-                code { 'reactive_controller' }
-                plain ') imports a feature only on a page that uses it, by a bare specifier such as '
-                code { 'phlex/reactive/features/persist' }
-                plain '. Give your bundler one alias for the gem\'s JavaScript directory; it covers the ' \
-                      'controller, its seams (confirm, compute, confirm_predicate) and every feature:'
+                plain 'The gem ships a prebuilt minified module ('
+                code { 'reactive_controller.min.js' }
+                plain ', the whole client in one file, about 25 KB gzipped) with a linked sourcemap. It ' \
+                      'imports three small modules by their bare names: '
+                code { 'phlex/reactive/confirm' }
+                plain ', '
+                code { 'phlex/reactive/confirm_predicate' }
+                plain ' and '
+                code { 'phlex/reactive/compute' }
+                plain ', the seams an app can override. Point your bundler at the gem with one prefix ' \
+                      'alias for '
+                code { 'phlex/reactive' }
+                plain ':'
               end
             end
             DocsUI::Code(<<~JS, lexer: :javascript, filename: 'esbuild.config.mjs')
@@ -177,7 +184,6 @@ module Views
 
               await esbuild.build({
                 // …
-                splitting: true, format: "esm", // each feature becomes its own chunk
                 plugins: [{
                   name: "phlex-reactive",
                   setup(build) {
@@ -188,20 +194,13 @@ module Views
             JS
             DocsUI::Prose() do
               p do
-                plain 'Without code splitting the features are bundled into your entry: it works, you just ' \
-                      'ship them on every page. If you would rather vendor the files, copy the whole '
-                code { 'phlex/reactive' }
-                plain ' directory ('
-                code { 'features/' }
-                plain ' included) and alias to your copy. A copied '
-                code { 'reactive_controller.min.js' }
-                plain ' alone was never enough: it imports its seams, and now its features, by ' \
-                      'those bare names.'
-              end
-              p do
-                plain 'Upgrading from 0.13: if you alias the three seams one by one, the build now fails with '
-                code { 'Could not resolve "phlex/reactive/features/persist"' }
-                plain '. Replace them with the one prefix alias above.'
+                plain 'The same alias covers the opt-in split client ('
+                code { 'phlex/reactive/core' }
+                plain ', a smaller controller that imports its feature modules on demand); add '
+                code { 'splitting: true, format: "esm"' }
+                plain ' so each feature becomes its own chunk. See '
+                a(href: '/docs/performance') { 'What loads when' }
+                plain ' on the performance page before you opt in.'
               end
               p do
                 plain 'Importing '

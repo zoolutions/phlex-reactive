@@ -49,7 +49,7 @@ bundle exec rubocop                          # Lint (rubocop -A to autocorrect)
 bundle exec rake                             # spec + rubocop
 bundle exec rake bench                        # Performance micro-benches (render, token, coerce_params)
 bundle exec rake bench:request                # End-to-end request-cycle bench (derailed)
-rake build:js                                 # Rebuild the minified client (.min.js + .map) after editing reactive_controller.js
+rake build:js                                 # Rebuild the minified client (.min.js + .map) after editing core.js or a feature
 rake build:js_check                           # CI drift guard: committed .min.js must match a fresh build
 bin/release [patch|minor|major|X.Y.Z] [-n]    # Cut a release (list / --dry-run are read-only); drives rake release
 ```
@@ -60,27 +60,42 @@ Command output is condensed by rtk (PreToolUse hook). It already rewrites `bundl
 edit to it needs `rtk trust --yes` + `rtk verify`. Write commands in hook-rewritable shapes: no
 `for`/subshell wrappers, no `| head` on rtk-handled commands, `bundle exec rubocop` not `bin/rubocop`.
 
-### Editing the client runtime (`reactive_controller.js` / `confirm.js` / `compute.js` / `inspect.js`)
+### Editing the client runtime (`core.js` / `features/*.js` / `confirm.js` / `compute.js` / `inspect.js`)
+
+The client's source is a **core** (`core.js`: the controller) plus **feature
+modules** (`features/<name>.js`), and it ships as TWO entries (issue #275):
+
+| Entry | Built from | What it is |
+|---|---|---|
+| `phlex/reactive/reactive_controller` | `reactive_controller.js`, a few lines that import the core and every feature and register them | the DEFAULT: one bundled file, nothing fetched on demand, features connect inside `connect()` |
+| `phlex/reactive/core` | `core.js` alone | opt-in: imports a feature when a root on the page needs it |
+
+Behaviour goes in `core.js` or a feature, never in `reactive_controller.js`.
+The JS suite and the browser suite run on the default entry; the opt-in path
+has its own tests (the cold reset seam in JS, `rake spec:system_split` in the
+browser).
 
 The gem ships the **minified** build, and the browser suite runs that same
 minified build (the dummy vendors it). So a source edit is a THREE-file change:
 
 ```bash
-rake build:js                                 # regenerate the .min.js + .map from source
+rake build:js                                 # regenerate every .min.js + .map from source
 cp app/javascript/phlex/reactive/reactive_controller.min.js \
-   spec/dummy/public/vendor/reactive_controller.js   # re-sync the vendored copy (same for confirm/compute/inspect)
+   spec/dummy/public/vendor/reactive_controller.js   # re-sync the vendored copies: the default bundle,
+cp app/javascript/phlex/reactive/core.min.js \
+   spec/dummy/public/vendor/core.js                  # the core, and features/<name>.js (same for confirm/compute/inspect)
 bun test spec/javascript                      # JS unit suite
+bundle exec rake spec:system_split            # the browser specs that matter on the split client
 ```
 
-A feature module (`app/javascript/phlex/reactive/features/<name>.js`, issue #275:
-code the controller imports only on a page that uses it) follows the same rule,
-vendored at `spec/dummy/public/vendor/features/<name>.js`. A NEW feature is
-named in four places that must agree — `ENTRIES` in `scripts/build_client.js`,
-`CLIENT_FEATURES` in `lib/phlex/reactive/engine.rb`, the controller's feature
-table (a literal `import()`), and a ceiling in
-`spec/javascript/bundle_budget.test.js` — plus a pin in each dummy layout's
-import map. `spec/phlex/engine_client_pin_spec.rb` (the three lists and the
-layouts) and the budget test (the ceiling) fail when they don't.
+An edit to `core.js` or a feature changes BOTH `reactive_controller.min.js`
+(the bundle) and its own file. A NEW feature is named in five places that must
+agree — `ENTRIES` in `scripts/build_client.js`, `CLIENT_FEATURES` in
+`lib/phlex/reactive/engine.rb`, the core's feature table (a literal
+`import()`), the default entry's imports and `registerReactiveFeature` calls,
+and a ceiling in `spec/javascript/bundle_budget.test.js` — plus a pin in each
+dummy layout's import map. `spec/phlex/engine_client_pin_spec.rb` (the lists
+and the layouts) and the budget test (the ceilings) fail when they don't.
 
 Commit the source, the rebuilt `.min.js`/`.map`, AND the re-synced vendored copy
 together. Two guards enforce it: `rake build:js_check` (committed min build matches
@@ -108,7 +123,7 @@ re-sync command.
 ## Architecture
 
 ```
-Layer 4: Client runtime    app/javascript/phlex/reactive/reactive_controller.js (ONE generic Stimulus controller)
+Layer 4: Client runtime    app/javascript/phlex/reactive/core.js + features/*.js (ONE generic Stimulus controller; shipped bundled as reactive_controller, or split as core)
 Layer 3: Endpoint          app/controllers/phlex/reactive/actions_controller.rb (verify token → run action → render the returned Response, else re-render)
 Layer 2: Component mixin    lib/phlex/reactive/component.rb (reactive_record/reactive_state, action, reactive_attrs, on)
 Layer 1: Streamable mixin   lib/phlex/reactive/streamable.rb (#id, replace/append/..., broadcast_*_to, to_stream_replace, to_stream_remove)

@@ -26,6 +26,7 @@ module Views
           client_numbers
           loading_the_client
           dormant_roots
+          what_loads_when
           ci
           every_change
           adding_a_benchmark
@@ -1102,6 +1103,143 @@ module Views
                 plain ') rebuilds and fails if a source edit landed without a rebuild. The system suite '
                 plain 'runs the vendored minified build in a real browser under both Puma and Falcon, so '
                 plain 'the code that ships is the code that is proven.'
+              end
+            end
+          end
+        end
+
+        def what_loads_when
+          DocsUI::Section('What loads when: the default client and the split client') do
+            DocsUI::Prose() do
+              p do
+                plain 'The client ships as two entries built from the same source (issue #275). An app '
+                plain 'imports one of them, never both.'
+              end
+              ul do
+                li do
+                  code { 'phlex/reactive/reactive_controller' }
+                  plain ' is the default: one file with the whole client in it. Everything is there when '
+                  plain 'the file has loaded, and nothing is fetched later.'
+                end
+                li do
+                  code { 'phlex/reactive/core' }
+                  plain ' is opt-in: the controller without its feature modules. It imports a feature the '
+                  plain 'first time a root on the page needs it.'
+                end
+              end
+              p do
+                plain 'Size is one side of the choice; the other is '
+                strong { 'when' }
+                plain ' each part arrives. Gzipped sizes, as '
+                code { 'spec/javascript/bundle_budget.test.js' }
+                plain ' measures and holds them:'
+              end
+            end
+            DocsUI::Table(['Module', 'Gzipped', 'Default client', 'Split client'],
+                          [
+                            [[:code, 'phlex/reactive/reactive_controller'], '24.6 KB',
+                             'When your controllers load (or at the first trigger, for a page whose only roots are dormant).',
+                             'Never.'],
+                            [[:code, 'phlex/reactive/core'], '19.7 KB',
+                             'Never: it is inside the one file.',
+                             'When your controllers load (or at the first trigger, for a page whose only roots are dormant).'],
+                            [[:code, 'phlex/reactive/features/persist'], '3.1 KB',
+                             'Inside the one file.',
+                             [:md, 'When the first root that declares `reactive_persist` connects, or a `persist_state` / ' \
+                                   '`persist_clear` op runs.']],
+                            [[:code, 'phlex/reactive/features/defer'], '2.8 KB',
+                             'Inside the one file.',
+                             [:md, 'When the first `reactive_lazy` shell connects, a morph turns a root into one, or a ' \
+                                   '`reply.defer` arrives.']],
+                            [[:code, 'phlex/reactive/early'], '1.1 KB',
+                             'On every page, if you import it.',
+                             'The same.']
+                          ])
+            DocsUI::Prose() do
+              p do
+                plain 'A page that uses neither drafts nor lazy components downloads 4.9 KB less with the '
+                plain 'split client. A page that uses both downloads 1.0 KB more, in three requests instead '
+                plain 'of one. More of the client moves into feature modules with each release, until the '
+                plain 'core is about 10 KB; the default file stays one file throughout.'
+              end
+              h3 { 'What the split client makes you wait for' }
+              p do
+                plain 'With the default client a feature is simply there when a root connects. With the '
+                plain 'split client the first root of a page load that needs a feature waits for one small '
+                plain 'request. The module is cached afterwards, and on a Turbo visit it is already loaded, '
+                plain 'so later roots do not wait. These behaviours exist '
+                strong { 'only' }
+                plain ' in that window, and only with the split client:'
+              end
+              ul do
+                li do
+                  plain 'A draft is restored a moment after the root connects, not inside the connect. '
+                  plain 'Until then the form shows what the server rendered.'
+                end
+                li do
+                  plain 'An action fired in the window waits for the restore, then posts the restored '
+                  plain 'values. If the module is slower than the feature timeout (10 s), fails to load, '
+                  plain 'or the root leaves the page first, the action goes out with the values on the page.'
+                end
+                li do
+                  plain 'What the user types in the window is kept, and drafted when the module arrives.'
+                end
+                li do
+                  plain 'A lazy shell shows its placeholder a little longer; an '
+                  code { 'on:' }
+                  plain ' event in the window loads the shell once the module is there.'
+                end
+                li do
+                  plain 'A module that cannot be imported leaves its feature off for that page load: one '
+                  plain 'console error, '
+                  code { 'data-reactive-error="feature"' }
+                  plain ' on the root, and a '
+                  code { 'reactive:error' }
+                  plain ' event.'
+                end
+              end
+              h3 { 'Taking the small core without the wait' }
+              p do
+                plain 'Preload the features you know a page uses and they are there before any root '
+                plain 'connects, so nothing above applies to them:'
+              end
+            end
+            DocsUI::Code(<<~RUBY, lexer: :ruby, filename: 'config/importmap.rb')
+              # after the engine's own pins
+              pin "phlex/reactive/core", to: "phlex/reactive/core.min.js", preload: true
+              pin "phlex/reactive/features/persist", to: "phlex/reactive/features/persist.min.js", preload: true
+            RUBY
+            DocsUI::Prose() do
+              p do
+                plain 'That preloads the module on every page. To preload it only where it is used, render '
+                code { '<link rel="modulepreload">' }
+                plain ' for it on those pages.'
+              end
+              h3 { 'With dormant roots and early capture' }
+              ul do
+                li do
+                  strong { 'Default client, lazily loaded, dormant root: ' }
+                  plain 'nothing reactive is fetched until the first trigger. '
+                  code { 'phlex/reactive/early' }
+                  plain ' wakes the root, the one file loads, and the trigger is replayed with every '
+                  plain 'feature already in place.'
+                end
+                li do
+                  strong { 'Split client, lazily loaded, dormant root: ' }
+                  plain 'the same, in two steps. The core loads and the trigger is replayed; if the root '
+                  plain 'needs a feature, that is one more request, and the replayed trigger waits for it '
+                  plain 'where it has to (a draft-keeping root\'s action, a lazy shell\'s load).'
+                end
+                li do
+                  strong { 'A limit of both: ' }
+                  code { 'phlex/reactive/early' }
+                  plain ' does not record '
+                  code { 'window:' }
+                  plain ' or '
+                  code { 'outside:' }
+                  plain ' triggers, which is how a hotkey is usually bound. A hotkey pressed before the '
+                  plain 'controller connects is lost, and a dormant root cannot be woken by one.'
+                end
               end
             end
           end
