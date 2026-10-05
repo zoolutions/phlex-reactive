@@ -141,6 +141,27 @@ RSpec.describe Phlex::Reactive::Fragment do
       expect(Phlex::Reactive.verify_defer(id)).to be_nil
     end
 
+    # The id arrives as a UTF-8 param while it was minted as a US-ASCII
+    # string; a Marshal-serializing verifier (load_defaults < 7.1) signs the
+    # encoding along with the bytes, so the MAC must not depend on it.
+    it "verifies an id that arrives with another string encoding, under a Marshal-serializing verifier" do
+      original = Phlex::Reactive.verifier
+      Phlex::Reactive.verifier = ActiveSupport::MessageVerifier.new("marshal-secret-" * 4, serializer: Marshal)
+      id = described_class.sign(payload)
+
+      [id, id.dup.force_encoding(Encoding::UTF_8), id.b].each do
+        expect(described_class.verify(it)).to include(payload)
+      end
+    ensure
+      Phlex::Reactive.verifier = original
+    end
+
+    it "is nil for an id with characters outside base64url (never raises)" do
+      ["#{"é" * 30}#{"a" * 22}", "#{"\xFF".b * 30}#{"a" * 22}", "a b+c/#{"a" * 22}"].each do
+        expect(described_class.verify(it)).to be_nil
+      end
+    end
+
     it "is nil for garbage" do
       ["", "***", "a" * 22, nil, "x.y"].each { expect(described_class.verify(it)).to be_nil }
     end

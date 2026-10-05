@@ -35,6 +35,7 @@ module Phlex
       # 128 bits of MAC: 22 base64url characters.
       MAC_BYTES = 16
       MAC_LENGTH = 22
+      BASE64URL = /\A[A-Za-z0-9_-]+\z/
       VIEWER_PURPOSE = "phlex-reactive/fragment-viewer"
       # A viewer is an identity — an id, or a few of them. These bound how far
       # a collection is walked, so no value can make the shell render slow.
@@ -78,9 +79,10 @@ module Phlex
         payload && Phlex::Reactive.upgrade_token(payload)
       end
 
-      # The MAC is checked BEFORE the data is decoded or parsed.
+      # The MAC is checked BEFORE the data is decoded or parsed. Anything but
+      # base64url characters is not an id (and never reaches the verifier).
       def verify_compact(id)
-        return nil unless id.length > MAC_LENGTH
+        return nil unless id.length > MAC_LENGTH && id.match?(BASE64URL)
 
         data = id[0...-MAC_LENGTH]
         return nil unless ActiveSupport::SecurityUtils.secure_compare(compact_mac(data), id[-MAC_LENGTH..])
@@ -99,7 +101,11 @@ module Phlex
         nil
       end
 
+      # `data` is pinned to US-ASCII (it is base64url): the id is minted as a
+      # US-ASCII String but arrives as a UTF-8 param, and a Marshal-serializing
+      # verifier (load_defaults < 7.1) signs the encoding along with the bytes.
       def compact_mac(data)
+        data = data.dup.force_encoding(Encoding::US_ASCII)
         digest_param(Digest::SHA256.digest(Phlex::Reactive.verifier.generate(data, purpose: ID_PURPOSE)), MAC_BYTES)
       end
 

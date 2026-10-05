@@ -378,6 +378,16 @@ test("…and so does its fallback GET: only the fallback's own reply counts", as
   expect(el.attrs["data-reactive-error"]).toBe("defer")
 })
 
+test("the fallback itself must resolve to this origin's fragment endpoint (a meta naming another host)", async () => {
+  metas["phlex-reactive-fragment-path"] = "//other.example/frag"
+  const el = makeRoot({ [SRC]: "/reactive/fragment/abc", [PENDING]: "true" })
+  connect(el)
+  await settle()
+
+  expect(calls).toEqual([])
+  expect(el.attrs["data-reactive-error"]).toBe("defer")
+})
+
 test("a fragment-path meta injected into <body> is ignored — only <head> can widen the path", async () => {
   bodyMetas["phlex-reactive-fragment-path"] = "/uploads"
   connect(makeRoot({ [SRC]: "/uploads/payload", [PENDING]: "true" }))

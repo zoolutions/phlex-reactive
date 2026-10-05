@@ -215,7 +215,9 @@ function fallbackFragmentSource(src) {
     return
   }
   const id = url.pathname.split("/").pop()
-  if (/^[\w-]+$/.test(id)) return { src: `${fragmentPath()}/${id}${url.search}`, fallback: true }
+  const fallback = `${fragmentPath()}/${id}${url.search}`
+  // Held to the same check as any fragment URL, whatever the meta says.
+  if (/^[\w-]+$/.test(id) && isFragmentUrl(fallback)) return { src: fallback, fallback: true }
 }
 
 // A shell whose URL was refused and has no fallback has no other way to load,

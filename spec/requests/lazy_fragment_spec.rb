@@ -808,6 +808,12 @@ RSpec.describe "cacheable lazy fragments", type: :request do
       expect_no_store(:bad_request)
     end
 
+    it "400s an id with characters outside base64url (never a 500)" do
+      get_fragment("#{Phlex::Reactive.fragment_path}/#{CGI.escape("é" * 30)}#{"a" * 22}")
+
+      expect_no_store(:bad_request)
+    end
+
     it "400s an IDENTITY token used as a fragment id" do
       token = Phlex::Reactive.sign(panel_payload)
       get_fragment("#{Phlex::Reactive.fragment_path}/#{Base64.urlsafe_encode64(token, padding: false)}")
