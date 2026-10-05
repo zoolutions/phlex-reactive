@@ -12,7 +12,7 @@
 //               when the import resolves, unless the root disconnected (or
 //               reconnected) meanwhile; disconnect runs only for a feature
 //               that connected on this connection.
-//   ready       a promise on the controller, resolved once this root's
+//   featuresReady  a promise on the controller, resolved once this root's
 //               features are loaded and connected. It never rejects.
 //   failure     never a silent dead root: reactive:error { kind: "feature",
 //               feature, phase, error } on every root it costs, with phase
@@ -93,16 +93,16 @@ test("a root that needs no feature loads none and is ready at once", async () =>
   const controller = controllerFor(mountRoot({ marked: false }))
 
   controller.connect()
-  await controller.ready
+  await controller.featuresReady
 
   expect(fake.loads()).toBe(0)
   expect(fake.log).toEqual([])
 })
 
-test("ready is a resolved promise before connect() ever runs", async () => {
+test("featuresReady is a resolved promise before connect() ever runs", async () => {
   const controller = controllerFor(mountRoot({ marked: false }))
 
-  await expect(controller.ready).resolves.toBeUndefined()
+  await expect(controller.featuresReady).resolves.toBeUndefined()
 })
 
 test("connect() starts the import a marked root needs and connects the feature when it resolves", async () => {
@@ -114,7 +114,7 @@ test("connect() starts the import a marked root needs and connects the feature w
   expect(fake.log).toEqual([])
 
   fake.resolve()
-  await controller.ready
+  await controller.featuresReady
 
   expect(fake.log).toEqual([["connect", controller]])
 })
@@ -129,7 +129,7 @@ test("connect() does not wait for the import: the root is announced first", asyn
   controller.connect()
   order.push("connect returned")
   fake.resolve()
-  await controller.ready
+  await controller.featuresReady
   order.push(...namesOf(fake.log))
 
   expect(order).toEqual(["reactive:connect", "connect returned", "connect"])
@@ -163,25 +163,25 @@ test("a queued early trigger is replayed inside connect(), before a pending feat
   controller.connect()
   order.push("connect returned")
   fake.resolve()
-  await controller.ready
+  await controller.featuresReady
   order.push(...namesOf(fake.log))
 
   expect(order).toEqual(["replayed click", "connect returned", "connect"])
   expect(early.queue).toEqual([])
 })
 
-test("ready stays pending until the feature has connected", async () => {
+test("featuresReady stays pending until the feature has connected", async () => {
   const fake = fakeFeature()
   const controller = controllerFor(mountRoot())
   let settled = false
 
   controller.connect()
-  controller.ready.then(() => (settled = true))
+  controller.featuresReady.then(() => (settled = true))
   await tick()
   expect(settled).toBe(false)
 
   fake.resolve()
-  await controller.ready
+  await controller.featuresReady
   expect(settled).toBe(true)
 })
 
@@ -193,7 +193,7 @@ test("two roots that need one feature import it once", async () => {
   first.connect()
   second.connect()
   fake.resolve()
-  await Promise.all([first.ready, second.ready])
+  await Promise.all([first.featuresReady, second.featuresReady])
 
   expect(fake.loads()).toBe(1)
   expect(fake.log).toEqual([
@@ -207,11 +207,11 @@ test("a root connecting after the feature loaded reuses the loaded module", asyn
   const first = controllerFor(mountRoot({ id: "a" }))
   first.connect()
   fake.resolve()
-  await first.ready
+  await first.featuresReady
 
   const second = controllerFor(mountRoot({ id: "b" }))
   second.connect()
-  await second.ready
+  await second.featuresReady
 
   expect(fake.loads()).toBe(1)
   expect(fake.log.at(-1)).toEqual(["connect", second])
@@ -222,7 +222,7 @@ test("a root that disconnects before the import resolves never connects the feat
   const controller = controllerFor(mountRoot())
 
   controller.connect()
-  const ready = controller.ready
+  const ready = controller.featuresReady
   controller.disconnect()
   fake.resolve()
   await ready
@@ -235,7 +235,7 @@ test("disconnect() disconnects a feature that connected, once", async () => {
   const controller = controllerFor(mountRoot())
   controller.connect()
   fake.resolve()
-  await controller.ready
+  await controller.featuresReady
 
   controller.disconnect()
   controller.disconnect()
@@ -254,13 +254,13 @@ test("a root that reconnects while the import is pending connects the feature on
   controller.disconnect()
   controller.connect()
   fake.resolve()
-  await controller.ready
+  await controller.featuresReady
 
   expect(fake.loads()).toBe(1)
   expect(fake.log).toEqual([["connect", controller]])
 })
 
-test("a failed import surfaces as reactive:error and marks the root; ready still resolves", async () => {
+test("a failed import surfaces as reactive:error and marks the root; featuresReady still resolves", async () => {
   const fake = fakeFeature()
   const root = mountRoot()
   const errors = []
@@ -274,7 +274,7 @@ test("a failed import surfaces as reactive:error and marks the root; ready still
   try {
     controller.connect()
     fake.reject(failure)
-    await controller.ready
+    await controller.featuresReady
   } finally {
     console.error = consoleError
   }
@@ -287,7 +287,7 @@ test("a failed import surfaces as reactive:error and marks the root; ready still
   expect(fake.log).toEqual([])
 })
 
-test("a feature whose connect throws is reported as a connect failure; ready still resolves", async () => {
+test("a feature whose connect throws is reported as a connect failure; featuresReady still resolves", async () => {
   const root = mountRoot()
   const errors = []
   root.addEventListener("reactive:error", (event) => errors.push(event.detail))
@@ -312,7 +312,7 @@ test("a feature whose connect throws is reported as a connect failure; ready sti
 
   try {
     controller.connect()
-    await controller.ready
+    await controller.featuresReady
   } finally {
     console.error = consoleError
   }
@@ -341,11 +341,11 @@ test("a failed import stays failed: later roots are told, nothing is re-imported
     const first = controllerFor(roots[0])
     first.connect()
     fake.reject(failure)
-    await first.ready
+    await first.featuresReady
     for (const root of roots.slice(1)) {
       const controller = controllerFor(root)
       controller.connect()
-      await controller.ready
+      await controller.featuresReady
     }
   } finally {
     console.error = consoleError
@@ -405,7 +405,7 @@ test("a marker check that throws is reported, counts as not needed, and connect(
     expect(() => controller.connect()).not.toThrow()
     expect(replayed).toEqual(["click"])
     fake.resolve()
-    await controller.ready
+    await controller.featuresReady
   } finally {
     console.error = consoleError
   }
@@ -452,7 +452,7 @@ test("features connect in registry order, whichever import lands first", async (
   expect(log).toEqual([])
 
   settle.first.resolve()
-  await controller.ready
+  await controller.featuresReady
   expect(log).toEqual(["connect first", "connect second"])
 
   controller.disconnect()
@@ -480,7 +480,7 @@ test("a feature whose disconnect throws does not stop the rest of disconnect()",
   const root = mountRoot()
   const controller = controllerFor(root)
   controller.connect()
-  await controller.ready
+  await controller.featuresReady
   const early = globalThis[Symbol.for("phlex-reactive.early")]
   const consoleError = console.error
   const logged = []
@@ -518,7 +518,7 @@ test("one feature failing to load does not keep the others from connecting", asy
     controller.connect()
     settle.first.reject(new Error("404"))
     settle.second.resolve()
-    await controller.ready
+    await controller.featuresReady
   } finally {
     console.error = consoleError
   }
@@ -535,7 +535,7 @@ test("a failed import on a root that already left is not reported on it", async 
   const controller = controllerFor(root)
 
   controller.connect()
-  const ready = controller.ready
+  const ready = controller.featuresReady
   controller.disconnect()
   fake.reject(new Error("gone"))
   await ready
@@ -544,8 +544,442 @@ test("a failed import on a root that already left is not reported on it", async 
   expect(root.hasAttribute("data-reactive-error")).toBe(false)
 })
 
-test("no production feature is registered yet (phase 1 moves no code)", async () => {
+test("the shipped table lists the moved features, persist first", async () => {
   const { reactiveFeatureNames } = await import("../../app/javascript/phlex/reactive/reactive_controller.js")
 
-  expect(reactiveFeatureNames()).toEqual([])
+  // Table order is connect order: the draft restore writes the values every
+  // other connect-time seed reads, so persist stays first as features move.
+  expect(reactiveFeatureNames()).toEqual(["persist"])
+})
+
+// --- The core handle ----------------------------------------------------------
+
+test("a feature receives the core handle on connect and on disconnect", async () => {
+  const seen = []
+  setFeature(
+    "fake",
+    (root) => root.hasAttribute(MARKER),
+    () =>
+      Promise.resolve({
+        connect: (controller, core) => seen.push(["connect", controller, core]),
+        disconnect: (controller, core) => seen.push(["disconnect", controller, core]),
+      }),
+  )
+  const root = mountRoot()
+  const events = []
+  root.addEventListener("fake:ping", (event) => events.push(event.detail))
+  const controller = controllerFor(root)
+
+  controller.connect()
+  await controller.featuresReady
+  const core = seen[0][2]
+  core.emit("fake:ping", { n: 1 })
+  controller.disconnect()
+
+  expect(Object.keys(core).sort()).toEqual(["emit", "reseed"])
+  expect(events).toEqual([{ n: 1 }])
+  expect(() => core.reseed()).not.toThrow()
+  expect(seen.map(([name, who, handle]) => [name, who === controller, handle === core])).toEqual([
+    ["connect", true, true],
+    ["disconnect", true, true],
+  ])
+})
+
+// --- Disconnect order ---------------------------------------------------------
+
+// The draft flush reads the root's fields and must run while the root is
+// still whole: features disconnect BEFORE any of the controller's own teardown.
+test("features disconnect first, before any of the controller's own teardown", async () => {
+  const early = (globalThis[Symbol.for("phlex-reactive.early")] ??= { queue: [], connected: new WeakSet() })
+  const order = []
+  for (const name of ["first", "second"]) {
+    setFeature(
+      name,
+      (root) => root.hasAttribute(MARKER),
+      () =>
+        Promise.resolve({
+          disconnect: (controller) =>
+            order.push([name, early.connected.has(controller.element), controller.element.hasAttribute("data-reactive-connected")]),
+        }),
+    )
+  }
+  const root = mountRoot()
+  // A token-bearing root wires a morph listener at connect; the controller's
+  // own teardown removes it — the first thing that teardown can be seen doing.
+  root.setAttribute("data-reactive-token-value", "tok")
+  const controller = controllerFor(root)
+  controller.connect()
+  await controller.featuresReady
+  const remove = root.removeEventListener.bind(root)
+  root.removeEventListener = (...args) => {
+    order.push("core teardown")
+    return remove(...args)
+  }
+
+  controller.disconnect()
+
+  expect(order.slice(0, 3)).toEqual([["first", true, true], ["second", true, true], "core teardown"])
+})
+
+// --- A slow or hung import ------------------------------------------------------
+
+function setFeatureTimeout(ms) {
+  document.head.innerHTML = `<meta name="phlex-reactive-feature-timeout" content="${ms}">`
+}
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+test("an import that never settles is given up on: reported, and the root's other features connect", async () => {
+  setFeatureTimeout(20)
+  const { log, settle } = twoFeatures()
+  const root = mountRoot()
+  const errors = []
+  root.addEventListener("reactive:error", (event) => errors.push([event.detail.feature, event.detail.phase]))
+  const consoleError = console.error
+  const logged = []
+  console.error = (...args) => logged.push(String(args[0]))
+  const controller = controllerFor(root)
+
+  try {
+    controller.connect()
+    settle.second.resolve()
+    await controller.featuresReady
+  } finally {
+    console.error = consoleError
+    document.head.innerHTML = ""
+  }
+
+  expect(errors).toEqual([["first", "timeout"]])
+  expect(logged).toEqual(['[phlex-reactive] the "first" feature module is slow to load; its root carried on without it'])
+  expect(log).toEqual(["connect second"])
+  expect(root.getAttribute("data-reactive-error")).toBe("feature")
+})
+
+test("a feature that arrives after its timeout still connects", async () => {
+  setFeatureTimeout(20)
+  const { log, settle } = twoFeatures()
+  const controller = controllerFor(mountRoot())
+  const consoleError = console.error
+  console.error = () => {}
+
+  try {
+    controller.connect()
+    settle.second.resolve()
+    await controller.featuresReady
+    settle.first.resolve()
+    await sleep(0)
+  } finally {
+    console.error = consoleError
+    document.head.innerHTML = ""
+  }
+
+  expect(log).toEqual(["connect second", "connect first"])
+  controller.disconnect()
+  expect(log.slice(2)).toEqual(["disconnect second", "disconnect first"])
+})
+
+test("a late feature does not connect on a root that has disconnected", async () => {
+  setFeatureTimeout(20)
+  const { log, settle } = twoFeatures()
+  const controller = controllerFor(mountRoot())
+  const consoleError = console.error
+  console.error = () => {}
+
+  try {
+    controller.connect()
+    settle.second.resolve()
+    await controller.featuresReady
+    controller.disconnect()
+    settle.first.resolve()
+    await sleep(0)
+  } finally {
+    console.error = consoleError
+    document.head.innerHTML = ""
+  }
+
+  expect(log).toEqual(["connect second", "disconnect second"])
+})
+
+test("the timeout meta is read from <head> only and ignores junk", async () => {
+  document.head.innerHTML = `<meta name="phlex-reactive-feature-timeout" content="soon">`
+  const body = document.createElement("meta")
+  body.setAttribute("name", "phlex-reactive-feature-timeout")
+  body.setAttribute("content", "1")
+  document.body.appendChild(body)
+  const fake = fakeFeature()
+  const root = mountRoot()
+  const errors = []
+  root.addEventListener("reactive:error", (event) => errors.push(event.detail.phase))
+  const controller = controllerFor(root)
+
+  try {
+    controller.connect()
+    await sleep(30)
+    // Neither the body's 1 ms nor the junk value applied: still waiting.
+    expect(errors).toEqual([])
+    fake.resolve()
+    await controller.featuresReady
+  } finally {
+    document.head.innerHTML = ""
+  }
+
+  expect(fake.log).toEqual([["connect", controller]])
+})
+
+test("disconnect clears the pending import timeout", async () => {
+  setFeatureTimeout(20)
+  const fake = fakeFeature()
+  const root = mountRoot()
+  const errors = []
+  document.addEventListener("reactive:error", (event) => errors.push(event.detail.phase))
+  const controller = controllerFor(root)
+
+  try {
+    controller.connect()
+    controller.disconnect()
+    await sleep(40)
+  } finally {
+    document.head.innerHTML = ""
+  }
+
+  expect(errors).toEqual([])
+  expect(fake.loads()).toBe(1)
+})
+
+// --- A marker that arrives by morph ---------------------------------------------
+
+function morph(root) {
+  root.dispatchEvent(new window.CustomEvent("turbo:morph-element", { bubbles: true }))
+}
+
+test("a morph that adds a feature's marker to a connected root loads the feature", async () => {
+  const fake = fakeFeature()
+  const root = mountRoot({ marked: false })
+  root.setAttribute("data-reactive-token-value", "tok")
+  const controller = controllerFor(root)
+  controller.connect()
+  await controller.featuresReady
+  expect(fake.loads()).toBe(0)
+
+  root.setAttribute(MARKER, "")
+  morph(root)
+  expect(fake.loads()).toBe(1)
+  fake.resolve()
+  await controller.featuresReady
+
+  expect(fake.log).toEqual([["connect", controller]])
+})
+
+test("a later morph does not load or connect a feature the root already has", async () => {
+  const fake = fakeFeature()
+  const root = mountRoot()
+  root.setAttribute("data-reactive-token-value", "tok")
+  const controller = controllerFor(root)
+  controller.connect()
+  fake.resolve()
+  await controller.featuresReady
+
+  morph(root)
+  morph(root)
+  await controller.featuresReady
+
+  expect(fake.loads()).toBe(1)
+  expect(fake.log).toEqual([["connect", controller]])
+})
+
+test("a morph of a descendant does not re-scan the root", async () => {
+  const fake = fakeFeature()
+  const root = mountRoot({ marked: false })
+  root.setAttribute("data-reactive-token-value", "tok")
+  const child = document.createElement("p")
+  root.appendChild(child)
+  const controller = controllerFor(root)
+  controller.connect()
+
+  root.setAttribute(MARKER, "")
+  morph(child)
+
+  expect(fake.loads()).toBe(0)
+})
+
+// --- Requests wait for a feature that is still loading (D1) ----------------------
+//
+// A feature may be about to change what a request reads (the draft restore
+// writes the fields the request collects). So the core does its synchronous
+// part at once — preventDefault, the guards, the queue — and the request
+// itself waits for the root's features. This is the mechanism with a FAKE
+// feature; spec/javascript/reactive_persist.test.js and
+// spec/system/persist_feature_spec.rb exercise it with the real persist module.
+
+function requestRig() {
+  const posts = []
+  globalThis.window = window
+  window.Turbo = { renderStreamMessage: () => {} }
+  globalThis.fetch = (_url, options) => {
+    posts.push(JSON.parse(options.body))
+    return Promise.resolve({
+      redirected: false,
+      ok: true,
+      status: 200,
+      headers: { get: () => "text/vnd.turbo-stream.html" },
+      text: () => Promise.resolve(""),
+    })
+  }
+  return posts
+}
+
+function triggerEvent(act, extra = {}) {
+  let prevented = false
+  return {
+    params: { action: act, params: "{}", ...extra },
+    preventDefault: () => (prevented = true),
+    wasPrevented: () => prevented,
+  }
+}
+
+// A marked root with one text field, whose fake feature fills the field in
+// when it connects — as the draft restore does.
+function fieldRoot() {
+  const root = mountRoot()
+  root.setAttribute("data-reactive-token-value", "tok")
+  const input = document.createElement("input")
+  input.name = "note"
+  root.appendChild(input)
+  const pending = []
+  setFeature(
+    "fake",
+    (el) => el.hasAttribute(MARKER),
+    () => new Promise((resolve) => pending.push(() => resolve({ connect: () => (input.value = "restored") }))),
+  )
+  const controller = controllerFor(root)
+  controller.tokenValue = "tok"
+  return { root, controller, arrive: () => pending.shift()() }
+}
+
+test("a live dispatch during the import is prevented at once and posts after the feature connected", async () => {
+  const posts = requestRig()
+  const { controller, arrive } = fieldRoot()
+  controller.connect()
+
+  const event = triggerEvent("save")
+  const done = controller.dispatch(event)
+  expect(event.wasPrevented()).toBe(true)
+  await sleep(0)
+  expect(posts).toEqual([])
+
+  arrive()
+  await done
+  await controller.queue
+
+  expect(posts.map((post) => [post.act, post.params.note])).toEqual([["save", "restored"]])
+})
+
+test("a replayed early trigger posts once, after the feature connected, with what the feature wrote", async () => {
+  const posts = requestRig()
+  const { root, controller, arrive } = fieldRoot()
+  const button = document.createElement("button")
+  const token = "click->reactive#dispatch"
+  button.setAttribute("data-action", token)
+  button.setAttribute("data-reactive-action-param", "save")
+  root.appendChild(button)
+  const early = (globalThis[Symbol.for("phlex-reactive.early")] ??= { queue: [], connected: new WeakSet() })
+  early.queue.length = 0
+  early.queue.push({
+    event: new window.MouseEvent("click", { bubbles: true, cancelable: true }),
+    el: button,
+    root,
+    descs: [{ token, type: "click", method: "dispatch", filter: "" }],
+    at: performance.now(),
+  })
+
+  controller.connect()
+  await sleep(0)
+  // Replayed inside connect() — it is in the queue — but not sent yet.
+  expect(early.queue).toEqual([])
+  expect(posts).toEqual([])
+
+  arrive()
+  await controller.featuresReady
+  await controller.queue
+
+  expect(posts.map((post) => [post.act, post.params.note])).toEqual([["save", "restored"]])
+})
+
+test("events during the import keep their order: the replayed one, then the live ones", async () => {
+  const posts = requestRig()
+  const { root, controller, arrive } = fieldRoot()
+  const button = document.createElement("button")
+  const token = "click->reactive#dispatch"
+  button.setAttribute("data-action", token)
+  button.setAttribute("data-reactive-action-param", "first")
+  root.appendChild(button)
+  const early = (globalThis[Symbol.for("phlex-reactive.early")] ??= { queue: [], connected: new WeakSet() })
+  early.queue.length = 0
+  early.queue.push({
+    event: new window.MouseEvent("click", { bubbles: true, cancelable: true }),
+    el: button,
+    root,
+    descs: [{ token, type: "click", method: "dispatch", filter: "" }],
+    at: performance.now(),
+  })
+
+  controller.connect()
+  controller.dispatch(triggerEvent("second"))
+  controller.dispatch(triggerEvent("third"))
+  await sleep(0)
+  expect(posts).toEqual([])
+
+  arrive()
+  await controller.featuresReady
+  await controller.queue
+
+  expect(posts.map((post) => post.act)).toEqual(["first", "second", "third"])
+})
+
+test("a request waits no longer than the feature timeout for a hung import", async () => {
+  setFeatureTimeout(20)
+  const posts = requestRig()
+  const { controller } = fieldRoot()
+  const consoleError = console.error
+  console.error = () => {}
+
+  try {
+    controller.connect()
+    await controller.dispatch(triggerEvent("save"))
+    await controller.queue
+  } finally {
+    console.error = consoleError
+    document.head.innerHTML = ""
+  }
+
+  expect(posts.map((post) => [post.act, post.params.note])).toEqual([["save", ""]])
+})
+
+test("once the features have connected a dispatch does not wait on them again", async () => {
+  const posts = requestRig()
+  const { controller, arrive } = fieldRoot()
+  controller.connect()
+  arrive()
+  await controller.featuresReady
+  // A promise that never settles: a dispatch that awaited it would hang.
+  controller.featuresReady = new Promise(() => {})
+
+  await controller.dispatch(triggerEvent("save"))
+  await controller.queue
+
+  expect(posts.map((post) => post.act)).toEqual(["save"])
+})
+
+test("a root with no feature posts in the same turn it always did", async () => {
+  const posts = requestRig()
+  const root = mountRoot({ marked: false })
+  root.setAttribute("data-reactive-token-value", "tok")
+  const controller = controllerFor(root)
+  controller.tokenValue = "tok"
+  controller.connect()
+  controller.featuresReady = new Promise(() => {})
+
+  await controller.dispatch(triggerEvent("save"))
+  await controller.queue
+
+  expect(posts.map((post) => post.act)).toEqual(["save"])
 })

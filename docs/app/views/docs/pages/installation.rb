@@ -162,22 +162,39 @@ module Views
             JS
             DocsUI::Prose() do
               p do
-                plain "If your bundler can't resolve the gem path, copy the file in. The gem "
-                plain 'ships a prebuilt minified module ('
-                code { 'reactive_controller.min.js' }
-                plain ', ~22 KB vs ~106 KB source) with a linked sourcemap — vendor that:'
+                plain 'The client is a core plus feature modules. The core ('
+                code { 'reactive_controller' }
+                plain ') imports a feature only on a page that uses it, by a bare specifier such as '
+                code { 'phlex/reactive/features/persist' }
+                plain '. Give your bundler one alias for the gem\'s JavaScript directory; it covers the ' \
+                      'controller, its seams (confirm, compute, confirm_predicate) and every feature:'
               end
             end
-            DocsUI::Code(<<~SHELL, lexer: :shell)
-              js="$(bundle show phlex-reactive)/app/javascript/phlex/reactive"
-              cp "$js/reactive_controller.min.js"     app/javascript/controllers/reactive_controller.js
-              cp "$js/reactive_controller.min.js.map"  app/javascript/controllers/reactive_controller.min.js.map
-            SHELL
+            DocsUI::Code(<<~JS, lexer: :javascript, filename: 'esbuild.config.mjs')
+              import { execSync } from "node:child_process"
+              const gemJs = `${execSync("bundle show phlex-reactive").toString().trim()}/app/javascript`
+
+              await esbuild.build({
+                // …
+                splitting: true, format: "esm", // each feature becomes its own chunk
+                plugins: [{
+                  name: "phlex-reactive",
+                  setup(build) {
+                    build.onResolve({ filter: /^phlex\\/reactive\\// }, ({ path }) => ({ path: `${gemJs}/${path}.min.js` }))
+                  },
+                }],
+              })
+            JS
             DocsUI::Prose() do
               p do
-                plain '…and '
-                code { 'import ReactiveController from "./reactive_controller"' }
-                plain '.'
+                plain 'Without code splitting the features are bundled into your entry: it works, you just ' \
+                      'ship them on every page. If you would rather vendor the files, copy the whole '
+                code { 'phlex/reactive' }
+                plain ' directory ('
+                code { 'features/' }
+                plain ' included) and alias to your copy. A copied '
+                code { 'reactive_controller.min.js' }
+                plain ' alone no longer resolves.'
               end
               p do
                 plain 'Importing '

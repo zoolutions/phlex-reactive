@@ -895,18 +895,38 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **Groundwork for splitting the client (#275) — no behaviour change.** The
-  controller gains a loader for feature modules (none exists yet, so nothing
-  loads) and a `ready` promise on each controller that resolves once the
-  features its root needs are connected — already resolved today. A feature
-  that cannot be used will emit `reactive:error` with `kind: "feature"` and a
-  `phase` (`"load"`, `"connect"` or `"detect"`) on every root it costs, and
-  log once per page; a feature that failed to load stays failed until the
-  page is reloaded, because browsers cache a failed module.
-  `spec/javascript/bundle_budget.test.js` now reports every module's gzipped
-  size and holds the controller to a ceiling that each later step lowers
-  (22,787 B today as that test measures it, with bun's zlib at level 9; the
-  loader added 515 B).
+- **The client is now a core plus feature modules; `reactive_persist` is the
+  first feature (#275).** The draft code moved out of
+  `reactive_controller` into `phlex/reactive/features/persist`, which the
+  controller imports only on a page with a `reactive_persist` root (or when a
+  `persist_state` / `persist_clear` op runs). A page without one no longer
+  downloads it: the controller went from 22,272 B to 21,055 B gzipped, and
+  the feature is 2,987 B (bun's zlib, level 9, as
+  `spec/javascript/bundle_budget.test.js` measures and now holds — the
+  controller, each feature and their total).
+  - **Importmap apps change nothing**: the engine pins every feature
+    (`preload: false`) and adds it to the precompile list.
+  - **Bundler apps need one alias** for the gem's `app/javascript` directory;
+    a copied `reactive_controller.min.js` alone no longer resolves. See the
+    README's esbuild / webpack / bun section.
+  - **The draft restore now runs when the module has arrived**, not inside
+    `connect()`: one small request later on a first visit, immediately after
+    that. The client re-runs its connect-time bindings afterwards; an action
+    fired before the restore waits for it and posts the restored values; a
+    `persist_state` / `persist_clear` op waits too; nothing is drafted from
+    the server's blanks in between.
+  - **`controller.featuresReady`** is a promise that resolves once the
+    features a root needs have connected (already resolved for a root that
+    needs none). It never rejects.
+  - **`reactive:error` has a new `kind: "feature"`** with `feature`, `phase`
+    (`"load"`, `"timeout"`, `"connect"`, `"detect"`) and `error`, on every
+    root the missing feature costs; it is logged once per page. A feature
+    that failed to load stays failed until the page is reloaded (browsers
+    cache a failed module). One that is slower than 10 s
+    (`<meta name="phlex-reactive-feature-timeout">`) stops holding the root
+    back and still connects when it arrives.
+  - A morph that adds a feature's marker to a connected, token-bearing root
+    loads the feature.
 
 - **`on_client` emits a binding record (#271).** `data-reactive-ops-param` now
   holds `{"on":…,"ops":[…], "window"?, "outside"?, "confirm"?, "confirmWhen"?}`

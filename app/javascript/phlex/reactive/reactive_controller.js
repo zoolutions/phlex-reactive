@@ -1202,463 +1202,21 @@ function runTransition(el, transition, flip) {
   setTimeout(cleanup, 350)
 }
 
-// ---------------------------------------------------------------------------
-// Client-only drafts (issue #239) — reactive_persist. A root that declares
-// data-reactive-persist='{"key","ttl","debounce"[,"fields"][,"restore"]}'
-// keeps a localStorage draft of every persistable OWNED control (write on
-// input/change, restore on connect, clear on a successful submit / TTL / the
-// persist_clear op). The storage layer is MODULE-LEVEL and keyed on the root
-// element — the controller's connect/write path and the persist_state /
-// persist_clear client ops (which receive only the element) share it. Every
-// storage access is try/catch'd: a private window, a quota error or blocked
-// storage degrades to "no draft", never a thrown bootstrap. Nothing here
-// leaves the browser: no token, no POST, and phlex-reactive never writes
-// markup into the DOM: native controls are replayed via
-// .value/.checked/.selected, a bare [contenteditable] via textContent, and a
-// rich editor (lexxy-editor, trix-editor — issue #241) through its OWN
-// `value` setter, the same sanitizing import path a paste takes. Never
-// innerHTML.
-// ---------------------------------------------------------------------------
-const PERSIST_VERSION = 1
-const PERSIST_PREFIX = "phlex-reactive:persist:"
-// Never persisted regardless of author intent: no server default to restore
-// into (hidden, file), secrets (password), and non-value controls.
-const PERSIST_EXCLUDED_TYPES = new Set(["hidden", "file", "password", "submit", "button", "reset", "image"])
-const PERSIST_NO_VALUE = Symbol("persist-no-value")
-const PERSIST_STATE_ATTR = "data-reactive-persist-state"
-// The editor query #collectFields reads (minus the [name] guard — an editor's
-// name may live on its IDL `name` getter: Trix's `input=`-paired hidden input).
-const PERSIST_EDITOR_SELECTOR =
+// Rich-text and contenteditable fields, as #collectFields reads them (minus
+// the [name] guard — an editor's name may live on its IDL `name` getter:
+// Trix's `input=`-paired hidden input). The persist feature keeps its own copy
+// of these two constants (features never import the core); a test pins that
+// they stay equal.
+export const EDITOR_SELECTOR =
   ":is(lexxy-editor, trix-editor, [contenteditable=''], [contenteditable=true], [contenteditable=plaintext-only])"
-const PERSIST_EDITOR_TAGS = new Set(["lexxy-editor", "trix-editor"])
-// An editor's own chrome: Lexxy renders its toolbar (a `lexxy-code-language`
-// select, the link dialog's `href` input) INSIDE <lexxy-editor>, Trix as a
-// sibling <trix-toolbar>. Those are named native controls that are not the
-// user's fields — never drafted, never restored into.
-const PERSIST_EDITOR_CHROME = "lexxy-editor, trix-editor, trix-toolbar"
-// The editors' own bubbling change events — the keystroke signal for the
-// draft write, since neither lets its contenteditable's native `input` bubble.
-const PERSIST_EDITOR_CHANGE_EVENTS = ["lexxy:change", "trix-change"]
-// "Is this editor empty" when it exposes no predicate of its own (Lexxy's
-// `isEmpty`, Trix's `editor.getDocument().isEmpty()`): Lexxy's own empty
-// list plus the Trix / contenteditable empties. Exact strings, no HTML
-// parsing — an attachment-only body stays non-blank.
-const PERSIST_EMPTY_HTML = new Set(["", "<p></p>", "<p><br></p>", "<div><br></div>"])
-// Once-per-root guards: a malformed payload warns once; the storage-failure
-// and editor-restore dev notes (debug mode only) print once each.
-const persistPayloadWarned = new WeakSet()
-const persistFailureNoted = new WeakSet()
-const persistEditorNoted = new WeakSet()
+export const EDITOR_TAGS = new Set(["lexxy-editor", "trix-editor"])
 
-// The root's parsed payload, or null (undeclared / malformed → warned once).
-// A control-level "off" (reactive_persist_skip) is never a root payload.
-function persistPayload(root) {
-  const raw = root?.getAttribute?.("data-reactive-persist")
-  if (!raw || raw === "off") return null
-  try {
-    const payload = JSON.parse(raw)
-    if (payload && typeof payload === "object" && typeof payload.key === "string" && payload.key !== "") return payload
-  } catch {
-    // fall through to the warn
-  }
-  if (!persistPayloadWarned.has(root)) {
-    persistPayloadWarned.add(root)
-    console.warn(`[phlex-reactive] malformed reactive_persist payload ${JSON.stringify(raw)} — persistence disabled`)
-  }
-  return null
-}
-
-function persistStorage() {
-  try {
-    return typeof localStorage === "undefined" ? null : localStorage
-  } catch {
-    return null // the accessor itself can throw (blocked site data)
-  }
-}
-
-// The dev lens for "why did nothing come back": ONLY under data-reactive-debug
-// (Phlex::Reactive.debug), once per root — production stays silent.
-function persistNoteFailure(root, error) {
-  if (root?.getAttribute?.("data-reactive-debug") !== "true" || persistFailureNoted.has(root)) return
-  persistFailureNoted.add(root)
-  console.info(`[phlex-reactive] reactive_persist: storage unavailable — draft skipped (${error?.name ?? error})`)
-}
-
-function persistKeyFor(payload) {
-  return PERSIST_PREFIX + payload.key
-}
-
-// Read + validate the draft: null when absent, unparsable, another schema
-// version, or expired (an expired draft is REMOVED on read). Returns
-// { fields, state } with state null when the draft carries none.
-function persistRead(root, payload) {
-  const store = persistStorage()
-  if (!store) return null
-  let raw
-  try {
-    raw = store.getItem(persistKeyFor(payload))
-  } catch (error) {
-    persistNoteFailure(root, error)
-    return null
-  }
-  if (!raw) return null
-  let draft
-  try {
-    draft = JSON.parse(raw)
-  } catch {
-    return null
-  }
-  if (!draft || typeof draft !== "object" || draft.v !== PERSIST_VERSION) return null
-  const ttlMs = Number(payload.ttl) * 1000
-  if (!(Number(draft.savedAt) + ttlMs > Date.now())) {
-    persistRemove(root, payload)
-    return null
-  }
-  const fields = draft.fields && typeof draft.fields === "object" ? draft.fields : {}
-  const state = draft.state && typeof draft.state === "object" ? draft.state : null
-  return { fields, state }
-}
-
-function persistWrite(root, payload, { fields, state }) {
-  const store = persistStorage()
-  if (!store) return false
-  const draft = { v: PERSIST_VERSION, savedAt: Date.now(), fields }
-  if (state) draft.state = state
-  try {
-    store.setItem(persistKeyFor(payload), JSON.stringify(draft))
-    return true
-  } catch (error) {
-    persistNoteFailure(root, error)
-    return false
-  }
-}
-
-function persistRemove(root, payload) {
-  root?.removeAttribute?.(PERSIST_STATE_ATTR)
-  const store = persistStorage()
-  if (!store) return
-  try {
-    store.removeItem(persistKeyFor(payload))
-  } catch (error) {
-    persistNoteFailure(root, error)
-  }
-}
-
-// The persistable controls this root OWNS (#15: a nested reactive root's
-// controls are its own), minus the excluded types, the reactive_persist_skip
-// marker, and — when `fields` narrows the set — any undeclared name. Each
-// entry is { el, name, kind } with kind "native" (input/select/textarea),
-// "editor" (lexxy-editor / trix-editor) or "contenteditable" (a bare named
-// editable element) — issue #241.
-function persistControls(root, payload) {
-  const allow = Array.isArray(payload.fields) ? new Set(payload.fields) : null
-  const out = []
-  const owned = (el) =>
-    el.closest('[data-controller~="reactive"]') === root && el.getAttribute("data-reactive-persist") !== "off"
-  for (const el of root.querySelectorAll("input[name], select[name], textarea[name]")) {
-    if (!owned(el) || PERSIST_EXCLUDED_TYPES.has(el.type) || el.closest(PERSIST_EDITOR_CHROME)) continue
-    if (allow && !allow.has(el.name)) continue
-    out.push({ el, name: el.name, kind: "native" })
-  }
-  for (const el of root.querySelectorAll(PERSIST_EDITOR_SELECTOR)) {
-    if (!owned(el)) continue
-    const name = persistEditorName(el)
-    if (!name || (allow && !allow.has(name))) continue
-    out.push({ el, name, kind: PERSIST_EDITOR_TAGS.has(el.localName) ? "editor" : "contenteditable" })
-  }
-  return out
-}
-
-// The attribute first (Lexxy, a bare contenteditable — which has no `name`
-// IDL property at all), then the IDL getter (Trix resolves it through its
-// `input=`-paired hidden input, which is itself excluded as type=hidden).
-function persistEditorName(el) {
-  return el.getAttribute("name") || (typeof el.name === "string" && el.name) || null
-}
-
-// An editor is READY once its custom element has upgraded and connected: only
-// then does it expose the string `value` accessor (Lexxy's setter throws
-// before connectedCallback created its editor; Trix's discards the value).
-function persistEditorReady(el) {
-  return typeof el.value === "string"
-}
-
-// The same question for #collectFields. A RICH editor (lexxy/trix) is only
-// ready once its custom element upgraded — Trix defines its elements in a
-// setTimeout after load — and reading it before that yields "", which is issue
+// A RICH editor (lexxy/trix) is only ready once its custom element upgraded —
+// Trix defines its elements in a setTimeout after load — and exposes the
+// string `value` accessor; reading it before that yields "", which is issue
 // #8. A bare [contenteditable] is plain DOM and always ready.
 function collectorEditorReady(el) {
-  return PERSIST_EDITOR_TAGS.has(el.localName) ? persistEditorReady(el) : true
-}
-
-// Ask the editor whether it is empty (Lexxy `isEmpty`; Trix
-// `editor.getDocument().isEmpty()`), else the exact-string fallback. An
-// attachment-only server body is therefore NON-blank and never overwritten.
-function persistEditorBlank(el) {
-  if (typeof el.isEmpty === "boolean") return el.isEmpty
-  const doc = el.editor?.getDocument?.()
-  if (typeof doc?.isEmpty === "function") return doc.isEmpty()
-  return PERSIST_EMPTY_HTML.has(el.value.trim())
-}
-
-// The editor-restore dev lens: ONLY under data-reactive-debug, once per root.
-function persistNoteEditorFailure(root, name, error) {
-  if (root?.getAttribute?.("data-reactive-debug") !== "true" || persistEditorNoted.has(root)) return
-  persistEditorNoted.add(root)
-  console.info(
-    `[phlex-reactive] reactive_persist: could not restore editor ${JSON.stringify(name)} — ${error?.message ?? error}`,
-  )
-}
-
-function persistSelectMultiple(el) {
-  return el.tagName === "SELECT" && el.multiple
-}
-
-// How many controls can contribute a value under each `[]` name, counted the
-// way persistSnapshot fills the slot — a radio is the exception there and here.
-// A group of ONE is unambiguous: its single entry can only have come from that
-// control.
-function persistGroupSizes(controls) {
-  const sizes = new Map()
-  for (const { el, name } of controls) {
-    if (el.type === "radio" || !String(name).endsWith("[]")) continue
-    sizes.set(name, (sizes.get(name) ?? 0) + 1)
-  }
-  return sizes
-}
-
-// The value a control that cannot pick its own entry out of a list may take.
-// A list belongs to a `[]` group, and in a group of two or more nothing says
-// which entry came from which control — restoring it would paste
-// "freeform,news" into a text field. A group of ONE has no such ambiguity, and
-// refusing it would silently drop the draft of a plain field whose name merely
-// ends in `[]` (a list JS maintains), which worked before groups existed.
-// Returns PERSIST_NO_VALUE when the control must keep what the server rendered.
-function persistGenericValue(value, name, sizes) {
-  if (!Array.isArray(value)) return value
-  if (sizes.get(name) !== 1 || value.length !== 1) return PERSIST_NO_VALUE
-
-  return value[0]
-}
-
-// Snapshot the owned controls: radio → the checked value (null when the group
-// has none, so a restore leaves it alone), checkbox → checked, multi-select →
-// the selected values, a rich editor → its serialized `value` (omitted while
-// the element hasn't upgraded — never a phantom ""), a bare contenteditable →
-// its textContent, else .value. Mirrors #collectFields' reads.
-function persistSnapshot(root, payload) {
-  const fields = {}
-  // A `[]` name is a group for every control that can contribute a value —
-  // checkboxes, selects, text inputs, editors and contenteditables all append
-  // to one array, mirroring #collectFields. The one exception is a RADIO group,
-  // which means "pick one" and keeps its single value with or without the
-  // suffix, exactly as the collector treats it.
-  //
-  // Reading the slot without this (fields[name] ?? []) breaks as soon as a
-  // non-checkbox shares the group's name: a text input or an editor leaves a
-  // string there, `.push` on it throws inside the draft write, and that write
-  // is swallowed — the root then persists nothing at all, silently. Editors
-  // are collected AFTER the native controls, so they always land last.
-  const groupSlot = (name) => {
-    const existing = fields[name]
-    return Array.isArray(existing) ? existing : (fields[name] = [])
-  }
-  for (const { el, name, kind } of persistControls(root, payload)) {
-    const group = String(name).endsWith("[]")
-    if (kind === "editor") {
-      if (persistEditorReady(el)) {
-        if (group) groupSlot(name).push(el.value)
-        else fields[name] = el.value
-      }
-    } else if (kind === "contenteditable") {
-      const text = el.textContent ?? ""
-      if (group) groupSlot(name).push(text)
-      else fields[name] = text
-    } else if (el.type === "radio") {
-      if (el.checked) fields[name] = el.value
-      else if (!Object.hasOwn(fields, name)) fields[name] = null
-    } else if (el.type === "checkbox") {
-      // A `[]` group drafts the list of ticked values, mirroring #collectFields
-      // (issue #258). Without this the boxes overwrote each other and the draft
-      // held one boolean, which the restore then applied to every box of the
-      // group. A lone checkbox keeps the boolean it has always been.
-      if (group) {
-        const slot = groupSlot(name)
-        if (el.checked) slot.push(el.value)
-      } else {
-        fields[name] = el.checked
-      }
-    } else if (persistSelectMultiple(el)) {
-      const selected = [...el.options].filter((o) => o.selected).map((o) => o.value)
-      if (group) groupSlot(name).push(...selected)
-      else fields[name] = selected
-    } else if (group) {
-      groupSlot(name).push(el.value)
-    } else {
-      fields[name] = el.value
-    }
-  }
-  return fields
-}
-
-// Replay the draft into the owned controls. Default (restore: blank): a
-// control the server rendered NON-BLANK keeps its value — a 422 re-render's
-// submitted values beat an older draft. restore: "always" lets the draft win.
-// Values land via .value/.checked/.selected, textContent, or the editor's own
-// `value` setter — never HTML written by us.
-function persistApply(root, payload, fields) {
-  const always = payload.restore === "always"
-  const controls = persistControls(root, payload)
-  // Which group names the SERVER rendered with a box already ticked. Computed
-  // BEFORE the loop on purpose: the loop writes `checked`, so asking this
-  // question from inside it would read THIS restore's own work — the first box
-  // it ticks makes every later box of the same group look server-rendered, and
-  // a draft of two values comes back as one. The radio branch below asks the
-  // same question inline and stays correct only because a radio group holds a
-  // single value.
-  const groupSizes = persistGroupSizes(controls)
-  const serverTicked = new Set()
-  for (const control of controls) {
-    if (control.kind === "native" && control.el.type === "checkbox" && control.el.checked) {
-      serverTicked.add(control.name)
-    }
-  }
-  for (const { el, name, kind } of controls) {
-    if (!Object.hasOwn(fields, name)) continue
-    let value = fields[name]
-    if (value === null || value === undefined) continue
-    // A multi-select reads a list by matching option values, which is only
-    // sound when the list is ITS list. In a group with another contributor the
-    // entries are mixed, and a text value that happens to equal an option
-    // would select it — measured, a draft of ["blue","freitext"] from a select
-    // plus a text field selected both options. `?? 0` because a name without
-    // the suffix is not in the map at all, and a plain `<select multiple
-    // name="colors">` must keep restoring.
-    if (Array.isArray(value) && persistSelectMultiple(el) && (groupSizes.get(name) ?? 0) > 1) continue
-
-    // An array belongs to a `[]` group, and only a control that can pick ITS
-    // entry out of the list may read it: a checkbox matches by value, a
-    // multi-select by option. Everything else — editors, contenteditables,
-    // text inputs — keeps what the server rendered, because the list does not
-    // record which entry came from which control. This sits ABOVE the branch
-    // chain on purpose: below the editor branch it would never fire for the
-    // very controls that land last in the snapshot.
-    if (Array.isArray(value) && !(el.type === "checkbox" || persistSelectMultiple(el))) {
-      value = persistGenericValue(value, name, groupSizes)
-      if (value === PERSIST_NO_VALUE) continue
-    }
-    // The mirror, for a draft written BEFORE a group was drafted as a list
-    // (#258): there `features[]` held ONE boolean, and applying it here ticks
-    // every box of the group — precisely the state this fix removes, for as
-    // long as the draft lives (default ttl 7 days). A group key that is not a
-    // list is stale by definition, so the control keeps what the server
-    // rendered and the next snapshot overwrites the key. It reads for a
-    // multi-select too: 0.13.2 wrote last-writer-wins per name, so a checkbox
-    // in a mixed group could leave its boolean under the select's name, and
-    // under `restore: "always"` the select would then deselect everything —
-    // `wanted` being Set{"true"} matches no option. Asking for the `[]` suffix
-    // is what leaves a lone `gift` checkbox on the boolean it has always held —
-    // and scoping the rule to the one key whose meaning changed is why
-    // PERSIST_VERSION stays at 1: bumping it would also throw away the drafted
-    // prose of every form that has no checkbox group at all.
-    if ((el.type === "checkbox" || persistSelectMultiple(el)) && String(name).endsWith("[]") && !Array.isArray(value)) {
-      continue
-    }
-    if (kind === "editor") {
-      persistApplyEditor(root, el, name, value, always)
-    } else if (kind === "contenteditable") {
-      if (!always && (el.textContent ?? "").trim() !== "") continue
-      el.textContent = String(value)
-    } else if (el.type === "radio") {
-      if (!always && controls.some((c) => c.kind === "native" && c.el.type === "radio" && c.name === name && c.el.checked)) continue
-      el.checked = el.value === String(value)
-    } else if (el.type === "checkbox" && Array.isArray(value)) {
-      // A drafted group ticks exactly the boxes it held. One box the SERVER
-      // rendered ticked means it had a say, and the draft yields for the whole
-      // group.
-      if (!always && serverTicked.has(name)) continue
-      el.checked = value.map(String).includes(el.value)
-    } else if (el.type === "checkbox") {
-      if (!always && el.checked) continue
-      el.checked = Boolean(value)
-    } else if (persistSelectMultiple(el)) {
-      if (!always && [...el.options].some((o) => o.selected)) continue
-      const wanted = new Set((Array.isArray(value) ? value : [value]).map(String))
-      for (const o of el.options) o.selected = wanted.has(o.value)
-    } else {
-      if (!always && el.value !== "") continue
-      el.value = String(value)
-    }
-  }
-  persistDeferEditors(root, payload, fields)
-}
-
-// A ready editor takes the value through its own setter; the setter is the
-// editor's sanitizing import (Trix HTMLParser, Lexxy $generateNodesFromDOM +
-// sanitizer). A throw (Lexxy before its editor exists) never escapes connect.
-function persistApplyEditor(root, el, name, value, always) {
-  // A list never reaches here: both callers resolve it through
-  // persistGenericValue first — the group of two or more has no mapping back to
-  // this editor, the group of one does. Belt and braces, because this is the
-  // one apply path with a second entry point.
-  if (Array.isArray(value)) return
-  if (!persistEditorReady(el)) return // not upgraded yet — persistDeferEditors re-applies after define
-  if (!always && !persistEditorBlank(el)) return
-  try {
-    el.value = String(value)
-  } catch (error) {
-    persistNoteEditorFailure(root, name, error)
-  }
-}
-
-// An editor whose custom element is not defined yet (Trix defines its elements
-// in a setTimeout after load; a lazily imported Lexxy) cannot take a value now.
-// Re-apply per TAG once it is defined — re-querying the controls (the upgrade
-// may replace the node) and re-checking restore: blank at that moment — unless
-// the root has left the document meanwhile.
-function persistDeferEditors(root, payload, fields) {
-  const registry = globalThis.customElements
-  if (typeof registry?.whenDefined !== "function") return
-  const pending = new Set()
-  for (const el of root.querySelectorAll("lexxy-editor, trix-editor")) {
-    if (!persistEditorReady(el) && !registry.get?.(el.localName)) pending.add(el.localName)
-  }
-  const always = payload.restore === "always"
-  for (const tag of pending) {
-    registry.whenDefined(tag).then(() => {
-      if (!root.isConnected) return
-      const deferred = persistControls(root, payload)
-      const sizes = persistGroupSizes(deferred)
-      for (const { el, name, kind } of deferred) {
-        if (kind !== "editor" || el.localName !== tag || !Object.hasOwn(fields, name)) continue
-        const value = persistGenericValue(fields[name], name, sizes)
-        if (value === null || value === undefined || value === PERSIST_NO_VALUE) continue
-        persistApplyEditor(root, el, name, value, always)
-      }
-    })
-  }
-}
-
-// The persist_state op body: merge a FLAT bag into the root's draft (re-
-// snapshotting the fields so the write is whole) and mirror it on the root.
-// A root without reactive_persist is a call-site bug — warn and skip.
-function persistWriteState(root, state) {
-  const payload = persistPayload(root)
-  if (!payload) {
-    console.warn("[phlex-reactive] persist_state on a root without reactive_persist — skipped")
-    return
-  }
-  if (!state || typeof state !== "object") return
-  const current = persistRead(root, payload)
-  const merged = { ...(current?.state ?? {}), ...state }
-  if (persistWrite(root, payload, { fields: persistSnapshot(root, payload), state: merged })) {
-    root.setAttribute?.(PERSIST_STATE_ATTR, JSON.stringify(merged))
-  }
-}
-
-function persistClearRoot(root) {
-  const payload = persistPayload(root)
-  if (payload) persistRemove(root, payload)
+  return EDITOR_TAGS.has(el.localName) ? typeof el.value === "string" : true
 }
 
 // The client-op whitelist behind on_client (issue #95, extended in #96). Mirrors
@@ -1747,8 +1305,10 @@ const CLIENT_OPS = Object.freeze({
   // reactive_persist draft / forget the draft. ACTOR-ONLY like focus/submit
   // (BROADCAST_REFUSED_OPS server-side) — rewriting or wiping every
   // subscriber's draft from a broadcast would be hostile.
-  persist_state: (el, args) => persistWriteState(el, args.state),
-  persist_clear: (el) => persistClearRoot(el),
+  // The draft code lives in the persist feature module (issue #275), so both
+  // ops run once it has loaded — at once on a root that restored a draft.
+  persist_state: (el, args) => withFeature("persist", (persist) => persist.writeState(el, args.state)),
+  persist_clear: (el) => withFeature("persist", (persist) => persist.clearRoot(el)),
 })
 
 // The form a submit op commits (issue #226), in order: the target itself when
@@ -2487,10 +2047,37 @@ function streamOpTargets(args, root) {
 //                bundler can see the specifier and the import map resolves it
 //                to its own digested file (never a computed specifier).
 //
-// A feature module exports connect(controller) / disconnect(controller). No
-// feature has moved out of this file yet: the table is empty and the loader
-// below costs a root one loop over nothing.
-const FEATURES = new Map()
+// TABLE ORDER IS CONNECT ORDER (and disconnect order): persist is first
+// because its restore writes the values every other connect-time seed reads.
+//
+// A feature module exports
+//
+//   connect(controller, core)     once per root connection, after its import
+//   disconnect(controller, core)  FIRST in the controller's disconnect()
+//
+// and never imports this file (two copies of the core would split its state).
+// Everything it needs from the controller arrives as `core`, the handle
+// #featureCore builds — the ONE door into the controller's private state:
+//
+//   core.emit(name, detail, options)  raw-dispatch a lifecycle event (#emit)
+//   core.reseed()                     re-run the connect-time seeds that read
+//                                     field values
+//
+// Later features add to that handle; nothing else of the controller is theirs
+// to touch beyond its public surface (element, application, …).
+const PRODUCTION_FEATURES = [
+  [
+    "persist",
+    [
+      (root) => {
+        const declared = root.getAttribute?.("data-reactive-persist")
+        return Boolean(declared) && declared !== "off"
+      },
+      () => import("phlex/reactive/features/persist"),
+    ],
+  ],
+]
+const FEATURES = new Map(PRODUCTION_FEATURES)
 
 // name -> the one import promise every root shares, kept even when it
 // rejected: a browser caches a module that failed to load, so importing it
@@ -2509,9 +2096,37 @@ function loadFeature(name) {
 const FEATURE_FAILURES = {
   detect: (name) => `the "${name}" feature module could not tell whether a root needs it`,
   load: (name) => `could not load the "${name}" feature module; it stays unavailable until the page is reloaded`,
+  timeout: (name) => `the "${name}" feature module is slow to load; its root carried on without it`,
   connect: (name) => `the "${name}" feature module failed to connect`,
 }
 const featureFailuresLogged = new Set()
+
+function logFeatureFailure(name, phase, error) {
+  const logged = `${name}:${phase}`
+  if (featureFailuresLogged.has(logged)) return
+  featureFailuresLogged.add(logged)
+  console.error(`[phlex-reactive] ${FEATURE_FAILURES[phase](name)}`, error)
+}
+
+// Run `use(feature)` once the feature has loaded — for code with no root
+// connection to wait on (a client op). A feature that cannot load is logged.
+function withFeature(name, use) {
+  loadFeature(name).then(use, (error) => logFeatureFailure(name, "load", error))
+}
+
+// How long a root waits for a feature import before it carries on without it
+// (<meta name="phlex-reactive-feature-timeout" content="ms"> in <head>).
+// 10 s: the modules are a few KB, so even a slow 3G fetch (seconds, not tens
+// of seconds) finishes well inside it, and it matches the early-event TTL —
+// the other "how long may the client be late" window. A feature that arrives
+// AFTER the timeout still connects; the timeout only stops it holding back
+// the root's other features and its action requests.
+const DEFAULT_FEATURE_TIMEOUT_MS = 10000
+
+function featureTimeoutMs() {
+  const ms = Number(globalThis.document?.head?.querySelector?.('meta[name="phlex-reactive-feature-timeout"]')?.content)
+  return Number.isFinite(ms) && ms > 0 ? ms : DEFAULT_FEATURE_TIMEOUT_MS
+}
 
 export function reactiveFeatureNames() {
   return [...FEATURES.keys()]
@@ -2521,9 +2136,10 @@ export function __setReactiveFeatureForTest(name, needs, load) {
   FEATURES.set(name, [needs, load])
 }
 
-// Test-only: drops every entry, which today is only what a test added.
+// Test-only: back to the shipped table, with nothing loaded or logged.
 export function __resetReactiveFeaturesForTest() {
   FEATURES.clear()
+  for (const [name, entry] of PRODUCTION_FEATURES) FEATURES.set(name, entry)
   featureLoads.clear()
   featureFailuresLogged.clear()
 }
@@ -2760,20 +2376,21 @@ export default class extends Controller {
   // connect restore — a connect must never overwrite a draft with server
   // blanks), the ONE per-root trailing-edge write timer, and the bound
   // input/change/turbo:submit-end handlers held for teardown.
-  // Feature modules (issue #275). `ready` resolves once the features this
-  // root needs are loaded and connected — it never rejects, and is already
-  // resolved for a root that needs none. connect() only STARTS the imports.
+  // Feature modules (issue #275). `featuresReady` resolves once the features
+  // this root needs have connected (or been given up on: failed, or slower
+  // than the timeout) — it never rejects, and is already resolved for a root
+  // that needs none. connect() only STARTS the imports. The name is long on
+  // purpose: it is a public field, and a short `ready` would shadow a method
+  // an app's own subclass may well define.
   // #featureEpoch changes on every connect and disconnect, so an import that
   // resolves for a connection that has since ended connects nothing.
-  ready = FEATURES_READY
+  featuresReady = FEATURES_READY
   #features = new Map() // name -> module connected on this connection
+  #featuresWanted = new Set() // names this connection has asked for
+  #featuresSettling = false // true while featuresReady is still pending
+  #featureTimers = new Set() // pending import-timeout timers
   #featureEpoch = 0
-  #persistConfig = null
-  #persistRestored = false
-  #persistTimer = null
-  #boundPersistInput
-  #boundPersistChange
-  #boundPersistSubmitEnd
+  #featureHandle // the `core` handle features receive, built on first use
 
   // Mark that a reactive controller actually connected, so the registration
   // guard above knows the controller was registered (issue #26 part 2).
@@ -2843,23 +2460,18 @@ export default class extends Controller {
       // root connected as such a shell and already re-probes on every morph.
       this.#boundLazyMorph = (event) => {
         if (event.target !== this.element) return
+        // A morph can add a feature's marker to a connected root (issue #275).
+        this.#loadFeatures()
         if (!this.#boundProbeLazyDefer) this.#probeLazyDefer()
         this.#lazyAfterMorph()
       }
       this.element.addEventListener?.("turbo:morph-element", this.#boundLazyMorph)
     }
 
-    // Client-only drafts (issue #239) — ONLY when the root declares
-    // data-reactive-persist (one attribute read otherwise). Runs FIRST among
-    // the feature blocks ON PURPOSE: the restore writes the draft into the
-    // owned controls, and every later connect seed (dirty baseline, show,
-    // on-complete's arm-without-fire, filter, tags, nested-json, the compute
-    // self-seed) then reads the restored DOM naturally — no synthetic
-    // input/change events (which would FIRE reactive_on_complete bindings and
-    // reducer $ops on page load). Restore is connect-only: a
-    // turbo:morph-element is server truth arriving, never re-restored.
-    this.#persistConfig = persistPayload(this.element)
-    if (this.#persistConfig) this.#connectPersist()
+    // Client-only drafts (issue #239) live in the persist feature module
+    // (issue #275), which #loadFeatures below starts importing. Its restore
+    // used to run HERE, before the seeds that follow; it now runs when the
+    // module has arrived and re-runs those seeds itself (#reseed).
 
     // Dirty tracking (issue #103) — ONLY when this root opts in (track_dirty: or a
     // reactive_field(dirty:)), so a component that never uses it pays nothing (no
@@ -3023,6 +2635,8 @@ export default class extends Controller {
     // Feature modules (issue #275): START the imports this root's markup asks
     // for. Never awaited here — connect() must reach the drain below in the
     // same task (issue #274: an await before it runs a waking click twice).
+    this.#featureEpoch++
+    this.featuresReady = FEATURES_READY
     this.#loadFeatures()
 
     // LAST, after every feature above is wired: a replayed trigger must find
@@ -3030,65 +2644,126 @@ export default class extends Controller {
     this.#announceConnected()
   }
 
-  // Starts every feature import this root needs. Once ALL have settled the
-  // features connect in table order — the order their connect-time seeds
-  // depend on (a restored draft is read by every later seed), never the order
-  // the network delivered them in — unless this connection ended meanwhile.
+  // Starts the import of every feature this root needs and has not asked for
+  // yet — at connect, and again after a morph of the root (which may have
+  // added a marker). Once ALL of a scan's imports have settled, or run out of
+  // time, its features connect in table order — the order their connect-time
+  // seeds depend on, never the order the network delivered them in — unless
+  // this connection ended meanwhile.
   #loadFeatures() {
-    const epoch = ++this.#featureEpoch
-    // A marker check that throws, a failed import, or a connect that threw
-    // loses that feature only — and never the rest of connect().
-    const failed = (name, phase, error) => {
-      if (epoch === this.#featureEpoch) this.#featureFailed(name, phase, error)
-    }
+    const epoch = this.#featureEpoch
     const names = []
     for (const [name, [needs]] of FEATURES) {
+      if (this.#featuresWanted.has(name)) continue
+      // A marker check that throws loses that feature, never the rest of
+      // connect() — above all not the early drain that follows it.
       try {
         if (needs(this.element)) names.push(name)
       } catch (error) {
-        failed(name, "detect", error)
+        this.#featureFailed(name, "detect", error)
       }
     }
-    if (names.length === 0) {
-      this.ready = FEATURES_READY
-      return
-    }
-    const loads = names.map((name) => loadFeature(name).catch((error) => failed(name, "load", error)))
-    this.ready = Promise.all(loads).then((features) => {
-      features.forEach((feature, index) => {
-        if (!feature || epoch !== this.#featureEpoch) return
-        try {
-          feature.connect?.(this)
-          this.#features.set(names[index], feature)
-        } catch (error) {
-          failed(names[index], "connect", error)
-        }
-      })
+    if (names.length === 0) return
+    for (const name of names) this.#featuresWanted.add(name)
+    const loads = names.map((name) => this.#awaitFeature(epoch, name))
+    this.#featuresSettling = true
+    const ready = Promise.all([this.featuresReady, ...loads]).then(([, ...features]) => {
+      features.forEach((feature, index) => feature && this.#connectFeature(epoch, names[index], feature))
+      if (this.featuresReady === ready) this.#featuresSettling = false
     })
+    this.featuresReady = ready
+  }
+
+  // One feature's import, for one scan: resolves with the module, or with
+  // null once the import failed or outlasted the timeout — so one slow or
+  // broken feature never holds back the others. A module that arrives after
+  // its timeout still connects (late, and so out of table order).
+  #awaitFeature(epoch, name) {
+    const current = () => epoch === this.#featureEpoch
+    return new Promise((resolve) => {
+      let timedOut = false
+      const timer = setTimeout(() => {
+        this.#featureTimers.delete(timer)
+        timedOut = true
+        if (current()) this.#featureFailed(name, "timeout", new Error(`not loaded after ${featureTimeoutMs()} ms`))
+        resolve(null)
+      }, featureTimeoutMs())
+      this.#featureTimers.add(timer)
+      const settled = () => {
+        clearTimeout(timer)
+        this.#featureTimers.delete(timer)
+      }
+      loadFeature(name).then(
+        (feature) => {
+          settled()
+          if (timedOut) this.#connectFeature(epoch, name, feature)
+          else resolve(feature)
+        },
+        (error) => {
+          settled()
+          if (current()) this.#featureFailed(name, "load", error)
+          resolve(null)
+        },
+      )
+    })
+  }
+
+  #connectFeature(epoch, name, feature) {
+    if (epoch !== this.#featureEpoch) return
+    try {
+      feature.connect?.(this, this.#featureCore())
+      this.#features.set(name, feature)
+    } catch (error) {
+      this.#featureFailed(name, "connect", error)
+    }
+  }
+
+  // The `core` handle a feature receives (see "Feature modules" above).
+  #featureCore() {
+    this.#featureHandle ??= {
+      emit: (name, detail, options) => this.#emit(name, detail, options),
+      reseed: () => this.#reseed(),
+    }
+    return this.#featureHandle
+  }
+
+  // Re-run the connect-time seeds that read field values, in connect() order
+  // — for a feature that changed those values after connect() ran (the draft
+  // restore). Each is the same re-sync its feature runs after a morph; a root
+  // that did not opt into one skips it. on-complete re-ARMS without firing.
+  #reseed() {
+    this.#boundScanDirty?.()
+    this.#boundSyncShow?.()
+    this.#boundArmOnComplete?.()
+    this.#boundSyncFilter?.()
+    this.#boundSyncTags?.()
+    this.#boundSeedNestedJson?.()
+    this.#boundSeedCompute?.()
   }
 
   // A feature that is missing leaves its part of the root dead: say so on
   // every root it costs (reactive:error, the error marker), and once in the
-  // console. `phase` is "detect", "load" or "connect".
+  // console. `phase` is "detect", "load", "timeout" or "connect".
   #featureFailed(name, phase, error) {
-    const logged = `${name}:${phase}`
-    if (!featureFailuresLogged.has(logged)) {
-      featureFailuresLogged.add(logged)
-      console.error(`[phlex-reactive] ${FEATURE_FAILURES[phase](name)}`, error)
-    }
+    logFeatureFailure(name, phase, error)
     this.#markError("feature")
     this.#emit("reactive:error", { kind: "feature", feature: name, phase, error })
   }
 
-  // A feature whose disconnect throws must not keep the others, or the rest
-  // of disconnect(), from running.
+  // Runs FIRST in disconnect(), in table order, while the root is still
+  // intact (the draft flush reads its fields). A feature whose disconnect
+  // throws must not keep the others, or the rest of disconnect(), from running.
   #disconnectFeatures() {
     this.#featureEpoch++
+    for (const timer of this.#featureTimers) clearTimeout(timer)
+    this.#featureTimers.clear()
+    this.#featuresWanted.clear()
+    this.#featuresSettling = false
     const connected = [...this.#features]
     this.#features.clear()
     for (const [name, feature] of connected) {
       try {
-        feature.disconnect?.(this)
+        feature.disconnect?.(this, this.#featureCore())
       } catch (error) {
         console.error(`[phlex-reactive] the "${name}" feature module failed to disconnect`, error)
       }
@@ -3202,10 +2877,10 @@ export default class extends Controller {
   // leading-edge timer holds no pending POST, but leaving it running would leak
   // it past the element's life.
   disconnect() {
-    // Persist FIRST: flush a pending draft write while the fields are still
-    // readable (Turbo disconnects before leaving the page — a fast visit
-    // otherwise loses the last keystrokes).
-    this.#teardownPersist()
+    // Features FIRST (issue #275): the persist feature flushes a pending draft
+    // write while the fields are still readable (Turbo disconnects before
+    // leaving the page — a fast visit otherwise loses the last keystrokes).
+    this.#disconnectFeatures()
     this.#clearAllDebounces()
     this.#clearAllThrottles()
     this.#teardownDirtyTracking()
@@ -3223,7 +2898,6 @@ export default class extends Controller {
     if (this.#boundLazyMorph) {
       this.element.removeEventListener?.("turbo:morph-element", this.#boundLazyMorph)
     }
-    this.#disconnectFeatures()
     // Early triggers (issue #273): a disconnected root records again.
     earlyState().connected.delete(this.element)
     this.element.removeAttribute?.("data-reactive-connected")
@@ -4437,8 +4111,13 @@ export default class extends Controller {
     // the hidden nodes now; the success path re-checks the OBSERVED DOM after the
     // morph (never inferred from the verb) and warns if any came back visible.
     const resurrect = this.#debugEnabled() ? this.#buildResurrectionCheck(optimistic, target) : null
+    // A feature still loading may be about to change what this request reads
+    // (issue #275: the draft restore writes the fields #perform collects), so
+    // the request waits for the root's features — at most the feature timeout,
+    // and not at all once they have connected.
+    const perform = () => this.#perform(action, params, inverse, settle, resurrect)
     this.queue = (this.queue ?? Promise.resolve())
-      .then(() => this.#perform(action, params, inverse, settle, resurrect))
+      .then(() => (this.#featuresSettling ? this.featuresReady.then(perform) : perform()))
     return this.queue
   }
 
@@ -5090,7 +4769,7 @@ export default class extends Controller {
     })
     // Collected before the first pass so the editor DOM is walked once.
     const editors = []
-    this.element.querySelectorAll(`[name]${PERSIST_EDITOR_SELECTOR}`).forEach((el) => {
+    this.element.querySelectorAll(`[name]${EDITOR_SELECTOR}`).forEach((el) => {
       if (owns(el)) editors.push(el) // the SAME hoisted predicate (nested reactive root, issue #15)
     })
     const arrayNames = this.#arrayFieldNames(controls)
@@ -5623,92 +5302,6 @@ export default class extends Controller {
 
   // Remove the show-sync listeners on disconnect, so a stray event after a
   // Turbo morph/navigation never re-evaluates against a detached root.
-  // Client-only drafts (issue #239): restore the draft into the owned
-  // controls, expose the state bag, announce, then arm the write listeners.
-  // The restore reads ONCE and never writes back — the restored latch stays
-  // false until it completes, so no listener can clobber the draft with the
-  // server's blanks. The submit-end listener is DOCUMENT-level (the event
-  // fires on the form, which is usually an ANCESTOR of this root) and gated
-  // on the form containing this root.
-  #connectPersist() {
-    const payload = this.#persistConfig
-    this.#persistRestored = false
-    const draft = persistRead(this.element, payload)
-    if (draft) {
-      persistApply(this.element, payload, draft.fields)
-      if (draft.state) this.element.setAttribute?.(PERSIST_STATE_ATTR, JSON.stringify(draft.state))
-      this.#emit("reactive:persist-restored", { key: payload.key, fields: draft.fields, state: draft.state ?? {} })
-    }
-    this.#persistRestored = true
-
-    this.#boundPersistInput = () => this.#schedulePersistWrite()
-    this.#boundPersistChange = () => this.#persistWriteNow()
-    this.#boundPersistSubmitEnd = (event) => this.#persistSubmitEnd(event)
-    this.element.addEventListener?.("input", this.#boundPersistInput)
-    this.element.addEventListener?.("change", this.#boundPersistChange)
-    // Rich editors (#241): Lexical and Trix swallow the native `input` of
-    // their contenteditable, so their own bubbling change events are the
-    // keystroke signal — same trailing-edge debounce as `input`.
-    for (const event of PERSIST_EDITOR_CHANGE_EVENTS) this.element.addEventListener?.(event, this.#boundPersistInput)
-    document.addEventListener?.("turbo:submit-end", this.#boundPersistSubmitEnd)
-  }
-
-  // Trailing-edge debounce for keystrokes — ONE timer per root (a snapshot is
-  // a full pass, so per-field timers would only multiply writes).
-  #schedulePersistWrite() {
-    if (!this.#persistRestored) return
-    const ms = Number(this.#persistConfig?.debounce) || 0
-    if (ms <= 0) return this.#persistWriteNow()
-    if (this.#persistTimer !== null) clearTimeout(this.#persistTimer)
-    this.#persistTimer = setTimeout(() => {
-      this.#persistTimer = null
-      this.#persistWriteNow()
-    }, ms)
-  }
-
-  // Snapshot every persistable owned control and write. Re-reads the current
-  // draft first so a state bag written by persist_state survives the write
-  // (the bag lives in storage, not on the instance — the op has no instance).
-  #persistWriteNow() {
-    if (!this.#persistRestored || !this.#persistConfig) return
-    if (this.#persistTimer !== null) {
-      clearTimeout(this.#persistTimer)
-      this.#persistTimer = null
-    }
-    const payload = this.#persistConfig
-    const current = persistRead(this.element, payload)
-    persistWrite(this.element, payload, { fields: persistSnapshot(this.element, payload), state: current?.state ?? null })
-  }
-
-  // A SUCCESSFUL Turbo form submission of the form that owns this root
-  // forgets the draft. tagName (not instanceof) so a cross-realm form counts.
-  #persistSubmitEnd(event) {
-    if (!event?.detail?.success) return
-    const form = event.target
-    if (form?.tagName !== "FORM" || typeof form.contains !== "function") return
-    if (!form.contains(this.element)) return
-    // Drop a pending keystroke write too — the disconnect flush that follows
-    // Turbo's redirect visit would otherwise resurrect the just-cleared draft.
-    if (this.#persistTimer !== null) {
-      clearTimeout(this.#persistTimer)
-      this.#persistTimer = null
-    }
-    persistRemove(this.element, this.#persistConfig)
-  }
-
-  // Flush a pending write, then drop every listener (disconnect()).
-  #teardownPersist() {
-    if (!this.#persistConfig) return
-    if (this.#persistTimer !== null) this.#persistWriteNow()
-    this.element.removeEventListener?.("input", this.#boundPersistInput)
-    this.element.removeEventListener?.("change", this.#boundPersistChange)
-    for (const event of PERSIST_EDITOR_CHANGE_EVENTS) this.element.removeEventListener?.(event, this.#boundPersistInput)
-    document.removeEventListener?.("turbo:submit-end", this.#boundPersistSubmitEnd)
-    this.#boundPersistInput = this.#boundPersistChange = this.#boundPersistSubmitEnd = undefined
-    this.#persistConfig = null
-    this.#persistRestored = false
-  }
-
   #teardownShowSync() {
     if (!this.#boundSyncShow) return
     this.element.removeEventListener?.("input", this.#boundSyncShow)

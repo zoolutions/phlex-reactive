@@ -72,6 +72,15 @@ cp app/javascript/phlex/reactive/reactive_controller.min.js \
 bun test spec/javascript                      # JS unit suite
 ```
 
+A feature module (`app/javascript/phlex/reactive/features/<name>.js`, issue #275:
+code the controller imports only on a page that uses it) follows the same rule,
+vendored at `spec/dummy/public/vendor/features/<name>.js`. A NEW feature is
+named in four places that must agree — `ENTRIES` in `scripts/build_client.js`,
+`CLIENT_FEATURES` in `lib/phlex/reactive/engine.rb`, the controller's feature
+table (a literal `import()`), and a ceiling in
+`spec/javascript/bundle_budget.test.js` — plus the dummy layouts' import maps;
+`spec/phlex/engine_client_pin_spec.rb` and the budget test fail when they don't.
+
 Commit the source, the rebuilt `.min.js`/`.map`, AND the re-synced vendored copy
 together. Two guards enforce it: `rake build:js_check` (committed min build matches
 a fresh build) and `spec/phlex/vendored_controller_sync_spec.rb` (vendored copy is

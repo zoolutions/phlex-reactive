@@ -11,6 +11,15 @@ module Phlex
     class Engine < ::Rails::Engine
       isolate_namespace Phlex::Reactive
 
+      # The client's feature modules (issue #275): parts of the runtime the
+      # controller imports only when a root on the page uses them, each by the
+      # bare specifier phlex/reactive/features/<name>. Listed here once; the
+      # precompile list and the importmap pins below are built from it. The
+      # build script (scripts/build_client.js) and the controller's own table
+      # name the same features — spec/phlex/engine_client_pin_spec.rb fails
+      # when the three disagree.
+      CLIENT_FEATURES = %w[persist].freeze
+
       # Mount POST /reactive/actions -> Phlex::Reactive::ActionsController#create
       # and POST /reactive/defer -> #deferred (the pull-lane defer endpoint,
       # issue #165), and GET /reactive/fragment/:id -> FragmentsController#show
@@ -28,7 +37,7 @@ module Phlex
 
       # Make the MINIFIED client build available to Propshaft/Sprockets so it can
       # be fingerprinted, served, and pinned in importmap. The browser ships the
-      # minified twin (108 KB -> 22 KB for the controller; `rake build:js`), not
+      # minified twin (about a fifth of the source; `rake build:js`), not
       # the comment-dense source. The .min.js.map is precompiled too so devtools
       # resolves the linked sourcemap back to the readable source on demand.
       initializer "phlex_reactive.assets" do
@@ -53,6 +62,9 @@ module Phlex
             phlex/reactive/inspect.min.js.map
             phlex/reactive/effects.css
           ]
+          it.config.assets.precompile += CLIENT_FEATURES.flat_map do
+            ["phlex/reactive/features/#{it}.min.js", "phlex/reactive/features/#{it}.min.js.map"]
+          end
         end
       end
 
@@ -117,6 +129,18 @@ module Phlex
             to: "phlex/reactive/inspect.min.js",
             preload: false
           )
+          # Feature modules (issue #275). NOT preloaded: the controller imports
+          # one only when a root on the page uses it, so a page without such a
+          # root never fetches it. An app that wants one on every page (to
+          # shorten the first visit's wait) can re-pin it with preload: true.
+          importmap = it.importmap
+          CLIENT_FEATURES.each do
+            importmap.pin(
+              "phlex/reactive/features/#{it}",
+              to: "phlex/reactive/features/#{it}.min.js",
+              preload: false
+            )
+          end
         end
       end
 
