@@ -54,19 +54,19 @@ const EARLY_GZIP_BUDGET = 1100
 const SLACK = 250
 
 // The DEFAULT bundle. Before the split the one file was 22,272 B (a32937b).
-// It is now the core + persist + defer bundled: 24,625 B — 2,353 B more, the
+// It is now the core + persist + defer bundled: 24,789 B — 2,517 B more, the
 // price of the feature loader and of each feature being a module of its own.
-const BUNDLE_GZIP_CEILING = 24_800
+const BUNDLE_GZIP_CEILING = 25_000
 // The split core. The monolith was 22,272 B; phase 1 (the loader) brought it
 // to 22,787 B, phase 2 (persist + editors out) to 21,233 B, phase 3 (defer /
-// lazy out, and the hooks the default bundle registers through) to 19,670 B.
-const CORE_GZIP_CEILING = 19_850
+// lazy out, and the hooks the default bundle registers through) to 19,740 B.
+const CORE_GZIP_CEILING = 19_900
 const FEATURE_GZIP_CEILINGS = {
-  "features/persist": 3_250,
+  "features/persist": 3_400,
   "features/defer": 3_000,
 }
-// Phase 3: 19,670 B core + 3,109 B persist + 2,846 B defer = 25,625 B.
-const SPLIT_TOTAL_GZIP_CEILING = 25_800
+// Phase 3: 19,740 B core + 3,210 B persist + 2,846 B defer = 25,796 B.
+const SPLIT_TOTAL_GZIP_CEILING = 26_000
 // NOT asserted yet — see the header.
 const TARGET_CORE_GZIP = 10 * 1024
 

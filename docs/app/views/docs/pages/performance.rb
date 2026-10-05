@@ -1077,18 +1077,21 @@ module Views
               end
               ul do
                 li do
-                  code { 'reactive_controller.js' }
-                  plain ': 106 KB → '
-                  strong { '22 KB' }
-                  plain ' minified (−79%); ~36 KB → '
-                  strong { '~7.7 KB' }
+                  code { 'reactive_controller' }
+                  plain ' (the default client: the core and every feature module in one file): 351 KB of '
+                  plain 'source → '
+                  strong { '82 KB' }
+                  plain ' minified (−77%); 111 KB → '
+                  strong { '24.8 KB' }
                   plain ' gzipped (−78%).'
                 end
                 li do
                   code { 'confirm.js' }
                   plain ' + '
                   code { 'compute.js' }
-                  plain ': 7 KB → 0.5 KB combined (the two override seams).'
+                  plain ' + '
+                  code { 'confirm_predicate.js' }
+                  plain ': 18 KB → 2.4 KB minified combined (the three override seams).'
                 end
               end
               p do
@@ -1137,13 +1140,13 @@ module Views
             end
             DocsUI::Table(['Module', 'Gzipped', 'Default client', 'Split client'],
                           [
-                            [[:code, 'phlex/reactive/reactive_controller'], '24.6 KB',
+                            [[:code, 'phlex/reactive/reactive_controller'], '24.8 KB',
                              'When your controllers load (or at the first trigger, for a page whose only roots are dormant).',
                              'Never.'],
                             [[:code, 'phlex/reactive/core'], '19.7 KB',
                              'Never: it is inside the one file.',
                              'When your controllers load (or at the first trigger, for a page whose only roots are dormant).'],
-                            [[:code, 'phlex/reactive/features/persist'], '3.1 KB',
+                            [[:code, 'phlex/reactive/features/persist'], '3.2 KB',
                              'Inside the one file.',
                              [:md, 'When the first root that declares `reactive_persist` connects, or a `persist_state` / ' \
                                    '`persist_clear` op runs.']],
@@ -1157,7 +1160,7 @@ module Views
                           ])
             DocsUI::Prose() do
               p do
-                plain 'A page that uses neither drafts nor lazy components downloads 4.9 KB less with the '
+                plain 'A page that uses neither drafts nor lazy components downloads 5.0 KB less with the '
                 plain 'split client. A page that uses both downloads 1.0 KB more, in three requests instead '
                 plain 'of one. More of the client moves into feature modules with each release, until the '
                 plain 'core is about 10 KB; the default file stays one file throughout.'
@@ -1182,7 +1185,8 @@ module Views
                   plain 'or the root leaves the page first, the action goes out with the values on the page.'
                 end
                 li do
-                  plain 'What the user types in the window is kept, and drafted when the module arrives.'
+                  plain 'What the user changes in the window is kept, and drafted when the module arrives, '
+                  plain 'also when they leave the page before it does.'
                 end
                 li do
                   plain 'A lazy shell shows its placeholder a little longer; an '

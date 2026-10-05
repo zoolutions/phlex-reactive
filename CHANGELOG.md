@@ -901,11 +901,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     and the three override seams), nothing fetched on demand, a draft restored
     and a lazy shell armed inside `connect()` as before. Existing importmap
     pins, bundler aliases and vendored copies keep working as they are. It is
-    24,625 B gzipped, 2,353 B more than the 22,272 B it was before: the price
+    24,789 B gzipped, 2,517 B more than the 22,272 B it was before: the price
     of the feature loader and of each feature being a module of its own.
   - **`phlex/reactive/core` — new, opt-in — is the controller without its
-    feature modules** (19,670 B gzipped today, heading for about 10 KB as
-    more moves out). It imports `phlex/reactive/features/persist` (3,109 B,
+    feature modules** (19,740 B gzipped today, heading for about 10 KB as
+    more moves out). It imports `phlex/reactive/features/persist` (3,210 B,
     the `reactive_persist` drafts) and `phlex/reactive/features/defer`
     (2,846 B: `reply.defer`, `reactive_lazy`, `reactive_lazy(on:/cache:)`)
     the first time a root on the page needs one. The engine pins the core and
@@ -917,16 +917,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - **Only with the split client:** the first root of a page load that needs
     a feature waits for its import (later roots and Turbo visits do not).
     While a draft-keeping root waits, nothing is drafted from the server's
-    blanks, what the user types is drafted when the module arrives, a
+    blanks, what the user changes is drafted when the module arrives (also
+    if they leave the page first), a
     successful submit still forgets the draft, `persist_state` /
     `persist_clear` wait for the restore, and an action waits for the restore
     and posts the restored values — except when the module is slower than the
     feature timeout, fails to load, or the root leaves the page first. An
     `on:` event during a lazy shell's wait loads it exactly once afterwards;
     a `reactive:defer` stream is kept and applied; only drafts hold a root's
-    other actions back. `reactive:error` gains `kind: "feature"` (`feature`,
-    `phase`: `"load"`, `"timeout"`, `"connect"`, `"detect"`, and `error`); a
-    feature that failed to load stays failed until the page is reloaded.
+    other actions back. `reactive:error` gains `kind: "feature"`, whose
+    detail carries `feature`, `error` and a `phase` (one of `"load"`,
+    `"timeout"`, `"connect"`, `"detect"`); a feature that failed to load
+    stays failed until the page is reloaded.
   - **`controller.featuresReady`** is a promise that resolves once the
     features a root needs have connected. With the default client it is
     always already resolved. It never rejects.
@@ -935,7 +937,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - The shipped builds no longer export the controller's `__…ForTest` seams
     (they remain in the source the JS suite imports).
   - `spec/javascript/bundle_budget.test.js` holds a ratchet on the default
-    file, the core, each feature and the split total (25,625 B).
+    file, the core, each feature and the split total (25,796 B).
 
 - **`on_client` emits a binding record (#271).** `data-reactive-ops-param` now
   holds `{"on":…,"ops":[…], "window"?, "outside"?, "confirm"?, "confirmWhen"?}`

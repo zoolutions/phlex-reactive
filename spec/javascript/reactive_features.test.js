@@ -1282,6 +1282,31 @@ test("requests wait for the gating feature only, not for a slower one after it",
   expect(posts.map((post) => post.act)).toEqual(["save"])
 })
 
+test("a gating feature added by a morph is not held back by a later feature that is still loading", async () => {
+  const posts = requestRig()
+  const root = mountRoot({ marked: false })
+  root.setAttribute("data-reactive-token-value", "tok")
+  root.setAttribute("data-later", "")
+  const log = []
+  let arriveGating
+  // Table order: "gating" first, "later" second — as persist precedes defer.
+  setFeature("gating", (el) => el.hasAttribute(MARKER), () => new Promise((resolve) => (arriveGating = () => resolve({ connect: () => log.push("gating") }))), undefined, true)
+  setFeature("later", (el) => el.hasAttribute("data-later"), () => new Promise(() => {}))
+  const controller = controllerFor(root)
+  controller.tokenValue = "tok"
+  controller.connect() // "later" starts loading, and never arrives
+
+  root.setAttribute(MARKER, "")
+  morph(root) // "gating" starts loading
+  const done = controller.dispatch(triggerEvent("save"))
+  arriveGating()
+  await done
+  await controller.queue
+
+  expect(log).toEqual(["gating"])
+  expect(posts.map((post) => post.act)).toEqual(["save"])
+})
+
 // --- A morph re-scan tells the feature it follows a morph ---------------------------------
 
 test("a feature connected by a morph re-scan is told so; one connected at connect() is not", async () => {

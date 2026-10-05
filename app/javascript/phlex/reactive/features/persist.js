@@ -545,9 +545,9 @@ export function connect(controller, core, _morphed, pending) {
 }
 
 // The root left before this module could connect to it. Nothing was restored
-// into it, so its controls hold the server's blanks plus whatever the user
-// typed: forget the draft if the form was submitted; otherwise keep the
-// drafted fields, add what the user filled in, and run the ops that waited.
+// into it, so its controls hold what the server rendered plus whatever the
+// user did: forget the draft if the form was submitted; otherwise keep the
+// drafted fields, add the ones the user CHANGED, and run the ops that waited.
 export function abandon(root, pending) {
   if (!pending) return
   const payload = persistPayload(root)
@@ -556,14 +556,37 @@ export function abandon(root, pending) {
   if (pending.edited) {
     const current = persistRead(root, payload)
     const fields = { ...current?.fields }
-    for (const [name, value] of Object.entries(persistSnapshot(root, payload))) {
-      // Only what the user FILLED IN can be told from a server blank here; an
-      // emptied field or an unticked box in that window is not drafted.
-      if (Array.isArray(value) ? value.length : value) fields[name] = value
+    const snapshot = persistSnapshot(root, payload)
+    for (const name of changedNames(root, payload)) {
+      if (Object.hasOwn(snapshot, name)) fields[name] = snapshot[name]
     }
     persistWrite(root, payload, { fields, state: current?.state ?? null })
   }
   for (const op of pending.ops ?? []) op(false)
+}
+
+// The names of the owned controls the user changed on a root that never
+// restored: those whose live state differs from what the SERVER rendered (the
+// DOM keeps that as defaultValue / defaultChecked / the `selected` attribute), so a
+// server-prefilled value is never mistaken for an edit, and an emptied field
+// or an unticked box counts as one. An editor has no such default: it counts
+// once it holds anything.
+function changedNames(root, payload) {
+  const names = new Set()
+  for (const { el, name, kind } of persistControls(root, payload)) {
+    const changed =
+      kind === "editor"
+        ? persistEditorReady(el) && !persistEditorBlank(el)
+        : kind === "contenteditable"
+          ? (el.textContent ?? "").trim() !== ""
+          : el.type === "checkbox" || el.type === "radio"
+            ? el.checked !== el.defaultChecked
+            : el.tagName === "SELECT"
+              ? [...el.options].some((option) => option.selected !== option.hasAttribute("selected"))
+              : el.value !== el.defaultValue
+    if (changed) names.add(name)
+  }
+  return names
 }
 
 // Flush a pending write while the fields are still readable (Turbo
@@ -630,7 +653,9 @@ function submitEnd(root, state, event) {
 // Any other root runs it at once.
 function whenRestored(root, op) {
   const pending = shared?.waiting.get(root)?.persist
-  if (!pending) return op(true)
+  // (No payload: connect() will not restore this root, so nothing would ever
+  // run a queued op — a morph can take the marker away while we load.)
+  if (!pending || !persistPayload(root)) return op(true)
   ;(pending.ops ??= []).push(op)
 }
 

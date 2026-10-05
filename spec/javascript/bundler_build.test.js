@@ -163,7 +163,7 @@ test("with code splitting each feature of the split core is its own chunk, loade
   const chunkOf = (mark) => files.find((file) => file.text.includes(mark)).path
   expect(chunkOf(FEATURE_MARKS.persist)).not.toBe(chunkOf(FEATURE_MARKS.defer))
   // … which the entry still reaches through dynamic imports.
-  expect(entry.text.match(DYNAMIC_IMPORT)).toHaveLength(2)
+  expect(entry.text.match(DYNAMIC_IMPORT)).toHaveLength(Object.keys(FEATURE_MARKS).length)
 })
 
 test("without code splitting the split core's features are bundled in and the build still succeeds", async () => {

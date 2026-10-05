@@ -66,8 +66,12 @@ RSpec.describe "minified client build" do # rubocop:disable RSpec/DescribeClass
       end
 
       it "strips the comment prose (the source's block-comment banner is gone)" do
-        # Every source module opens with a `// ...` banner; minification drops it.
-        expect(File.read(min_path)).not_to include(File.readlines(source_path).first.strip)
+        # Every source module carries a `// ...` banner (after its imports, in
+        # the core); minification drops it.
+        banner = File.readlines(source_path).find { |line| line.start_with?("// ") }.strip
+
+        expect(banner.length).to be > 20
+        expect(File.read(min_path)).not_to include(banner)
       end
 
       it "keeps the consumer-facing ESM exports" do

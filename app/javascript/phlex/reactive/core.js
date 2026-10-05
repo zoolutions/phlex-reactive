@@ -1742,12 +1742,13 @@ const PRODUCTION_FEATURES = [
           const form = event.target
           if (event.detail?.success && form?.tagName === "FORM" && form.contains?.(root)) pending.submitted = true
         }
-        root.addEventListener?.("input", edited)
-        root.addEventListener?.("change", edited)
+        // (Lexical and Trix swallow the native `input` of their editor; their
+        // own bubbling change events are the keystroke signal.)
+        const edits = ["input", "change", "lexxy:change", "trix-change"]
+        for (const type of edits) root.addEventListener?.(type, edited)
         document.addEventListener("turbo:submit-end", submitted)
         return () => {
-          root.removeEventListener?.("input", edited)
-          root.removeEventListener?.("change", edited)
+          for (const type of edits) root.removeEventListener?.(type, edited)
           document.removeEventListener("turbo:submit-end", submitted)
         }
       },
@@ -2120,6 +2121,7 @@ export default class extends Controller {
   #featureGate = null // settles when the last feature that `gates` has connected
   #featureWaits = new Map() // pending import-timeout timer -> its wait's resolve
   #featureHooks = new Map() // name -> [undo, pending] of a feature still on its way
+  #featureTurns = new Map() // name -> settles once that feature has had its turn to connect
   #featureEpoch = 0
   #featureHandle // the `core` handle features receive, built on first use
 
@@ -2370,11 +2372,21 @@ export default class extends Controller {
       for (const name of names) this.#connectFeature(epoch, name, featureModules.get(name), morphed)
       return
     }
-    let chain = this.featuresReady
     for (const name of names) {
       const arrival = this.#awaitFeature(epoch, name)
-      chain = chain.then(() => arrival).then((feature) => feature && this.#connectFeature(epoch, name, feature, morphed))
-      if (FEATURES.get(name)[3]) this.#featureGate = chain
+      // Its turn comes after the features BEFORE it in the table that this
+      // root is still waiting for — never after a later one, even one whose
+      // import started earlier (a morph can add an earlier feature's marker).
+      const earlier = []
+      for (const key of FEATURES.keys()) {
+        if (key === name) break
+        if (this.#featureTurns.has(key)) earlier.push(this.#featureTurns.get(key))
+      }
+      const turn = Promise.all(earlier)
+        .then(() => arrival)
+        .then((feature) => feature && this.#connectFeature(epoch, name, feature, morphed))
+      this.#featureTurns.set(name, turn)
+      if (FEATURES.get(name)[3]) this.#featureGate = turn
     }
     // Requests stop waiting the moment the last gating feature has connected.
     const gate = this.#featureGate
@@ -2382,7 +2394,7 @@ export default class extends Controller {
       if (this.#featureGate === gate) this.#featureGate = null
     })
     this.#featuresSettling = true
-    const ready = chain.then(() => {
+    const ready = Promise.all(this.#featureTurns.values()).then(() => {
       if (this.featuresReady === ready) this.#featuresSettling = false
     })
     this.featuresReady = ready
@@ -2533,6 +2545,7 @@ export default class extends Controller {
       })
     }
     this.#featuresWanted.clear()
+    this.#featureTurns.clear()
     this.#featuresSettling = false
     this.#featureGate = null
     const connected = [...this.#features]

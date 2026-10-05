@@ -25,12 +25,14 @@ namespace :spec do
     end
   end
 
-  # The specs that exercise what only the OPT-IN split client does (issue
-  # #275): a feature module imported on demand, the import window, replayed
-  # and dormant triggers across it, and request counting.
-  split_client_specs = %w[
-    spec/system/persist_feature_spec.rb
-    spec/system/defer_feature_spec.rb
+  # The browser specs to run on the OPT-IN split client (issue #275). Two
+  # kinds: every spec file tagged :split_client (true only there: a feature
+  # module imported on demand, the import window) — found by the tag, so a new
+  # one cannot be forgotten — and these shared specs, which pass on both
+  # clients and exercise what the split changes underneath them.
+  split_client_specs = Dir["spec/system/*_spec.rb"].grep_v(/default_client/)
+    .select { File.read(it).include?(":split_client") }
+  split_client_specs += %w[
     spec/system/persist_form_spec.rb
     spec/system/persist_editors_spec.rb
     spec/system/defer_spec.rb

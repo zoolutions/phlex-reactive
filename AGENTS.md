@@ -83,7 +83,9 @@ rake build:js                                 # regenerate every .min.js + .map 
 cp app/javascript/phlex/reactive/reactive_controller.min.js \
    spec/dummy/public/vendor/reactive_controller.js   # re-sync the vendored copies: the default bundle,
 cp app/javascript/phlex/reactive/core.min.js \
-   spec/dummy/public/vendor/core.js                  # the core, and features/<name>.js (same for confirm/compute/inspect)
+   spec/dummy/public/vendor/core.js                  # the core (same for confirm/compute/inspect),
+cp app/javascript/phlex/reactive/features/persist.min.js \
+   spec/dummy/public/vendor/features/persist.js      # and EVERY feature: features/<name>.min.js -> features/<name>.js
 bun test spec/javascript                      # JS unit suite
 bundle exec rake spec:system_split            # the browser specs that matter on the split client
 ```
@@ -96,6 +98,8 @@ agree — `ENTRIES` in `scripts/build_client.js`, `CLIENT_FEATURES` in
 and a ceiling in `spec/javascript/bundle_budget.test.js` — plus a pin in each
 dummy layout's import map. `spec/phlex/engine_client_pin_spec.rb` (the lists
 and the layouts) and the budget test (the ceilings) fail when they don't.
+A browser spec that is only true on the split client is tagged
+`:split_client`; `rake spec:system_split` picks up every file with that tag.
 
 Commit the source, the rebuilt `.min.js`/`.map`, AND the re-synced vendored copy
 together. Two guards enforce it: `rake build:js_check` (committed min build matches

@@ -247,7 +247,7 @@ devtools still shows the real code. It imports three small modules by their
 bare names — `phlex/reactive/confirm`, `phlex/reactive/confirm_predicate` and
 `phlex/reactive/compute`, the seams you can override — so point your bundler
 at the gem's `app/javascript` directory (one prefix alias for
-`phlex/reactive`), or alias those four names. See
+`phlex/reactive`), or alias the controller and those three names. See
 [docs/installation.md](https://phlex-reactive.zoolutions.llc/docs/installation).
 </details>
 
@@ -271,9 +271,9 @@ imports one the first time a root on the page needs it:
 
 | Module | Gzipped | Default client | Split client |
 |---|---:|---|---|
-| `phlex/reactive/reactive_controller` | 24.6 KB | loaded with your controllers | not loaded |
+| `phlex/reactive/reactive_controller` | 24.8 KB | loaded with your controllers | not loaded |
 | `phlex/reactive/core` | 19.7 KB | not loaded (it is inside the file above) | loaded with your controllers |
-| `phlex/reactive/features/persist` (`reactive_persist` drafts) | 3.1 KB | inside the one file | fetched when a root declares `reactive_persist`, or a `persist_state` / `persist_clear` op runs |
+| `phlex/reactive/features/persist` (`reactive_persist` drafts) | 3.2 KB | inside the one file | fetched when a root declares `reactive_persist`, or a `persist_state` / `persist_clear` op runs |
 | `phlex/reactive/features/defer` (`reply.defer`, `reactive_lazy`) | 2.8 KB | inside the one file | fetched when a root is a `reactive_lazy` shell, a morph turns one into a shell, or a `reply.defer` arrives |
 | `phlex/reactive/early` | 1.1 KB | on every page, if you import it | the same |
 
@@ -285,8 +285,9 @@ root connects. With the split client the **first** root of a page load that
 needs a feature waits for one small request (cached afterwards; on a Turbo
 visit the module is already loaded and nothing waits). While it waits:
 
-- a `reactive_persist` root shows the server's blanks. What the user types is
-  kept and drafted when the module arrives; an action they fire waits for the
+- a `reactive_persist` root shows what the server rendered. What the user
+  changes is kept and drafted when the module arrives (also when they leave
+  the page before it does); an action they fire waits for the
   restore and posts the restored values — unless the module is slower than
   the feature timeout (10 s), fails to load, or the root leaves the page
   first, in which case it goes out with the values on the page;
@@ -335,7 +336,8 @@ await esbuild.build({
 (Vite/webpack: the same rule as a prefix `resolve.alias` for `phlex/reactive`.)
 Without code splitting the features are bundled into your entry, which is the
 default client with extra steps. With exact per-module aliases the build fails
-with `Could not resolve "phlex/reactive/features/persist"`. If you pin copied
+on the feature it cannot find (esbuild: `Could not resolve
+"phlex/reactive/features/persist"`). If you pin copied
 files by hand in an import map, pin `phlex/reactive/core` and each
 `phlex/reactive/features/*` too; a feature that cannot be imported logs one
 console error naming it, marks the root `data-reactive-error="feature"`, emits
