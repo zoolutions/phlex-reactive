@@ -242,12 +242,24 @@ them for importmap apps — so browsers load the small files while devtools
 still shows the real code.
 
 The client is **a core plus feature modules**. The core
-(`reactive_controller`) imports a feature — today the `reactive_persist`
-drafts — only on a page that uses it, by a bare specifier such as
-`phlex/reactive/features/persist`. Importmap apps get every pin from the
-engine. A bundler needs **one alias** for the gem's JavaScript directory,
-which covers the controller, its seams (`confirm`, `compute`,
-`confirm_predicate`) and every feature, now and later:
+(`reactive_controller`) imports a feature only on a page that uses it, by a
+bare specifier such as `phlex/reactive/features/persist`:
+
+| Module | Loaded | Gzipped |
+|---|---|---:|
+| `phlex/reactive/reactive_controller` (the core) | on every page with a reactive root | 19.5 KB |
+| `phlex/reactive/early` | on every page, if you import it | 1.1 KB |
+| `phlex/reactive/features/persist` | when a root declares `reactive_persist`, or a `persist_state` / `persist_clear` op runs | 3.1 KB |
+| `phlex/reactive/features/defer` | when a root is a `reactive_lazy` shell (plain, `on:` or `cache:`), a morph turns one into a shell, or a `reply.defer` arrives | 2.8 KB |
+
+Each feature is fetched once per page load and cached by the browser; on a
+Turbo visit it is already there. The specifier is bare, not a relative
+`./features/persist.js`, because Propshaft serves each file under its own
+digest and only the import map can resolve one to the other (issue #57).
+
+Importmap apps get every pin from the engine. A bundler needs **one alias**
+for the gem's JavaScript directory, which covers the controller, its seams
+(`confirm`, `compute`, `confirm_predicate`) and every feature, now and later:
 
 ```js
 // esbuild (build script)
@@ -267,11 +279,21 @@ await esbuild.build({
 })
 ```
 
-(Vite/webpack: the same rule as a `resolve.alias` for `phlex/reactive`.)
+(Vite/webpack: the same rule as a prefix `resolve.alias` for `phlex/reactive`.)
 Without code splitting the features are bundled into your entry — it works,
-you just ship them on every page. Copying `reactive_controller.min.js` alone
-into your app is **no longer enough**: copy the whole `phlex/reactive`
-directory, `features/` included, or use the alias. See
+you just ship them on every page.
+
+**Upgrading from 0.13.** If your bundler aliases the three seams one by one
+(`phlex/reactive/confirm`, `…/compute`, `…/confirm_predicate`), the build now
+fails with `Could not resolve "phlex/reactive/features/persist"` — at build
+time, whether or not you use drafts. Replace the three aliases with the one
+prefix alias above. If you copied the files into your app and pin them
+yourself in an import map, copy the `features/` directory too and pin
+`phlex/reactive/features/persist` and `phlex/reactive/features/defer`; without
+the pins the page logs one console error naming the module, the affected root
+gets `data-reactive-error="feature"` and a `reactive:error`
+(`kind: "feature"`), and that feature does nothing — drafts are not kept, a
+plain `reactive_lazy` shell does not load. See
 [docs/installation.md](https://phlex-reactive.zoolutions.llc/docs/installation).
 </details>
 
@@ -1366,24 +1388,36 @@ wire attr: `data-reactive-persist='{"key":"village-apply","ttl":604800,"debounce
   a fast Turbo navigation never loses the last keystrokes. The snapshot is a
   full pass over the owned controls: radios store the checked value, checkboxes
   the checked state, `<select multiple>` an array, everything else `.value`.
-- **Restore** — when the root connects, as soon as the draft module is there.
-  The draft code is a feature module the client fetches only on a page with a
-  `reactive_persist` root: on a first visit the restore follows the connect by
-  one small request (about 3 KB), on any later one it is immediate. The
-  client then re-runs its connect-time bindings, so a `reactive_show` section,
-  `reactive_on_complete` (armed, never fired), `reactive_filter` and a
-  `reactive_compute` root all read the restored values — no synthetic events.
-  Until the restore has run, nothing is drafted from the blanks the server
-  rendered, and a successful submit still forgets the draft. An action the
-  user fires waits for the restore and posts the restored values — for at
-  most the feature timeout (10 s); if the module is slower than that, or
-  fails to load, the action goes out with the values on the page. With the
-  default `restore: :blank`, what the user typed into a field before the
-  restore stays there; `restore: :always` overwrites it, as it overwrites
-  anything else in the field. A morph or broadcast
-  re-render is server truth and is **never** re-restored. To take the request
-  out of the first visit, pin the module with `preload: true` in your
-  importmap (`pin "phlex/reactive/features/persist", to:
+- **Restore** — when the root connects. The draft code is a feature module
+  the client fetches only on a page with a `reactive_persist` root. The first
+  such root of a page load waits for it: the restore follows the connect by
+  one small request (about 3 KB, cached afterwards). After that — a later
+  root, the next Turbo visit — the restore runs inside the connect as it
+  always did. The client re-runs its connect-time bindings after a late
+  restore, so a `reactive_show` section, `reactive_on_complete` (armed, never
+  fired), `reactive_filter` and a `reactive_compute` root all read the
+  restored values — no synthetic events. A morph or broadcast re-render is
+  server truth and is **never** re-restored.
+
+  While a root waits for the module:
+  - nothing is drafted from the blanks the server rendered;
+  - what the user types is kept in its field and drafted as soon as the
+    module arrives (with `restore: :always` the draft overwrites it, as it
+    overwrites anything else in the field);
+  - a successful submit still forgets the draft;
+  - a `persist_state` / `persist_clear` op waits for the restore;
+  - an action the user fires waits for the restore and posts the restored
+    values. Three exceptions, in which it goes out with the values on the
+    page: the module is slower than the feature timeout (10 s), it fails to
+    load, or the root leaves the page (a Turbo visit) while the action is
+    waiting.
+
+  A root that leaves before the module arrived is still looked after when it
+  does: a submitted draft is forgotten, waiting ops run, and what the user
+  filled in is added to the draft (an emptied field or an unticked box in
+  that window is not). To take the request out of the first page load, pin
+  the module with `preload: true` in your importmap (`pin
+  "phlex/reactive/features/persist", to:
   "phlex/reactive/features/persist.min.js", preload: true`).
 - **`restore: :blank`** (default) — a draft value lands only in a control the
   server rendered **blank**, so a 422 re-render's submitted values beat an
@@ -2576,9 +2610,15 @@ A `feature` error carries the module's name and a `phase`: `"load"` (the
 import failed — it stays failed until the page is reloaded, because browsers
 cache a failed module), `"timeout"` (not there after 10 s; the root carried on
 without it, and it still connects if it arrives), `"connect"` (it threw while
-wiring the root) or `"detect"`. The root's other behavior keeps working. The
-10 s is `<meta name="phlex-reactive-feature-timeout" content="ms">` in
-`<head>`; a root's actions wait for its features for at most that long.
+wiring the root) or `"detect"`. The root's other behavior keeps working, and
+the root is marked `data-reactive-error="feature"` each time it connects for
+as long as the page lives — an app that styles `[data-reactive-error]` will
+show such a root as failed. What a missing feature costs: without `persist`
+a form keeps no draft; without `defer` a plain `reactive_lazy` shell never
+loads (its pending marker is cleared, so it does not shimmer forever) while a
+`reactive_lazy(on:)` shell still loads through the plain action. Only a
+reload brings a failed module back. The 10 s is
+`<meta name="phlex-reactive-feature-timeout" content="ms">` in `<head>`.
 
 `apply` covers a throw in the controller's own post-fetch code — not a
 throwing listener on `reactive:applied` itself. Per the DOM spec,

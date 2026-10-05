@@ -195,7 +195,13 @@ module Views
                 code { 'features/' }
                 plain ' included) and alias to your copy. A copied '
                 code { 'reactive_controller.min.js' }
-                plain ' alone no longer resolves.'
+                plain ' alone was never enough: it imports its seams, and now its features, by ' \
+                      'those bare names.'
+              end
+              p do
+                plain 'Upgrading from 0.13: if you alias the three seams one by one, the build now fails with '
+                code { 'Could not resolve "phlex/reactive/features/persist"' }
+                plain '. Replace them with the one prefix alias above.'
               end
               p do
                 plain 'Importing '

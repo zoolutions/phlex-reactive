@@ -6,6 +6,36 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Breaking / Upgrading
+
+- **The client is a core plus feature modules; bundler aliases and hand-made
+  import maps must cover `phlex/reactive/features/*` (#275).** The controller
+  now imports parts of itself on demand — `phlex/reactive/features/persist`
+  (the `reactive_persist` drafts) and `phlex/reactive/features/defer`
+  (`reply.defer`, `reactive_lazy`). The specifiers are bare, not relative,
+  because Propshaft serves every file under its own digest and only the
+  import map can resolve one to the other (the reason `confirm`, `compute`
+  and `confirm_predicate` are bare too, issue #57). What to do depends on how
+  the client reaches your app:
+  - **importmap-rails with the engine's pins (the default): nothing.** The
+    engine pins each feature (`preload: false`) and precompiles it.
+  - **A bundler with one prefix alias** (`phlex/reactive` → the gem's
+    `app/javascript/phlex/reactive`): nothing; it built before and builds now.
+  - **A bundler with three exact aliases**, one per seam
+    (`phlex/reactive/confirm`, `…/compute`, `…/confirm_predicate`): the build
+    now FAILS with `Could not resolve "phlex/reactive/features/persist"`, at
+    build time, even if the app uses no drafts and no lazy components.
+    Replace the three with the prefix alias; the README's esbuild / webpack /
+    bun section has it.
+  - **Files copied into the app and pinned by hand in an import map:** copy
+    the `features/` directory as well and pin
+    `phlex/reactive/features/persist` and `phlex/reactive/features/defer`.
+    Without the pins nothing breaks at build time; at run time the page logs
+    one console error naming the module, each affected root gets
+    `data-reactive-error="feature"` and a `reactive:error` with
+    `kind: "feature"`, and the feature does nothing: drafts are not kept, a
+    plain `reactive_lazy` shell does not load.
+
 
 ### Added
 
@@ -895,40 +925,51 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **The client is now a core plus feature modules; `reactive_persist` is the
-  first feature (#275).** The draft code moved out of
-  `reactive_controller` into `phlex/reactive/features/persist`, which the
-  controller imports only on a page with a `reactive_persist` root (or when a
-  `persist_state` / `persist_clear` op runs). A page without one no longer
-  downloads it: the controller is 21,233 B gzipped — it was 22,272 B
-  before the split began and 22,787 B once the feature loader had landed —
-  and the feature is 2,999 B (bun's zlib, level 9, as
-  `spec/javascript/bundle_budget.test.js` measures and now holds — the
-  controller, each feature and their total).
-  - **Importmap apps change nothing**: the engine pins every feature
-    (`preload: false`) and adds it to the precompile list.
-  - **Bundler apps need one alias** for the gem's `app/javascript` directory;
-    a copied `reactive_controller.min.js` alone no longer resolves. See the
-    README's esbuild / webpack / bun section.
-  - **The draft restore now runs when the module has arrived**, not inside
-    `connect()`: one small request later on a first visit, immediately after
-    that. The client re-runs its connect-time bindings afterwards; an action
-    fired before the restore waits for it (for at most the feature timeout)
-    and posts the restored values; a `persist_state` / `persist_clear` op
-    waits too; nothing is drafted from the server's blanks in between, and a
-    successful submit in that window still forgets the draft.
+- **Drafts and lazy renders load on demand (#275).** `reactive_persist` and
+  its editor support moved into `phlex/reactive/features/persist`;
+  `reply.defer`, `reactive_lazy` and `reactive_lazy(on:/cache:)` into
+  `phlex/reactive/features/defer`. A page that uses neither no longer
+  downloads them: the controller is 19,524 B gzipped, from 22,272 B before
+  the split began; the features are 3,109 B and 2,846 B (bun's zlib, level 9,
+  as `spec/javascript/bundle_budget.test.js` measures and holds — the
+  controller, each feature and their total, which is 25,479 B). See
+  "Breaking / Upgrading" for bundler and hand-pinned setups.
+  - **A feature connects when its module is there.** The first root of a
+    page load that needs one waits for the import (one small request, cached
+    afterwards); a later root, and every root after a Turbo visit, gets it
+    inside `connect()` as before.
+  - **Drafts while the first root waits:** nothing is drafted from the
+    server's blanks; what the user types is drafted when the module arrives;
+    a successful submit still forgets the draft; a `persist_state` /
+    `persist_clear` op waits for the restore; an action the user fires waits
+    for the restore and posts the restored values — except when the module is
+    slower than the feature timeout, fails to load, or the root leaves the
+    page while the action waits (it then goes out with the values on the
+    page). A root that left before the module arrived is still handled when
+    it does. The client re-runs its connect-time bindings after a late
+    restore.
+  - **Lazy shells while the first root waits:** an `on:` event that fires
+    (or was captured by `phlex/reactive/early`) before the module arrived
+    loads the shell exactly once when it does; a `reactive:defer` stream that
+    arrives first is kept and applied; a morph that turns real content into a
+    shell loads the module and then the shell. Only drafts hold a root's
+    other actions back — a slow defer module never delays one.
   - **`controller.featuresReady`** is a promise that resolves once the
     features a root needs have connected (already resolved for a root that
-    needs none). It never rejects.
+    needs none, or whose modules were loaded). It never rejects.
   - **`reactive:error` has a new `kind: "feature"`** with `feature`, `phase`
     (`"load"`, `"timeout"`, `"connect"`, `"detect"`) and `error`, on every
-    root the missing feature costs; it is logged once per page. A feature
-    that failed to load stays failed until the page is reloaded (browsers
-    cache a failed module). One that is slower than 10 s
+    root the missing feature costs; it is logged once per page, with the
+    module's specifier. A feature that failed to load stays failed until the
+    page is reloaded (browsers cache a failed module); a plain lazy shell
+    then drops its pending marker, and an `on:` shell still loads through the
+    plain action. One that is slower than 10 s
     (`<meta name="phlex-reactive-feature-timeout">`) stops holding the root
     back and still connects when it arrives.
   - A morph that adds a feature's marker to a connected, token-bearing root
     loads the feature.
+  - The shipped `reactive_controller.min.js` no longer exports the
+    `__…ForTest` seams (they remain in the source the JS suite imports).
 
 - **`on_client` emits a binding record (#271).** `data-reactive-ops-param` now
   holds `{"on":…,"ops":[…], "window"?, "outside"?, "confirm"?, "confirmWhen"?}`
