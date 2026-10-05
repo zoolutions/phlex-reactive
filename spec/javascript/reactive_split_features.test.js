@@ -96,8 +96,9 @@ beforeEach(() => {
   globalThis.console = { ...realConsole, error: (...args) => errors.push(args.join(" ")), warn: (...args) => warns.push(args.join(" ")) }
   // Cold: the state of a page that imported phlex/reactive/core.
   resetFeatures(true)
-  mod.__resetReactiveStreamRenderForTest()
   resetStreamHold()
+  // One document listener for the whole file: a re-registration per test
+  // would stack listeners (the runtime's guard is what the reset clears).
   mod.registerReactiveStreamRender()
 })
 

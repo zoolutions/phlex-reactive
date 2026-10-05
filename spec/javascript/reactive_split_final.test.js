@@ -82,13 +82,13 @@ beforeEach(() => {
   globalThis.fetch = () => {
     fetched++
     if (fetchScript.reject) return Promise.reject(fetchScript.reject)
-    return Promise.resolve({
+    return (fetchScript.hold ?? Promise.resolve()).then(() => ({
       redirected: false,
       ok: true,
       status: 200,
       headers: { get: () => "text/vnd.turbo-stream.html" },
       text: () => Promise.resolve(""),
-    })
+    }))
   }
   errors = []
   warns = []
@@ -102,8 +102,9 @@ beforeEach(() => {
   }
   // Cold: the state of a page that imported phlex/reactive/core.
   resetFeatures(true)
-  mod.__resetReactiveStreamRenderForTest()
   resetStreamHold()
+  // One document listener for the whole file: a re-registration per test
+  // would stack listeners (the runtime's guard is what the reset clears).
   mod.registerReactiveStreamRender()
   computeSeam.__resetComputeRegistryForTest?.()
 })
@@ -217,24 +218,30 @@ describe("hints: the first click of a cold page", () => {
     controller.disconnect()
   })
 
-  test("a busy hint applied late is still undone when the request settles", async () => {
+  test("a busy hint applied late shows while the request is pending, and is undone when it settles", async () => {
     const hints = slowFeature("hints", hintsModule)
+    let respond
+    fetchScript.hold = new Promise((resolve) => (respond = resolve))
     const { root, controller } = addRoot("c", {}, `<button data-reactive-busy-param='{"disable":true,"text":"Saving…"}'>Save</button>`)
     const button = root.querySelector("button")
     controller.connect()
 
     const done = controller.dispatch(clickEvent(button, { busy: { disable: true, text: "Saving…" } }))
     await settle()
-    expect(button.disabled).toBe(false)
+    expect(button.disabled).toBe(false) // the module is not here
     hints.arrive()
     await settle()
-    // Applied once the module was here, while the request was still pending…
+    // Applied once the module was here, while the request is still pending…
+    expect(fetched).toBe(1)
+    expect(button.disabled).toBe(true)
+    expect(button.innerHTML).toBe("Saving…")
+
+    respond()
     await done
 
     // …and undone on settle: label and disabled restored.
     expect(button.disabled).toBe(false)
     expect(button.innerHTML).toBe("Save")
-    expect(fetched).toBe(1)
     controller.disconnect()
   })
 
@@ -465,6 +472,26 @@ describe("bindings: the window before the module", () => {
     controller.disconnect()
   })
 
+  test("a conditional confirm whose module never comes: the request goes out at the feature timeout, with no dialog", async () => {
+    const meta = document.createElement("meta")
+    meta.setAttribute("name", "phlex-reactive-feature-timeout")
+    meta.setAttribute("content", "30")
+    document.head.appendChild(meta)
+    slowFeature("bindings", bindingsModule) // never arrives
+    const asked = []
+    confirmSeam.setConfirmResolver((message) => (asked.push(message), true))
+    const { root, controller } = addRoot("form", {}, `<input name="total" value="0"><button data-reactive-confirm-when-param='{"message":"Zero?"}'>go</button>`)
+    controller.connect()
+
+    await controller.dispatch(clickEvent(root.querySelector("button"), { confirmWhen: { message: "Zero?", groups: { any: [[{ field: "total", equals: "0" }]] } } }))
+    await controller.queue
+
+    expect(asked).toEqual([])
+    expect(fetched).toBe(1)
+    confirmSeam.setConfirmResolver(null)
+    controller.disconnect()
+  })
+
   test("the feature gates: a request from a show-bound form waits for the module", async () => {
     const bindings = slowFeature("bindings", bindingsModule)
     const { root, controller } = addRoot("form", {}, `<input name="kind"><div data-reactive-show-field="kind" data-reactive-show-equals="x">x</div><button>save</button>`)
@@ -558,6 +585,60 @@ describe("streams: a root a stream brings in", () => {
     bindings.arrive()
     await done
     expect(rendered).toBe(true)
+  })
+
+  test("a stream that arrives while a hold is open adds its own modules to it", async () => {
+    const bindings = slowFeature("bindings", bindingsModule)
+    const effectsModule = await import(`${SOURCE}/features/effects.js`)
+    const effects = slowFeature("effects", effectsModule)
+    const slot = document.createElement("div")
+    slot.id = "slot"
+    document.body.appendChild(slot)
+    const row = document.createElement("div")
+    row.id = "row"
+    document.body.appendChild(row)
+    globalThis.getComputedStyle = () => ({ animationDuration: "0.2s", animationDelay: "0s", transitionDuration: "0s", transitionDelay: "0s" })
+    globalThis.matchMedia = () => ({ matches: false })
+    // A: swaps in a show-bound form (needs bindings) — opens the hold.
+    const first = document.createElement("turbo-stream")
+    first.setAttribute("action", "update")
+    first.setAttribute("target", "slot")
+    const template = document.createElement("template")
+    template.innerHTML = `<div data-controller="reactive" data-reactive-token-value="tok"><input name="kind"><div data-reactive-show-field="kind" data-reactive-show-equals="x">x</div></div>`
+    first.appendChild(template)
+    let renderedOne = false
+    const one = fire(first, async () => {
+      renderedOne = true
+    })
+    const doneOne = one.render(first)
+    expect(effects.loads()).toBe(0)
+    // B: removes a row with a per-call effect (needs effects) — joins the hold.
+    const second = document.createElement("turbo-stream")
+    second.setAttribute("action", "remove")
+    second.setAttribute("target", "row")
+    second.setAttribute("data-reactive-effect", "fade")
+    let removed = false
+    const two = fire(second, async () => {
+      removed = true
+    })
+    const doneTwo = two.render(second)
+    expect(effects.loads()).toBe(1) // B's module was asked for
+
+    // A's module releases A (in order, it is first); B goes on waiting for ITS
+    // module, which the grown hold now covers.
+    bindings.arrive()
+    await doneOne
+    expect(renderedOne).toBe(true)
+    await settle()
+    expect(removed).toBe(false)
+
+    effects.arrive()
+    await settle()
+    expect(row.classList.contains("reactive-fx--fade-exit")).toBe(true) // B animated with ITS module
+    expect(removed).toBe(false)
+    row.dispatchEvent(new window.Event("animationend"))
+    await doneTwo
+    expect(removed).toBe(true)
   })
 
   test("a stream whose content needs nothing renders at once", async () => {

@@ -148,7 +148,7 @@ RSpec.describe "The split client: the effects, form and dev feature modules (iss
     it "delays the very first request when a delay is stored, on a page without the meta" do
       visit "/counter"
       page.execute_script("sessionStorage.setItem('phlex-reactive:latency', '1200')")
-      visit "/counter?slow=300&slow_feature=dev"
+      visit "/counter?slow=300&slow_feature=devtools"
       expect(page).to have_css("#counter[data-reactive-connected]")
 
       find("[data-testid='inc']").click

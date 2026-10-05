@@ -317,7 +317,9 @@ visit the module is already loaded and nothing waits). While it waits:
   nested-row JSON field — show what the server rendered until the module
   arrives, then seed from the fields as they are: a choice made in the window
   is kept and reflected, a tag picked in the window is added, a conditional
-  `confirm:` asks once the module can evaluate it. Because the JSON-mode rows
+  `confirm:` asks once the module can evaluate it (and proceeds without a
+  dialog if the module cannot load or is slower than the feature timeout —
+  the endpoint's authorization is the real gate). Because the JSON-mode rows
   write a field a request collects, a root with any of these holds its
   requests until the module is here (bounded as above);
 - a `reactive_compute` root shows the server's values for its outputs until
@@ -327,8 +329,9 @@ visit the module is already loaded and nothing waits). While it waits:
   recomputed from the value the user typed, never overwritten. Such a root
   holds its requests until the module is here, for the same reason;
 - a trigger with an `optimistic:` or `busy:` hint: its request waits for the
-  hints module (at most the feature timeout), the hint applies, and the
-  request goes out — once. The busy markers (`aria-busy`,
+  hints module (at most the feature timeout); the hint applies if the module
+  arrives in time, and after a timeout or a failed load the request goes out
+  without it — once either way. The busy markers (`aria-busy`,
   `data-reactive-busy`, `busy_on`) are on from the click, as always; a
   failure after a late apply still reverts the optimistic hint. A root whose
   triggers declare a hint loads the module when it connects, so this is the

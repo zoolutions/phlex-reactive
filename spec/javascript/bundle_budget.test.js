@@ -55,7 +55,7 @@ const EARLY_GZIP_BUDGET = 1100
 const SLACK = 250
 
 // The DEFAULT bundle. Before the split the one file was 22,272 B (a32937b).
-// It is now the runtime + every feature bundled: 26,132 B — 3,860 B more,
+// It is now the runtime + every feature bundled: 26,118 B — 3,846 B more,
 // the price of each feature being a module of its own with a table to find it
 // by. Phase 3 left it at 24,789 B, phase 4 at 24,851 B.
 const BUNDLE_GZIP_CEILING = 26_250
@@ -64,10 +64,10 @@ const BUNDLE_GZIP_CEILING = 26_250
 // out) to 21,233 B, phase 3 (defer / lazy out) to 19,740 B, phase 4 (effects
 // and dismiss, dirty tracking and the paste gate, the latency simulator out)
 // to 18,536 B, phase 5 (the form bindings, compute, the hint engine, the
-// diagnostics and the debug trace out) to 12,326 B.
+// diagnostics and the debug trace out) to 12,372 B.
 //
 // BUDGET OUTCOME (issue #275): the maintainer's target for the core is
-// TARGET_CORE_GZIP, 10,240 B. The honest moves left the core 2,086 B over it, so the ratchet below is the real size rounded up to the next 250 B, and the target is printed in the report; the PR body's Budget outcome section has the gap and the remaining options.
+// TARGET_CORE_GZIP, 10,240 B. The honest moves left the core 2,132 B over it, so the ratchet below is the real size rounded up to the next 250 B, and the target is printed in the report; the PR body's Budget outcome section has the gap and the remaining options.
 const CORE_GZIP_CEILING = 12_500
 const FEATURE_GZIP_CEILINGS = {
   "features/bindings": 5_500,
@@ -79,8 +79,8 @@ const FEATURE_GZIP_CEILINGS = {
   "features/form": 1_250,
   "features/devtools": 1_750,
 }
-// Phase 5: 12,326 B core + 5,360 + 2,846 + 2,084 + 1,024 + 1,693 + 3,210 + 1,015 + 1,589 B of
-// features = 31,147 B.
+// Phase 5: 12,372 B core + 5,360 + 2,846 + 2,084 + 1,024 + 1,693 + 3,210 + 1,015 + 1,589 B of
+// features = 31,193 B.
 const SPLIT_TOTAL_GZIP_CEILING = 31_250
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024

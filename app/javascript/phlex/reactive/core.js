@@ -97,31 +97,38 @@ function waitingForEdit(root, pending) {
 const STREAM_HOLD_MS = 1000
 let hold = null
 let effects
+const holding = new Set() // the modules the open hold is waiting for
+
+function loadIntoHold(name) {
+  return loadReactiveFeature(name).then((feature) => {
+    if (name !== "effects") return
+    effects = feature
+    feature?.sweep()
+  })
+}
 
 onReactiveStreamWithoutEffects((event, loadedEffects) => {
   const detail = event.detail
   const render = detail?.render
   if (typeof render !== "function") return
   const streamEl = detail.newStream ?? event.target
-  const names = unloadedFeaturesFor(incomingRoots(streamEl))
-  if (!loadedEffects && streamNeedsEffects(streamEl)) names.push("effects")
+  const names = unloadedFeaturesFor(incomingRoots(streamEl)).filter((name) => !holding.has(name))
+  if (!loadedEffects && !holding.has("effects") && streamNeedsEffects(streamEl)) names.push("effects")
   // Nothing to wait for, and no hold open: a loaded effects module wraps the
   // stream now, as it would without this entry.
   if (names.length === 0 && !hold) return loadedEffects?.wrap(event)
-  if (!hold) {
+  // A hold that is open grows: a later stream's modules join it (the hold
+  // then lasts up to another STREAM_HOLD_MS from now), so a second stream is
+  // never left to render without the module it asked for.
+  if (names.length > 0) {
+    for (const name of names) holding.add(name)
     const opened = (hold = Promise.race([
-      Promise.all(
-        names.map((name) =>
-          loadReactiveFeature(name).then((feature) => {
-            if (name !== "effects") return
-            effects = feature
-            feature?.sweep()
-          }),
-        ),
-      ),
+      Promise.all([hold, ...names.map(loadIntoHold)]),
       new Promise((resolve) => setTimeout(resolve, STREAM_HOLD_MS)),
     ]).then(() => {
-      if (hold === opened) hold = null
+      if (hold !== opened) return
+      hold = null
+      holding.clear()
     }))
   }
   const waiting = hold
@@ -165,6 +172,7 @@ function streamNeedsEffects(streamEl) {
 export function __resetReactiveStreamHoldForTest() {
   hold = null
   effects = undefined
+  holding.clear()
 }
 
 export * from "phlex/reactive/runtime"

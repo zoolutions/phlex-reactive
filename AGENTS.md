@@ -74,7 +74,7 @@ plus **feature modules** (`features/<name>.js`), and it ships as TWO entries
 The features are `persist`, `defer`, `form`, `bindings`, `compute`, `effects`,
 `hints` and `devtools` (`CLIENT_FEATURES` in `lib/phlex/reactive/engine.rb`
 is the list; the runtime's table gives each its marker check). The split is
-complete: what the runtime still holds is what every reactive page uses.
+complete for these; `runtime.js` is what both entries are built with.
 Behaviour goes in `runtime.js` or a feature, never in `reactive_controller.js`.
 Code that only the opt-in client can run — an `import()`, what to record or
 hold back while a module is on its way — goes in `core.js`, so the default

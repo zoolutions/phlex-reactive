@@ -902,11 +902,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     the three override seams), nothing fetched on demand, every feature
     connected inside `connect()` as before. Existing importmap pins, bundler
     aliases and vendored copies keep working as they are. It contains no
-    `import()` at all. It is 26,132 B gzipped, 3,860 B more than the 22,272 B
+    `import()` at all. It is 26,118 B gzipped, 3,846 B more than the 22,272 B
     it was before the split: the price of every feature being a module of its
     own, with a table to find it by.
   - **`phlex/reactive/core` — new, opt-in — is the controller without its
-    feature modules** (12,326 B gzipped). It imports a feature the first time
+    feature modules** (12,372 B gzipped). It imports a feature the first time
     something on the page needs it, by a literal bare-specifier `import()`:
     `phlex/reactive/features/persist` (3,210 B: `reactive_persist` drafts and
     rich-text editors), `…/defer` (2,846 B: `reply.defer`, `reactive_lazy`,
@@ -928,7 +928,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     work. The honest moves — every feature out, the test seams out of the
     shipped build, the diagnostics into devtools, the conditional confirm and
     its DNF fold into bindings, the compute seam import into compute — leave
-    the core at 12,326 B, 2,086 B over. The budget test holds the real size
+    the core at 12,372 B, 2,132 B over. The budget test holds the real size
     (rounded up to 12,500 B) as the ratchet and prints the target; the PR for
     the last phase lists what else could move and what each is worth. The
     epic's criterion is amended to the shipped number.
@@ -969,7 +969,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - The shipped builds no longer export the controller's `__…ForTest` seams
     (they remain in the source the JS suite imports).
   - `spec/javascript/bundle_budget.test.js` holds a ratchet on the default
-    file, the core, each feature and the split total (31,147 B).
+    file, the core, each feature and the split total (31,193 B).
   - `rake bench:client` gains a `connect()` bench (2,000 roots), the one
     place a feature module adds work to every root.
 

@@ -1960,17 +1960,27 @@ export default class extends Controller {
   // The effective confirm message (issue #179): the static string; or, for a
   // conditional confirm, what the bindings feature says — now when the module
   // is here, else a promise of it (the opt-in client's import window); or
-  // null when neither applies. A module that cannot load answers null: no
-  // dialog, the endpoint's authorize/default-deny is the real gate.
+  // null when neither applies. A module that cannot load, or is slower than
+  // the feature timeout, answers null: no dialog, the endpoint's
+  // authorize/default-deny is the real gate.
   #effectiveConfirmMessage(confirm, confirmWhen) {
     if (confirm) return confirm
     if (!confirmWhen) return null
     const loaded = featureModules.get("bindings")
     if (loaded) return loaded.confirmMessage(this, this.#featureCore(), confirmWhen)
-    return loadFeature("bindings").then(
-      (bindings) => bindings.confirmMessage(this, this.#featureCore(), confirmWhen),
-      (error) => (logFeatureFailure("bindings", "load", error), null),
+    return this.#awaitFeatureOrNull("bindings").then(
+      (bindings) => bindings && bindings.confirmMessage(this, this.#featureCore(), confirmWhen),
     )
+  }
+
+  // A feature's module, or null once its import failed (logged) or outlasted
+  // the feature timeout — for the two places a REQUEST waits on an import
+  // without a root connection to wait with (a hint, a conditional confirm).
+  #awaitFeatureOrNull(name) {
+    return Promise.race([
+      loadFeature(name).catch((error) => (logFeatureFailure(name, "load", error), null)),
+      new Promise((resolve) => setTimeout(() => resolve(null), featureTimeoutMs())),
+    ])
   }
 
 
@@ -2296,10 +2306,7 @@ export default class extends Controller {
   // The hints module, or null once its import failed or outlasted the feature
   // timeout (the request then goes out without its hint).
   #awaitHints() {
-    return Promise.race([
-      loadFeature("hints").catch((error) => (logFeatureFailure("hints", "load", error), null)),
-      new Promise((resolve) => setTimeout(() => resolve(null), featureTimeoutMs())),
-    ])
+    return this.#awaitFeatureOrNull("hints")
   }
 
   // Reset a per-element timer; only enqueue the round trip after `ms` of quiet.

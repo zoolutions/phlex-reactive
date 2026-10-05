@@ -1198,11 +1198,11 @@ module Views
                           ])
             DocsUI::Prose() do
               p do
-                plain 'A page that uses none of these features downloads 13.8 KB less with the split '
-                plain 'client. A page that uses every one of them downloads 5.0 KB more, in nine requests '
+                plain 'A page that uses none of these features downloads 13.7 KB less with the split '
+                plain 'client. A page that uses every one of them downloads 5.1 KB more, in nine requests '
                 plain 'instead of one. This is the whole split: everything that can leave the core has. '
                 plain 'The maintainer\'s target for the core was 10,240 B; the honest moves leave it at '
-                plain '12,326 B, which the budget test holds as its ratchet (and prints the target against).'
+                plain '12,372 B, which the budget test holds as its ratchet (and prints the target against).'
               end
               p do
                 plain 'Two things are not feature modules, in either client. The offline hook ('
@@ -1276,8 +1276,9 @@ module Views
                   code { 'optimistic:' }
                   plain ' or '
                   code { 'busy:' }
-                  plain ' hint: its request waits for the hints module (at most the feature timeout), '
-                  plain 'the hint applies, and the request goes out once. The busy markers are on from '
+                  plain ' hint: its request waits for the hints module (at most the feature timeout); '
+                  plain 'the hint applies if the module arrives in time, and after a timeout or a failed '
+                  plain 'load the request goes out once without it. The busy markers are on from '
                   plain 'the click; a failure after a late apply still reverts the optimistic hint. A root '
                   plain 'whose triggers declare a hint loads the module at connect, so this is the first '
                   plain 'click of a page\'s first root at most.'
