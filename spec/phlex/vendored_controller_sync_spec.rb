@@ -25,11 +25,13 @@ RSpec.describe "vendored client modules" do
     "compute.js" => "compute.min.js",
     "inspect.js" => "inspect.min.js"
   }
-  # Feature modules (issue #275) are vendored under features/, one per entry
-  # in the engine's list — a new feature is covered without editing this spec.
-  vendored_modules.merge!(
-    Phlex::Reactive::Engine::CLIENT_FEATURES.to_h { ["features/#{it}.js", "features/#{it}.min.js"] }
-  )
+  # Feature modules (issue #275) are vendored under features/, one per
+  # "features/<name>" entry of the build script — a new feature is covered
+  # without editing this spec. (Read from the script, not from the engine's
+  # CLIENT_FEATURES: this spec runs without Rails, where the engine cannot
+  # load. engine_client_pin_spec.rb pins that the two lists agree.)
+  entries = File.read(File.join(root, "scripts/build_client.js"))[/const ENTRIES = \[([^\]]*)\]/, 1]
+  vendored_modules.merge!(entries.scan(%r{"(features/[^"]+)"}).flatten.to_h { ["#{it}.js", "#{it}.min.js"] })
 
   # Explicit block param (not `it`): the block body defines RSpec `it` examples,
   # so naming the param `it` would shadow RSpec's example method.

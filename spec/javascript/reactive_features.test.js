@@ -677,6 +677,36 @@ test("a feature that arrives after its timeout still connects", async () => {
   expect(log.slice(2)).toEqual(["disconnect second", "disconnect first"])
 })
 
+// The persist stand-in reacts to a submit by queueing forget() on the import.
+// A late module must not restore the draft BEFORE that reaction has run.
+test("a late feature connects after the reactions already queued on its import", async () => {
+  setFeatureTimeout(20)
+  const order = []
+  let arrive
+  let loading
+  setFeature(
+    "fake",
+    (root) => root.hasAttribute(MARKER),
+    () => (loading = new Promise((resolve) => (arrive = () => resolve({ connect: () => order.push("connect") })))),
+  )
+  const controller = controllerFor(mountRoot())
+  const consoleError = console.error
+  console.error = () => {}
+
+  try {
+    controller.connect()
+    await controller.featuresReady // timed out: the root carried on
+    loading.then(() => order.push("reaction queued while waiting"))
+    arrive()
+    await sleep(0)
+  } finally {
+    console.error = consoleError
+    document.head.innerHTML = ""
+  }
+
+  expect(order).toEqual(["reaction queued while waiting", "connect"])
+})
+
 test("a late feature does not connect on a root that has disconnected", async () => {
   setFeatureTimeout(20)
   const { log, settle } = twoFeatures()

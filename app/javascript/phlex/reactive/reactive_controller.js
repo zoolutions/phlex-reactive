@@ -2725,7 +2725,10 @@ export default class extends Controller {
       loadFeature(name).then(
         (feature) => {
           settled()
-          if (timedOut) this.#connectFeature(epoch, name, feature)
+          // Late: connect one microtask on, after whatever else was queued on
+          // this import while the root waited (the persist stand-in's forget()
+          // must clear the draft before a late restore can read it).
+          if (timedOut) queueMicrotask(() => this.#connectFeature(epoch, name, feature))
           else resolve(feature)
         },
         (error) => {

@@ -900,7 +900,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `reactive_controller` into `phlex/reactive/features/persist`, which the
   controller imports only on a page with a `reactive_persist` root (or when a
   `persist_state` / `persist_clear` op runs). A page without one no longer
-  downloads it: the controller is 21,230 B gzipped — it was 22,272 B
+  downloads it: the controller is 21,233 B gzipped — it was 22,272 B
   before the split began and 22,787 B once the feature loader had landed —
   and the feature is 2,999 B (bun's zlib, level 9, as
   `spec/javascript/bundle_budget.test.js` measures and now holds — the
