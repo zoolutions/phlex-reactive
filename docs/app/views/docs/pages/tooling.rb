@@ -70,6 +70,15 @@ module Views
               resolves a stable `#id`, and — **advisory only** — whether each
               mutating action appears to authorize. Most "nothing happens" reports
               are a red ✗ here.
+
+              With dormant roots (`reactive_dormant`) it also looks for
+              `import "phlex/reactive/early"` in app JavaScript and in inline
+              module scripts under `app/views` and `app/components`, and names
+              the file. Each import map that lacks the `phlex/reactive/early`
+              pin gets an advisory `?` line: `Rails.application.importmap` is
+              checked by default, and
+              `Phlex::Reactive.importmaps = -> { { "landing" => landing_map } }`
+              adds the maps you keep elsewhere.
             MD
           end
         end

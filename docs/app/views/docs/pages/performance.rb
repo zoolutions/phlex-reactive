@@ -858,7 +858,15 @@ module Views
               plain 'root nested inside an awake one hands its triggers to the outer component, which '
               plain 'runs its own action of that name or answers 403. '
               code { 'bin/rails phlex_reactive:doctor' }
-              plain ' lists the dormant components and says whether it found the import.'
+              plain ' lists the dormant components and names the file it found the import in (an app '
+              plain 'JavaScript entry, or an inline module script in a view or component). With more than '
+              plain 'one import map, every map needs the '
+              code { 'phlex/reactive/early' }
+              plain ' pin: the doctor names each map without it. Set '
+              code { 'Phlex::Reactive.importmaps = -> { { "landing" => landing_map } }' }
+              plain 'to have it check maps other than '
+              code { 'Rails.application.importmap' }
+              plain '.'
             end
             DocsUI::Prose() do
               h3 { 'What renders awake' }

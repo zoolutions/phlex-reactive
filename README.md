@@ -191,7 +191,11 @@ loads and connects the controller, and the trigger is replayed once.
   hands its triggers to the OUTER component (they run the outer's action of
   that name with the outer's token, or get a 403).
   `bin/rails phlex_reactive:doctor` lists the dormant components and says
-  whether it found the import.
+  where it found the import (an app JS entry, or an inline module script in a
+  view or component). With more than one import map, every map needs the
+  `phlex/reactive/early` pin: the doctor names each one without it, and
+  `Phlex::Reactive.importmaps = -> { { "landing" => landing_map } }` adds maps
+  that are not `Rails.application.importmap`.
 - The actor's own reply, a `reactive_lazy(on:)` materialize and the defer
   endpoint render the root awake, since that page's controller is loaded by
   then. Everything else renders it dormant: the page, a broadcast (`broadcast_to`,

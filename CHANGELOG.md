@@ -8,6 +8,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`phlex_reactive:doctor` finds the early import anywhere and checks every import map (#307).** The dormant-roots check now scans every app JS entry and inline module scripts in `app/views` and `app/components` (naming the file), and a new advisory line per import map lacking the `phlex/reactive/early` pin; set `Phlex::Reactive.importmaps = -> { { "landing" => map } }` for maps outside `Rails.application.importmap`.
 - **`reactive_lazy(cache:)` — privately cacheable lazy renders (#277).**
   `reactive_lazy cache: { max_age: 10.minutes }` (combinable with `on:` and
   `tag:`) renders a stable signed URL into the shell and the client GETs it; the
