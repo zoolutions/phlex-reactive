@@ -71,6 +71,10 @@ plus **feature modules** (`features/<name>.js`), and it ships as TWO entries
 | `phlex/reactive/reactive_controller` | `reactive_controller.js` (imports every feature and registers it) + `runtime.js` + `features/*.js` | the DEFAULT: one bundled file, nothing fetched on demand, features connect inside `connect()`. It contains no `import()` |
 | `phlex/reactive/core` | `core.js` (where each feature module lives, and what only a client that waits for one needs) + `runtime.js` | opt-in: imports a feature when something on the page needs it |
 
+The features are `persist`, `defer`, `form`, `bindings`, `compute`, `effects`,
+`hints` and `devtools` (`CLIENT_FEATURES` in `lib/phlex/reactive/engine.rb`
+is the list; the runtime's table gives each its marker check). The split is
+complete for these; `runtime.js` is what both entries are built with.
 Behaviour goes in `runtime.js` or a feature, never in `reactive_controller.js`.
 Code that only the opt-in client can run — an `import()`, what to record or
 hold back while a module is on its way — goes in `core.js`, so the default

@@ -25,6 +25,15 @@ class DemosController < ActionController::Base
   # loading layout. ?load=auto fetches the controller when an element first
   # lists it in data-controller (lazyLoadControllersFrom's rule); ?load=eager
   # registers it up front.
+  # Issue #275: the hints feature module's first-click cases. ?load= as for
+  # /dormant ("" means the spec loads the controller itself); ?dormant=1 renders
+  # the root dormant; ?slow=<ms>&slow_feature=hints serves the module late.
+  def hinted
+    @reactive_load = params[:load].presence_in(%w[auto eager]) || ""
+    html = render_to_string(HintedPanelComponent.new(dormant: params[:dormant].present?), layout: false)
+    render html: html.html_safe, layout: "lazy_controller"
+  end
+
   def dormant
     @reactive_load = params[:load].presence_in(%w[auto eager]) || "auto"
     html = render_to_string(DormantPanelComponent.new, layout: false)

@@ -10,12 +10,6 @@ import { Controller } from "@hotwired/stimulus"
 // bundlers/bun resolve it the same way they already resolve
 // "phlex/reactive/reactive_controller" (see tsconfig.json paths for the tests).
 import { confirmResolver } from "phlex/reactive/confirm"
-// Client-side computes (data bindings): the reducer registry behind
-// reactive_compute. Bare specifier for the same import-map reason as confirm.
-import { computeReducer } from "phlex/reactive/compute"
-// Conditional-confirm predicates (issue #179): the registry behind the
-// confirm: { predicate: "name" } escape hatch. Same bare-specifier reason.
-import { confirmPredicate } from "phlex/reactive/confirm_predicate"
 
 // phlex/reactive/runtime — the reactive controller WITHOUT its feature
 // modules (issue #275): the code both client entries share. It is not an
@@ -126,15 +120,13 @@ export function registerReactiveJs() {
     // With a target: scope to that element (missing → no-op). Without: document.
     const root = targetId ? document.getElementById(targetId) : null
     if (targetId && !root) {
-      if (verbose && !zeroTargetAlreadyWarned(`missing-root|#${targetId}`)) {
-        console.warn(`[phlex-reactive] reactive:js stream target root #${targetId} is not in the DOM — its ops were dropped`)
-      }
+      if (verbose) withFeature("devtools", (devtools) => devtools.missingRoot(targetId))
       return
     }
     applyOps(
       list,
       (args) => streamOpTargets(args, root),
-      verbose ? (name, args) => diagnoseStreamZeroTargets(name, args, root) : undefined,
+      verbose ? (name, args) => withFeature("devtools", (devtools) => devtools.diagnoseStream(name, args, root)) : undefined,
     )
   }
 }
@@ -173,15 +165,19 @@ export function registerReactiveStreamRender() {
   streamRenderRegistered = true
   document.addEventListener("turbo:before-stream-render", (event) => {
     const effects = featureModules.get("effects")
-    if (effects) effects.wrap(event)
-    else streamWithoutEffects?.(event)
+    // The opt-in entry sees every stream (it may hold one for a module the
+    // incoming content needs); with no entry hook, a loaded effects module
+    // wraps the stream directly.
+    if (streamWithoutEffects) streamWithoutEffects(event, effects)
+    else effects?.wrap(event)
   })
 }
 // The names this registration had while it was two listeners.
 export { registerReactiveStreamRender as registerReactiveDismiss, registerReactiveStreamRender as registerReactiveEffects }
 
-// For the opt-in entry: what to do with a stream while the effects module is
-// not loaded.
+// For the opt-in entry: what to do with a stream before its render — hold it
+// for a module the incoming content needs. `handle(event, effects)` gets the
+// loaded effects module (or undefined) and wraps the stream with it itself.
 export function onReactiveStreamWithoutEffects(handle) {
   streamWithoutEffects = handle
 }
@@ -229,7 +225,7 @@ export function __resetReactiveOfflineForTest() {
   offlineRegistered = false
 }
 
-// Latency simulator dev aid (issue #102): features/dev.js (issue #275). The
+// Latency simulator dev aid (issue #102): features/devtools.js (issue #275). The
 // core keeps the two places that decide whether the module is needed at all:
 // the page opted into the console handle (the phlex-reactive-env meta), or a
 // delay is stored for this tab. Read live per request, like the CSRF token.
@@ -250,9 +246,9 @@ function latencyStored() {
 // once it has done its part (see reactive_controller.js and core.js).
 export function registerReactiveDev() {
   if (typeof document === "undefined") return
-  if (!featureModules.has("dev") && !FEATURES.get("dev")[1]) return
+  if (!featureModules.has("devtools") && !FEATURES.get("devtools")[1]) return
   const development = document.querySelector?.('meta[name="phlex-reactive-env"]')?.content === "development"
-  if (development || latencyStored()) withFeature("dev", (dev) => development && dev.attach())
+  if (development || latencyStored()) withFeature("devtools", (devtools) => development && devtools.attach())
 }
 
 // --- Global reactive-activity signal (issue #201) --------------------------
@@ -658,279 +654,6 @@ function guardAttr(name) {
   return false
 }
 
-// A cross-root mirror target must be a single ID selector (issue #159) — "#" +
-// a CSS identifier, nothing else. The client half of the two-sided default-deny
-// (reactive_compute's `mirror:` validates the SAME shape loudly at declare
-// time): a hand-built mirror attr must not widen a declared text mirror into a
-// page-wide selector write. A refused selector warns + skips (its siblings
-// still apply), matching the attr-allowlist posture.
-const MIRROR_ID_SELECTOR = /^#[A-Za-z_][\w-]*$/
-function guardMirrorSelector(selector) {
-  if (typeof selector === "string" && MIRROR_ID_SELECTOR.test(selector)) return true
-  console.warn(`[phlex-reactive] refused cross-root mirror target ${JSON.stringify(selector)} — skipped`)
-  return false
-}
-
-// Evaluate a show binding's declared literal predicate (issue #161) against
-// the controlling field's current value. Exactly one of the three predicate
-// attrs decides: equals (value === literal), not (value !== literal), in
-// (value ∈ a JSON string list). The vocabulary is fixed and literal-only —
-// never an expression, so there is no eval surface (the reactive_show helper
-// enforces the same shape loudly at render; this is the client half of the
-// two-sided posture). Returns true/false for a decidable binding, or null for
-// a malformed/missing predicate — the caller SKIPS a null so a hand-built or
-// stale binding never flips visibility it doesn't understand (default-deny,
-// like the op whitelist).
-function showBindingMatches(el, value) {
-  const equals = el.getAttribute("data-reactive-show-equals")
-  if (equals !== null) return value === equals
-  const not = el.getAttribute("data-reactive-show-not")
-  if (not !== null) return value !== not
-  const inRaw = el.getAttribute("data-reactive-show-in")
-  if (inRaw !== null) {
-    try {
-      const list = JSON.parse(inRaw)
-      if (Array.isArray(list)) return list.includes(value)
-    } catch {
-      // fall through to the warn below — malformed JSON and a non-array both skip
-    }
-    console.warn(`[phlex-reactive] malformed reactive_show in: list ${JSON.stringify(inRaw)} — skipped`)
-    return null
-  }
-  // Numeric threshold predicates (issue #176 part B): gte/gt/lte/lt read the
-  // literal off its own flat attr and compare Number(value) against it. Any
-  // present numeric attr decides the binding — a non-numeric field value (NaN)
-  // is false (hidden), and a non-numeric LITERAL warn-skips (null).
-  for (const key of SHOW_NUMERIC_KEYS) {
-    const raw = el.getAttribute(`data-reactive-show-${key}`)
-    if (raw !== null) return numericPredicateMatches(key, raw, value)
-  }
-  console.warn("[phlex-reactive] a reactive_show binding declares no predicate — skipped")
-  return null
-}
-
-// The numeric threshold keys (issue #176 part B) — the client half of the Ruby
-// SHOW_NUMERIC_KEYS. Order-independent; the evaluator reads the one that's
-// present. Each coerces BOTH sides to Number and compares.
-const SHOW_NUMERIC_KEYS = ["gte", "gt", "lte", "lt"]
-
-// The length predicate keys (issue #226) — the client half of Ruby's
-// ShowConditions::LENGTH_KEYS. Length is counted in CODEPOINTS
-// ([...str].length), NOT UTF-16 code units (str.length), so Ruby's
-// String#length and this evaluator agree on multibyte values — the shared
-// fixture's emoji vector proves it.
-const SHOW_LENGTH_KEYS = ["len_eq", "len_gte", "len_gt", "len_lte", "len_lt"]
-
-// Evaluate one length predicate. Length is a TOTAL function (blank/absent →
-// 0), so every field value is decidable — no fail-closed special case like the
-// numeric thresholds ({ length: 0 } legitimately matches a blank field). A
-// non-Integer LITERAL is a malformed binding — warn-skip (null), default-deny.
-function lengthPredicateMatches(key, literal, value) {
-  if (!Number.isInteger(literal)) {
-    console.warn(`[phlex-reactive] reactive_show ${key}: needs an integer literal, got ${JSON.stringify(literal)} — skipped`)
-    return null
-  }
-  const length = [...String(value ?? "")].length
-  switch (key) {
-    case "len_eq":
-      return length === literal
-    case "len_gte":
-      return length >= literal
-    case "len_gt":
-      return length > literal
-    case "len_lte":
-      return length <= literal
-    case "len_lt":
-      return length < literal
-    default:
-      return null
-  }
-}
-
-// Evaluate one numeric threshold predicate against a field value. Returns
-// true/false for a decidable comparison, or null when the LITERAL itself is
-// non-numeric (a malformed binding — warn-skip, default-deny). A non-numeric
-// FIELD value (empty/blank/garbage) is treated as NaN → false: the
-// reveal-on-threshold notice stays hidden, the safe default. Shared by the
-// owned-binding evaluator (raw string literal off an attr) and the
-// cross-root/compound evaluator (a literal that arrived as a JSON number or
-// string).
-function numericPredicateMatches(key, literal, value) {
-  const rhs = Number(literal)
-  if (Number.isNaN(rhs)) {
-    console.warn(`[phlex-reactive] reactive_show ${key}: needs a numeric literal, got ${JSON.stringify(literal)} — skipped`)
-    return null
-  }
-  // A blank/whitespace field value must fail closed. Number("") and
-  // Number("   ") are 0 (NOT NaN), so a bare Number()+isNaN check would wrongly
-  // reveal a `lte:`/`lt:`/`gte: 0` binding on an EMPTY field. Force the
-  // empty/blank case to NaN so the "blank → hidden" contract holds for every
-  // operator, not just the ones where 0 happens to fail the comparison.
-  const trimmed = value == null ? "" : String(value).trim()
-  const n = trimmed === "" ? NaN : Number(trimmed)
-  if (Number.isNaN(n)) return false
-  switch (key) {
-    case "gte":
-      return n >= rhs
-    case "gt":
-      return n > rhs
-    case "lte":
-      return n <= rhs
-    case "lt":
-      return n < rhs
-    default:
-      return null
-  }
-}
-
-// Evaluate an ALREADY-PARSED show predicate object (issue #164) — the
-// reactive_show_targets map embeds { equals/not/in } directly in its JSON, so
-// unlike showBindingMatches there are no attrs to read or re-parse. The same
-// literal-only vocabulary; anything else (empty, unknown keys, a non-array
-// in:) returns null and the caller warn-skips that target (default-deny — a
-// hand-built map entry must never flip visibility it doesn't declare).
-function showPredicateMatches(pred, value) {
-  if (!pred || typeof pred !== "object") return null
-  if (typeof pred.equals === "string") return value === pred.equals
-  if (typeof pred.not === "string") return value !== pred.not
-  if (Array.isArray(pred.in)) return pred.in.includes(value)
-  // Numeric threshold predicates (issue #176 part B): the literal arrives as a
-  // JSON number (or a numeric string) embedded in the predicate object — one
-  // shared numericPredicateMatches with the owned-binding evaluator.
-  for (const key of SHOW_NUMERIC_KEYS) {
-    if (key in pred) return numericPredicateMatches(key, pred[key], value)
-  }
-  // Length predicates (issue #226): codepoint count vs an Integer literal.
-  for (const key of SHOW_LENGTH_KEYS) {
-    if (key in pred) return lengthPredicateMatches(key, pred[key], value)
-  }
-  return null
-}
-
-// The selector matching every OWNED-element show binding: single-field
-// (data-reactive-show-field, issue #161) OR compound all:/any:
-// (data-reactive-show, issue #176). Both the connect() gate and the sync walk
-// use it so a compound-only root still enables the sync.
-const SHOW_BINDING_SELECTOR = "[data-reactive-show-field], [data-reactive-show]"
-
-// Parse a compound show binding's JSON payload (issue #176 part A). Malformed
-// JSON degrades to null WITH a warn — a bad binding must never throw or blank
-// the page (client-side default-deny), but a collision (two bindings' JSON
-// mix-joined) is worth surfacing.
-function parseShowCompound(raw) {
-  try {
-    const parsed = JSON.parse(raw)
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed
-  } catch {
-    // fall through to the warn
-  }
-  console.warn(`[phlex-reactive] malformed compound reactive_show payload ${JSON.stringify(raw)} — skipped`)
-  return null
-}
-
-// Parse a data-reactive-on-complete payload (issue #226): a JSON array of
-// { any: [[term, …], …], ops: [[op, args], …] } bindings. Malformed JSON, a
-// non-array, or a binding missing either half degrades to [] WITH a warn — a
-// bad payload must never throw or fire an op (client-side default-deny, the
-// parseShowCompound posture).
-function parseOnComplete(raw) {
-  try {
-    const list = JSON.parse(raw)
-    if (
-      Array.isArray(list) &&
-      list.every((b) => b && typeof b === "object" && Array.isArray(b.any) && Array.isArray(b.ops))
-    ) {
-      return list
-    }
-  } catch {
-    // fall through to the warn
-  }
-  console.warn(`[phlex-reactive] malformed reactive_on_complete payload ${JSON.stringify(raw)} — skipped`)
-  return []
-}
-
-// Evaluate one DNF TERM against a resolved field value (issue #180). A missing
-// field (null) or a malformed/unknown predicate folds to FALSE — fail-closed
-// (default-deny): a broken AND term can't pass, a broken OR term can't reveal.
-function dnfTermMatches(term, fieldValue) {
-  if (!term || typeof term !== "object" || typeof term.field !== "string") return false
-  // An absent owned field reads as "" — identical to the server evaluator
-  // (ShowConditions.match? treats a missing field as blank). This keeps the
-  // Ruby first-paint and the client live-toggle in exact agreement (the shared
-  // fixture proves it). A malformed predicate still folds to false.
-  const value = fieldValue(term.field) ?? ""
-  return showPredicateMatches(term, value) === true
-}
-
-// Evaluate a DNF show payload (issue #180): { any: [group, …] } where each
-// GROUP is an array of terms (terms AND within a group, groups OR). Returns
-// true/false for a decidable payload, or null for a malformed one (no groups)
-// so the caller warn-skips and leaves visibility alone. This is the ONE shape
-// the 0.10 wire emits; showPayloadMatches routes the legacy shapes here or to
-// the compatibility arm below.
-function anyOfAllsMatches(groups, fieldValue) {
-  if (!Array.isArray(groups) || groups.length === 0) return null
-  // groups OR; within a group, terms AND (an empty group can't decide → false).
-  return groups.some((group) => Array.isArray(group) && group.length > 0 &&
-    group.every((term) => dnfTermMatches(term, fieldValue)))
-}
-
-// Every field a DNF payload's groups reference (issue #209) — drives the
-// "leave the target alone when NO referenced field is owned" skip, the
-// single-field-target skip generalized. Returns null for a malformed payload
-// (no groups, or no term names a field) so the caller warn-skips instead of
-// toggling on garbage (default-deny, like every other malformed-wire arm).
-function dnfGroupFields(groups) {
-  if (!Array.isArray(groups) || groups.length === 0) return null
-  const fields = new Set()
-  for (const group of groups) {
-    if (!Array.isArray(group)) continue
-    for (const term of group) {
-      if (term && typeof term === "object" && typeof term.field === "string") fields.add(term.field)
-    }
-  }
-  return fields.size > 0 ? [...fields] : null
-}
-
-// Route a parsed data-reactive-show payload to the right evaluator. The 0.10
-// wire is { any: [ [term,…], … ] } (DNF — groups are ARRAYS). For a stale tab
-// still serving pre-0.10 HTML (deploy overlap), fall back to the 0.9.5 compound
-// shape { all: [term,…] } / { any: [term,…] } where the values are flat TERM
-// OBJECTS, not arrays. The nesting distinguishes them: DNF's any[0] is an Array.
-// DELETE the legacy arm in 0.11.
-function showPayloadMatches(payload, fieldValue) {
-  if (!payload || typeof payload !== "object") return null
-  const any = payload.any
-  if (Array.isArray(any) && (any.length === 0 || Array.isArray(any[0]))) {
-    return anyOfAllsMatches(any, fieldValue)
-  }
-  return legacyCompoundShowMatches(payload, fieldValue)
-}
-
-// LEGACY (0.9.5, deploy-overlap only — DELETE in 0.11): the flat all:/any:
-// compound fold, where terms are objects (not groups). Preserved so a morph of
-// stale pre-0.10 HTML doesn't go dead.
-function legacyCompoundShowMatches(payload, fieldValue) {
-  const connective = Array.isArray(payload.all) ? "all" : Array.isArray(payload.any) ? "any" : null
-  if (!connective) return null
-  const terms = payload[connective]
-  if (terms.length === 0) return null
-  const results = terms.map((term) => dnfTermMatches(term, fieldValue))
-  return connective === "all" ? results.every(Boolean) : results.some(Boolean)
-}
-
-// A cross-root show target must be a single ID selector (issue #164) — the
-// SAME shape the #159 mirror enforces (one shared regex), with its own warn so
-// a refused show target is distinguishable in the console. The client half of
-// the two-sided default-deny: reactive_show_targets raises at declare time; a
-// hand-built wire attr must not widen the escape to class/compound selectors.
-// A refused selector warns + skips — its siblings still apply.
-function guardShowTargetSelector(selector) {
-  if (typeof selector === "string" && MIRROR_ID_SELECTOR.test(selector)) return true
-  console.warn(`[phlex-reactive] refused cross-root show target ${JSON.stringify(selector)} — skipped`)
-  return false
-}
-
 // The first focusable descendant of `el`, in document order — the natural
 // keyboard target inside an opened menu/dialog. Covers the standard focusable
 // set; :not([tabindex="-1"]) drops explicitly-removed nodes. Returns null when
@@ -1117,108 +840,6 @@ function bindingsAlreadyRan(event, controller) {
   return false
 }
 
-// The TEXT reading of a compute control (issue #262) — what a :string input
-// hands the reducer and what the identity/cross-root mirrors paint. A checkbox
-// reads its CHECKED STATE ("true"/"false", the strings reactive_show compares
-// against): its .value is a constant — "1", "on", whatever the markup says —
-// so reading it told the reducer nothing. A radio reads its value only while
-// checked ("" otherwise; the resolver hands over the checked radio of a group).
-// Anything else reads .value, as it always has.
-//
-// Every compute helper takes a CONTROL — the { el, kind } record #recompute's
-// resolver builds, kind being "checkbox", "radio" or "" — and never re-reads
-// el.type: the resolver reads it ONCE per name. Re-reading it in each helper
-// cost the 30-input calculator bench ~60% (16.8 → 27 µs/iter, measured).
-function computeText({ el, kind }) {
-  if (!el) return ""
-  if (kind === "checkbox") return el.checked ? "true" : "false"
-  if (kind === "radio") return el.checked ? (el.value ?? "") : ""
-  return el.value ?? ""
-}
-
-// The control for a name nothing owned resolves to.
-const COMPUTE_NO_CONTROL = Object.freeze({ el: null, kind: "" })
-
-// Whether a value counts as "on" — for a :boolean input read off a control that
-// is not a checkbox, and for an output written INTO a checkbox. A boolean is
-// itself; otherwise "", "0" and "false" are off (what a hidden flag field or a
-// reducer returning 0 means) and anything else is on.
-function computeTruthy(value) {
-  if (typeof value === "boolean") return value
-  if (value == null) return false
-  const text = String(value)
-  return text !== "" && text !== "0" && text !== "false"
-}
-
-// One declared input's value for the reducer, coerced by its declared type
-// (issue #104; checked-state controls issue #262):
-//
-//   "string"  → the text reading, raw (blank/absent → "")
-//   "boolean" → a checkbox's checked state; any other control by computeTruthy
-//   "number"  → a checkbox is 1/0; anything else through Number (blank/NaN → 0,
-//               the nanToZero the hand-written calculators use)
-//
-// A checkbox is 1/0 and never Number(its value): a box is a yes/no, and a
-// reducer that wants an amount writes `gift ? 25 : 0`.
-function computeValue(control, type) {
-  if (type === "string") return computeText(control)
-  const box = control.kind === "checkbox"
-  if (type === "boolean") return box ? Boolean(control.el.checked) : computeTruthy(computeText(control))
-  if (box) return control.el.checked ? 1 : 0
-  const n = Number(computeText(control))
-  return Number.isFinite(n) ? n : 0
-}
-
-// Write one reducer output into the control its name resolved to (issue #262),
-// change-guarded. Returns the element to announce with an `input` event, or
-// null when nothing changed. A checkbox takes the result as its checked state
-// and a radio group checks the radio carrying it — neither ever has its value
-// attribute rewritten, which would change what the control SUBMITS. Anything
-// else takes the result as its .value (issue #76).
-function computeWrite(root, owns, { el, kind }, domName, value) {
-  if (kind === "checkbox") {
-    const checked = computeTruthy(value)
-    if (Boolean(el.checked) === checked) return null
-    el.checked = checked
-    return el
-  }
-  if (kind === "radio") return computeCheckRadio(root, owns, domName, String(value))
-  if (String(value) === el.value) return null
-  el.value = value
-  return el
-}
-
-// Check the owned radio of a group whose value is `wanted`, unchecking the
-// rest — the same per-radio rule a restored draft applies. A value no radio
-// carries clears the group. Returns the radio that GAINED the check, or, for a
-// cleared group, the one that lost it; null when the selection already matched.
-function computeCheckRadio(root, owns, domName, wanted) {
-  let announced = null
-  for (const el of root.querySelectorAll(`[name="${domName}"]`)) {
-    if (el.type !== "radio" || !owns(el)) continue
-    const checked = el.value === wanted
-    if (Boolean(el.checked) === checked) continue
-    el.checked = checked
-    if (checked) announced = el
-    else announced ??= el
-  }
-  return announced
-}
-
-// Normalize a reducer's reserved $ops output (issue #226): the compute `ops`
-// builder (its .ops list), a raw [[name, args], ...] array, or null/undefined
-// (no effect this pass). An EMPTY list is the same as null — "nothing to run"
-// must not latch the rising edge. Anything else warns + is dropped
-// (default-deny, like every other malformed op source). Reducers are trusted
-// app code, but their ops still run through the frozen CLIENT_OPS whitelist.
-function computeOpsList(raw) {
-  if (raw == null) return null
-  const list = Array.isArray(raw) ? raw : raw.ops
-  if (Array.isArray(list)) return list.length > 0 ? list : null
-  console.warn("[phlex-reactive] $ops must be an ops chain or a [[op, args], ...] list — skipped")
-  return null
-}
-
 // Interpret a [[name, args], ...] op list against the frozen CLIENT_OPS
 // whitelist (issues #95/#96/#97). `resolveTargets(args)` returns the element(s)
 // an op applies to — the controller scopes to its root (excluding nested
@@ -1239,64 +860,6 @@ function applyOps(list, resolveTargets, onZeroTargets) {
     if (targets.length === 0 && onZeroTargets) onZeroTargets(name, args)
     for (const el of targets) CLIENT_OPS[name](el, args, resolveTargets)
   }
-}
-
-// --- zero-target diagnostics (issue #237) -----------------------------------
-// An op resolving ZERO targets is indistinguishable from a working no-op, and
-// the documented scoping traps (nested-root ownership filter, root-self
-// selector, stream default scope) all present exactly that way. Under the
-// verbose gate (data-reactive-verbose, stamped when Phlex::Reactive
-// .verbose_errors is on — dev/test by default — or the debug attr) warn ONCE
-// per unique (label, selector, scope) with a targeted hint when the element
-// EXISTS but sits outside the op's scope. Everything below runs only after a
-// zero-match with the gate on; production (no attr) pays one boolean per empty
-// resolution and never probes the DOM.
-//
-// Dedupe is keyed per document (page lifetime): a WeakMap entry per document
-// means a fresh page — or a fresh unit-harness stub — starts clean, and the
-// per-keystroke reducer ($ops) path can never flood the console.
-const zeroTargetWarnSets = new WeakMap()
-
-function zeroTargetAlreadyWarned(key) {
-  const doc = globalThis.document
-  if (!doc) return true
-  let seen = zeroTargetWarnSets.get(doc)
-  if (!seen) {
-    seen = new Set()
-    zeroTargetWarnSets.set(doc, seen)
-  }
-  if (seen.has(key)) return true
-  seen.add(key)
-  return false
-}
-
-// Guarded probes: unit harnesses stub partial documents/roots, and an exotic
-// selector could throw — a diagnostic must never break the op pipeline.
-function countMatches(node, selector) {
-  try {
-    return node?.querySelectorAll?.(selector)?.length ?? 0
-  } catch {
-    return 0
-  }
-}
-
-function emitZeroTargetWarn(label, to, scope, hint) {
-  if (zeroTargetAlreadyWarned(`${label}|${to}|${scope}`)) return
-  console.warn(`[phlex-reactive] ${label} matched zero targets for selector "${to}" (${scope})${hint}`)
-}
-
-// The stream-path diagnoser (reactive:js). No ownership filter exists here, so
-// the only trap is the target-root scope: the selector matches document-wide
-// but the op was scoped to the stream's target root.
-function diagnoseStreamZeroTargets(name, args, root) {
-  const to = args.to
-  if (typeof to !== "string" || to === "" || to === "@root") return
-  let hint = ""
-  if (root && !args.global) {
-    const n = countMatches(globalThis.document, to)
-    if (n > 0) hint = ` — it matches ${n} element(s) outside the stream's target root; use global: true`
-  }
-  emitZeroTargetWarn(`client op "${name}"`, to, root ? `scoped to #${root.id || "?"}` : "document-scoped", hint)
 }
 
 // Resolve a reactive:js op's targets against its `target` root (issue #97).
@@ -1377,6 +940,14 @@ function streamOpTargets(args, root) {
 //   core.forgetToken()                    drop the token cached from a reply
 //   core.owns(el)                         is this control this root's own, not
 //                                         a nested reactive root's (issue #15)
+//   core.ownership()                      the hoisted per-pass form of owns
+//   core.opTargets(args)                  the elements an op's `to:` names
+//   core.applyOps(list, defaultTo)        run an op list root-scoped
+//   core.diagnose(label, args)            the zero-target warning
+//   core.listnavOptions(event)            the keyboard-navigable options
+//   core.collectFields()                  this root's fields, as a request
+//                                         would send them
+//   core.confirm(message, context)        the confirm gate (resolves a boolean)
 //
 // Later features add to that handle; nothing else of the controller is theirs
 // to touch beyond its public surface (element, application, …).
@@ -1435,6 +1006,39 @@ const PRODUCTION_FEATURES = [
     ],
   ],
   [
+    // Show bindings and cross-root show targets, completion bindings, option
+    // filtering, the tag-chip input and draft nested rows: a form's
+    // client-only bindings. The root declares one, or owns an element that
+    // does. Its seeds write what a request reads (the JSON-mode rows), so it
+    // gates.
+    "bindings",
+    [
+      // (The probes the connect-time gates ran before the split, unchanged.)
+      (root) =>
+        ["show-targets", "on-complete", "filter-input", "tags-field"].some(
+          (marker) => root.getAttribute?.(`data-reactive-${marker}`) != null,
+        ) ||
+        (root.querySelectorAll?.("[data-reactive-show-field], [data-reactive-show]") ?? []).length > 0 ||
+        root.querySelector?.(
+          "[data-reactive-nested-json], [data-reactive-nested-list], [data-reactive-confirm-when-param]",
+        ) != null,
+      null,
+      null,
+      true,
+    ],
+  ],
+  [
+    // Client-side computes: the root carries a reactive_compute binding. The
+    // seed writes output fields a request collects, so it gates.
+    "compute",
+    [
+      (root) => root.getAttribute?.("data-reactive-compute-inputs-param") != null,
+      null,
+      null,
+      true,
+    ],
+  ],
+  [
     // Stream effects and dismissing flashes are document-level: the module
     // has no connect. A root that DECLARES an effect only gets it fetched
     // early, so the first stream need not wait for it (see streamHold).
@@ -1444,8 +1048,27 @@ const PRODUCTION_FEATURES = [
       null,
     ],
   ],
-  // Page-level, no root marker (see registerReactiveDev).
-  ["dev", [null, null]],
+  [
+    // The optimistic/busy hint engine: a trigger in the root declares a hint.
+    // No connect — the module acts at enqueue — so the marker is only read
+    // while it is not loaded, and a root that declares one preloads it.
+    "hints",
+    [
+      (root) =>
+        root.querySelector?.(
+          "[data-reactive-optimistic-param], [data-reactive-busy-param], [data-reactive-loading-param]",
+        ) != null,
+      null,
+    ],
+  ],
+  [
+    // Development aids: the latency simulator (page-level, see
+    // registerReactiveDev), the zero-target diagnostics and the debug trace.
+    // A root in debug mode preloads it; a verbose root asks for it the first
+    // time it has something to warn about.
+    "devtools",
+    [(root) => root.getAttribute?.("data-reactive-debug") === "true", null],
+  ],
 ]
 const FEATURES = new Map(PRODUCTION_FEATURES)
 
@@ -1487,6 +1110,22 @@ export function registerReactiveFeature(name, feature) {
   feature.install?.(FEATURE_SHARED)
   featureModules.set(name, feature)
   featuresGiven.set(name, feature)
+}
+
+// For the opt-in entry: the features some of `elements` (reactive roots a
+// stream is about to render) need and that are not loaded — read off the
+// table, so a new feature is covered by its own marker check.
+export function unloadedFeaturesFor(elements) {
+  const names = []
+  for (const [name, [needs]] of FEATURES) {
+    if (!needs || featureModules.has(name)) continue
+    try {
+      if (elements.some((el) => needs(el))) names.push(name)
+    } catch {
+      // a marker check that throws is that root's problem at connect, not the stream's
+    }
+  }
+  return names
 }
 
 // For the opt-in entry: import a feature now. Resolves with the module, or
@@ -1756,55 +1395,8 @@ export default class extends Controller {
   #busyPending = 0 // root aria-busy pending counter (remove only at zero)
   #busyActions = new Map() // action -> in-flight count (root's space-separated busy set + busy_on)
   #busyTokenCounts = new WeakMap() // element -> Map(action -> count): its data-reactive-busy token set
-  #textDisableSnapshots = new Map() // trigger -> { count, disabled, html } refcounted text/disable snapshot (issue #181)
-  // Issue #183: the `input` events recompute dispatches for its OWN output writes,
-  // marked so a re-entrant recompute on THIS root skips re-running the reducer
-  // (single-pass write set). Per-instance, so another root's events are never
-  // swallowed. WeakSet: entries drop when the short-lived Event is GC'd.
-  #computeSelfDispatched = new WeakSet()
-  // Issue #226: the serialized $ops chain of the LAST reducer pass (null when
-  // absent) — the rising-edge latch, keyed on CONTENT: an identical chain
-  // never re-fires (a capped extra keystroke can't re-submit), while a chain
-  // that CHANGED fires again (a multi-box reducer advancing focus box-by-box
-  // emits a different focus target per digit). The seed pass arms this
-  // without firing.
-  #computeOpsSignature = null
   // Dirty tracking (issue #103): the bound re-scan (turbo:morph-element) and the
   // navigate-away guard handlers, held so disconnect() can remove exactly them.
-  // Show bindings (issue #161): the ONE delegated sync handler shared by the
-  // root's input/change/turbo:morph-element listeners, held for teardown.
-  #boundSyncShow
-  // Completion bindings (issue #226): the delegated gesture handler + the
-  // no-gesture morph arm, held for teardown; the per-binding rising-edge
-  // latches; and the raw-attr memo that re-parses (and resets the latches)
-  // when a morph rewrites the payload.
-  #boundSyncOnComplete
-  #boundArmOnComplete
-  #onCompleteRaw
-  #onCompleteParsed
-  #onCompleteStates
-  // Option filtering (issue #163): the ONE delegated sync handler shared by the
-  // root's input/turbo:morph-element listeners, held for teardown.
-  #boundSyncFilter
-  // Tag-chip input (issue #203): the bound re-projection attached to
-  // turbo:morph-element (a morph rewrites the hidden field to server truth, so
-  // the chip projection must follow), held for teardown — plus the once-only
-  // missing-template warning latch.
-  #boundSyncTags
-  #tagsWarnedTemplate = false
-  // Draft nested-attribute rows (issue #208): the strictly-monotonic index
-  // counter (clock-seeded so it never collides with server-rendered 0..n
-  // indexes) plus the once-only missing-list/template warning latch.
-  #nestedIndex = 0
-  #nestedWarned = false
-  // JSON-mode nested rows (issue #208): the bound delegated input/change
-  // handler and the bound morph re-seed, held so disconnect() removes exactly
-  // them.
-  #boundSyncNestedJson
-  #boundSeedNestedJson
-  // Connect-time compute seed (issue #199): the bound re-seed attached to
-  // turbo:morph-element so an in-place morph re-runs the compute, held for teardown.
-  #boundSeedCompute
   // The root-only morph listener of a token-bearing root (issue #275): a morph
   // can add a feature's marker to a connected root. Held for teardown.
   #boundRootMorph
@@ -1888,122 +1480,6 @@ export default class extends Controller {
     this.#featureEpoch++
     this.featuresReady = FEATURES_READY
     this.#loadFeatures()
-
-    // Show bindings (issue #161) — ONLY when this root owns one, so a component
-    // without any pays a single probe (the dirty-tracking gate precedent). ONE
-    // delegated listener pair on the root (input + change bubble from every
-    // owned field — no per-field wiring, and a reactive_compute output write
-    // dispatches a real input event, so computed values drive visibility too).
-    // The connect sync seeds the initial state — a plain replace re-connects —
-    // and turbo:morph-element re-syncs after an in-place morph (which keeps the
-    // element connected, fires no Stimulus lifecycle, and may preserve a
-    // user-edited field value the server's hidden attrs don't reflect).
-    if (this.#showSyncEnabled()) {
-      this.#boundSyncShow = () => this.#syncShow()
-      this.element.addEventListener?.("input", this.#boundSyncShow)
-      this.element.addEventListener?.("change", this.#boundSyncShow)
-      this.element.addEventListener?.("turbo:morph-element", this.#boundSyncShow)
-      this.#syncShow()
-    }
-
-    // Completion bindings (issue #226) — ONLY when the root declares
-    // data-reactive-on-complete (the show/filter gate precedent). ONE
-    // delegated input+change listener evaluates every binding's DNF over the
-    // owned fields and runs its ops on the RISING EDGE — the event-driven
-    // flip to true. The connect pass ARMS without firing (a fresh render with
-    // already-satisfied conditions must never self-fire — the $ops seed
-    // precedent), and turbo:morph-element re-arms the same way after an
-    // in-place morph. Listeners added HERE run after the Stimulus-wired
-    // recompute delegation for the same event, so the evaluation reads
-    // compute-NORMALIZED values (and a compute output write dispatches a real
-    // input event that re-evaluates anyway).
-    if (this.#onCompleteEnabled()) {
-      this.#boundSyncOnComplete = (event) => this.#syncOnComplete(event)
-      this.#boundArmOnComplete = () => this.#syncOnComplete(null)
-      this.element.addEventListener?.("input", this.#boundSyncOnComplete)
-      this.element.addEventListener?.("change", this.#boundSyncOnComplete)
-      this.element.addEventListener?.("turbo:morph-element", this.#boundArmOnComplete)
-      this.#syncOnComplete(null)
-    }
-
-    // Option filtering (issue #163) — ONLY when the root declares the binding
-    // (reactive_filter emits both attrs together), so a component without one
-    // pays two attribute reads. ONE delegated input listener on the root — the
-    // handler re-filters only for events from the NAMED input, so keystrokes in
-    // unrelated fields on a wide form never pay a filter pass. The connect sync
-    // seeds from the input's current value (a plain replace re-connects; back
-    // navigation may restore typed text), and turbo:morph-element re-applies
-    // after an in-place morph (which keeps the element connected, fires no
-    // Stimulus lifecycle, and may preserve the user's typed query while the
-    // server re-rendered every option visible).
-    if (this.#filterEnabled()) {
-      this.#boundSyncFilter = (event) => {
-        if (event?.type === "input" && !this.#filterInputEvent(event)) return
-        this.#syncFilter()
-      }
-      this.element.addEventListener?.("input", this.#boundSyncFilter)
-      this.element.addEventListener?.("turbo:morph-element", this.#boundSyncFilter)
-      this.#syncFilter()
-    }
-
-    // Tag-chip input (issue #203) — ONLY when the root names the hidden value
-    // field (reactive_tags), so a component without one pays one attribute
-    // read. The chip list is a CLIENT PROJECTION of the hidden field's
-    // comma-joined value: connect seeds it (a plain replace re-connects with
-    // the server-rendered value), and turbo:morph-element re-projects after an
-    // in-place morph (the morph wrote server truth into the hidden field while
-    // the chips DOM kept the pre-morph projection). Registered AFTER the
-    // filter's listeners so a morph re-filters first and the tags pass then
-    // re-marks selected options on the fresh visibility state.
-    if (this.#tagsEnabled()) {
-      this.#boundSyncTags = () => this.#syncTags()
-      this.element.addEventListener?.("turbo:morph-element", this.#boundSyncTags)
-      this.#syncTags()
-    }
-
-    // JSON-mode nested rows (issue #208) — ONLY when the root owns a list with
-    // `as: :json`, so a form without one pays a single probe (the show/filter/
-    // tags gate precedent). ONE delegated input + change listener re-serializes
-    // the rows into the hidden field on every owned edit (nestedAdd/Remove call
-    // the sync directly; this covers typing into a row's fields). The connect
-    // seed writes the initial array (a plain replace re-connects), and
-    // turbo:morph-element re-seeds after an in-place morph (which keeps the
-    // element connected, fires no Stimulus lifecycle, and may have rewritten
-    // the rows to server truth while the hidden field kept its pre-morph value).
-    if (this.#nestedJsonEnabled()) {
-      this.#boundSyncNestedJson = (event) => this.syncNestedJson(event)
-      this.#boundSeedNestedJson = () => this.#syncAllNestedJson()
-      this.element.addEventListener?.("input", this.#boundSyncNestedJson)
-      this.element.addEventListener?.("change", this.#boundSyncNestedJson)
-      this.element.addEventListener?.("turbo:morph-element", this.#boundSeedNestedJson)
-      this.#syncAllNestedJson()
-    }
-
-    // Connect-time compute seed (issue #199) — ONLY when the root carries a
-    // reactive_compute binding that opts in (data-reactive-compute-seed). A
-    // freshly-rendered compute root (a first paint, or a server validation-error
-    // re-render that replaced the body) computed NOTHING until the first user
-    // `input`; apps worked around it by dispatching a synthetic seed `input` on
-    // connect, but the compute root is a distinct Stimulus controller that may
-    // connect a frame later, so the seed raced its own wiring — the reported
-    // symptom being a PARTIAL apply (an early output paints; a later output + the
-    // mirror stay blank). Running ONE recompute() HERE — after Stimulus has fully
-    // connected the controller and wired the input->recompute delegation — runs
-    // the whole single-pass write set (issue #183) synchronously, so every
-    // declared output, text sink, and cross-root mirror paints from one reducer
-    // result. It is client-only (recompute never enqueues a round trip) and
-    // idempotent (change-guarded writes make a re-seed a no-op — an app still
-    // dispatching a synthetic input is harmless). A plain replace re-connects and
-    // re-seeds; an in-place morph keeps the element CONNECTED and fires no
-    // Stimulus lifecycle, so ALSO re-seed on turbo:morph-element (the show/filter/
-    // dirty precedent). No event is passed, so meta.changed is null — the correct
-    // "no field edited yet" seed semantics; a convergent reducer's default branch
-    // computes the full settled set (see compute.js CONVERGENCE REQUIREMENT).
-    if (this.#computeSeedEnabled()) {
-      this.#boundSeedCompute = () => this.recompute()
-      this.element.addEventListener?.("turbo:morph-element", this.#boundSeedCompute)
-      this.recompute()
-    }
 
     // LAST, after every feature above is wired: a replayed trigger must find
     // the controller exactly as a live event after connect would.
@@ -2159,6 +1635,26 @@ export default class extends Controller {
         this.#tokenCache = undefined
       },
       owns: (el) => this.#ownsField(el),
+      ownership: () => this.#ownershipFilter(),
+      opTargets: (args) => this.#opTargets(args),
+      diagnose: (label, args) => this.#diagnoseZeroTargets(label, args),
+      // Apply an op list root-scoped, with the zero-target diagnostics; a
+      // missing to: defaults to `defaultTo` (the reducer / completion-binding
+      // convention is "@root").
+      applyOps: (list, defaultTo) =>
+        applyOps(
+          list,
+          (args) => this.#opTargets(defaultTo != null && args.to == null ? { ...args, to: defaultTo } : args),
+          (name, args) => this.#diagnoseZeroTargets(`client op "${name}"`, args),
+        ),
+      listnavOptions: (event) => this.#listnavOptions(event),
+      collectFields: () => this.#collectFields(),
+      // The confirm gate, as dispatch() runs it: the resolver inside the chain
+      // (a synchronous throw is a cancel), never a rejection out.
+      confirm: (message, context) =>
+        Promise.resolve()
+          .then(() => confirmResolver(message, context))
+          .catch(() => false),
     }
     return this.#featureHandle
   }
@@ -2169,12 +1665,8 @@ export default class extends Controller {
   // that did not opt into one skips it. on-complete re-ARMS without firing.
   #reseed() {
     this.#features.get("form")?.scan(this, this.#featureCore())
-    this.#boundSyncShow?.()
-    this.#boundArmOnComplete?.()
-    this.#boundSyncFilter?.()
-    this.#boundSyncTags?.()
-    this.#boundSeedNestedJson?.()
-    this.#boundSeedCompute?.()
+    this.#features.get("bindings")?.reseed(this)
+    this.#features.get("compute")?.seed(this)
   }
 
   // A feature that is missing leaves its part of the root dead: say so on
@@ -2331,12 +1823,6 @@ export default class extends Controller {
     this.#disconnectFeatures()
     this.#clearAllDebounces()
     this.#clearAllThrottles()
-    this.#teardownShowSync()
-    this.#teardownOnCompleteSync()
-    this.#teardownFilterSync()
-    this.#teardownTagsSync()
-    this.#teardownNestedJsonSync()
-    this.#teardownComputeSeed()
     if (this.#boundRootMorph) {
       this.element.removeEventListener?.("turbo:morph-element", this.#boundRootMorph)
     }
@@ -2372,9 +1858,9 @@ export default class extends Controller {
     // The pending-state hint (issue #181): data-reactive-busy-param. During a
     // deploy overlap a page rendered by the PREVIOUS gem still emits the old
     // data-reactive-loading-param — read it as a fallback so an in-flight page
-    // keeps its pending affordance until the next full render. The old `class:`
-    // key is remapped to add_class: so it flows through the one hint applier.
-    const busy = event.params.busy ?? this.#legacyLoadingHint(event.params.loading)
+    // keeps its pending affordance until the next full render (the hints
+    // feature remaps its `class:` key).
+    const busy = event.params.busy ?? event.params.loading
 
     // Outside guard FIRST (issue #80): an outside: trigger only fires for
     // events whose target is OUTSIDE this component's ROOT (containment against
@@ -2434,32 +1920,69 @@ export default class extends Controller {
     // Resolve the EFFECTIVE confirm message (issue #179): a plain string confirm:
     // is that string (static, #52); a Hash confirm: (confirmWhen) evaluates its
     // condition/predicate over the collected fields and returns the message ONLY
-    // when it fires, else null → no dialog. No confirm at all → also null.
+    // when it fires, else null → no dialog. No confirm at all → also null. The
+    // conditional form is the bindings feature's: on the opt-in client its
+    // answer may come a moment later (a promise), once the module is here.
     const message = this.#effectiveConfirmMessage(confirm, confirmWhen)
+    const proceed = () => this.#proceed(target, action, params, debounce, throttle, optimistic, busy)
 
     // No message → proceed straight away (unchanged fast path).
-    if (!message) return this.#proceed(target, action, params, debounce, throttle, optimistic, busy)
+    if (!message) return proceed()
+    if (message instanceof Promise) {
+      return message.then((resolved) => (resolved ? this.#confirmThen(resolved, target, proceed) : proceed()))
+    }
+    this.#confirmThen(message, target, proceed)
+  }
 
-    // Confirmation gate (issue #52, made overridable + async in #55). A reactive
-    // trigger can't use Hotwire's data-turbo-confirm — this controller preempts
-    // the event — so a `confirm:` message routes through confirmResolver (default
-    // window.confirm; an app can override it to reuse Turbo.config.forms.confirm).
-    // The resolver may be sync or async; call it INSIDE the chain (via the leading
-    // .then) so even a SYNCHRONOUS override throw rejects this promise instead of
-    // escaping dispatch — a throwing dialog is treated as a cancel, like the user
-    // dismissing it. The .catch is scoped to the resolver step (→ false = cancel),
-    // so a dismissed/erroring dialog never surfaces as an unhandled rejection AND a
-    // genuine bug inside #proceed is NOT silently swallowed. Enqueue ONLY on a
-    // truthy resolution — nothing is enqueued, no timer scheduled, otherwise.
-    // The resolver's optional 2nd arg (issue #222) carries the trigger element,
-    // so an override has the same ctx shape here as on nestedRemove ({ el, … }).
-    Promise.resolve()
+  // The confirmation gate (issue #52, made overridable + async in #55). A
+  // reactive trigger can't use Hotwire's data-turbo-confirm — this controller
+  // preempts the event — so a `confirm:` message routes through
+  // confirmResolver (default window.confirm; an app can override it to reuse
+  // Turbo.config.forms.confirm). The resolver may be sync or async; call it
+  // INSIDE the chain (via the leading .then) so even a SYNCHRONOUS override
+  // throw rejects this promise instead of escaping dispatch — a throwing
+  // dialog is treated as a cancel, like the user dismissing it. The .catch is
+  // scoped to the resolver step (→ false = cancel), so a dismissed/erroring
+  // dialog never surfaces as an unhandled rejection AND a genuine bug inside
+  // #proceed is NOT silently swallowed. Enqueue ONLY on a truthy resolution —
+  // nothing is enqueued, no timer scheduled, otherwise. The resolver's
+  // optional 2nd arg (issue #222) carries the trigger element, so an override
+  // has the same ctx shape here as on nestedRemove ({ el, … }).
+  #confirmThen(message, target, proceed) {
+    return Promise.resolve()
       .then(() => confirmResolver(message, { el: target }))
       .catch(() => false)
       .then((ok) => {
-        if (ok) this.#proceed(target, action, params, debounce, throttle, optimistic, busy)
+        if (ok) proceed()
       })
   }
+
+  // The effective confirm message (issue #179): the static string; or, for a
+  // conditional confirm, what the bindings feature says — now when the module
+  // is here, else a promise of it (the opt-in client's import window); or
+  // null when neither applies. A module that cannot load, or is slower than
+  // the feature timeout, answers null: no dialog, the endpoint's
+  // authorize/default-deny is the real gate.
+  #effectiveConfirmMessage(confirm, confirmWhen) {
+    if (confirm) return confirm
+    if (!confirmWhen) return null
+    const loaded = featureModules.get("bindings")
+    if (loaded) return loaded.confirmMessage(this, this.#featureCore(), confirmWhen)
+    return this.#awaitFeatureOrNull("bindings").then(
+      (bindings) => bindings && bindings.confirmMessage(this, this.#featureCore(), confirmWhen),
+    )
+  }
+
+  // A feature's module, or null once its import failed (logged) or outlasted
+  // the feature timeout — for the two places a REQUEST waits on an import
+  // without a root connection to wait with (a hint, a conditional confirm).
+  #awaitFeatureOrNull(name) {
+    return Promise.race([
+      loadFeature(name).catch((error) => (logFeatureFailure(name, "load", error), null)),
+      new Promise((resolve) => setTimeout(() => resolve(null), featureTimeoutMs())),
+    ])
+  }
+
 
   // CLIENT-ONLY trigger entry point (issue #95) — the zero-round-trip sibling
   // of dispatch(). Wired by on_client: applies the declared op chain
@@ -2486,7 +2009,12 @@ export default class extends Controller {
       candidates.length <= 1
         ? candidates
         : candidates.filter((record) => bindingMatches(record, event, this.application?.schema?.keyMappings))
-    if (matching.length === 0 && records.length > 0) return this.#warnNoBinding(event)
+    if (matching.length === 0 && records.length > 0) {
+      // Issue #271: a hand-edited attr or a descriptor the matcher doesn't
+      // know. Verbose gate only (the devtools feature dedupes).
+      if (this.#verboseEnabled()) this.#devtools((devtools) => devtools.noBinding(this, event))
+      return
+    }
     for (const record of matching) {
       if (onceBindingSpent(this, event, record)) continue
       this.#runBinding(record.legacy ? { ...params, ops: record.ops } : record, event, trigger)
@@ -2510,38 +2038,70 @@ export default class extends Controller {
     if (!windowBound) event.preventDefault()
 
     // Resolve the effective confirm message — static string, or the conditional
-    // Hash form (issue #179) evaluated over collected fields. Null → no dialog.
+    // Hash form (issue #179) evaluated over collected fields (a promise of it
+    // on the opt-in client while the bindings module is on its way). Null →
+    // no dialog. The gate is here (the user gesture), NOT in #applyOps: that
+    // applier is shared with the server-pushed reactive:js stream action,
+    // which must NEVER prompt. The same confirmResolver gate on(:action,
+    // confirm:) uses (issues #52/#55/#178), so a themed dialog covers both.
     const message = this.#effectiveConfirmMessage(confirm, confirmWhen)
-
-    // No message → apply straight away (unchanged fast path, no prompt).
-    if (!message) return this.#applyOps(this.#parseOps(ops))
-
-    // Confirmation gate for client ops (issue #178) — the SAME confirmResolver
-    // gate on(:action, confirm:) uses (issues #52/#55), reused verbatim so a
-    // themed dialog set with setConfirmResolver covers BOTH paths. A destructive
-    // client op (clear a draft, reset a form) gets the one-line themed confirm
-    // without a round trip. Call the resolver INSIDE the chain (leading .then)
-    // so even a SYNCHRONOUS override throw rejects here instead of escaping
-    // runOps — a throwing dialog is a cancel, like dismissing it. The gate is
-    // here (the user gesture), NOT in #applyOps: that applier is shared with the
-    // server-pushed reactive:js stream action, which must NEVER prompt.
-    Promise.resolve()
-      .then(() => confirmResolver(message, { el: trigger }))
-      .catch(() => false)
-      .then((ok) => {
-        if (ok) this.#applyOps(this.#parseOps(ops))
-      })
+    const apply = () => this.#applyOps(this.#parseOps(ops))
+    if (!message) return apply()
+    if (message instanceof Promise) {
+      return message.then((resolved) => (resolved ? this.#confirmThen(resolved, trigger, apply) : apply()))
+    }
+    this.#confirmThen(message, trigger, apply)
   }
 
-  // Issue #271: runOps fired but no record matched the event — a hand-edited
-  // attr or a descriptor the matcher doesn't know. Verbose gate only, deduped.
-  #warnNoBinding(event) {
-    if (!this.#verboseEnabled()) return
-    const key = `no-binding|${event.type}|${this.element?.id || "?"}`
-    if (zeroTargetAlreadyWarned(key)) return
-    console.warn(
-      `[phlex-reactive] runOps on #${this.element?.id || "?"} found no on_client binding matching a "${event.type}" event — nothing ran`,
-    )
+  // Client-side compute (issue #104) is the compute feature's (issue #275,
+  // features/compute.js). This is the method its descriptor names
+  // (input->reactive#recompute), so it stays. While the module is on its way
+  // (the opt-in client) the entry records the edit, and the module runs one
+  // recompute when it connects.
+  recompute(event) {
+    return featureModules.get("compute")?.recompute(this, this.#featureCore(), event)
+  }
+
+  // Tag-chip input (issue #203) and draft nested rows (issue #208) are the
+  // bindings feature's (issue #275, features/bindings.js). These are the
+  // methods their descriptors name, so they stay: each hands the event to the
+  // module — now, or, with the opt-in client, once it has arrived. The event
+  // is dead by then, so what the module reads of it (the trigger, the target)
+  // is captured here; the native default is prevented now, as the module
+  // would have. tagsAdd keeps its two composition guards (an Enter that
+  // listnav already took, or is about to take) in the same tick.
+  tagsAdd(event) {
+    if (event?.defaultPrevented) return
+    if (this.#listnavOptions(event).some((el) => el.hasAttribute?.("data-reactive-highlighted"))) return
+    return this.#bindingsAction("tagsAdd", event)
+  }
+
+  tagsPick(event) {
+    return this.#bindingsAction("tagsPick", event)
+  }
+
+  tagsRemove(event) {
+    return this.#bindingsAction("tagsRemove", event)
+  }
+
+  nestedAdd(event) {
+    return this.#bindingsAction("nestedAdd", event)
+  }
+
+  nestedRemove(event) {
+    return this.#bindingsAction("nestedRemove", event)
+  }
+
+  syncNestedJson(event) {
+    return featureModules.get("bindings")?.syncNestedJson(this, this.#featureCore(), event)
+  }
+
+  #bindingsAction(name, event) {
+    const loaded = featureModules.get("bindings")
+    if (loaded) return loaded[name](this, this.#featureCore(), event)
+    event?.preventDefault?.()
+    const snapshot = { currentTarget: event?.currentTarget ?? null, target: event?.target ?? null, preventDefault() {} }
+    return withFeature("bindings", (bindings) => bindings[name](this, this.#featureCore(), snapshot))
   }
 
   // Dirty tracking (issue #103) is the form feature's (issue #275,
@@ -2551,221 +2111,6 @@ export default class extends Controller {
   // the whole root when it connects.
   trackDirty() {
     ;(this.#features.get("form") ?? featureModules.get("form"))?.scan(this, this.#featureCore())
-  }
-
-  // Client-side compute (data binding). Wired by reactive_compute: an `input`
-  // trigger (input->reactive#recompute) runs a REGISTERED JS reducer over the
-  // named input fields and writes the named output fields WITH NO ROUND TRIP —
-  // the "instant" half of the new/unpersisted-record UX. If the field ALSO
-  // carries on(...) (a persisted record, or a synced draft), that debounced POST
-  // still fires and the server reply reconciles; recompute just paints first.
-  //
-  // Reads inputs/outputs/reducer from the root's data-reactive-compute-* attrs
-  // (set once by reactive_compute_attrs). A missing/unregistered reducer is a
-  // no-op — a page must never break because a binding wasn't wired up.
-  //
-  // The reducer gets a second argument, meta = { changed } (issue #75): the
-  // name of the declared input the triggering event edited, or null for a
-  // direct call / an unowned or undeclared target. A multi-way rebalance
-  // branches on it (edit c → derive a; else → derive c). Note that a #76
-  // output write dispatches a real input event, so recompute RE-ENTERS with
-  // changed = that output's name — the reducer must be convergent (see
-  // compute.js) so the change guard settles the chain.
-  recompute(event) {
-    // Issue #183 — single-pass write set: an `input` event this method dispatched
-    // for its OWN output writes is self-marked. Re-running the reducer on it would
-    // re-enter from a partially-written DOM (the old mid-loop-dispatch corruption
-    // class). Skip the reducer for our own event — but ONLY ours: the marker lives
-    // in a per-instance WeakSet, so a genuinely different root's compute event (or
-    // a real user edit) is never swallowed. The event still bubbled and fired every
-    // OTHER listener (dirty tracking, show bindings, sibling roots) before reaching
-    // here; we simply don't recompute a second time from our own write.
-    if (event && this.#computeSelfDispatched.has(event)) return
-
-    // Inputs may be a JSON ARRAY of names (array form — every input coerced
-    // through Number, the shipped behavior) or a JSON OBJECT of name→type (hash
-    // form, issue #104 — :number coerced, :string read raw). #parseComputeInputs
-    // returns [name, type] pairs either way (array form defaults type "number").
-    const inputPairs = this.#parseComputeInputs()
-    const inputs = inputPairs.map(([name]) => name)
-
-    // Resolve every declared input AND output through ONE per-call resolver whose
-    // ownership probe is computed ONCE (issue #117), replacing the per-name
-    // closest() walk #ownedField did on every read — a 30-field calculator paid
-    // ~60 closest() sweeps per keystroke. #ownershipFilter returns a constant-true
-    // predicate in the common no-nested-root case (skipping closest() entirely)
-    // and the exact #ownsField check when a nested reactive root is present
-    // (issue #15 scoping, byte-identical to before). Resolution is memoized in a
-    // per-CALL Map, so a name read as an input AND written as an output
-    // resolves to the SAME element and is queried once.
-    //
-    // Which element a name resolves to (issue #262, mirroring #showFieldValue): a
-    // CHECKBOX wins over the hidden companion Rails renders before it; a radio
-    // group resolves to its CHECKED radio (any radio of the group when none is);
-    // anything else is first-wins. Resolving first-wins across the board handed
-    // the reducer the companion's constant "0" and the first radio's value.
-    //
-    // Why per-name `[name="X"]` queries and not one bare `[name]` sweep: a single
-    // sweep is the natural "one walk", but the resolver must issue the SAME
-    // per-name query shape the field walk always has (the issue-#15 unit fakes
-    // answer only `[name="X"]`). It is O(distinct declared names) queries, not the
-    // old O(inputs + outputs) — the ownership decision is hoisted out of the loop.
-    // The memo is per-CALL only: an output write dispatches `input` (issue #76),
-    // re-entering recompute, which correctly rebuilds a fresh map (a morph may
-    // have replaced the nodes) — it is NEVER stored on the instance.
-    // Scope (issue #183, mirroring #showFieldValue): a bare compute name `cash`
-    // under `data-reactive-scope="order"` resolves as `[name="order[cash]"]`. A
-    // name already carrying a bracket (a raw wire name the author passed) is used
-    // verbatim — so bracketed literals pass through unscoped.
-    const scope = this.element.getAttribute?.("data-reactive-scope") || null
-    const scoped = (name) => (scope && !name.includes("[") ? `${scope}[${name}]` : name)
-
-    const owns = this.#ownershipFilter()
-    const byName = new Map()
-    const ownedControl = (name) => {
-      const known = byName.get(name)
-      if (known) return known
-      let radio = null
-      let first = null
-      let control = null
-      for (const el of this.element.querySelectorAll(`[name="${scoped(name)}"]`)) {
-        if (!owns(el)) continue
-        const kind = el.type // read ONCE per element — see computeText
-        if (kind === "checkbox" || (kind === "radio" && el.checked)) {
-          control = { el, kind }
-          break
-        }
-        if (kind === "radio") radio ??= el
-        else first ??= el
-      }
-      if (!control) {
-        if (radio) control = { el: radio, kind: "radio" }
-        else control = first ? { el: first, kind: "" } : COMPUTE_NO_CONTROL
-      }
-      byName.set(name, control)
-      return control
-    }
-
-    // Identity-mirror pass (issue #104), ALWAYS run — even with NO registered
-    // reducer, so reactive_text(:title) mirrors a field into its text node with
-    // zero reducer wiring. Each declared input's RAW text reading (computeText —
-    // a checkbox paints "true"/"false", issue #262) is written to its owned
-    // [data-reactive-text="<name>"] node(s). It runs BEFORE the reducer
-    // early-return below so a reducer-less binding still mirrors.
-    for (const name of inputs) this.#mirrorText(name, computeText(ownedControl(name)))
-
-    const key = this.element.getAttribute("data-reactive-compute-reducer-param")
-    const reduce = key ? computeReducer(key) : null
-    if (!reduce) {
-      // No reducer registered: the identity pass above still ran, so declared
-      // cross-root mirrors of the INPUT names still paint (issue #159) — a
-      // reducer-less binding mirrors, exactly like the owned-text-node case.
-      this.#applyComputeMirrors({}, ownedControl)
-      return
-    }
-
-    const outputs = this.#parseComputeList("data-reactive-compute-outputs-param")
-
-    // Coerce each input per its declared type (computeValue): "string" raw,
-    // "boolean" a real boolean, else ("number", the array-form default) the
-    // numeric coercion. A checkbox contributes its CHECKED STATE under every
-    // type (issue #262). Reads from the memoized resolver — no re-query.
-    const values = {}
-    for (const [name, type] of inputPairs) values[name] = computeValue(ownedControl(name), type)
-
-    // meta.changed stays on #changedComputeField (its own #ownsField check over
-    // the raw event target) — NOT this resolver. The issue-#15 nested-rejection
-    // test depends on that path being unchanged. ONE run, from the ONE pre-write
-    // snapshot above (issue #183): its result drives the whole single-pass write.
-    const result = reduce(values, { changed: this.#changedComputeField(event, inputs, scope) }) || {}
-
-    // The reserved $ops output (issue #226) is CONSUMED here — normalized once,
-    // then excluded from every write phase below (it is an op chain, never a
-    // field value, text sink, or mirror), and applied as phase 4.
-    const reducerOps = computeOpsList(result.$ops)
-
-    // Issue #183 — SINGLE-PASS WRITE SET. Ordered phases, so declared output
-    // order stops being semantics and a wrong order can no longer corrupt values:
-    //
-    //   1. BATCH the field writes from the ONE result. Each output name in the
-    //      allowlist (outputs:) whose owned field's value actually changes is
-    //      written now (change-guarded) and remembered — but NO `input` event is
-    //      dispatched yet, so nothing re-enters mid-batch. A checkbox or radio
-    //      output is written as its CHECKED state (computeWrite, issue #262).
-    //   2. PAINT the sinks from the SETTLED values: any owned reactive_text node by
-    //      presence (issue #183 change #4 — a text node no longer needs its name in
-    //      outputs:), then the cross-root mirror: ids (issue #159).
-    //   3. DISPATCH a self-marked `input` on each changed field. The marker (a
-    //      per-instance WeakSet) makes recompute skip re-running the reducer for our
-    //      own write, while the event still fires every OTHER listener (chained
-    //      repaint, dirty tracking, show bindings, sibling roots).
-    //   4. RUN the reducer's $ops chain (issue #226) — rising-edge, event-gated —
-    //      so its ops (dispatch a completion event, submit the form) always see
-    //      the fully settled DOM and every chained listener has already run.
-    const changedFields = []
-    for (const name of outputs) {
-      if (name === "$ops" || !(name in result)) continue
-      const control = ownedControl(name)
-      if (!control.el) continue // a non-field output paints as a text sink in phase 2
-      const written = computeWrite(this.element, owns, control, scoped(name), result[name])
-      if (written) changedFields.push(written) // null = change-guard, unchanged
-    }
-
-    // Phase 2 — text sinks declare themselves (issue #183 change #4): every result
-    // key paints into any owned [data-reactive-text="<name>"] node by PRESENCE,
-    // regardless of outputs: membership. Runs from settled field values. A null/
-    // undefined result value is SKIPPED (never stringified to "null"/"undefined") —
-    // the same "no value this pass, don't paint" filter #applyComputeMirrors uses.
-    for (const name of Object.keys(result)) {
-      if (name === "$ops") continue
-      const value = result[name]
-      if (value === undefined || value === null) continue
-      this.#mirrorText(name, value)
-    }
-
-    // Cross-root text mirrors (issue #159) — AFTER the batch + text sinks, so a
-    // mirror keyed on a just-written output paints the settled value.
-    this.#applyComputeMirrors(result, ownedControl)
-
-    // Phase 3 — dispatch the deferred `input` events (issue #183). Real browsers
-    // do NOT fire `input` on a programmatic .value write (issue #76), so we do it
-    // ourselves, matching the server's set_value + dispatch("input") contract.
-    // Each event is SELF-MARKED so our own re-entry skips the reducer (guard at the
-    // top of recompute) — but the event still bubbles and fires every other
-    // listener. Dispatched AFTER all writes + paints, so a chained listener reads
-    // SETTLED values, never a half-written DOM.
-    for (const field of changedFields) {
-      const inputEvent = new Event("input", { bubbles: true })
-      this.#computeSelfDispatched.add(inputEvent)
-      field.dispatchEvent(inputEvent)
-    }
-
-    // Phase 4 — the reducer's $ops chain (issue #226), after everything settled.
-    // Event-gated: a seed/direct recompute() pass (no event) arms the latch but
-    // never fires, so a restored/re-rendered complete value can't auto-fire.
-    this.#applyComputeOps(reducerOps, Boolean(event))
-  }
-
-  // Apply a reducer-emitted $ops chain (issue #226) on its RISING EDGE, keyed
-  // on CONTENT: fire only when THIS pass's chain differs from the LAST pass's
-  // (including from "absent"), and only on an event-driven pass. An unchanged
-  // chain never re-fires — "still complete, same submit" is settled, exactly
-  // like the change-guarded field writes. A pass with no $ops re-arms; a pass
-  // whose chain CHANGED fires again (per-keystroke focus advance across OTP
-  // boxes is a different focus target each time — a deliberately new intent).
-  // Ops run through the shared CLIENT_OPS interpreter with runOps's
-  // root-scoped target resolution; a missing to: defaults to "@root"
-  // (hand-written reducer ergonomics).
-  #applyComputeOps(list, eventDriven) {
-    const signature = list === null ? null : JSON.stringify(list)
-    const fire = signature !== null && signature !== this.#computeOpsSignature && eventDriven
-    this.#computeOpsSignature = signature
-    if (!fire) return
-    applyOps(
-      list,
-      (args) => this.#opTargets(args.to == null ? { ...args, to: "@root" } : args),
-      (name, args) => this.#diagnoseZeroTargets(`client op "${name}"`, args),
-    )
   }
 
   // Client-side list navigation (combobox keyboard nav, issue #72). Wired by
@@ -2865,495 +2210,6 @@ export default class extends Controller {
     return Array.from(this.element.querySelectorAll(selector)).filter((el) => !el.hidden && owns(el))
   }
 
-  // Tag-chip input (issue #203) — the composed combobox/tags primitive. The
-  // root's data-reactive-tags-field names the hidden input that stores the
-  // COMMA-JOINED value; these three actions are its only writers. All of it is
-  // FORM state (like text in an input) — no token, no POST: the surrounding
-  // form submit carries the joined value. The chip list is re-projected from
-  // the field on every write (#syncTags), so the field stays the single source
-  // of truth.
-  //
-  // Enter on the query input: add the TYPED text — unless this Enter belongs
-  // to listnav (reactive_tags_add composes after reactive_listnav on the same
-  // keydown.enter). Two guards make the composition order-independent:
-  // defaultPrevented means listnavPick ALREADY picked the highlighted option
-  // (adding the typed text too would double-add); a still-visible highlighted
-  // option means listnavPick is ABOUT to pick it (when tagsAdd is bound
-  // first). Past the guards, Enter is OURS — preventDefault unconditionally so
-  // it can never submit the enclosing form (blank input included). A
-  // comma-separated paste splits into individual tags (the value is
-  // comma-joined, so a comma can never be part of one tag). The input clears
-  // only when something was actually added — a duplicate keeps the typed text
-  // for correction.
-  tagsAdd(event) {
-    if (!this.#tagsEnabled()) return
-    if (event?.defaultPrevented) return
-    if (this.#listnavOptions(event).some((el) => el.hasAttribute?.("data-reactive-highlighted"))) return
-    event?.preventDefault?.()
-
-    const input = event?.currentTarget ?? event?.target
-    if (!input) return
-    const added = this.#tagsAddValues(String(input.value ?? "").split(","))
-    if (!added) return
-    input.value = ""
-    if (this.#filterEnabled()) this.#syncFilter()
-  }
-
-  // Click (or listnav Enter, which CLICKS the highlighted option) on a
-  // preloaded option: add its DECLARED tag (data-reactive-tag-param — set by
-  // reactive_tags_option, never free text). After a successful add, reset the
-  // query so the next tag starts from the full list: clear the filter input,
-  // re-narrow, and hand focus back for continued typing.
-  tagsPick(event) {
-    if (!this.#tagsEnabled()) return
-    event?.preventDefault?.()
-
-    const trigger = event?.currentTarget ?? event?.target
-    const tag = trigger?.getAttribute?.("data-reactive-tag-param")
-    if (!tag) return
-    if (!this.#tagsAddValues([tag])) return
-
-    const input = this.#tagsQueryInput()
-    if (!input) return
-    input.value = ""
-    this.#syncFilter()
-    input.focus?.()
-  }
-
-  // Click on a chip's remove button: drop its tag (case-insensitive match, the
-  // dedupe convention) from the hidden value. The re-projection removes the
-  // chip and resurfaces the option. Removing an absent tag is a no-op.
-  tagsRemove(event) {
-    if (!this.#tagsEnabled()) return
-    event?.preventDefault?.()
-
-    const trigger = event?.currentTarget ?? event?.target
-    const tag = trigger?.getAttribute?.("data-reactive-tag-param")
-    if (!tag) return
-    const field = this.#tagsField()
-    if (!field) return
-
-    const tags = this.#tagsRead(field)
-    const next = tags.filter((t) => t.toLowerCase() !== tag.toLowerCase())
-    if (next.length === tags.length) return
-    this.#tagsWrite(field, next)
-  }
-
-  // Draft nested-attribute rows (issue #208) — the "new parent + child rows"
-  // window. The rows are FORM state (the reactive_tags posture): no token, no
-  // POST, ever — the surrounding REAL form submit carries Rails'
-  // accepts_nested_attributes_for names and the server reconciles parent +
-  // rows in ONE create. Add clones the association's server-owned
-  // <template data-reactive-nested-template="assoc"> row, swaps every NEW_ROW
-  // in the clone's name/id/for for a fresh unique index (each row posts as its
-  // own `…_attributes[<index>][field]` group), appends it to the owned
-  // [data-reactive-nested-list="assoc"] container, and focuses the new row's
-  // first field. Several collections can share one root — everything is keyed
-  // by the association name the trigger carries.
-  nestedAdd(event) {
-    event?.preventDefault?.()
-    const trigger = event?.currentTarget ?? event?.target
-    const assoc = trigger?.getAttribute?.("data-reactive-association-param")
-    if (!assoc) return
-    if (typeof this.element?.querySelectorAll !== "function") return
-
-    const owns = this.#ownershipFilter()
-    const list = [...this.element.querySelectorAll(`[data-reactive-nested-list="${assoc}"]`)].find(owns)
-    const template = [...this.element.querySelectorAll(`[data-reactive-nested-template="${assoc}"]`)].find(owns)
-    const proto = template?.content?.firstElementChild
-    if (!list || !proto) {
-      this.#warnNestedOnce(assoc)
-      return
-    }
-
-    const row = proto.cloneNode(true)
-    this.#renumberNestedRow(row, this.#nextNestedIndex())
-    list.appendChild(row)
-
-    // Fill-then-add (issue #208 Scenario A): seed the cloned row from named
-    // source controls OUTSIDE the row, then (optionally) clear the sources.
-    // Runs AFTER renumber+append so a seeded field's name already carries its
-    // final `[<index>][field]` form — the key match agrees with what JSON mode
-    // reads. `seeded` is the FIRST source we cleared/read, so fill-then-add can
-    // return focus to the sources instead of stealing it into the new row.
-    const fromJson = trigger?.getAttribute?.("data-reactive-nested-from-param")
-    const clear = trigger?.getAttribute?.("data-reactive-nested-clear-param") === "true"
-    const firstSource = this.#seedNestedRow(row, fromJson, clear)
-
-    // Focus: inline-edit (no from:) focuses the new row's first field so you
-    // type INTO it; fill-then-add keeps focus on the sources (the first one) so
-    // you keep entering the next item — stealing focus would break that loop.
-    if (fromJson) firstSource?.focus?.()
-    else [...(row.querySelectorAll?.("input, select, textarea") ?? [])][0]?.focus?.()
-
-    // JSON mode (issue #208): a freshly-added row must land in the hidden field
-    // immediately (seeded values included), so the serialized array reflects the
-    // DOM even before the first keystroke. A no-op when not `as: :json`.
-    if (list.getAttribute?.("data-reactive-nested-json") === assoc) this.#syncNestedJson(assoc)
-  }
-
-  // Fill-then-add (issue #208): copy each source control's value into the
-  // matching cloned-row field, keyed by the trailing bracket segment of the
-  // field's name (#nestedJsonKey — the SAME inference JSON mode uses, so the
-  // two features can't drift). Sources resolve root-scoped and owned (#15); an
-  // unresolved source or an unmatched key is silently skipped (the row still
-  // adds — a half-mapped binding must never throw on click). Returns the FIRST
-  // source control read (for focus), or null. With `clear`, resets every source
-  // it read via the set-value + dispatch contract (#183) so dirty/show/compute
-  // observe the reset.
-  #seedNestedRow(row, fromJson, clear) {
-    if (!fromJson) return null
-    let map
-    try {
-      map = JSON.parse(fromJson)
-    } catch {
-      return null
-    }
-    if (!map || typeof map !== "object") return null
-
-    const owns = this.#ownershipFilter()
-    const rowFields = [...(row.querySelectorAll?.("input, select, textarea") ?? [])]
-    const sources = []
-    for (const [key, selector] of Object.entries(map)) {
-      const source = [...(this.element.querySelectorAll?.(selector) ?? [])].find(owns)
-      if (!source) continue
-      const target = rowFields.find((field) => this.#nestedJsonKey(field.getAttribute?.("name")) === key)
-      if (!target) continue
-      this.#seedNestedField(target, source)
-      sources.push(source)
-    }
-    if (clear) for (const source of sources) this.#clearNestedSource(source)
-    return sources[0] ?? null
-  }
-
-  // Copy a source control's value into a cloned-row field, then dispatch a
-  // bubbling `input` (the set-value + dispatch contract, #183). Checkbox ↔
-  // checkbox copies the checked state; every other target takes the source's
-  // submit-shaped value (#nestedFieldValue), so a checkbox source feeding a
-  // text field lands "on"/"" exactly as a submit would.
-  #seedNestedField(target, source) {
-    if (target.type === "checkbox") {
-      target.checked = source.type === "checkbox" ? !!source.checked : this.#nestedFieldValue(source) !== ""
-    } else {
-      target.value = this.#nestedFieldValue(source)
-    }
-    if (typeof target.dispatchEvent === "function") {
-      target.dispatchEvent(new Event("input", { bubbles: true }))
-    }
-  }
-
-  // Reset a source control after a fill-then-add (issue #208), dispatching a
-  // bubbling `input` so dirty tracking / reactive_show / compute see the reset.
-  #clearNestedSource(source) {
-    if (source.type === "checkbox") source.checked = false
-    else source.value = ""
-    if (typeof source.dispatchEvent === "function") {
-      source.dispatchEvent(new Event("input", { bubbles: true }))
-    }
-  }
-
-  // Remove the trigger's closest row wrapper. A DRAFT row (no [_destroy]
-  // input) leaves the DOM — it was never persisted, so removing its fields IS
-  // the removal. A PERSISTED row (an edit form rendered a hidden [_destroy]
-  // input via nested_field_name) is marked "1" and hidden instead — Rails
-  // destroys it on save. The mark dispatches a real bubbling `input` (the
-  // set-value + dispatch contract, issue #183) so dirty tracking/compute see it.
-  nestedRemove(event) {
-    event?.preventDefault?.()
-    const trigger = event?.currentTarget ?? event?.target
-    const row = trigger?.closest?.("[data-reactive-nested-row]")
-    if (!row) return
-    // The closest() walk must not escape this root — a root can itself sit
-    // inside ANOTHER collection's row (the issue #15 closest-form posture).
-    if (row.closest?.('[data-controller~="reactive"]') !== this.element) return
-
-    // Confirm gate (issue #218): reactive_nested_remove(confirm:) emits the SAME
-    // data-reactive-confirm[-when]-param the other triggers do (nestedRemove reads
-    // params via getAttribute, not event.params, so pull them off the trigger),
-    // routed through the SAME #effectiveConfirmMessage + confirmResolver seam. A
-    // static string always shows; a conditional Hash fires only when it matches,
-    // else null. No confirm attr → null → the immediate-remove fast path.
-    const confirm = trigger?.getAttribute?.("data-reactive-confirm-param")
-    const confirmWhen = trigger?.getAttribute?.("data-reactive-confirm-when-param")
-    const rawMessage = this.#effectiveConfirmMessage(confirm, confirmWhen)
-    if (!rawMessage) return this.#removeNestedRow(row)
-
-    // Per-row confirm interpolation (issue #222). A row added client-side is a
-    // cloneNode of the <template>, and the clone carries the TEMPLATE's confirm
-    // string verbatim — the renumber/seed steps never rewrite the confirm attr.
-    // So resolve %{field} placeholders here, from THIS row's live field values
-    // (read now, not at clone time, so a later edit is reflected). An unresolved
-    // key is left as its literal %{key} (debuggable, never throws). Server-
-    // rendered rows already interpolate server-side, so their finished strings
-    // carry no %{}; this is a no-op for them.
-    const fields = this.#nestedRowObject(row)
-    const message = this.#interpolateConfirm(rawMessage, fields)
-
-    // Gate through the overridable confirmResolver (issues #52/#55/#178) — a
-    // themed dialog set with setConfirmResolver covers this trigger too. Pass the
-    // row context (issue #222, superset of proposal 3) as an optional 2nd arg so
-    // a power-user override can build the string itself; the message is already
-    // interpolated for the default window.confirm path. Call the resolver INSIDE
-    // the chain so even a SYNCHRONOUS override throw is a cancel (like a dismissed
-    // dialog), and remove ONLY on a truthy resolution.
-    return Promise.resolve()
-      .then(() => confirmResolver(message, { el: trigger, row, fields }))
-      .catch(() => false)
-      .then((ok) => {
-        if (ok) this.#removeNestedRow(row)
-      })
-  }
-
-  // Resolve %{field} placeholders in a confirm message from a row's field map
-  // (issue #222). Ruby-style %{name} tokens; an unresolved key is left verbatim
-  // (a visible, debuggable placeholder — never an empty hole or a throw). A
-  // message with no placeholders returns unchanged, so this is inert for every
-  // server-rendered (already-interpolated) confirm string.
-  #interpolateConfirm(message, fields) {
-    if (!message.includes("%{")) return message
-    return message.replace(/%\{(\w+)\}/g, (whole, key) =>
-      Object.prototype.hasOwnProperty.call(fields, key) ? fields[key] : whole,
-    )
-  }
-
-  // The remove itself, shared by the confirmed and no-confirm paths. Draft rows
-  // leave the DOM; a persisted row (a hidden [_destroy] input present) is marked
-  // "1" + hidden instead (set-value + dispatch contract, #183), so Rails destroys
-  // it on save. Then re-sync every owned JSON-mode list (#208) — an absent row
-  // IS the removal; a form without a JSON list iterates an empty set and exits.
-  #removeNestedRow(row) {
-    const destroy = [...(row.querySelectorAll?.('input[name$="[_destroy]"]') ?? [])][0]
-    if (destroy) {
-      destroy.value = "1"
-      if (typeof destroy.dispatchEvent === "function") {
-        destroy.dispatchEvent(new Event("input", { bubbles: true }))
-      }
-      row.hidden = true
-    } else {
-      row.parentNode?.removeChild?.(row)
-    }
-
-    this.#syncAllNestedJson()
-  }
-
-  // JSON-mode nested rows (issue #208) — the delegated input/change handler.
-  // An app whose controller parses a serialized JSON param instead of Rails'
-  // accepts_nested_attributes_for opts a list into `as: :json`; the client
-  // then mirrors that list's rows into ONE hidden field as a JSON array on
-  // every owned edit. Public so Stimulus can bind it; a no-op unless the
-  // edited field belongs to a JSON-mode list this root owns.
-  syncNestedJson(event) {
-    const target = event?.target
-    if (!target || !this.#ownsField(target)) return
-    // Re-serialize every JSON-mode list (an edit could touch any of them; the
-    // per-list owned-row scan is cheap and keeps this handler association-free).
-    this.#syncAllNestedJson()
-  }
-
-  // Serialize every owned JSON-mode list into its hidden field. The connect
-  // seed and the input/remove re-syncs funnel through here so one place owns
-  // the "DOM rows → JSON field" projection.
-  #syncAllNestedJson() {
-    if (typeof this.element?.querySelectorAll !== "function") return
-    const owns = this.#ownershipFilter()
-    for (const list of [...this.element.querySelectorAll("[data-reactive-nested-json]")].filter(owns)) {
-      this.#syncNestedJson(list.getAttribute("data-reactive-nested-json"))
-    }
-  }
-
-  // Project ONE JSON-mode list's surviving rows into its hidden field. Each
-  // row becomes an object keyed by the trailing bracket segment of its inputs'
-  // names (…[title] → "title"); a hidden/_destroy-marked row is skipped (an
-  // absent row IS the removal — JSON carries no destroy marker). The write
-  // uses the set-value + dispatch contract (issue #183) so dirty tracking,
-  // reactive_show, and compute see the change — but only when the value
-  // actually changed, so a connect seed on an already-correct field is silent.
-  #syncNestedJson(assoc) {
-    const owns = this.#ownershipFilter()
-    const list = [...this.element.querySelectorAll(`[data-reactive-nested-list="${assoc}"]`)].find(owns)
-    if (!list) return
-    const field = this.#nestedJsonField(list)
-    if (!field) return
-
-    const rows = []
-    for (const row of [...(list.querySelectorAll?.("[data-reactive-nested-row]") ?? [])]) {
-      if (!owns(row) || row.hidden) continue
-      rows.push(this.#nestedRowObject(row))
-    }
-
-    const next = JSON.stringify(rows)
-    if (field.value === next) return
-    field.value = next
-    if (typeof field.dispatchEvent === "function") {
-      field.dispatchEvent(new Event("input", { bubbles: true }))
-    }
-  }
-
-  // The hidden field a JSON-mode list mirrors into — resolved fresh (a morph
-  // replaces nodes, never cache it) and OWNED by this root (#15). null when
-  // the selector resolves nothing, so the caller no-ops (a half-built binding
-  // must never break the page).
-  #nestedJsonField(list) {
-    const selector = list.getAttribute?.("data-reactive-nested-json-field")
-    if (!selector) return null
-    const owns = this.#ownershipFilter()
-    return [...this.element.querySelectorAll(selector)].find(owns) ?? null
-  }
-
-  // One row → { key: value } over its named form controls. The JSON key is the
-  // trailing bracket segment of each control's name (order[todos_attributes]
-  // [3][title] → "title"; a bare `title` → "title"), the "infer from input
-  // names" contract. The [_destroy] control is dropped (JSON has no destroy
-  // marker). Later inputs with the same key win (last-wins, the DOM order).
-  #nestedRowObject(row) {
-    const obj = {}
-    for (const el of [...(row.querySelectorAll?.("input, select, textarea") ?? [])]) {
-      const key = this.#nestedJsonKey(el.getAttribute?.("name"))
-      if (key === null || key === "_destroy") continue
-      obj[key] = this.#nestedFieldValue(el)
-    }
-    return obj
-  }
-
-  // The trailing bracket segment of a field name (the inferred JSON key), or
-  // the bare name when it carries no brackets. null for a nameless control
-  // (a bare button, an unnamed helper input) — skipped by the caller.
-  #nestedJsonKey(name) {
-    if (!name) return null
-    const match = name.match(/\[([^\][]+)\]$/)
-    return match ? match[1] : name
-  }
-
-  // A form control's submitted value: an unchecked checkbox contributes "" (it
-  // wouldn't post at all), a checked one its value (default "on"); everything
-  // else its .value. Keeps the JSON shape close to what a real form submit
-  // would carry for the same control.
-  #nestedFieldValue(el) {
-    if (el.type === "checkbox") return el.checked ? (el.value || "on") : ""
-    return el.value ?? ""
-  }
-
-  // Parse a JSON string list from a root data attr; [] on absence/parse error so
-  // a malformed binding degrades to "no fields" rather than throwing on input.
-  #parseComputeList(attr) {
-    const raw = this.element.getAttribute(attr)
-    if (!raw) return []
-    try {
-      const list = JSON.parse(raw)
-      return Array.isArray(list) ? list : []
-    } catch {
-      return []
-    }
-  }
-
-  // Parse the inputs param into [name, type] pairs (issue #104). The wire is a
-  // JSON ARRAY of names (array form → every input typed "number", the shipped
-  // numeric coercion) OR a JSON OBJECT of name→type (hash form → ":string" read
-  // raw, ":number" coerced). Malformed/absent degrades to [] — a bad binding
-  // must never throw on input.
-  #parseComputeInputs() {
-    const raw = this.element.getAttribute("data-reactive-compute-inputs-param")
-    if (!raw) return []
-    try {
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) return parsed.map((name) => [name, "number"])
-      if (parsed && typeof parsed === "object") return Object.entries(parsed)
-      return []
-    } catch {
-      return []
-    }
-  }
-
-  // The declared compute input the event just edited — the reducer's
-  // meta.changed (issue #75). The triggering field counts only when it is a
-  // named form control OWNED by this root (not a nested reactive root's, issue
-  // #15) AND its name is among the declared compute inputs; anything else
-  // (a direct call, an unowned/undeclared target) yields null.
-  //
-  // Scope-aware (issue #184): under data-reactive-scope, the edited field's DOM
-  // name is scoped (order[allowance]) while the declared inputs are BARE
-  // (allowance). Strip the scope prefix off the DOM name before comparing, and
-  // return the BARE name — so a reducer branching on `changed` sees the same
-  // names it declared, scoped or not.
-  #changedComputeField(event, inputs, scope) {
-    const target = event?.target
-    if (!target?.name || typeof target.closest !== "function") return null
-    const bare = this.#unscopeName(target.name, scope)
-    if (!inputs.includes(bare)) return null
-    return this.#ownsField(target) ? bare : null
-  }
-
-  // Strip a leading `scope[…]` wrapper off a DOM field name, returning the bare
-  // inner name; a name that isn't wrapped in this scope passes through unchanged.
-  #unscopeName(name, scope) {
-    if (!scope) return name
-    const prefix = `${scope}[`
-    return name.startsWith(prefix) && name.endsWith("]") ? name.slice(prefix.length, -1) : name
-  }
-
-  // Write `value` into every owned [data-reactive-text="<name>"] node via
-  // textContent (issue #104) — XSS-safe by construction (never innerHTML). Drives
-  // both the identity mirror (an input's raw value) and a text-node output (a
-  // reducer result with no matching field). Change-guarded (skip an unchanged
-  // node) and NO input dispatch — a text node has no listener contract. String()
-  // so a numeric result renders like the DOM would.
-  #mirrorText(name, value) {
-    const text = String(value)
-    for (const node of this.#ownedTextNodes(name)) {
-      if (node.textContent === text) continue
-      node.textContent = text
-    }
-  }
-
-  // Every [data-reactive-text="<name>"] mirror OWNED by this root (skips nested
-  // reactive roots, issue #15). Empty when none — reactive_text is optional.
-  #ownedTextNodes(name) {
-    const nodes = this.element.querySelectorAll(`[data-reactive-text="${name}"]`)
-    return Array.from(nodes).filter((el) => this.#ownsField(el))
-  }
-
-  // Cross-root text mirrors (issue #159): paint every DECLARED mirror name into
-  // its allowlisted document-wide id targets via textContent — the opt-in escape
-  // from root isolation (issue #15) for a recap OUTSIDE the computing root. The
-  // value is the reducer's result when it produced one, else the owned field's
-  // CURRENT value (an input identity mirror / a just-written output) — one
-  // declaration covers all three shapes. A name with NO value this pass is
-  // SKIPPED (a mirror never blanks a recap the reducer didn't feed). textContent
-  // only (never innerHTML), change-guarded, and NO input dispatch — same
-  // contract as #mirrorText. With no mirror declared this is one getAttribute
-  // and out — the shipped compute path never touches the document.
-  #applyComputeMirrors(result, ownedControl) {
-    const mirror = this.#parseComputeMirror()
-    for (const [name, selectors] of Object.entries(mirror)) {
-      const control = name in result ? null : ownedControl(name)
-      const value = name in result ? result[name] : control.el ? computeText(control) : undefined
-      if (value === undefined || value === null) continue
-      const text = String(value)
-      for (const sel of Array.isArray(selectors) ? selectors : [selectors]) {
-        if (!guardMirrorSelector(sel)) continue
-        for (const node of document.querySelectorAll(sel)) {
-          if (node.textContent === text) continue
-          node.textContent = text
-        }
-      }
-    }
-  }
-
-  // The declared cross-root mirror map (issue #159): a JSON object of
-  // { name: [id selectors] } from data-reactive-compute-mirror-param (emitted by
-  // reactive_compute's `mirror:`). Absent/malformed degrades to {} — a bad
-  // binding must never throw on input.
-  #parseComputeMirror() {
-    const raw = this.element.getAttribute("data-reactive-compute-mirror-param")
-    if (!raw) return {}
-    try {
-      const parsed = JSON.parse(raw)
-      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {}
-    } catch {
-      return {}
-    }
-  }
-
   // Enqueue the action — debounced if a debounce window is set, else immediately.
   // Split out of dispatch so both the no-confirm fast path and the post-confirm
   // microtask share one place (issue #55). `target` is captured up front because
@@ -3407,43 +2263,50 @@ export default class extends Controller {
   // returns a `settle` closure that #perform runs in its finally (success OR
   // failure), guarded so a morph-replaced trigger is never clobbered.
   #enqueue(action, params, optimistic, target, busy) {
-    const inverse = this.#applyOptimistic(optimistic, target)
-    const settle = this.#applyBusy(action, target, busy)
-    // Debug-only teaching aid (issue #181): if optimistic: { hide: true } is used
-    // for instant-delete but the reply RE-RENDERS the element (bringing it back),
-    // that hint was pointless — the developer likely wanted reply.remove. Capture
-    // the hidden nodes now; the success path re-checks the OBSERVED DOM after the
-    // morph (never inferred from the verb) and warns if any came back visible.
-    const resurrect = this.#debugEnabled() ? this.#buildResurrectionCheck(optimistic, target) : null
+    // The always-on busy state and the activity signal, now: they cover the
+    // whole pending window, a wait for the hints module included. `pending`
+    // is what this request's hint engine recorded — filled in by the apply
+    // below, which may run a moment later than this call.
+    const pending = { inverse: null, undo: [], resurrect: null }
+    const settle = this.#applyBusy(action, target, pending)
+    const wanted = Boolean(optimistic || busy)
+    const apply = (hints) => {
+      if (!wanted || !hints) return
+      pending.inverse = hints.optimistic(this, this.#featureCore(), optimistic, target)
+      pending.undo.push(...hints.busy(this, this.#featureCore(), busy, target))
+      // Debug-only teaching aid (issue #181): if optimistic: { hide: true } is
+      // used for instant-delete but the reply RE-RENDERS the element (bringing
+      // it back), that hint was pointless — the developer likely wanted
+      // reply.remove. Capture the hidden nodes now; the success path re-checks
+      // the OBSERVED DOM after the morph (never inferred from the verb).
+      if (this.#debugEnabled()) pending.resurrect = hints.resurrection(this, this.#featureCore(), optimistic, target)
+    }
+    // A hint applies ONCE per enqueue — the single flush point every path
+    // funnels through — never per raw dispatch. With the module here (the
+    // default client, always) that is now, synchronously.
+    const loaded = featureModules.get("hints")
+    if (!wanted || loaded) apply(loaded)
     // A feature still loading may be about to change what this request reads
     // (issue #275: the draft restore writes the fields #perform collects). Only
     // such a feature — one that `gates` — holds a request back, until it has
     // connected: at most the feature timeout, and on a root that never waited
     // for one, not at all. A feature that does not gate (the defer module)
-    // never delays a request, however slow its import.
-    const perform = () => this.#perform(action, params, inverse, settle, resurrect)
-    this.queue = (this.queue ?? Promise.resolve())
-      .then(() => (this.#featureGate ? this.#featureGate.then(perform) : perform()))
+    // never delays a request, however slow its import. A request WITH a hint
+    // on a page that has not loaded the hints module waits for that import
+    // the same way (at most the feature timeout), then applies the hint and
+    // goes out — once.
+    const perform = () => this.#perform(action, params, pending, settle)
+    const ready = () => (this.#featureGate ? this.#featureGate.then(perform) : perform())
+    this.queue = (this.queue ?? Promise.resolve()).then(() =>
+      wanted && !loaded ? this.#awaitHints().then(apply).then(ready) : ready(),
+    )
     return this.queue
   }
 
-  // Snapshot the elements an optimistic hide: targeted (the trigger, or the `to:`
-  // selector) so the success path can detect a resurrection. Returns null unless
-  // a hide: hint is present — nothing else can be "resurrected".
-  #buildResurrectionCheck(optimistic, target) {
-    if (!optimistic?.hide) return null
-    const hidden = this.#hintTargets(optimistic, target)
-    if (!hidden.length) return null
-    return () => {
-      const back = hidden.filter((el) => el.isConnected && !el.hidden)
-      if (!back.length) return
-      console.warn(
-        "[phlex-reactive] optimistic: { hide: true } was undone by the reply's re-render — " +
-          "the element is visible again. For an instant delete, return reply.remove so the " +
-          "server removes it; otherwise the hide only flashes.",
-        back,
-      )
-    }
+  // The hints module, or null once its import failed or outlasted the feature
+  // timeout (the request then goes out without its hint).
+  #awaitHints() {
+    return this.#awaitFeatureOrNull("hints")
   }
 
   // Reset a per-element timer; only enqueue the round trip after `ms` of quiet.
@@ -3573,9 +2436,9 @@ export default class extends Controller {
   // A request waits for the module only while a delay is stored (so the very
   // first delayed request is delayed too); with none stored this is two reads.
   #maybeSimulateLatency() {
-    const dev = featureModules.get("dev")
-    if (dev) return dev.delay()
-    if (latencyStored()) return loadFeature("dev").then((loaded) => loaded.delay(), () => {})
+    const devtools = featureModules.get("devtools")
+    if (devtools) return devtools.delay()
+    if (latencyStored()) return loadFeature("devtools").then((loaded) => loaded.delay(), () => {})
   }
 
   // Client debug mode (issue #108) — the "devtools-lite" lens. On when the Ruby
@@ -3599,48 +2462,7 @@ export default class extends Controller {
       : Date.now()
   }
 
-  // Parse a turbo-stream response's action + target pairs for the debug trace,
-  // from the body text #perform ALREADY read (never a re-fetch). NAMES only — the
-  // <template> contents (rendered HTML, the fresh token) are deliberately not
-  // touched. A non-turbo-stream / empty body yields [] (nothing to report).
-  #debugStreams(body) {
-    if (!body) return []
-    const streams = []
-    const re = /<turbo-stream\b([^>]*)>/g
-    let match
-    while ((match = re.exec(body)) !== null) {
-      const attrs = match[1]
-      const action = attrs.match(/\baction="([^"]*)"/)?.[1] ?? "?"
-      const target = attrs.match(/\btarget="([^"]*)"/)?.[1]
-      streams.push(target ? `${action} → #${target}` : action)
-    }
-    return streams
-  }
-
-  // console.group ONE dispatch (issue #108). Carries NAMES + outcomes ONLY — the
-  // signed token VALUE and every field/param VALUE are deliberately absent (they
-  // may be sensitive; the whole point is observability without leaking data). The
-  // caller passes the info it already holds so nothing is recomputed or re-fetched:
-  //   { action, paramNames, fieldNames, encoding, status, streams, tokenRefreshed, ms }
-  // `console.groupCollapsed` keeps the console tidy (one collapsed line per action).
-  #logDispatch(info) {
-    const { action, status, ms } = info
-    // The client can't name the component CLASS (it's inside the signed, opaque
-    // token — never decoded here), but the root's id is the stable client-side
-    // handle (e.g. #todo_42), so the header reads `reactive #todo_42 rename → …`.
-    const who = this.element?.id ? `#${this.element.id} ` : ""
-    const header = `reactive ${who}${action} → ${status ?? "—"} (${Math.round(ms)}ms)`
-    /* eslint-disable no-console */
-    console.groupCollapsed(header)
-    console.log(`params: [${info.paramNames.join(", ")}] + collected: [${info.fieldNames.join(", ")}]`)
-    console.log(`encoding: ${info.encoding}`)
-    if (info.streams.length) console.log(`streams: ${info.streams.join("   ")}`)
-    console.log(`token: ${info.tokenRefreshed ? "refreshed ✓" : "unchanged"}`)
-    console.groupEnd()
-    /* eslint-enable no-console */
-  }
-
-  async #perform(action, params, inverse, settle, resurrect) {
+  async #perform(action, params, pending, settle) {
     // Auto-collect named field values inside this component so a button-
     // triggered action still receives sibling inputs (Livewire-style), plus any
     // chosen file inputs in the SAME walk. Explicit params
@@ -3706,7 +2528,7 @@ export default class extends Controller {
       // (settle clears loading), the optimistic hint reverts, and retry() (which
       // re-enters #perform) re-checks and sends once back online.
       if (navigator.onLine === false) {
-        this.#revertOptimistic(inverse)
+        this.#revertOptimistic(pending.inverse)
         this.#markError("offline")
         this.#emitError(action, params, allParams, { kind: "offline" })
         return
@@ -3753,7 +2575,7 @@ export default class extends Controller {
         })
       } catch (error) {
         console.error("[phlex-reactive] action error", error)
-        this.#revertOptimistic(inverse)
+        this.#revertOptimistic(pending.inverse)
         // AbortSignal.timeout() rejects with a DOMException named "TimeoutError"
         // (a manual AbortController.abort() would be "AbortError" — we don't use
         // one, but accept it too for robustness). A timeout is NOT "offline":
@@ -3784,7 +2606,7 @@ export default class extends Controller {
 
       if (response.redirected) {
         console.error("[phlex-reactive] action was redirected (auth/CSRF?) — no update applied")
-        this.#revertOptimistic(inverse)
+        this.#revertOptimistic(pending.inverse)
         this.#markError("redirected")
         this.#emitError(action, params, allParams, { kind: "redirected", status: response.status })
         return
@@ -3792,7 +2614,7 @@ export default class extends Controller {
       if (!response.ok) {
         const errorBody = await response.text()
         console.error(`[phlex-reactive] action failed: HTTP ${response.status}`, errorBody)
-        this.#revertOptimistic(inverse)
+        this.#revertOptimistic(pending.inverse)
         // Render a non-OK turbo-stream body so a server-rendered error flash
         // (an error_flash rescue, or a status: :unprocessable_entity validation
         // reply from a plain controller) is actually SHOWN — instead of being
@@ -3804,7 +2626,7 @@ export default class extends Controller {
         if ((response.headers.get("Content-Type") || "").includes("turbo-stream")) {
           const fresh = this.#extractToken(errorBody)
           this.#currentToken = fresh ?? this.#currentToken
-          if (debug) this.#debugRecordBody(debug, errorBody, fresh)
+          if (debug) this.#devtools((devtools) => devtools.recordBody(debug, errorBody, fresh))
           window.Turbo.renderStreamMessage(errorBody)
         }
         this.#markError("http")
@@ -3815,7 +2637,7 @@ export default class extends Controller {
       const contentType = response.headers.get("Content-Type") || ""
       if (!contentType.includes("turbo-stream")) {
         console.error(`[phlex-reactive] expected a turbo-stream, got "${contentType}" — no update applied`)
-        this.#revertOptimistic(inverse)
+        this.#revertOptimistic(pending.inverse)
         this.#markError("content-type")
         this.#emitError(action, params, allParams, { kind: "content-type", status: response.status })
         return
@@ -3829,7 +2651,7 @@ export default class extends Controller {
       // Debug (issue #108): record the stream actions/targets + whether a refresh
       // arrived, from the body we JUST read (reuse — no second text() read). Never
       // the token or template contents.
-      if (debug) this.#debugRecordBody(debug, html, fresh)
+      if (debug) this.#devtools((devtools) => devtools.recordBody(debug, html, fresh))
       // Turbo applies the <turbo-stream> ops by id. A plain replace is an
       // outerHTML swap (focus on the replaced subtree is lost); a method="morph"
       // replace (Response.morph) or an update morphs in place, preserving the
@@ -3838,7 +2660,7 @@ export default class extends Controller {
       // Debug-only (issue #181): the morph may apply a microtask later, so check
       // the resurrected-hide case AFTER it lands. Off the debug path, resurrect is
       // null — zero cost.
-      if (resurrect) queueMicrotask(resurrect)
+      if (pending.resurrect) queueMicrotask(pending.resurrect)
       // A successful apply CLEARS any prior failure marker (issue #100), so
       // error-driven CSS on the root (a red border, a shake) resets on recovery.
       this.#clearError()
@@ -3855,7 +2677,7 @@ export default class extends Controller {
       // failure. kind: "apply" carries NO retry() — retrying would re-POST an
       // action the server already completed.
       console.error("[phlex-reactive] action error", error)
-      this.#revertOptimistic(inverse)
+      this.#revertOptimistic(pending.inverse)
       this.#emit("reactive:error", { action, params: allParams, kind: "apply" })
     } finally {
       // Settle the loading state (issue #99): decrement the pending counter,
@@ -3867,17 +2689,8 @@ export default class extends Controller {
       // once — success, any transport/response failure, or an apply throw. Null
       // when debug is off (zero cost). The round-trip ms is measured now, at the
       // finally, so it spans the whole #perform (fetch + apply) regardless of exit.
-      if (debug) this.#logDispatch({ ...debug, ms: this.#debugNow() - debug.started })
+      if (debug) this.#devtools((devtools) => devtools.trace(this, { ...debug, ms: this.#debugNow() - debug.started }))
     }
-  }
-
-  // Debug (issue #108): fold the response body #perform already read into the
-  // trace — the stream action/target pairs and whether a token refresh arrived
-  // (a boolean; the token VALUE is intentionally not stored). Shared by the
-  // success and the non-OK-turbo-stream branches so both log the same shape.
-  #debugRecordBody(debug, body, freshToken) {
-    debug.streams = this.#debugStreams(body)
-    debug.tokenRefreshed = freshToken != null
   }
 
   get #currentToken() {
@@ -3983,54 +2796,6 @@ export default class extends Controller {
     const nested = this.element.querySelectorAll('[data-controller~="reactive"]')
     if (nested.length === 0) return () => true
     return (el) => this.#ownsField(el)
-  }
-
-  // Resolve the effective confirm message (issue #179). A plain string is the
-  // static #52 form (always shown). A confirmWhen JSON payload is the CONDITIONAL
-  // form — evaluated over the SAME collected fields reactive_compute reads — and
-  // returns the message ONLY when it fires, else null (proceed, no dialog):
-  //   { groups, message }    — the reactive_show conditions fold (anyOfAllsMatches)
-  //   { predicate, message } — a registered fn (setConfirmPredicate) over the fields
-  // A missing predicate warns and returns null (PROCEED without a dialog) — the
-  // compute unknown-reducer posture. This is soft-validation UX; the endpoint's
-  // authorize/default-deny is the real gate, so failing OPEN here never grants
-  // anything the server wouldn't already allow.
-  #effectiveConfirmMessage(confirm, confirmWhen) {
-    if (confirm) return confirm
-    if (!confirmWhen) return null
-
-    // Stimulus auto-parses a JSON-object -param value, so confirmWhen usually
-    // arrives ALREADY parsed. Accept an object as-is; parse a string defensively
-    // (a hand-built attr, or a non-Stimulus caller). A malformed string warns and
-    // proceeds without a dialog (default-deny UX — the server is the real gate).
-    let payload = confirmWhen
-    if (typeof confirmWhen === "string") {
-      try {
-        payload = JSON.parse(confirmWhen)
-      } catch {
-        console.warn(`[phlex-reactive] malformed conditional confirm payload ${JSON.stringify(confirmWhen)} — skipped`)
-        return null
-      }
-    }
-    if (!payload || typeof payload !== "object") return null
-
-    const { fields } = this.#collectFields()
-    const fieldValue = (name) => fields[name]
-
-    let fires
-    if (typeof payload.predicate === "string") {
-      const fn = confirmPredicate(payload.predicate)
-      if (!fn) {
-        console.warn(`[phlex-reactive] confirm predicate "${payload.predicate}" is not registered — proceeding without a dialog (register it with setConfirmPredicate)`)
-        return null
-      }
-      fires = !!fn(fields)
-    } else {
-      // Declarative: the DNF groups fold, identical to reactive_show — matches → fire.
-      fires = anyOfAllsMatches(payload.groups?.any, fieldValue) === true
-    }
-
-    return fires ? payload.message : null
   }
 
   // One walk over THIS root's named controls (not a nested reactive root's),
@@ -4190,602 +2955,6 @@ export default class extends Controller {
     return names
   }
 
-  // Whether this root owns a show binding (issue #161) or declares cross-root
-  // show targets (issue #164) — the connect() gate, so a component with
-  // neither pays only this probe (the #dirtyTrackingEnabled precedent). A
-  // NESTED root's bindings don't count: its own controller instance syncs them
-  // (issue #15 ownership). The targets attr is checked FIRST — one
-  // getAttribute, cheaper than the binding walk.
-  #showSyncEnabled() {
-    if (this.element.getAttribute?.("data-reactive-show-targets")) return true
-    // Single-field bindings carry -field; compound all:/any: bindings (issue
-    // #176) carry data-reactive-show and have NO single controlling field, so
-    // both selectors gate the sync.
-    const nodes = this.element.querySelectorAll?.(SHOW_BINDING_SELECTOR) ?? []
-    for (const el of nodes) if (this.#ownsField(el)) return true
-    return false
-  }
-
-  // The connect() gate for completion bindings (issue #226) — one attribute read.
-  #onCompleteEnabled() {
-    return !!this.element.getAttribute?.("data-reactive-on-complete")
-  }
-
-  // Parse-and-memoize the completion bindings, keyed on the RAW attr string:
-  // a morph that rewrote the payload re-parses and RESETS the latches (the
-  // morph listener's own arm pass then re-arms without firing). A removed
-  // attr yields [] silently; malformed JSON warns (in parseOnComplete).
-  #onCompleteBindings() {
-    const raw = this.element.getAttribute?.("data-reactive-on-complete") ?? null
-    if (raw !== this.#onCompleteRaw) {
-      this.#onCompleteRaw = raw
-      this.#onCompleteParsed = raw == null ? [] : parseOnComplete(raw)
-      this.#onCompleteStates = this.#onCompleteParsed.map(() => false)
-    }
-    return this.#onCompleteParsed
-  }
-
-  // Evaluate every completion binding (issue #226) over the owned fields —
-  // the SAME memoized, scope-aware field resolver and DNF fold the show sync
-  // uses — and run each binding's ops on ITS OWN rising edge. `event` null
-  // (the connect/morph arm pass) updates the latches WITHOUT firing, so ops
-  // only ever run from a real user gesture. An undecidable payload (no
-  // groups) leaves its latch alone — default-deny, like every malformed-wire
-  // arm. Ops resolve through runOps's root-scoped targets; a missing to:
-  // defaults to "@root" (the $ops convention).
-  #syncOnComplete(event) {
-    const bindings = this.#onCompleteBindings()
-    if (!bindings.length) return
-
-    const owns = this.#ownershipFilter()
-    const scope = this.element.getAttribute?.("data-reactive-scope") || null
-    const values = new Map()
-    const fieldValue = (name) => {
-      if (!values.has(name)) values.set(name, this.#showFieldValue(name, owns, scope))
-      return values.get(name)
-    }
-    bindings.forEach((binding, i) => {
-      const matches = anyOfAllsMatches(binding.any, fieldValue)
-      if (matches === null) return
-      const fire = matches && !this.#onCompleteStates[i] && Boolean(event)
-      this.#onCompleteStates[i] = matches
-      if (fire) {
-        applyOps(
-          binding.ops,
-          (args) => this.#opTargets(args.to == null ? { ...args, to: "@root" } : args),
-          (name, args) => this.#diagnoseZeroTargets(`client op "${name}"`, args),
-        )
-      }
-    })
-  }
-
-  #teardownOnCompleteSync() {
-    if (!this.#boundSyncOnComplete) return
-    this.element.removeEventListener?.("input", this.#boundSyncOnComplete)
-    this.element.removeEventListener?.("change", this.#boundSyncOnComplete)
-    this.element.removeEventListener?.("turbo:morph-element", this.#boundArmOnComplete)
-  }
-
-  // Re-evaluate every OWNED show binding in one pass (issue #161): read the
-  // controlling field's current value, evaluate the declared literal predicate,
-  // toggle `hidden`. A full pass (not per-target) for the same reason as
-  // #scanDirty — a radio group's deselected radio fires no event — and because
-  // several bindings can hang off one field (the value read is memoized per
-  // pass). A binding whose field can't be resolved, or whose predicate is
-  // malformed, leaves visibility ALONE — a bad binding must never break or
-  // blank the page (client-side default-deny).
-  #syncShow() {
-    if (typeof this.element?.querySelectorAll !== "function") return
-
-    const owns = this.#ownershipFilter()
-    const scope = this.element.getAttribute?.("data-reactive-scope") || null
-    const values = new Map()
-    // A memoized resolver shared by every binding in this pass — a field driving
-    // several bindings (and several DNF terms) reads exactly once. Scope-aware:
-    // a bare field `director` resolves as `[name="scope[director]"]` (issue #180).
-    const fieldValue = (name) => {
-      if (!values.has(name)) values.set(name, this.#showFieldValue(name, owns, scope))
-      return values.get(name)
-    }
-    for (const el of this.element.querySelectorAll(SHOW_BINDING_SELECTOR)) {
-      if (!owns(el)) continue // a nested root's binding is its own controller's job
-
-      // The 0.10 DNF payload (issue #180): data-reactive-show carries
-      // { any: [ [term,…], … ] }. The legacy flat-attr and 0.9.5-compound read
-      // arms live in showPayloadMatches/showBindingMatches for deploy overlap.
-      const payloadRaw = el.getAttribute("data-reactive-show")
-      if (payloadRaw !== null) {
-        const match = showPayloadMatches(parseShowCompound(payloadRaw), fieldValue)
-        if (match !== null) this.#applyShowVisibility(el, match, owns, scope)
-        continue
-      }
-
-      // LEGACY flat-attr binding (pre-0.10, deploy overlap — removed in 0.11).
-      const name = el.getAttribute("data-reactive-show-field")
-      if (!name) continue
-      const value = fieldValue(name)
-      if (value === null) continue // no owned field with that name — leave it be
-      const match = showBindingMatches(el, value)
-      if (match === null) continue // malformed predicate — warned + skipped
-      this.#applyShowVisibility(el, match, owns, scope)
-    }
-
-    // The cross-root pass (issue #164) shares the same owned-field memo, so a
-    // field driving both an owned binding and an outside target reads once.
-    this.#syncShowTargets(fieldValue)
-  }
-
-  // Toggle `hidden` (and, when the binding declares data-reactive-show-disable,
-  // the `disabled` of every owned named control inside it) from a match result
-  // (issue #180). Disabling a hidden section's controls stops them submitting —
-  // the stale-value fix. A visible section re-enables them. Controls a nested
-  // reactive root owns are left alone (#15 ownership).
-  #applyShowVisibility(el, match, owns, scope) {
-    el.hidden = !match
-    if (el.getAttribute("data-reactive-show-disable") !== "true") return
-    if (typeof el.querySelectorAll !== "function") return
-    for (const control of el.querySelectorAll("input[name], select[name], textarea[name]")) {
-      if (owns(control)) control.disabled = !match
-    }
-    // The element itself may be a named control (a bare field with a binding).
-    if (el.name && owns(el)) el.disabled = !match
-  }
-
-  // Apply the declared cross-root show targets (issue #164) — the visibility
-  // parallel of #applyComputeMirrors. For each declared field: read the OWNED
-  // field's current value (never a nested root's — you can only drive outside
-  // visibility from a field this root owns), then for each "#id" → predicate
-  // entry: guard the selector id-only (warn-and-skip; the Ruby helper raised
-  // at declare time — two-sided default-deny), resolve it DOCUMENT-WIDE, and
-  // toggle `hidden`. A target id not on the page is silently skipped (an
-  // unrendered tab pane is normal); a malformed predicate warn-skips its one
-  // target while siblings still apply. With no map declared this is one
-  // getAttribute and out.
-  //
-  // A "#id" KEY (issue #209) is a TARGET-KEYED entry instead: its value is the
-  // same DNF payload data-reactive-show holds, folded with per-term owned-field
-  // reads — the multi-field cross-root case. The "#" prefix routes unambiguously
-  // (a field name may never start with "#"; the Ruby helper raises).
-  #syncShowTargets(fieldValue) {
-    const map = this.#parseShowTargets()
-    for (const [name, targets] of Object.entries(map)) {
-      if (name.startsWith("#")) {
-        this.#applyConditionsTarget(name, targets, fieldValue)
-        continue
-      }
-      if (!targets || typeof targets !== "object" || Array.isArray(targets)) continue
-      const value = fieldValue(name)
-      if (value === null) continue // no owned field with that name — leave them be
-      // Every target's terms share this one field, so a constant resolver folds
-      // the group (issue #180): a target's value is a DNF GROUP (terms ANDed).
-      const resolve = () => value
-      for (const [selector, group] of Object.entries(targets)) {
-        if (!guardShowTargetSelector(selector)) continue
-        // 0.10 wire: the value is a DNF GROUP (an array of terms, ANDed).
-        // LEGACY (0.9.5, deploy overlap — DELETE in 0.11): a flat predicate
-        // OBJECT ({ equals/not/in/gte… }) routed through showPredicateMatches.
-        let match
-        if (Array.isArray(group)) {
-          if (group.length === 0) {
-            console.warn(`[phlex-reactive] malformed reactive_show_targets group for ${selector} — skipped`)
-            continue
-          }
-          match = group.every((term) => dnfTermMatches(term, resolve))
-        } else {
-          const legacy = showPredicateMatches(group, value)
-          if (legacy === null) {
-            console.warn(`[phlex-reactive] malformed reactive_show_targets predicate for ${selector} — skipped`)
-            continue
-          }
-          match = legacy
-        }
-        for (const node of document.querySelectorAll(selector)) node.hidden = !match
-      }
-    }
-  }
-
-  // Apply ONE target-keyed conditions entry (issue #209): "#id" → the DNF
-  // payload { any: [[term,…],…] }, folded by the SAME anyOfAllsMatches as an
-  // in-root reactive_show — each term reads its OWN owned field, a missing
-  // owned field reads as blank (fail-closed, the shared-fixture contract). A
-  // target whose referenced fields are ALL unowned is left alone — the
-  // single-field skip generalized (this root has nothing to evaluate with). A
-  // malformed payload warn-skips its one target while siblings still apply;
-  // the selector guard is the same id-only allowlist as every cross-root arm.
-  #applyConditionsTarget(selector, payload, fieldValue) {
-    if (!guardShowTargetSelector(selector)) return
-    const groups = payload && typeof payload === "object" && !Array.isArray(payload) ? payload.any : null
-    const fields = dnfGroupFields(groups)
-    if (fields === null) {
-      console.warn(`[phlex-reactive] malformed reactive_show_targets conditions for ${selector} — skipped`)
-      return
-    }
-    if (fields.every((name) => fieldValue(name) === null)) return // no owned field — leave it be
-    const match = anyOfAllsMatches(groups, fieldValue)
-    if (match === null) return // unreachable after dnfGroupFields, kept fail-closed
-    for (const node of document.querySelectorAll(selector)) node.hidden = !match
-  }
-
-  // The declared cross-root show-target map (issue #164): a JSON object of
-  // { field: { "#id": predicate } } from data-reactive-show-targets (emitted
-  // by reactive_show_targets on the root). Absent degrades to {}; malformed
-  // degrades to {} WITH a warn — never a throw (the #parseComputeMirror
-  // contract), but never silent either: the likeliest cause is TWO
-  // reactive_show_targets calls on one root, whose JSON strings Phlex `mix`
-  // space-joined into an unparseable attr. The warn names the fix.
-  #parseShowTargets() {
-    const raw = this.element.getAttribute?.("data-reactive-show-targets")
-    if (!raw) return {}
-    try {
-      const parsed = JSON.parse(raw)
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed
-    } catch {
-      // fall through to the shared warn below
-    }
-    console.warn(
-      "[phlex-reactive] malformed data-reactive-show-targets — ignored. " +
-        "Did two reactive_show_targets calls collide on one root? Declare every field in ONE call: " +
-        "reactive_show_targets(mode: { ... }, kind: { ... })"
-    )
-    return {}
-  }
-
-  // The current value of the OWNED field controlling a show binding, as the
-  // string the literal predicate compares against. Mirrors #collectFields'
-  // per-kind reads: a checkbox reports its checked state ("true"/"false" — its
-  // .value is the constant "on", and the checkbox wins over the hidden input
-  // Rails pairs with it); a radio group reports the CHECKED radio's value (""
-  // when none is); anything else reports .value first-wins. Returns null when
-  // no owned field carries the name — the caller then leaves visibility alone.
-  #showFieldValue(name, owns, scope) {
-    // Scope (issue #180): a bare field `director` under `data-reactive-scope=
-    // "form"` resolves as `[name="form[director]"]`. A name already carrying a
-    // bracket (a raw wire name the author passed) is used verbatim.
-    const domName = scope && !name.includes("[") ? `${scope}[${name}]` : name
-    let sawRadio = false
-    let first = null
-    for (const el of this.element.querySelectorAll(`[name="${domName}"]`)) {
-      if (!owns(el)) continue
-      if (el.type === "checkbox") return el.checked ? "true" : "false"
-      if (el.type === "radio") {
-        if (el.checked) return el.value ?? ""
-        sawRadio = true
-        continue
-      }
-      first ??= el
-    }
-    if (first) return first.value ?? ""
-    return sawRadio ? "" : null
-  }
-
-  // Remove the show-sync listeners on disconnect, so a stray event after a
-  // Turbo morph/navigation never re-evaluates against a detached root.
-  #teardownShowSync() {
-    if (!this.#boundSyncShow) return
-    this.element.removeEventListener?.("input", this.#boundSyncShow)
-    this.element.removeEventListener?.("change", this.#boundSyncShow)
-    this.element.removeEventListener?.("turbo:morph-element", this.#boundSyncShow)
-    this.#boundSyncShow = undefined
-  }
-
-  // Whether this root declares an option filter (issue #163) — the connect()
-  // gate. reactive_filter always emits input + option together, so requiring
-  // BOTH also default-denies a half-built hand-authored binding.
-  #filterEnabled() {
-    return !!(
-      this.element.getAttribute?.("data-reactive-filter-input") &&
-      this.element.getAttribute?.("data-reactive-filter-option")
-    )
-  }
-
-  // Whether this root opts into the connect-time compute seed (issue #199).
-  // reactive_compute's root binding emits data-reactive-compute-seed="true"; a
-  // root without a compute binding (or with the seed opted out) pays one
-  // attribute read and never seeds. A quick read, evaluated once per connect.
-  #computeSeedEnabled() {
-    return this.element.getAttribute?.("data-reactive-compute-seed") === "true"
-  }
-
-  // Whether a delegated input event came from the NAMED filter input (issue
-  // #163). Anything else — another field's keystroke, a target without
-  // matches() — skips the filter pass (the morph re-sync path bypasses this).
-  #filterInputEvent(event) {
-    const selector = this.element.getAttribute("data-reactive-filter-input")
-    return !!selector && typeof event.target?.matches === "function" && event.target.matches(selector)
-  }
-
-  // Re-apply the filter in one pass (issue #163): lowercase the named input's
-  // current value, toggle `hidden` on every OWNED option by a substring match
-  // against its haystack (data-reactive-filter-text, falling back to the
-  // option's own text), collapse any group whose every contained option is
-  // hidden, and reveal the empty target at 0 visible. A filtered-out option
-  // also loses its listnav highlight so Enter can never pick an invisible row.
-  // No owned input → leave visibility ALONE — a binding that can't resolve
-  // must never break or blank the page (client-side default-deny). All
-  // selectors resolve within this root, skipping nested reactive roots'
-  // elements (issue #15 ownership; the predicate is hoisted once per pass).
-  #syncFilter() {
-    if (typeof this.element?.querySelectorAll !== "function") return
-    const inputSelector = this.element.getAttribute("data-reactive-filter-input")
-    const optionSelector = this.element.getAttribute("data-reactive-filter-option")
-    if (!inputSelector || !optionSelector) return
-
-    const owns = this.#ownershipFilter()
-    const input = [...this.element.querySelectorAll(inputSelector)].find(owns)
-    if (!input) return
-
-    const query = (input.value ?? "").trim().toLowerCase()
-    let visible = 0
-    for (const el of this.element.querySelectorAll(optionSelector)) {
-      if (!owns(el)) continue // a nested root's option is its own controller's job
-      const haystack = (el.getAttribute("data-reactive-filter-text") ?? el.textContent ?? "").toLowerCase()
-      // An option whose tag is already selected (reactive_tags, issue #203)
-      // stays hidden through every re-filter — clearing the query must not
-      // resurface an already-added tag.
-      const hidden =
-        el.hasAttribute?.("data-reactive-tags-selected") || (query !== "" && !haystack.includes(query))
-      el.hidden = hidden
-      if (hidden) el.removeAttribute("data-reactive-highlighted")
-      else visible++
-    }
-
-    const groupSelector = this.element.getAttribute("data-reactive-filter-group")
-    if (groupSelector) {
-      for (const group of this.element.querySelectorAll(groupSelector)) {
-        if (!owns(group)) continue
-        const contained = [...group.querySelectorAll(optionSelector)].filter(owns)
-        // A group with no options isn't this filter's to decide — server state
-        // stands (it may be a header the app toggles by other means).
-        if (contained.length === 0) continue
-        group.hidden = contained.every((el) => el.hidden)
-      }
-    }
-
-    const emptySelector = this.element.getAttribute("data-reactive-filter-empty")
-    if (emptySelector) {
-      for (const el of this.element.querySelectorAll(emptySelector)) {
-        if (owns(el)) el.hidden = visible > 0
-      }
-    }
-  }
-
-  // Remove the filter-sync listeners on disconnect, so a stray event after a
-  // Turbo morph/navigation never re-filters against a detached root.
-  #teardownFilterSync() {
-    if (!this.#boundSyncFilter) return
-    this.element.removeEventListener?.("input", this.#boundSyncFilter)
-    this.element.removeEventListener?.("turbo:morph-element", this.#boundSyncFilter)
-    this.#boundSyncFilter = undefined
-  }
-
-  // Whether this root declares a tag-chip binding (issue #203) — the connect()
-  // gate and every tags action's first check (an action bound without the root
-  // binding is default-denied, the filter posture).
-  #tagsEnabled() {
-    return !!this.element.getAttribute?.("data-reactive-tags-field")
-  }
-
-  // Whether this root owns at least one JSON-mode nested list (issue #208) —
-  // the connect() gate. A cheap descendant probe: a form without one wires no
-  // input/change listeners. Ownership is re-checked per sync, so a stray match
-  // in a nested reactive root here is harmless (it just arms the listeners).
-  #nestedJsonEnabled() {
-    if (typeof this.element?.querySelector !== "function") return false
-    return !!this.element.querySelector("[data-reactive-nested-json]")
-  }
-
-  // The hidden input storing the comma-joined value, resolved fresh per use
-  // (a morph replaces nodes — never cache it) and OWNED by this root (issue
-  // #15). null when the selector resolves nothing — every caller then no-ops:
-  // a binding that can't resolve must never break the page.
-  #tagsField() {
-    if (typeof this.element?.querySelectorAll !== "function") return null
-    const selector = this.element.getAttribute("data-reactive-tags-field")
-    if (!selector) return null
-    const owns = this.#ownershipFilter()
-    return [...this.element.querySelectorAll(selector)].find(owns) ?? null
-  }
-
-  // Parse the field's comma-joined value into the canonical tag list: split,
-  // trim, drop blanks, dedupe case-insensitively KEEPING the first casing (the
-  // server may have stored a ragged value — the projection normalizes without
-  // rewriting the field, so we never fight server truth).
-  #tagsRead(field) {
-    const seen = new Set()
-    const tags = []
-    for (const part of String(field.value ?? "").split(",")) {
-      const tag = part.trim()
-      if (tag === "" || seen.has(tag.toLowerCase())) continue
-      seen.add(tag.toLowerCase())
-      tags.push(tag)
-    }
-    return tags
-  }
-
-  // Append any NEW tags (trimmed, non-blank, not already present under the
-  // case-insensitive dedupe) and write the field once. Returns whether
-  // anything was actually added — callers only clear the query input then.
-  #tagsAddValues(values) {
-    const field = this.#tagsField()
-    if (!field) return false
-
-    const tags = this.#tagsRead(field)
-    const seen = new Set(tags.map((tag) => tag.toLowerCase()))
-    let added = false
-    for (const value of values) {
-      const tag = String(value ?? "").trim()
-      if (tag === "" || seen.has(tag.toLowerCase())) continue
-      seen.add(tag.toLowerCase())
-      tags.push(tag)
-      added = true
-    }
-    if (added) this.#tagsWrite(field, tags)
-    return added
-  }
-
-  // The ONE writer: join, store, dispatch a real bubbling `input` on the field
-  // (the set-value + dispatch contract, issue #183 — dirty tracking,
-  // reactive_show, and compute all see the change), then re-project.
-  #tagsWrite(field, tags) {
-    field.value = tags.join(",")
-    if (typeof field.dispatchEvent === "function") {
-      field.dispatchEvent(new Event("input", { bubbles: true }))
-    }
-    this.#syncTags()
-  }
-
-  // The query input the tags widget resets after a pick — the SAME input that
-  // drives reactive_filter (a tags widget without filtering has none; the
-  // caller then skips the reset).
-  #tagsQueryInput() {
-    if (typeof this.element?.querySelectorAll !== "function") return null
-    const selector = this.element.getAttribute("data-reactive-filter-input")
-    if (!selector) return null
-    const owns = this.#ownershipFilter()
-    return [...this.element.querySelectorAll(selector)].find(owns) ?? null
-  }
-
-  // Re-project the hidden field into the DOM (issue #203): rebuild the chip
-  // list from the <template> and mark/hide the options whose tag is already
-  // selected. The field is the single source of truth — this never writes it.
-  #syncTags() {
-    const field = this.#tagsField()
-    if (!field) return
-    const tags = this.#tagsRead(field)
-    const owns = this.#ownershipFilter()
-    this.#tagsRenderChips(tags, owns)
-    this.#tagsMarkOptions(tags, owns)
-  }
-
-  // Rebuild the chip list: clear the container and clone one chip per tag from
-  // the server-owned template. The tag lands in the clone's
-  // [data-reactive-tag-text] node via textContent (XSS-safe by construction —
-  // never innerHTML, the reactive_text posture), and every tagsRemove trigger
-  // in the clone gets the tag as its param. A missing list is a chip-less
-  // widget (fine — the value still maintains); a missing/empty template warns
-  // ONCE (a half-built binding should be loud, but never per-keystroke).
-  #tagsRenderChips(tags, owns) {
-    const list = [...this.element.querySelectorAll("[data-reactive-tags-list]")].find(owns)
-    if (!list) return
-
-    const template = [...this.element.querySelectorAll("[data-reactive-tags-template]")].find(owns)
-    const chipProto = template?.content?.firstElementChild
-    if (!chipProto) {
-      if (!this.#tagsWarnedTemplate) {
-        console.warn(
-          "[phlex-reactive] reactive_tags: no chip <template data-reactive-tags-template> found in this root — " +
-            "chips will not render (the hidden field still updates). Add a template with a " +
-            "[data-reactive-tag-text] node and a reactive_tags_remove button."
-        )
-        this.#tagsWarnedTemplate = true
-      }
-      return
-    }
-
-    while (list.firstChild) list.removeChild(list.firstChild)
-    for (const tag of tags) {
-      const chip = chipProto.cloneNode(true)
-      chip.setAttribute?.("data-reactive-tag", tag)
-      const sink = chip.matches?.("[data-reactive-tag-text]")
-        ? chip
-        : (chip.querySelectorAll?.("[data-reactive-tag-text]") ?? [])[0]
-      if (sink) sink.textContent = tag
-      const removers = [...(chip.querySelectorAll?.('[data-action*="reactive#tagsRemove"]') ?? [])]
-      if (chip.matches?.('[data-action*="reactive#tagsRemove"]')) removers.push(chip)
-      for (const remover of removers) remover.setAttribute?.("data-reactive-tag-param", tag)
-      list.appendChild(chip)
-    }
-  }
-
-  // Hide + mark every owned option whose DECLARED tag is already selected
-  // (data-reactive-tags-selected — #syncFilter keeps it hidden through
-  // re-filters), and resurface an option WE hid when its tag is removed. Only
-  // marker-carrying options are un-hidden — an option hidden by the filter or
-  // the server stays as-is. With a filter bound, one final #syncFilter re-folds
-  // groups/empty against the new selected set.
-  #tagsMarkOptions(tags, owns) {
-    const selected = new Set(tags.map((tag) => tag.toLowerCase()))
-    for (const el of this.element.querySelectorAll("[role=option]")) {
-      if (!owns(el)) continue
-      const tag = el.getAttribute?.("data-reactive-tag-param")
-      if (!tag) continue
-      if (selected.has(tag.toLowerCase())) {
-        el.setAttribute("data-reactive-tags-selected", "true")
-        el.hidden = true
-        el.removeAttribute?.("data-reactive-highlighted")
-      } else if (el.hasAttribute?.("data-reactive-tags-selected")) {
-        el.removeAttribute("data-reactive-tags-selected")
-        if (!this.#filterEnabled()) el.hidden = false
-      }
-    }
-    if (this.#filterEnabled()) this.#syncFilter()
-  }
-
-  // A fresh index per nested-row add (issue #208) — strictly monotonic and
-  // clock-seeded, so it can never collide with server-rendered integer indexes
-  // (0..n) NOR with a rapid same-millisecond double add.
-  #nextNestedIndex() {
-    this.#nestedIndex = Math.max(this.#nestedIndex + 1, Date.now())
-    return this.#nestedIndex
-  }
-
-  // Swap every NEW_ROW in the clone's name/id/for for the fresh index, so the
-  // row posts as its own `…_attributes[<index>][field]` group and labels keep
-  // pointing at their (renumbered) inputs.
-  #renumberNestedRow(row, index) {
-    const nodes = [row, ...(row.querySelectorAll?.("*") ?? [])]
-    for (const el of nodes) {
-      for (const attr of ["name", "id", "for"]) {
-        const value = el.getAttribute?.(attr)
-        if (value && value.includes("NEW_ROW")) el.setAttribute?.(attr, value.replaceAll("NEW_ROW", String(index)))
-      }
-    }
-  }
-
-  // A half-built nested-rows binding should be loud, but never per-click.
-  #warnNestedOnce(assoc) {
-    if (this.#nestedWarned) return
-    console.warn(
-      `[phlex-reactive] nested rows: no owned [data-reactive-nested-list="${assoc}"] container + ` +
-        `<template data-reactive-nested-template="${assoc}"> pair found in this root — the add ` +
-        "trigger did nothing. Render both inside the same reactive root (reactive_nested_list / " +
-        "reactive_nested_template)."
-    )
-    this.#nestedWarned = true
-  }
-
-  // Remove the tags morph listener on disconnect, so a stray morph event after
-  // the element leaves the DOM never re-projects against a detached root.
-  #teardownTagsSync() {
-    if (!this.#boundSyncTags) return
-    this.element.removeEventListener?.("turbo:morph-element", this.#boundSyncTags)
-    this.#boundSyncTags = undefined
-  }
-
-  // Remove the JSON-mode nested-rows listeners on disconnect (issue #208), so a
-  // stray input/change/morph after the element leaves the DOM never re-syncs
-  // against a detached root.
-  #teardownNestedJsonSync() {
-    if (this.#boundSyncNestedJson) {
-      this.element.removeEventListener?.("input", this.#boundSyncNestedJson)
-      this.element.removeEventListener?.("change", this.#boundSyncNestedJson)
-      this.#boundSyncNestedJson = undefined
-    }
-    if (this.#boundSeedNestedJson) {
-      this.element.removeEventListener?.("turbo:morph-element", this.#boundSeedNestedJson)
-      this.#boundSeedNestedJson = undefined
-    }
-  }
-
-  // Remove the compute seed morph listener on disconnect (issue #199), so a
-  // stray turbo:morph-element after the element leaves the DOM never re-seeds
-  // against a detached root.
-  #teardownComputeSeed() {
-    if (!this.#boundSeedCompute) return
-    this.element.removeEventListener?.("turbo:morph-element", this.#boundSeedCompute)
-    this.#boundSeedCompute = undefined
-  }
-
   // Build the multipart body (issue #34). `token`/`act` are flat fields the
   // endpoint reads from params[:token]/params[:act]; scalar params nest under
   // params[<key>] (Rails parses the bracket into params[:params]); each file is
@@ -4934,26 +3103,19 @@ export default class extends Controller {
   }
 
   // Issue #237: called when a selector-form target resolved to ZERO elements on
-  // this root. Gated + deduped (module helpers); builds the trap-specific hint:
-  // the root-self selector (root-scoped resolution never includes the root),
-  // the nested-reactive-root ownership filter, or plain out-of-scope. All DOM
-  // probes run only here — after a zero-match with the gate on.
+  // this root. Past the verbose gate the devtools feature (issue #275) does the
+  // work: the DOM probes, the dedupe, the trap-specific hint.
   #diagnoseZeroTargets(label, args) {
     if (!this.#verboseEnabled()) return
-    const to = args.to
-    if (typeof to !== "string" || to === "" || to === "@root") return
-    let hint = ""
-    if (!args.global) {
-      if (this.element?.matches?.(to)) {
-        hint = " — the selector matches this component's own root, which root-scoped resolution never includes; use to: :root"
-      } else if (countMatches(this.element, to) > 0) {
-        hint = " — it matches only inside a nested reactive root (excluded by ownership scoping); use global: true"
-      } else {
-        const n = countMatches(globalThis.document, to)
-        if (n > 0) hint = ` — it matches ${n} element(s) outside this scope; use global: true`
-      }
-    }
-    emitZeroTargetWarn(label, to, `scoped to #${this.element?.id || "?"}`, hint)
+    this.#devtools((devtools) => devtools.diagnose(this, label, args))
+  }
+
+  // Run `use` with the devtools feature: now when it is loaded (the default
+  // client, always), else once it has arrived — a warning or a trace a tick
+  // late is still a warning. Called only past a debug/verbose gate, so a page
+  // with neither never asks for the module.
+  #devtools(use) {
+    withFeature("devtools", use)
   }
 
   // Resolve an op's targets: "@root" is this element; a selector resolves
@@ -4980,17 +3142,6 @@ export default class extends Controller {
     return type === "checkbox" || type === "radio"
   }
 
-  // Apply the OPTIMISTIC hint (issue #98) NOW and return its `undo` closure — the
-  // exact ops to replay on FAILURE (optimistic reverts only when the round trip
-  // fails; success leaves server truth or the deliberately-standing hint). It is
-  // the same op vocabulary busy: uses (issue #181) via the one #applyHint engine;
-  // the ONLY optimistic-specific op is checked: :keep (honorChecked = true).
-  #applyOptimistic(optimistic, trigger) {
-    if (!optimistic) return null
-    const undo = this.#applyHint(optimistic, trigger, true)
-    return undo.length ? undo : null
-  }
-
   // Replay the recorded undo ops on failure (issue #98), guarded by isConnected:
   // a plain (non-morph) replace can detach this subtree before the failure lands,
   // and reverting a stale/detached node is pointless (it's gone) — so a
@@ -5015,15 +3166,13 @@ export default class extends Controller {
   //      pending counter), and data-reactive-busy on any busy_on element scoped
   //      to this action. Apps style a spinner with pure CSS and zero Ruby.
   //   2. The busy HINT (only when busy: was declared): the SAME cosmetic op set
-  //      as optimistic: (class ops, hide/show, disable, text), applied through
-  //      the one #applyHint engine and reverted on SETTLE (not on failure). These
-  //      apply at ENQUEUE — never during a debounce quiet period — so a debounced
-  //      input is not disabled mid-typing. checked: is optimistic-only, so busy:
-  //      passes honorChecked = false (the Ruby on() already rejects it — this is
-  //      belt-and-braces).
-  #applyBusy(action, trigger, busy) {
+  //      as optimistic: (class ops, hide/show, disable, text), applied by the
+  //      hints feature (features/hints.js) and reverted on SETTLE (not on
+  //      failure) — its undo ops land in `pending.undo`, which the settle
+  //      closure replays. They apply at ENQUEUE — never during a debounce quiet
+  //      period — so a debounced input is not disabled mid-typing.
+  #applyBusy(action, trigger, pending) {
     this.#markBusy(action, trigger)
-    const undo = busy ? this.#applyHint(busy, trigger, false) : []
     // Global activity signal (issue #201): this enqueue is one in-flight reactive
     // operation. Entered HERE (at enqueue, via #applyBusy) so the document marker
     // covers the whole pending window — queue wait included — exactly like the
@@ -5038,105 +3187,8 @@ export default class extends Controller {
       this.#unmarkBusy(action, trigger)
       exitReactiveActivity()
       // Busy reverts on SETTLE regardless of outcome, guarded per element.
-      for (const op of undo) op()
+      for (const op of pending.undo) op()
     }
-  }
-
-  // The ONE pending-state hint engine (issue #181), shared by optimistic: (revert
-  // on failure) and busy: (revert on settle) — they differ only in WHEN the
-  // returned undo ops run, never in the ops themselves. Applies the hint's
-  // cosmetic ops to their targets (the trigger by default, or a `to:` selector
-  // scoped to the root) and returns an array of undo closures. Class ops and
-  // hide/show use a DELTA inverse (undo only what THIS call changed, so it
-  // composes across overlapping enqueues); disable/text use a REFCOUNTED snapshot
-  // (the true pre-hint value survives an overlapping enqueue that would otherwise
-  // capture the already-swapped label as the "original"). `honorChecked` gates
-  // checked: :keep — an optimistic-only native-control revert.
-  #applyHint(hint, trigger, honorChecked) {
-    const undo = []
-    for (const el of this.#hintTargets(hint, trigger)) {
-      if (hint.add_class) {
-        // Undo only the classes this op ACTUALLY added — a class already present
-        // was not our change, so reverting it would strip a class the element
-        // legitimately had. Capture the real delta now.
-        const added = hint.add_class.filter((c) => !el.classList.contains(c))
-        el.classList.add(...added)
-        if (added.length) undo.push(() => el.classList.remove(...added))
-      }
-      if (hint.remove_class) {
-        // Symmetric: undo only the classes actually removed.
-        const removed = hint.remove_class.filter((c) => el.classList.contains(c))
-        el.classList.remove(...removed)
-        if (removed.length) undo.push(() => el.classList.add(...removed))
-      }
-      if (hint.toggle_class) {
-        // toggle_class is its own inverse regardless of prior state.
-        hint.toggle_class.forEach((c) => el.classList.toggle(c))
-        undo.push(() => hint.toggle_class.forEach((c) => el.classList.toggle(c)))
-      }
-      if (hint.hide) {
-        el.hidden = true
-        undo.push(() => (el.hidden = false))
-      }
-      if (hint.show) {
-        el.hidden = false
-        undo.push(() => (el.hidden = true))
-      }
-    }
-
-    // disable/text swap the TRIGGER (a `to:` retargets only the class/hide/show
-    // ops above — disable/text are inherently trigger affordances). Refcounted so
-    // overlapping enqueues restore correctly.
-    if (trigger && (hint.disable || hint.text != null)) {
-      undo.push(this.#applyTextDisable(hint, trigger))
-    }
-
-    // checked: :keep — the native flip already happened on the trigger; record
-    // the inverse (flip it back) so a revert restores the control's state.
-    if (honorChecked && hint.checked === "keep" && trigger && "checked" in trigger) {
-      const flipped = trigger.checked
-      undo.push(() => (trigger.checked = !flipped))
-    }
-
-    return undo
-  }
-
-  // The elements a hint's class/hide/show ops apply to: the `to:` selector
-  // (resolved like an op target — "@root" is the root, a selector is scoped to
-  // this root's owned matches) or, with no `to:`, the trigger itself.
-  #hintTargets(hint, trigger) {
-    if (hint.to == null) return trigger ? [trigger] : []
-    const targets = this.#opTargets({ to: hint.to })
-    // Issue #237: a hint aimed at nothing is the same silent trap as an op.
-    if (targets.length === 0) this.#diagnoseZeroTargets("busy/optimistic hint", { to: hint.to })
-    return targets
-  }
-
-  // Swap the trigger's disabled/innerHTML for a pending hint, snapshotting the
-  // ORIGINAL once per trigger (refcounted so an overlapping enqueue never
-  // snapshots the already-swapped "Saving…" as the original), and return the undo
-  // closure. text swaps innerHTML (issue #181), NOT textContent: a composite
-  // trigger like `<button><svg/> Save</button>` has child nodes, and
-  // textContent = "Saving…" would DESTROY the icon; innerHTML preserves the
-  // markup structure and restores it byte-for-byte.
-  #applyTextDisable(hint, trigger) {
-    const snap = this.#textDisableSnapshots.get(trigger)
-    if (snap) {
-      snap.count++
-    } else {
-      this.#textDisableSnapshots.set(trigger, {
-        count: 1,
-        disabled: trigger.disabled,
-        html: trigger.innerHTML,
-        hadText: hint.text != null,
-        swappedTo: hint.text,
-      })
-    }
-
-    if (hint.disable) trigger.disabled = true
-    if (hint.text != null) trigger.innerHTML = hint.text
-
-    return () => this.#restoreTextDisable(trigger, hint)
   }
 
   // Layer 1 — the always-on busy markers. Trigger + root carry the action token;
@@ -5200,37 +3252,6 @@ export default class extends Controller {
     return [...nodes].filter(
       (el) => el.getAttribute("data-reactive-busy-on") === action && this.#ownsField(el),
     )
-  }
-
-  // Restore the trigger's disabled/innerHTML from its snapshot when the LAST
-  // enqueue for that trigger settles (refcount → 0). GUARDED: skip a disconnected
-  // trigger (a plain replace detached it — the node is gone), and do NOT restore
-  // the label if it no longer equals what we swapped IN (a morph rendered a new
-  // server label — clobbering it with the old markup would fight server truth).
-  // The comparison + restore both use innerHTML so a composite trigger (icon +
-  // label) round-trips its full markup, not a flattened text run (issue #181).
-  #restoreTextDisable(trigger, hint) {
-    const snap = this.#textDisableSnapshots.get(trigger)
-    if (!snap) return
-    if (--snap.count > 0) return // another enqueue for this trigger is still pending
-    this.#textDisableSnapshots.delete(trigger)
-
-    if (!trigger.isConnected) return // detached — nothing to restore
-
-    if (hint.disable) trigger.disabled = snap.disabled
-    if (snap.hadText && trigger.innerHTML === snap.swappedTo) trigger.innerHTML = snap.html
-  }
-
-  // Deploy-overlap read shim (issue #181): a page still rendered by the PREVIOUS
-  // gem emits the old data-reactive-loading-param, whose `class:` key is the busy
-  // vocabulary's `add_class:`. Remap it so an in-flight legacy page keeps its
-  // pending affordance through the one #applyHint engine. Returns null for the
-  // common (no legacy param) case so the fast path is untouched. Drop this shim
-  // one minor after #181 ships (no page can still carry the old attr by then).
-  #legacyLoadingHint(loading) {
-    if (!loading || typeof loading !== "object") return null
-    const { class: cls, ...rest } = loading
-    return cls == null ? loading : { ...rest, add_class: cls }
   }
 
   // The action path comes from a <meta> tag that is fixed for the page's life,

@@ -69,8 +69,11 @@ const ENTRIES = [
   "features/persist",
   "features/defer",
   "features/form",
+  "features/bindings",
+  "features/compute",
   "features/effects",
-  "features/dev",
+  "features/hints",
+  "features/devtools",
 ]
 
 // The default entry: the runtime + every feature in one file.

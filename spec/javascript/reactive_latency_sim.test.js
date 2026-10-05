@@ -40,7 +40,7 @@ beforeAll(async () => {
   enableLatencySim = mod.enableLatencySim
   disableLatencySim = mod.disableLatencySim
   registerReactiveActions = mod.registerReactiveActions
-  ;({ resetLatencySim: __resetReactiveLatencyForTest } = await import("../../app/javascript/phlex/reactive/features/dev.js"))
+  ;({ resetLatencySim: __resetReactiveLatencyForTest } = await import("../../app/javascript/phlex/reactive/features/devtools.js"))
 })
 
 // A minimal sessionStorage stub (a Map behind the Storage API surface).

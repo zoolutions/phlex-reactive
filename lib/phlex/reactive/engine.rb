@@ -20,7 +20,11 @@ module Phlex
       # build script (scripts/build_client.js), the core's own table and the
       # default entry name the same features —
       # spec/phlex/engine_client_pin_spec.rb fails when they disagree.
-      CLIENT_FEATURES = %w[persist defer form effects dev].freeze
+      CLIENT_FEATURES = %w[persist defer form bindings compute effects hints devtools].freeze
+      # (Gzipped, bun zlib level 9: the default file 26.1 KB; the core 12.3 KB;
+      # persist 3.2, defer 2.8, form 1.0, bindings 5.4, compute 2.1, effects
+      # 1.7, hints 1.0, devtools 1.6 KB. spec/javascript/bundle_budget.test.js
+      # is the source of truth and holds a ratchet on each.)
 
       # Mount POST /reactive/actions -> Phlex::Reactive::ActionsController#create
       # and POST /reactive/defer -> #deferred (the pull-lane defer endpoint,

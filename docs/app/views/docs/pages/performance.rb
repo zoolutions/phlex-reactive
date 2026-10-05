@@ -1088,12 +1088,12 @@ module Views
               ul do
                 li do
                   code { 'reactive_controller' }
-                  plain ' (the default client: the core and every feature module in one file): 351 KB of '
-                  plain 'source → '
-                  strong { '82 KB' }
-                  plain ' minified (−77%). Gzipped, the source would be 111 KB; the minified file is '
-                  strong { '24.8 KB' }
-                  plain ' (−78%).'
+                  plain ' (the default client: the runtime and every feature module in one file): 375 KB '
+                  plain 'of source → '
+                  strong { '87 KB' }
+                  plain ' minified (−77%). Gzipped, the source would be 114 KB; the minified file is '
+                  strong { '26.1 KB' }
+                  plain ' (−77%).'
                 end
                 li do
                   code { 'confirm.js' }
@@ -1150,10 +1150,10 @@ module Views
             end
             DocsUI::Table(['Module', 'Gzipped', 'Default client', 'Split client'],
                           [
-                            [[:code, 'phlex/reactive/reactive_controller'], '24.8 KB',
+                            [[:code, 'phlex/reactive/reactive_controller'], '26.1 KB',
                              'When your controllers load (or at the first trigger, for a page whose only roots are dormant).',
                              'Never.'],
-                            [[:code, 'phlex/reactive/core'], '18.5 KB',
+                            [[:code, 'phlex/reactive/core'], '12.3 KB',
                              'Never: it is inside the one file.',
                              'When your controllers load (or at the first trigger, for a page whose only roots are dormant).'],
                             [[:code, 'phlex/reactive/features/persist'], '3.2 KB',
@@ -1172,21 +1172,37 @@ module Views
                              'Inside the one file.',
                              [:md, 'When the first root that declares an effect connects, or when the first stream ' \
                                    'that needs it arrives: one with an effect, or with a `dismiss_after:` flash.']],
-                            [[:code, 'phlex/reactive/features/dev'], '0.5 KB',
+                            [[:code, 'phlex/reactive/features/bindings'], '5.4 KB',
+                             'Inside the one file.',
+                             [:md, 'When the first root with a `reactive_show` / show targets / ' \
+                                   '`reactive_on_complete` / `reactive_filter` / `reactive_tags` / nested-rows ' \
+                                   'binding, or a conditional `confirm:`, connects.']],
+                            [[:code, 'phlex/reactive/features/compute'], '2.1 KB',
+                             'Inside the one file.',
+                             [:md, 'When the first `reactive_compute` root connects. Its outputs show the ' \
+                                   'server\'s values until then: about 20–25 ms with the module served from ' \
+                                   'the same host (measured in the browser suite), one request on a real network.']],
+                            [[:code, 'phlex/reactive/features/hints'], '1.0 KB',
+                             'Inside the one file.',
+                             [:md, 'When the first root whose trigger declares `optimistic:` or `busy:` ' \
+                                   'connects; a click before that waits for it.']],
+                            [[:code, 'phlex/reactive/features/devtools'], '1.6 KB',
                              'Inside the one file.',
                              [:md, 'With the core (effectively eager) on a page that carries the ' \
-                                   '`phlex-reactive-env` development meta, and on the first request while a delay ' \
-                                   'is stored for the tab (wherever that is). Without either, never.']],
+                                   '`phlex-reactive-env` development meta or while a latency delay is stored; ' \
+                                   'at connect for a root in debug mode; otherwise the first time a verbose root ' \
+                                   'has something to warn about. In production with none of these, never.']],
                             [[:code, 'phlex/reactive/early'], '1.1 KB',
                              'On every page, if you import it.',
                              'The same.']
                           ])
             DocsUI::Prose() do
               p do
-                plain 'A page that uses none of these features downloads 6.3 KB less with the split '
-                plain 'client. A page that uses every one of them downloads 2.9 KB more, in six requests '
-                plain 'instead of one. More of the client moves into feature modules with each release, '
-                plain 'until the core is about 10 KB; the default file stays one file throughout.'
+                plain 'A page that uses none of these features downloads 13.7 KB less with the split '
+                plain 'client. A page that uses every one of them downloads 5.1 KB more, in nine requests '
+                plain 'instead of one. This is the whole split: everything that can leave the core has. '
+                plain 'The maintainer\'s target for the core was 10,240 B; the honest moves leave it at '
+                plain '12,372 B, which the budget test holds as its ratchet (and prints the target against).'
               end
               p do
                 plain 'Two things are not feature modules, in either client. The offline hook ('
@@ -1242,8 +1258,35 @@ module Views
                   plain 'on a page where that matters.'
                 end
                 li do
+                  plain 'A form\'s bindings ('
+                  code { 'reactive_show' }
+                  plain ', '
+                  code { 'reactive_filter' }
+                  plain ', the tag chips, the nested-row JSON field) and a '
+                  code { 'reactive_compute' }
+                  plain ' root show what the server rendered until their module arrives, then seed from '
+                  plain 'the fields as the user left them: a choice made in the window is kept and '
+                  plain 'reflected, an edit is recomputed from the typed value, never overwritten. Both '
+                  plain 'hold the root\'s requests until the module is here (the JSON-mode rows and the '
+                  plain 'computed outputs are fields a request collects). Preload the module on a page '
+                  plain 'where the first paint must already reflect them.'
+                end
+                li do
+                  plain 'A trigger with an '
+                  code { 'optimistic:' }
+                  plain ' or '
+                  code { 'busy:' }
+                  plain ' hint: its request waits for the hints module (at most the feature timeout); '
+                  plain 'the hint applies if the module arrives in time, and after a timeout or a failed '
+                  plain 'load the request goes out once without it. The busy markers are on from '
+                  plain 'the click; a failure after a late apply still reverts the optimistic hint. A root '
+                  plain 'whose triggers declare a hint loads the module at connect, so this is the first '
+                  plain 'click of a page\'s first root at most.'
+                end
+                li do
                   plain 'The latency simulator delays a request from the first one on: the request waits '
-                  plain 'for the module.'
+                  plain 'for the module. A zero-target warning or a debug trace is logged once the '
+                  plain 'devtools module is here.'
                 end
                 li do
                   plain 'A module that cannot be imported leaves its feature off for that page load: one '
@@ -1265,6 +1308,8 @@ module Views
               pin "phlex/reactive/core", to: "phlex/reactive/core.min.js", preload: true
               pin "phlex/reactive/features/persist", to: "phlex/reactive/features/persist.min.js", preload: true
               pin "phlex/reactive/features/form", to: "phlex/reactive/features/form.min.js", preload: true # warn_unsaved: from the first moment
+              pin "phlex/reactive/features/bindings", to: "phlex/reactive/features/bindings.min.js", preload: true # show/filter/tags at connect
+              pin "phlex/reactive/features/compute", to: "phlex/reactive/features/compute.min.js", preload: true # computed fields at connect
             RUBY
             DocsUI::Prose() do
               p do

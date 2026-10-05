@@ -18,6 +18,7 @@ Rails.application.config.after_initialize do
   # applied hint before the (deliberately delayed) failure reverts it, instead of
   # racing a fast default-deny 403.
   Phlex::Reactive.authorization_errors << OptimisticRowComponent::Denied
+  Phlex::Reactive.authorization_errors << HintedPanelComponent::Denied
 
   # The `boom` fixtures (CounterComponent, FailureSurfaceComponent) deny inside a
   # DECLARED action so their pages still render under the render-time

@@ -30,7 +30,10 @@ const FEATURE_MARKS = {
   defer: "reactive-defer-src-",
   form: "data-reactive-warn-unsaved",
   effects: "reactive-fx--",
-  dev: "latency simulator ACTIVE",
+  bindings: "data-reactive-tags-template",
+  compute: "data-reactive-compute-reducer-param",
+  hints: "optimistic: { hide: true } was undone",
+  devtools: "latency simulator ACTIVE",
 }
 const DYNAMIC_IMPORT = /import\(\s*["'][^"']+["']\s*\)/g
 

@@ -47,7 +47,12 @@ beforeAll(async () => {
   resetFeatures = mod.__resetReactiveFeaturesForTest
   effectsModule = await import(`${SOURCE}/features/effects.js`)
   formModule = await import(`${SOURCE}/features/form.js`)
-  devModule = await import(`${SOURCE}/features/dev.js`)
+  devModule = await import(`${SOURCE}/features/devtools.js`)
+  // One stream-render listener on THIS file's document: registered once here
+  // (a registration per test would stack listeners), after clearing the
+  // runtime's guard (another file registered on its own document).
+  mod.__resetReactiveStreamRenderForTest()
+  mod.registerReactiveStreamRender()
 })
 
 const realSetTimeout = globalThis.setTimeout
@@ -96,9 +101,7 @@ beforeEach(() => {
   globalThis.console = { ...realConsole, error: (...args) => errors.push(args.join(" ")), warn: (...args) => warns.push(args.join(" ")) }
   // Cold: the state of a page that imported phlex/reactive/core.
   resetFeatures(true)
-  mod.__resetReactiveStreamRenderForTest()
   resetStreamHold()
-  mod.registerReactiveStreamRender()
 })
 
 afterEach(() => {
@@ -500,19 +503,19 @@ describe("dev: the latency simulator before its module is loaded", () => {
   }
 
   test("the runtime's own registration, before the entry has run, asks for nothing and caches no failure", async () => {
-    const dev = slowFeature("dev", devModule)
+    const dev = slowFeature("devtools", devModule)
     globalThis.sessionStorage = storage()
     globalThis.window = { Turbo: undefined }
     meta("phlex-reactive-env", "development")
     // What the runtime's table holds before core.js has registered the loader.
-    mod.__setReactiveFeatureForTest("dev", null, null)
+    mod.__setReactiveFeatureForTest("devtools", null, null)
 
     mod.registerReactiveActions()
     await settle()
     expect(errors).toEqual([])
 
     // The entry then supplies the loader and registers again: the module loads.
-    mod.__setReactiveFeatureForTest("dev", null, () => Promise.resolve(devModule))
+    mod.__setReactiveFeatureForTest("devtools", null, () => Promise.resolve(devModule))
     mod.registerReactiveDev()
     await settle()
     expect(typeof globalThis.window.PhlexReactive?.enableLatencySim).toBe("function")
@@ -520,7 +523,7 @@ describe("dev: the latency simulator before its module is loaded", () => {
   })
 
   test("no development meta and no stored delay: registration imports nothing", () => {
-    const dev = slowFeature("dev", devModule)
+    const dev = slowFeature("devtools", devModule)
     globalThis.sessionStorage = storage()
     globalThis.window = { ...window, Turbo: undefined }
 
@@ -530,7 +533,7 @@ describe("dev: the latency simulator before its module is loaded", () => {
   })
 
   test("the development meta imports the module at registration and attaches the console handle", async () => {
-    const dev = slowFeature("dev", devModule)
+    const dev = slowFeature("devtools", devModule)
     globalThis.sessionStorage = storage()
     const fakeWindow = { Turbo: undefined }
     globalThis.window = fakeWindow
@@ -547,7 +550,7 @@ describe("dev: the latency simulator before its module is loaded", () => {
   })
 
   test("a stored delay imports the module at registration but attaches no handle without the meta", async () => {
-    const dev = slowFeature("dev", devModule)
+    const dev = slowFeature("devtools", devModule)
     globalThis.sessionStorage = storage({ "phlex-reactive:latency": "400" })
     const fakeWindow = { Turbo: undefined }
     globalThis.window = fakeWindow
@@ -562,7 +565,7 @@ describe("dev: the latency simulator before its module is loaded", () => {
 
   test("the first request made while a delay is stored waits for the module, then for the delay", async () => {
     installFakeTimers()
-    const dev = slowFeature("dev", devModule)
+    const dev = slowFeature("devtools", devModule)
     globalThis.sessionStorage = storage({ "phlex-reactive:latency": "400" })
     let fetched = 0
     globalThis.fetch = () => {
@@ -591,7 +594,7 @@ describe("dev: the latency simulator before its module is loaded", () => {
   })
 
   test("with no delay stored a request neither imports the module nor waits", async () => {
-    const dev = slowFeature("dev", devModule)
+    const dev = slowFeature("devtools", devModule)
     globalThis.sessionStorage = storage()
     let fetched = 0
     globalThis.fetch = () => {

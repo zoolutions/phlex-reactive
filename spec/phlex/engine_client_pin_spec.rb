@@ -191,7 +191,7 @@ RSpec.describe Phlex::Reactive::Engine do
       # client — the one thing that client must never do.
       source = File.read(File.join(root, "app/javascript/phlex/reactive/reactive_controller.js"))
       imported = source.scan(%r{^import \* as \w+ from "phlex/reactive/features/([\w-]+)"$}).flatten
-      registered = source.scan(/^registerReactiveFeature\("([\w-]+)", \{ .* \}\)$/).flatten
+      registered = source.scan(/^registerReactiveFeature\("([\w-]+)", \{/).flatten
 
       expect(imported).to match_array(described_class::CLIENT_FEATURES)
       expect(registered).to eq(imported)

@@ -563,7 +563,7 @@ test("the shipped table lists the moved features, persist first", async () => {
 
   // Table order is connect order: the draft restore writes the values every
   // other connect-time seed reads, so persist stays first as features move.
-  expect(reactiveFeatureNames()).toEqual(["persist", "defer", "form", "effects", "dev"])
+  expect(reactiveFeatureNames()).toEqual(["persist", "defer", "form", "bindings", "compute", "effects", "hints", "devtools"])
 })
 
 // --- The core handle ----------------------------------------------------------
@@ -590,7 +590,20 @@ test("a feature receives the core handle on connect and on disconnect", async ()
   core.emit("fake:ping", { n: 1 })
   controller.disconnect()
 
-  expect(Object.keys(core).sort()).toEqual(["emit", "forgetToken", "owns", "proceed", "reseed"])
+  expect(Object.keys(core).sort()).toEqual([
+    "applyOps",
+    "collectFields",
+    "confirm",
+    "diagnose",
+    "emit",
+    "forgetToken",
+    "listnavOptions",
+    "opTargets",
+    "ownership",
+    "owns",
+    "proceed",
+    "reseed",
+  ])
   expect(events).toEqual([{ n: 1 }])
   expect(() => core.reseed()).not.toThrow()
   expect(seen.map(([name, who, handle]) => [name, who === controller, handle === core])).toEqual([
