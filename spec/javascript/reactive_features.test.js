@@ -1478,6 +1478,37 @@ test("when the defer feature cannot load, a __materialize trigger still posts th
   expect(posts.map((post) => post.act)).toEqual(["__materialize"])
 })
 
+// Issue #306: a reactive_lazy(on:, cache:) shell carries no identity token —
+// its fragment URL is the only way it loads. When the defer feature cannot
+// load, the trigger has nothing to POST: the feature's reactive:error is the
+// signal (the app's empty state handles it), and no __materialize goes out.
+test("when the defer feature cannot load, a tokenless cache: shell's trigger posts nothing; reactive:error says why", async () => {
+  const posts = requestRig()
+  const defer = fakeDefer()
+  const root = mountRoot({ marked: false, id: "panel" })
+  root.setAttribute("data-reactive-lazy-on", "panel:opened")
+  root.setAttribute("data-reactive-defer-src", "/reactive/fragment/abc")
+  const controller = controllerFor(root)
+  const errors = []
+  root.addEventListener("reactive:error", (event) => errors.push([event.detail.kind, event.detail.feature]))
+  const consoleError = console.error
+  console.error = () => {}
+
+  try {
+    controller.connect()
+    const done = controller.dispatch(triggerEvent("__materialize"))
+    defer.fail(new Error("404"))
+    await done
+    await controller.queue
+  } finally {
+    console.error = consoleError
+  }
+
+  expect(defer.log).toEqual([])
+  expect(posts).toEqual([])
+  expect(errors).toEqual([["feature", "defer"]])
+})
+
 test("a lazy shell whose defer module cannot load stops claiming to be pending", async () => {
   requestRig()
   const defer = fakeDefer()

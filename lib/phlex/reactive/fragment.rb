@@ -2,6 +2,7 @@
 
 require "base64"
 require "digest"
+require "json"
 
 module Phlex
   module Reactive
@@ -27,7 +28,14 @@ module Phlex
     #       hold the render of the viewer it names. A blank viewer names nobody:
     #       no `u`, and the reply falls back to `Vary: Cookie`.
     module Fragment
+      # The purpose of the previous id format (still verified, see verify).
       PURPOSE = "phlex-reactive/fragment"
+      # The purpose the current id's MAC is keyed under (issue #306).
+      ID_PURPOSE = "phlex-reactive/fragment-id"
+      # 128 bits of MAC: 22 base64url characters.
+      MAC_BYTES = 16
+      MAC_LENGTH = 22
+      BASE64URL = /\A[A-Za-z0-9_-]+\z/
       VIEWER_PURPOSE = "phlex-reactive/fragment-viewer"
       # A viewer is an identity — an id, or a few of them. These bound how far
       # a collection is walked, so no value can make the shell render slow.
@@ -42,22 +50,63 @@ module Phlex
 
       module_function
 
-      # The URL-safe signed id of an identity payload. The verifier's token
-      # (Base64 + "--" + digest; may hold "+", "/", "=") is wrapped in urlsafe
-      # Base64 so it survives as ONE path segment under any configured verifier.
+      # The signed id of an identity payload (issue #306):
+      #
+      #   base64url(JSON payload) + base64url(128-bit MAC)
+      #
+      # The payload is encoded ONCE and the MAC is a fixed 22 characters, so the
+      # id is one URL path segment of base64url characters with no separator
+      # (a "." would read as a format suffix to the router). The MAC is keyed
+      # through the configured verifier — a digest of its signature over the
+      # encoded payload under its own purpose, the same construction as the
+      # viewer digest — so it works with any verifier the app configured and
+      # cannot be computed without the app's secret. Deterministic: the same
+      # identity always renders the same URL, which is what lets the browser's
+      # cache hit.
       def sign(payload)
-        token = Phlex::Reactive.verifier.generate(payload.merge("v" => TOKEN_VERSION), purpose: PURPOSE)
-        Base64.urlsafe_encode64(token, padding: false)
+        data = Base64.urlsafe_encode64(JSON.generate(payload.merge("v" => TOKEN_VERSION)), padding: false)
+        "#{data}#{compact_mac(data)}"
       end
 
       # The verified, version-upgraded payload, or nil — tampered, a token of
-      # another purpose, or not urlsafe Base64 at all.
+      # another purpose, or no fragment id at all. The current format is tried
+      # first, then the previous one: a browser may still hold a page or a
+      # cached fragment URL minted before #306 (for up to
+      # fragment_cache_max_age_limit).
       def verify(id)
-        token = Base64.urlsafe_decode64(id.to_s)
-        payload = Phlex::Reactive.verifier.verified(token, purpose: PURPOSE)
+        id = id.to_s
+        payload = verify_compact(id) || verify_legacy(id)
         payload && Phlex::Reactive.upgrade_token(payload)
+      end
+
+      # The MAC is checked BEFORE the data is decoded or parsed. Anything but
+      # base64url characters is not an id (and never reaches the verifier).
+      def verify_compact(id)
+        return nil unless id.length > MAC_LENGTH && id.match?(BASE64URL)
+
+        data = id[0...-MAC_LENGTH]
+        return nil unless ActiveSupport::SecurityUtils.secure_compare(compact_mac(data), id[-MAC_LENGTH..])
+
+        payload = JSON.parse(Base64.urlsafe_decode64(data))
+        payload.is_a?(::Hash) ? payload : nil
+      rescue ::ArgumentError, JSON::ParserError
+        nil
+      end
+
+      # The previous format: the verifier's token (Base64 + "--" + digest)
+      # wrapped in urlsafe Base64. Kept for one release (issue #306).
+      def verify_legacy(id)
+        Phlex::Reactive.verifier.verified(Base64.urlsafe_decode64(id), purpose: PURPOSE)
       rescue ::ArgumentError
         nil
+      end
+
+      # `data` is pinned to US-ASCII (it is base64url): the id is minted as a
+      # US-ASCII String but arrives as a UTF-8 param, and a Marshal-serializing
+      # verifier (load_defaults < 7.1) signs the encoding along with the bytes.
+      def compact_mac(data)
+        data = data.dup.force_encoding(Encoding::US_ASCII)
+        digest_param(Digest::SHA256.digest(Phlex::Reactive.verifier.generate(data, purpose: ID_PURPOSE)), MAC_BYTES)
       end
 
       # The fragment URL the shell renders into data-reactive-defer-src:
@@ -74,10 +123,15 @@ module Phlex
 
       # `v` only varies the browser's cache KEY — the endpoint never reads it —
       # so it is digested: short, opaque, and safe for any value an app returns
-      # (a Time keeps its sub-second precision, a record its cache key).
+      # (a Time keeps its sub-second precision, a record its cache key). 64
+      # bits as 11 base64url characters: a cache-buster, not a secret.
       def version_param(version)
         key = version.respond_to?(:utc) ? version.utc.strftime("%Y%m%d%H%M%S%N") : version
-        Digest::SHA256.hexdigest(ActiveSupport::Cache.expand_cache_key(key))[0, 16]
+        digest_param(Digest::SHA256.digest(ActiveSupport::Cache.expand_cache_key(key)), 8)
+      end
+
+      def digest_param(digest, bytes)
+        Base64.urlsafe_encode64(digest.byteslice(0, bytes), padding: false)
       end
 
       # The `u` of a reactive_cache_viewer value, or nil when the value names
@@ -90,7 +144,8 @@ module Phlex
       #
       # KEYED: the digest is taken over the verifier's signature of the value,
       # so it can be neither reversed to the value (a user id is a small space)
-      # nor computed for someone else without the app's secret. 128 bits.
+      # nor computed for someone else without the app's secret. 128 bits, as
+      # 22 base64url characters.
       #
       # NEVER RAISES and never takes long, whatever the hook returned: this runs
       # inside the host page's render. A value that cannot be turned into a key
@@ -101,7 +156,7 @@ module Phlex
 
         signed = Phlex::Reactive.verifier.generate(ActiveSupport::Cache.expand_cache_key(viewer),
           purpose: VIEWER_PURPOSE)
-        Digest::SHA256.hexdigest(signed)[0, 32]
+        digest_param(Digest::SHA256.digest(signed), 16)
       rescue UnusableViewer => e
         warn_unusable_viewer(owner, e.message)
       rescue StandardError => e

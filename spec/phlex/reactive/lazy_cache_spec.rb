@@ -127,7 +127,7 @@ RSpec.describe "reactive_lazy(cache:)" do # rubocop:disable RSpec/DescribeClass
       one = src(cached_class(cache: { max_age: 600 }, version: 1).new.call)
       two = src(cached_class(cache: { max_age: 600 }, version: 2).new.call)
 
-      expect(one).to match(/\?v=\h{16}\z/)
+      expect(one).to match(/\?v=[\w-]{11}\z/)
       expect(one).not_to eq(two)
       expect(one.split("?").first).to eq(two.split("?").first)
     end
@@ -162,7 +162,7 @@ RSpec.describe "reactive_lazy(cache:)" do # rubocop:disable RSpec/DescribeClass
     it "adds an opaque u after v, different per viewer and stable for one" do
       alice = src(viewer_class("alice@example").new.call)
 
-      expect(alice).to match(/\?v=\h{16}&u=\h{32}\z/)
+      expect(alice).to match(/\?v=[\w-]{11}&u=[\w-]{22}\z/)
       expect(alice).not_to include("alice@")
       expect(src(viewer_class("alice@example").new.call)).to eq(alice)
       expect(src(viewer_class("bob@example").new.call)).not_to eq(alice)
@@ -237,20 +237,20 @@ RSpec.describe "reactive_lazy(cache:)" do # rubocop:disable RSpec/DescribeClass
     end
 
     it "is keyed: not reproducible from the value with a plain digest" do
-      u = src(viewer_class(42).new.call)[/u=(\h+)/, 1]
+      u = src(viewer_class(42).new.call)[/u=([\w-]+)/, 1]
       guesses = ["42", "viewer:42", "phlex-reactive/fragment-viewer:42"].flat_map do
-        [Digest::SHA256.hexdigest(it), Digest::SHA1.hexdigest(it), Digest::MD5.hexdigest(it)]
+        [Digest::SHA256.digest(it), Digest::SHA1.digest(it), Digest::MD5.digest(it)]
       end
 
-      expect(guesses.map { it[0, 32] }).not_to include(u)
+      expect(guesses.map { Base64.urlsafe_encode64(it[0, 16], padding: false) }).not_to include(u)
     end
 
     it "changes with the signing secret" do
       original = Phlex::Reactive.verifier
-      one = src(viewer_class(42).new.call)[/u=(\h+)/, 1]
+      one = src(viewer_class(42).new.call)[/u=([\w-]+)/, 1]
       Phlex::Reactive.verifier = ActiveSupport::MessageVerifier.new("another-secret-" * 4)
 
-      expect(src(viewer_class(42).new.call)[/u=(\h+)/, 1]).not_to eq(one)
+      expect(src(viewer_class(42).new.call)[/u=([\w-]+)/, 1]).not_to eq(one)
     ensure
       Phlex::Reactive.verifier = original
     end
@@ -258,7 +258,7 @@ RSpec.describe "reactive_lazy(cache:)" do # rubocop:disable RSpec/DescribeClass
     it "never collides with the version digest of the same value" do
       url = src(viewer_class(7).new.call)
 
-      expect(url[/v=(\h+)/, 1]).not_to eq(url[/u=(\h+)/, 1])
+      expect(url[/v=([\w-]+)/, 1]).not_to eq(url[/u=([\w-]+)/, 1])
     end
 
     it "is absent when the component does not declare a viewer" do
@@ -272,7 +272,7 @@ RSpec.describe "reactive_lazy(cache:)" do # rubocop:disable RSpec/DescribeClass
 
       expect(attr_value(html, "data-action")).to eq("panel:opened->reactive#dispatch:once")
       expect(attr_value(html, "data-reactive-lazy-on")).to eq("panel:opened")
-      expect(html).to include("data-reactive-token-value")
+      expect(html).to include('data-controller="reactive"')
       expect(html).not_to include("data-reactive-defer-pending")
       expect(src(html)).to start_with("/reactive/fragment/")
     end
@@ -282,6 +282,23 @@ RSpec.describe "reactive_lazy(cache:)" do # rubocop:disable RSpec/DescribeClass
 
       expect(attr_value(html, "data-reactive-lazy-visible")).to eq("0px")
       expect(src(html)).to start_with("/reactive/fragment/")
+    end
+
+    # Issue #306: the shell loads, and falls back, through its fragment URL
+    # alone (a refused URL retries as a GET under the known fragment path), so
+    # it does not carry a second signature of the same identity.
+    it "carries no identity token — the fragment URL is the only way it loads" do
+      [{ on: "panel:opened" }, { on: :visible }].each do
+        html = cached_class(**it, cache: { max_age: 600 }).new(n: 5).call
+
+        expect(html).not_to include("data-reactive-token-value")
+      end
+    end
+
+    it "keeps the identity token on an on: shell WITHOUT cache: (it POSTs __materialize)" do
+      [{ on: "panel:opened" }, { on: :visible }].each do
+        expect(cached_class(**it).new(n: 5).call).to include("data-reactive-token-value")
+      end
     end
   end
 
@@ -333,8 +350,7 @@ RSpec.describe "reactive_lazy(cache:)" do # rubocop:disable RSpec/DescribeClass
       id = Phlex::Reactive.sign_fragment(payload)
 
       expect(Phlex::Reactive.verify(id)).to be_nil
-      expect(Phlex::Reactive.verify(Base64.urlsafe_decode64(id))).to be_nil
-      expect(Phlex::Reactive.verify_defer(Base64.urlsafe_decode64(id))).to be_nil
+      expect(Phlex::Reactive.verify_defer(id)).to be_nil
     end
 
     it "does not accept an identity or defer token" do

@@ -247,3 +247,70 @@ test("a marker check that throws is reported on the root, and connect() still fi
   expect(root.getAttribute("data-reactive-error")).toBe("feature")
   expect(root.hasAttribute("data-reactive-connected")).toBe(true)
 })
+
+// Issue #306 on the default entry's static path (#305): a lazy shell whose
+// defer connect threw has nothing wired, so its trigger falls back to the
+// plain __materialize POST — and only when it has a token to sign it. A
+// `cache:` shell carries none: the connect failure was already reported, and
+// nothing is sent. (Runs under both __SPLIT__ values.)
+function lazyShellWithBrokenDefer(attrs) {
+  document.body.innerHTML = `<div id="root" data-controller="reactive"></div>`
+  const root = document.getElementById("root")
+  for (const [name, value] of Object.entries(attrs)) root.setAttribute(name, value)
+  // The runtime's own morph listener (token roots only) registers first; the
+  // defer feature's is the next one, and throwing there fails its connect.
+  let allowed = root.hasAttribute("data-reactive-token-value") ? 1 : 0
+  const add = root.addEventListener.bind(root)
+  root.addEventListener = (name, fn, options) => {
+    if (name === "turbo:morph-element" && allowed-- <= 0) throw new Error("broken defer connect")
+    return add(name, fn, options)
+  }
+  const failures = []
+  root.addEventListener("reactive:error", (event) => failures.push(`${event.detail.feature}:${event.detail.phase}`))
+  const controller = new ReactiveController()
+  controller.element = root
+  controller.tokenValue = root.getAttribute("data-reactive-token-value") ?? undefined
+  const consoleError = console.error
+  console.error = () => {}
+  try {
+    controller.connect()
+  } finally {
+    console.error = consoleError
+  }
+  const fire = () =>
+    controller.dispatch({
+      type: "panel:opened",
+      params: { action: "__materialize", params: "{}" },
+      currentTarget: root,
+      target: root,
+      preventDefault: () => {},
+    })
+  return { failures, fire }
+}
+
+test("a cache: shell whose defer connect threw sends nothing when triggered", async () => {
+  const { failures, fire } = lazyShellWithBrokenDefer({
+    "data-reactive-lazy-on": "panel:opened",
+    "data-reactive-defer-src": "/reactive/fragment/abc?v=1",
+  })
+  expect(failures).toContain("defer:connect")
+
+  fire()
+  await tick()
+
+  expect(posts).toEqual([])
+})
+
+test("a token shell whose defer connect threw still POSTs __materialize when triggered", async () => {
+  const { failures, fire } = lazyShellWithBrokenDefer({
+    "data-reactive-token-value": "shell-token",
+    "data-reactive-lazy-on": "panel:opened",
+  })
+  expect(failures).toContain("defer:connect")
+
+  fire()
+  await tick()
+
+  expect(posts.length).toBe(1)
+  expect(posts[0].body).toMatchObject({ token: "shell-token", act: "__materialize" })
+})

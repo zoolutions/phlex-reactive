@@ -396,6 +396,29 @@ module Views
               | `ETag` | derived from the rendered body **alone**, so a stale copy revalidates with a `304` |
               | `Vary` | `Cookie` — unless `reactive_cache_viewer` returns a non-blank value (below) |
 
+              **What the shell costs, and when deferring pays off.** The shell stays
+              in the page in place of the fragment, so deferring makes the page
+              lighter only when the fragment is clearly bigger than the shell. A
+              `cache:` shell carries the URL and no token: the id is the identity
+              encoded once plus a 128-bit MAC, `v` is 11 characters and `u` 22.
+              Measured for a record-less component with a one-character placeholder
+              (production settings, SHA256 verifier; the issue #306 spec asserts
+              the last row):
+
+              | Shell | Markup | Gzipped |
+              |---|---:|---:|
+              | `reactive_lazy` (defer token) | 384 B | 311 B |
+              | `reactive_lazy on:` (identity token) | 472 B | 340 B |
+              | `reactive_lazy cache:` | 245 B | 197 B |
+              | `reactive_lazy on:, cache:` | 373 B | 256 B |
+              | `on:, cache:` + `reactive_cache_viewer` + `reactive_cache_version` + `reactive_dormant` | 418 B | 291 B |
+
+              Signed state or a record GlobalID makes the id longer, and your
+              placeholder adds its own bytes. So: **defer a fragment that is well
+              over the shell — roughly 1 KB gzipped or more — or one that is slow to
+              render.** A dozen links (100–250 B gzipped) costs less inline than
+              its shell does; render it in the page.
+
               Every other response is `no-store`: a 4xx, a `render?` false (204), and
               anything your base controller answers before the endpoint runs (a 401,
               a redirect to sign-in). A cacheable reply carries no `Set-Cookie`: an
@@ -570,9 +593,12 @@ module Views
 
               **Limits.**
 
-              - The fragment id is signed like a token, so the URL grows with the
-                component's signed state. Keep `reactive_state` small on a cached
-                component (a record-backed one carries only its GlobalID).
+              - The fragment id carries the identity (encoded once, plus a 128-bit
+                MAC), so the URL grows with the component's signed state. Keep
+                `reactive_state` small on a cached component (a record-backed one
+                carries only its GlobalID). Ids minted before #306 (the verifier's
+                token wrapped in Base64) still verify; their old 32-hex `u` no
+                longer matches, so such a URL renders but is answered `no-store`.
               - Within `max_age` the browser answers **without asking the server** —
                 a revoked permission or a sign-out is not seen until the copy expires.
                 Keep `max_age` short for anything sensitive, and send
@@ -581,10 +607,16 @@ module Views
                 client: `<meta name="phlex-reactive-fragment-path" content="…">` in
                 the layout's `<head>` (a copy in the body is ignored). The client
                 only ever fetches a `data-reactive-defer-src` that resolves to this
-                origin's fragment endpoint; a refused URL fails the load with
-                `reactive:error` (`reason: "refused-url"`) and a console message
-                naming the meta tag. `phlex_reactive:doctor` flags a custom path
-                whose meta tag is in no layout.
+                origin's fragment endpoint. A refused URL is logged (naming the meta
+                tag) and falls back to a GET of the same id under the fragment path
+                the client knows, kept out of the HTTP cache (`cache: "no-store"`);
+                when that fails too it is a failed load with `retry()`. A refused URL
+                whose last segment cannot be an id fails at once with
+                `reactive:error` (`reason: "refused-url"`). A `cache:` shell never
+                falls back to a POST: it carries no token. If the client's defer
+                module cannot load, its `reactive:error` (`kind: "feature"`) is the
+                signal — show your empty state. `phlex_reactive:doctor` flags a
+                custom path whose meta tag is in no layout.
               - The reply must be the fragment: a response that was redirected, or
                 is not a turbo-stream, is a failed load (`reactive:error`), never
                 rendered.
@@ -633,7 +665,9 @@ module Views
                 defer token fetches, minus the TTL, so treat the render as reachable
                 by anyone holding the page and authorize inside it (raise a
                 registered error, or `render?` false). `__materialize` is refused
-                (403) for every component that didn't opt in with `on:`.
+                (403) for every component that didn't opt in with `on:`. An `on:`
+                shell that also declares `cache:` carries **no** identity token: it
+                loads only through its fragment URL.
               - **`__materialize` is a read, and skips the action wrappers.** Like
                 the defer endpoint, it does not run `Phlex::Reactive.around_actions`
                 (rate limits, audit logs, tenant wrappers), the `verify_authorized`
@@ -643,7 +677,8 @@ module Views
                 enforced by your base controller or inside `from_identity`/the
                 render itself.
               - **`reactive_lazy(cache:)` adds a GET that renders, and nothing else.**
-                The fragment id is signed under its own purpose with no expiry. It
+                The fragment id is MACed under its own purpose (128 bits, keyed by
+                `Phlex::Reactive.verifier`) with no expiry. It
                 names no viewer, but like the identity token it carries the
                 component's signed state or record GlobalID — signed, **not
                 encrypted**, and now in a URL (server logs, browser history of

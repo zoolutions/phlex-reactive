@@ -2060,15 +2060,18 @@ export default class extends Controller {
     // the load itself waits for the feature while it is still on its way.
     if (action === LAZY_MATERIALIZE_ACTION) {
       // Without the feature (it failed to load) a shell can still load the
-      // plain way: the signed __materialize POST.
+      // plain way: the signed __materialize POST. A `cache:` shell carries no
+      // token (issue #306) and has no such way: the feature's reactive:error
+      // already said so, and nothing is sent.
       const materialize = () => {
         // (A shell whose defer connect threw has nothing wired: the plain POST.)
         if (!__SPLIT__) {
-          return this.#featuresOn & DEFER ? deferFeature.materialize(this) : this.#proceed(target, action, "{}")
+          if (this.#featuresOn & DEFER) return deferFeature.materialize(this)
         } else {
           const defer = this.#features.get("defer")
-          return defer ? defer.materialize(this) : this.#proceed(target, action, "{}")
+          if (defer) return defer.materialize(this)
         }
+        if (this.tokenValue) return this.#proceed(target, action, "{}")
       }
       return this.#featuresSettling ? this.featuresReady.then(materialize) : materialize()
     }
