@@ -2478,6 +2478,58 @@ function streamOpTargets(args, root) {
   return [...document.querySelectorAll(to)]
 }
 
+// --- Feature modules (issue #275) ---------------------------------------------
+// The client is a small core plus feature modules a page loads only when one
+// of its roots asks for them. Each entry is [needs, load]:
+//
+//   needs(root)  a cheap marker read — does this root use the feature?
+//   load()       a LITERAL import("phlex/reactive/features/<name>"), so a
+//                bundler can see the specifier and the import map resolves it
+//                to its own digested file (never a computed specifier).
+//
+// A feature module exports connect(controller) / disconnect(controller). No
+// feature has moved out of this file yet: the table is empty and the loader
+// below costs a root one loop over nothing.
+const FEATURES = new Map()
+
+// name -> the one import promise every root shares, kept even when it
+// rejected: a browser caches a module that failed to load, so importing it
+// again only re-rejects. A failed feature stays failed until the page is
+// reloaded; every root it costs is told (reactive:error).
+const featureLoads = new Map()
+
+function loadFeature(name) {
+  let loading = featureLoads.get(name)
+  if (!loading) featureLoads.set(name, (loading = FEATURES.get(name)[1]()))
+  return loading
+}
+
+// What went wrong, by phase — logged once per feature and phase per page (a
+// failed import would otherwise log again for every root that connects).
+const FEATURE_FAILURES = {
+  detect: (name) => `the "${name}" feature module could not tell whether a root needs it`,
+  load: (name) => `could not load the "${name}" feature module; it stays unavailable until the page is reloaded`,
+  connect: (name) => `the "${name}" feature module failed to connect`,
+}
+const featureFailuresLogged = new Set()
+
+export function reactiveFeatureNames() {
+  return [...FEATURES.keys()]
+}
+
+export function __setReactiveFeatureForTest(name, needs, load) {
+  FEATURES.set(name, [needs, load])
+}
+
+// Test-only: drops every entry, which today is only what a test added.
+export function __resetReactiveFeaturesForTest() {
+  FEATURES.clear()
+  featureLoads.clear()
+  featureFailuresLogged.clear()
+}
+
+const FEATURES_READY = Promise.resolve()
+
 // --- Early triggers (issue #273) ----------------------------------------------
 // phlex/reactive/early (imported eagerly by the app) queues trigger events that
 // reach a root before its controller connects. The queue is shared through a
@@ -2708,6 +2760,14 @@ export default class extends Controller {
   // connect restore — a connect must never overwrite a draft with server
   // blanks), the ONE per-root trailing-edge write timer, and the bound
   // input/change/turbo:submit-end handlers held for teardown.
+  // Feature modules (issue #275). `ready` resolves once the features this
+  // root needs are loaded and connected — it never rejects, and is already
+  // resolved for a root that needs none. connect() only STARTS the imports.
+  // #featureEpoch changes on every connect and disconnect, so an import that
+  // resolves for a connection that has since ended connects nothing.
+  ready = FEATURES_READY
+  #features = new Map() // name -> module connected on this connection
+  #featureEpoch = 0
   #persistConfig = null
   #persistRestored = false
   #persistTimer = null
@@ -2960,9 +3020,79 @@ export default class extends Controller {
       this.#syncClipboardTriggers()
     }
 
+    // Feature modules (issue #275): START the imports this root's markup asks
+    // for. Never awaited here — connect() must reach the drain below in the
+    // same task (issue #274: an await before it runs a waking click twice).
+    this.#loadFeatures()
+
     // LAST, after every feature above is wired: a replayed trigger must find
     // the controller exactly as a live event after connect would.
     this.#announceConnected()
+  }
+
+  // Starts every feature import this root needs. Once ALL have settled the
+  // features connect in table order — the order their connect-time seeds
+  // depend on (a restored draft is read by every later seed), never the order
+  // the network delivered them in — unless this connection ended meanwhile.
+  #loadFeatures() {
+    const epoch = ++this.#featureEpoch
+    // A marker check that throws, a failed import, or a connect that threw
+    // loses that feature only — and never the rest of connect().
+    const failed = (name, phase, error) => {
+      if (epoch === this.#featureEpoch) this.#featureFailed(name, phase, error)
+    }
+    const names = []
+    for (const [name, [needs]] of FEATURES) {
+      try {
+        if (needs(this.element)) names.push(name)
+      } catch (error) {
+        failed(name, "detect", error)
+      }
+    }
+    if (names.length === 0) {
+      this.ready = FEATURES_READY
+      return
+    }
+    const loads = names.map((name) => loadFeature(name).catch((error) => failed(name, "load", error)))
+    this.ready = Promise.all(loads).then((features) => {
+      features.forEach((feature, index) => {
+        if (!feature || epoch !== this.#featureEpoch) return
+        try {
+          feature.connect?.(this)
+          this.#features.set(names[index], feature)
+        } catch (error) {
+          failed(names[index], "connect", error)
+        }
+      })
+    })
+  }
+
+  // A feature that is missing leaves its part of the root dead: say so on
+  // every root it costs (reactive:error, the error marker), and once in the
+  // console. `phase` is "detect", "load" or "connect".
+  #featureFailed(name, phase, error) {
+    const logged = `${name}:${phase}`
+    if (!featureFailuresLogged.has(logged)) {
+      featureFailuresLogged.add(logged)
+      console.error(`[phlex-reactive] ${FEATURE_FAILURES[phase](name)}`, error)
+    }
+    this.#markError("feature")
+    this.#emit("reactive:error", { kind: "feature", feature: name, phase, error })
+  }
+
+  // A feature whose disconnect throws must not keep the others, or the rest
+  // of disconnect(), from running.
+  #disconnectFeatures() {
+    this.#featureEpoch++
+    const connected = [...this.#features]
+    this.#features.clear()
+    for (const [name, feature] of connected) {
+      try {
+        feature.disconnect?.(this)
+      } catch (error) {
+        console.error(`[phlex-reactive] the "${name}" feature module failed to disconnect`, error)
+      }
+    }
   }
 
   // Early triggers (issue #273): mark the root (the attribute is for CSS and
@@ -3093,6 +3223,7 @@ export default class extends Controller {
     if (this.#boundLazyMorph) {
       this.element.removeEventListener?.("turbo:morph-element", this.#boundLazyMorph)
     }
+    this.#disconnectFeatures()
     // Early triggers (issue #273): a disconnected root records again.
     earlyState().connected.delete(this.element)
     this.element.removeAttribute?.("data-reactive-connected")
