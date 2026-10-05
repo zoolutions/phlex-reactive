@@ -1,0 +1,13 @@
+lib/phlex/reactive/engine.rb
+  ai_agent 24
+README.md
+  ai_agent 275
+docs/app/views/docs/pages/performance.rb
+  ai_agent 1156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "94435ae640a56b5308079071c72d28269e79a1cf",
+  "prompts": {}
+}
