@@ -58,14 +58,15 @@ const SLACK = 250
 // The split left it at 26,132 B — 3,860 B more. Issue #305 builds it with
 // __SPLIT__ false: the runtime imports every feature statically and calls it
 // directly, so the loader, the feature table and the hand-over fold away
-// (24,675 B, 1,457 B recovered).
+// (24,675 B, 1,457 B recovered). Issue #306 (the cache: shell fallback) adds
+// 87 B: 24,762 B.
 //
 // BUDGET OUTCOME (issue #305; the rest is #310): the target is TARGET_BUNDLE_GZIP, 22,700 B (the
 // pre-split size plus a loader's worth). It is reported on every run, and is
 // the ratchet itself when met. What the flag cannot recover is how the
 // features are WRITTEN as modules — per-root state records where the
 // controller had private fields, exported wrappers, the `core` handle — not
-// the boundary between them and the runtime. The ratchet below sits 230 B
+// the boundary between them and the runtime. The ratchet below sits 138 B
 // above the real size (just inside SLACK): room for a fix in flight, not for
 // a feature.
 const BUNDLE_GZIP_CEILING = 24_900
@@ -93,7 +94,8 @@ const FEATURE_GZIP_CEILINGS = {
 // Phase 5: 12,383 B core + 5,360 + 2,846 + 2,084 + 1,024 + 1,693 + 3,210 + 1,015 + 1,589 B of
 // features = 31,204 B. Issue #305 (the default entry's static path) costs the
 // core 84 B: 12,467 + 18,821 = 31,288 B. Issue #306 (a cache: shell's refused
-// URL falls back to a GET; no __materialize POST without a token) adds ~90 B.
+// URL falls back to a GET; no __materialize POST without a token) adds 97 B:
+// 31,385 B.
 const SPLIT_TOTAL_GZIP_CEILING = 31_500
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
