@@ -1977,10 +1977,11 @@ export default class extends Controller {
   // the feature timeout — for the two places a REQUEST waits on an import
   // without a root connection to wait with (a hint, a conditional confirm).
   #awaitFeatureOrNull(name) {
+    let timer
     return Promise.race([
       loadFeature(name).catch((error) => (logFeatureFailure(name, "load", error), null)),
-      new Promise((resolve) => setTimeout(() => resolve(null), featureTimeoutMs())),
-    ])
+      new Promise((resolve) => (timer = setTimeout(() => resolve(null), featureTimeoutMs()))),
+    ]).finally(() => clearTimeout(timer))
   }
 
 
