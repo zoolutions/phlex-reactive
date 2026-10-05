@@ -902,7 +902,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   that fails to load will emit `reactive:error` with `kind: "feature"`.
   `spec/javascript/bundle_budget.test.js` now reports every module's gzipped
   size and holds the controller to a ceiling that each later step lowers
-  (22,627 B today; the loader added 355 B).
+  (22,656 B today as that test measures it, with bun's zlib at level 9; the
+  loader added 384 B).
 
 - **`on_client` emits a binding record (#271).** `data-reactive-ops-param` now
   holds `{"on":…,"ops":[…], "window"?, "outside"?, "confirm"?, "confirmWhen"?}`

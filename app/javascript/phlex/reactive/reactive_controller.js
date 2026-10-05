@@ -3060,10 +3060,19 @@ export default class extends Controller {
     this.#emit("reactive:error", { kind: "feature", feature: name, error })
   }
 
+  // A feature whose disconnect throws must not keep the others, or the rest
+  // of disconnect(), from running.
   #disconnectFeatures() {
     this.#featureEpoch++
-    for (const feature of this.#features.values()) feature.disconnect?.(this)
+    const connected = [...this.#features]
     this.#features.clear()
+    for (const [name, feature] of connected) {
+      try {
+        feature.disconnect?.(this)
+      } catch (error) {
+        console.error(`[phlex-reactive] the "${name}" feature module failed to disconnect`, error)
+      }
+    }
   }
 
   // Early triggers (issue #273): mark the root (the attribute is for CSS and

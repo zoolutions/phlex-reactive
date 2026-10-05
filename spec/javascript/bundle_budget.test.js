@@ -13,23 +13,27 @@
 // asserted — the hard assert lands with the final phase of #275.
 //
 // Sizes are of the COMMITTED build (rake build:js_check guards that it matches
-// a fresh one), gzipped at level 9 as a CDN would serve it.
+// a fresh one), gzipped at level 9 by bun's zlib. Another gzip (the CLI, a
+// CDN) lands within about half a percent of these numbers, not on them.
 //
 // Run with: bun test spec/javascript
 import { test, expect } from "bun:test"
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { gzipSync } from "node:zlib"
 
-const srcDir = join(dirname(fileURLToPath(import.meta.url)), "../../app/javascript/phlex/reactive")
+const root = join(dirname(fileURLToPath(import.meta.url)), "../..")
+const srcDir = join(root, "app/javascript/phlex/reactive")
 
-// Every module the build emits (scripts/build_client.js ENTRIES).
-const MODULES = ["reactive_controller", "early", "confirm", "confirm_predicate", "compute", "inspect"]
+// Every module the build emits, read from the build script itself so a new
+// entry (a feature module) is reported without anyone editing this file.
+const buildScript = readFileSync(join(root, "scripts/build_client.js"), "utf8")
+const MODULES = [...buildScript.match(/const ENTRIES = \[([^\]]*)\]/)[1].matchAll(/"([^"]+)"/g)].map(([, name]) => name)
 
 const EARLY_GZIP_BUDGET = 1100
-// Phase 1 of #275 (loader scaffold, nothing moved yet): 22,627 B — the
-// monolith's 22,272 B plus 355 B of loader.
+// Phase 1 of #275 (loader scaffold, nothing moved yet): 22,656 B — the
+// monolith's 22,272 B plus 384 B of loader.
 const CORE_GZIP_CEILING = 22_750
 // NOT asserted yet — see the header.
 const TARGET_CORE_GZIP = 8 * 1024
@@ -42,7 +46,17 @@ function sizeOf(name) {
 }
 
 test("every client module has a committed minified build", () => {
+  expect(MODULES).toContain("reactive_controller")
+  expect(MODULES).toContain("early")
   for (const name of MODULES) expect(existsSync(builtPath(name))).toBe(true)
+})
+
+test("no minified build exists that the build script does not emit", () => {
+  const built = readdirSync(srcDir, { recursive: true })
+    .filter((file) => file.endsWith(".min.js"))
+    .map((file) => file.slice(0, -".min.js".length))
+
+  expect(built.sort()).toEqual([...MODULES].sort())
 })
 
 test("reports the gzipped size of every module", () => {

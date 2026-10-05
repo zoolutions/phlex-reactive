@@ -132,6 +132,41 @@ test("connect() does not wait for the import: the root is announced first", asyn
   expect(order).toEqual(["reactive:connect", "connect returned", "connect"])
 })
 
+// The invariant #274 depends on: a trigger queued before connect is replayed
+// INSIDE connect(), in the same task, whatever a feature import is doing. An
+// await before the drain would let the event that woke a dormant root reach
+// its live listener first and run twice.
+test("a queued early trigger is replayed inside connect(), before a pending feature connects", async () => {
+  const fake = fakeFeature()
+  const root = mountRoot()
+  const button = document.createElement("button")
+  const token = "click->reactive#dispatch"
+  button.setAttribute("data-action", token)
+  root.appendChild(button)
+  const early = (globalThis[Symbol.for("phlex-reactive.early")] ??= { queue: [], connected: new WeakSet() })
+  const event = new window.MouseEvent("click", { bubbles: true, cancelable: true })
+  early.queue.length = 0
+  early.queue.push({
+    event,
+    el: button,
+    root,
+    descs: [{ token, type: "click", method: "dispatch", filter: "" }],
+    at: performance.now(),
+  })
+  const controller = controllerFor(root)
+  const order = []
+  controller.dispatch = (replayed) => order.push(`replayed ${replayed.type}`)
+
+  controller.connect()
+  order.push("connect returned")
+  fake.resolve()
+  await controller.ready
+  order.push(...namesOf(fake.log))
+
+  expect(order).toEqual(["replayed click", "connect returned", "connect"])
+  expect(early.queue).toEqual([])
+})
+
 test("ready stays pending until the feature has connected", async () => {
   const fake = fakeFeature()
   const controller = controllerFor(mountRoot())
@@ -342,6 +377,49 @@ test("features connect in registry order, whichever import lands first", async (
 
   controller.disconnect()
   expect(log.slice(2)).toEqual(["disconnect first", "disconnect second"])
+})
+
+test("a feature whose disconnect throws does not stop the rest of disconnect()", async () => {
+  const log = []
+  const failure = new Error("teardown")
+  setFeature(
+    "first",
+    (root) => root.hasAttribute(MARKER),
+    () =>
+      Promise.resolve({
+        disconnect: () => {
+          throw failure
+        },
+      }),
+  )
+  setFeature(
+    "second",
+    (root) => root.hasAttribute(MARKER),
+    () => Promise.resolve({ disconnect: () => log.push("disconnect second") }),
+  )
+  const root = mountRoot()
+  const controller = controllerFor(root)
+  controller.connect()
+  await controller.ready
+  const early = globalThis[Symbol.for("phlex-reactive.early")]
+  const consoleError = console.error
+  const logged = []
+  console.error = (...args) => logged.push(args)
+
+  try {
+    expect(() => controller.disconnect()).not.toThrow()
+  } finally {
+    console.error = consoleError
+  }
+
+  expect(log).toEqual(["disconnect second"])
+  expect(logged).toEqual([['[phlex-reactive] the "first" feature module failed to disconnect', failure]])
+  // The rest of disconnect() ran: early.js queues this root's triggers again.
+  expect(early.connected.has(root)).toBe(false)
+  expect(root.hasAttribute("data-reactive-connected")).toBe(false)
+  // And the failed feature is not disconnected a second time.
+  controller.disconnect()
+  expect(logged.length).toBe(1)
 })
 
 test("one feature failing to load does not keep the others from connecting", async () => {
