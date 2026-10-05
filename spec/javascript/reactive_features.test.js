@@ -408,18 +408,21 @@ test("a feature whose disconnect throws does not stop the rest of disconnect()",
 
   try {
     expect(() => controller.disconnect()).not.toThrow()
+
+    expect(log).toEqual(["disconnect second"])
+    expect(logged).toEqual([['[phlex-reactive] the "first" feature module failed to disconnect', failure]])
+    // The rest of disconnect() ran: early.js queues this root's triggers again.
+    expect(early.connected.has(root)).toBe(false)
+    expect(root.hasAttribute("data-reactive-connected")).toBe(false)
+
+    // No feature is disconnected a second time: neither the one that threw
+    // (it would log again) nor the one that did not (it would push again).
+    controller.disconnect()
+    expect(logged.length).toBe(1)
+    expect(log).toEqual(["disconnect second"])
   } finally {
     console.error = consoleError
   }
-
-  expect(log).toEqual(["disconnect second"])
-  expect(logged).toEqual([['[phlex-reactive] the "first" feature module failed to disconnect', failure]])
-  // The rest of disconnect() ran: early.js queues this root's triggers again.
-  expect(early.connected.has(root)).toBe(false)
-  expect(root.hasAttribute("data-reactive-connected")).toBe(false)
-  // And the failed feature is not disconnected a second time.
-  controller.disconnect()
-  expect(logged.length).toBe(1)
 })
 
 test("one feature failing to load does not keep the others from connecting", async () => {
