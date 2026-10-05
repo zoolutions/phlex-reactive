@@ -122,426 +122,19 @@ export function registerReactiveJs() {
   }
 }
 
-// --- Deferred reply segments (issue #165) ----------------------------------
-// The client half of reply.defer: the server's reply carries a
-// `<turbo-stream action="reactive:defer" target="<id>">` directive and the
-// real render reaches the SAME actor later — via a parallel fetch (pull) or a
-// pgbus one-shot stream (push). Everything here is MODULE-level, deliberately
-// OFF the per-controller request queue: the whole point is that the expensive
-// segment never blocks the actor's next action.
-//
-// Supersession is the correctness core: pendingDefers keys one in-flight
-// delivery per target id. A newer directive for the same target aborts the
-// older fetch (or removes the older stream source), and an arrival applies
-// ONLY while its entry is still current — so a fast typist's debounced
-// keystrokes can never paint stale totals over fresh ones.
-const pendingDefers = new Map()
-
-// Register/drop a target's pending defer entry, keeping the GLOBAL activity
-// counter (issue #201) balanced against the Map's ACTUAL key presence — a defer
-// is one in-flight reactive operation for as long as its registry entry lives.
-// Keying enter/exit on the presence TRANSITION (not the raw call) means a
-// re-set of an already-present key, or a delete of an absent one, can never
-// unbalance the count. Both the fetch (pull) and stream (push) lane route their
-// registry mutations through here, so the push lane is counted correctly even
-// though its DOM pending markers clear by a node swap, not clearDeferPending.
-function setPendingDefer(targetId, entry) {
-  const isNew = !pendingDefers.has(targetId)
-  pendingDefers.set(targetId, entry)
-  if (isNew) enterReactiveActivity()
-}
-
-function deletePendingDefer(targetId) {
-  if (pendingDefers.delete(targetId)) exitReactiveActivity()
-}
-
-// Test seam: clear the module-level registry between unit tests. Also resets
-// the one-shot settle-listener guard so a test's fresh document re-registers
-// the turbo:before-stream-render settler. Does NOT touch the activity counter —
-// resetReactiveActivity is its own seam (the two are reset together in tests).
-export function resetReactiveDefers() {
-  pendingDefers.clear()
-  deferStreamSettleRegistered = false
-}
-
-// Test seam: the `via` of a target's pending defer entry (or undefined) — lets
-// tests assert an entry was SETTLED (dropped) on arrival without exposing the
-// Map. Not used by the runtime.
-export function pendingDeferVia(targetId) {
-  return pendingDefers.get(targetId)?.via
-}
-
-let deferStreamSettleRegistered = false
-
+// --- Deferred and lazy renders (issues #165, #276, #277) ---------------------
+// reply.defer, reactive_lazy and reactive_lazy(on:/cache:) live in the defer
+// feature module (issue #275, features/defer.js). The core keeps only the
+// `reactive:defer` stream action's REGISTRATION: such a stream can reach a
+// page that has not loaded the module yet (the first reply.defer on a page
+// with no lazy root), and it must not be lost. The <turbo-stream> element is
+// handed over once the module is here — at once when it already is.
 export function registerReactiveDefer() {
   const actions = window.Turbo?.StreamActions
   if (!actions || actions["reactive:defer"]) return
   actions["reactive:defer"] = function () {
-    const target = this.getAttribute("target")
-    if (!target) return
-    if (this.getAttribute("data-reactive-defer-via") === "stream") {
-      startStreamDefer(target, this)
-      return
-    }
-    const token = this.getAttribute("data-reactive-defer-token")
-    if (!token) return
-    startFetchDefer(target, token)
+    withFeature("defer", (defer) => defer.streamAction(this))
   }
-
-  // Settle a STREAM-lane pendingDefers entry when its arrival lands: the job's
-  // broadcast is a turbo-stream that replaces the target (and removes the
-  // source). A document-level turbo:before-stream-render hook drops the Map
-  // entry for a stream target the moment a stream renders against it — so the
-  // entry never outlives the delivery (the fetch lane settles inline; the
-  // stream lane's arrival is a broadcast this controller doesn't await, so it
-  // needs this hook). Registered once; a no-op without document.
-  if (!deferStreamSettleRegistered && typeof document !== "undefined" && document.addEventListener) {
-    deferStreamSettleRegistered = true
-    document.addEventListener("turbo:before-stream-render", settleStreamDeferOnRender)
-  }
-}
-
-// Drop a stream-lane pendingDefers entry when a turbo-stream renders against
-// its target id (the job's replace) OR removes its source element. Keyed by the
-// stream's target so an unrelated stream never settles a defer. Pure Map
-// cleanup — the DOM apply is Turbo's; this only releases our bookkeeping.
-function settleStreamDeferOnRender(event) {
-  const streamEl = event.target
-  const target = streamEl?.getAttribute?.("target")
-  if (!target) return
-  // The arrival replaces #<target>; the source removal targets
-  // reactive-defer-src-<target>. Either signals the stream delivered.
-  const targetId = target.startsWith("reactive-defer-src-")
-    ? target.slice("reactive-defer-src-".length)
-    : target
-  const entry = pendingDefers.get(targetId)
-  if (entry?.via === "stream") deletePendingDefer(targetId)
-}
-
-// The pull lane: mark the target pending and fetch the real render, in
-// parallel with everything else the page is doing. `source` is what to fetch:
-// a signed defer token (a string — POSTed to the defer endpoint) or `{ src }`,
-// a `reactive_lazy cache:` component's stable fragment URL (issue #277) —
-// fetched with a plain GET so the browser's private HTTP cache can answer it.
-// Returns the fetch's promise (it never rejects), or undefined when skipped.
-function startFetchDefer(targetId, source) {
-  const el = document.getElementById(targetId)
-  if (!el) {
-    console.warn(`[phlex-reactive] reactive:defer target #${targetId} is not on the page — skipped`)
-    return
-  }
-  supersedeDefer(targetId)
-  markDeferPending(el)
-  const entry = { via: "fetch", abort: new AbortController(), timedOut: false }
-  setPendingDefer(targetId, entry)
-  return performDeferFetch(targetId, entry, source)
-}
-
-// The fetch() arguments for a pull-lane source. A fragment URL is a GET with
-// no CSRF token and no body: rendering has no side effects, and anything that
-// varied per request would defeat the cache (the response is keyed on the URL,
-// Vary: Cookie). The default cache mode is what we want — reuse a fresh copy,
-// revalidate a stale one with its ETag.
-function deferRequest(source, signal) {
-  if (typeof source !== "string") {
-    return [source.src, { headers: { Accept: "text/vnd.turbo-stream.html" }, credentials: "same-origin", signal }]
-  }
-  return [
-    deferPath(),
-    {
-      method: "POST",
-      headers: {
-        Accept: "text/vnd.turbo-stream.html",
-        "Content-Type": "application/json",
-        "X-CSRF-Token": deferCsrfToken(),
-      },
-      body: JSON.stringify({ token: source }),
-      credentials: "same-origin",
-      signal,
-    },
-  ]
-}
-
-// A lazy shell's pull-lane source, read off its root: the defer token, else
-// the cacheable fragment URL, else undefined (not a fetching shell).
-function lazyDeferSource(el) {
-  return el.getAttribute?.("data-reactive-defer-token") || fragmentSource(el)
-}
-
-// A `cache:` shell's fragment URL as a pull-lane source, or undefined. Unlike a
-// token (opaque, POSTed to one fixed path) this is a URL read from the DOM, and
-// its response is rendered as a turbo-stream — so it is fetched ONLY when it
-// resolves to this origin's fragment endpoint. Markup that smuggled the
-// attribute in (user HTML that kept data-* attributes) must not be able to
-// point the client at another origin, an upload, or any other same-origin path.
-function fragmentSource(el) {
-  const src = el.getAttribute?.("data-reactive-defer-src")
-  if (src && isFragmentUrl(src)) return { src }
-}
-
-// The fragment URL a root carries but the client will not fetch, or undefined.
-function refusedFragmentSrc(el) {
-  const src = el.getAttribute?.("data-reactive-defer-src")
-  if (src && !isFragmentUrl(src)) return src
-}
-
-function refusedFragmentMessage(src) {
-  return (
-    `[phlex-reactive] refused data-reactive-defer-src="${src}" — it is not under this app's fragment path ` +
-    `(${fragmentPath()}). If you changed Phlex::Reactive.fragment_path, add ` +
-    '<meta name="phlex-reactive-fragment-path" content="…your path…"> to the layout <head>.'
-  )
-}
-
-// A fetch-on-connect shell whose URL was refused has no other way to load, so
-// it must not shimmer forever: clear pending, mark the root, and emit the same
-// bubbling reactive:error a failed load does (no retry() — the URL won't change).
-function failRefusedFragment(el, src) {
-  console.error(refusedFragmentMessage(src))
-  clearDeferPending(el)
-  el.setAttribute("data-reactive-error", "defer")
-  el.dispatchEvent(
-    new CustomEvent("reactive:error", {
-      bubbles: true,
-      composed: true,
-      detail: { kind: "defer", target: el.id, reason: "refused-url" },
-    }),
-  )
-}
-
-function isFragmentUrl(src) {
-  try {
-    const here = new URL(window.location.href)
-    const url = new URL(src, here)
-    return url.origin === here.origin && url.pathname.startsWith(`${fragmentPath()}/`)
-  } catch {
-    return false
-  }
-}
-
-// Phlex::Reactive.fragment_path, for the check above. An app that moves the
-// endpoint renders <meta name="phlex-reactive-fragment-path"> (as for the
-// action and defer paths); the URL itself always comes from the shell. Read
-// from <head> ONLY: this meta widens what the client will fetch and render, so
-// one injected into the body must not count.
-function fragmentPath() {
-  return document.head?.querySelector?.('meta[name="phlex-reactive-fragment-path"]')?.content || "/reactive/fragment"
-}
-
-// The push lane: subscribe a <pgbus-stream-source> to the server-signed
-// one-shot stream. Arrival + teardown need no client logic — the job's
-// broadcast carries the replace AND a remove of this source element (its
-// disconnectedCallback closes the SSE connection). since-id=0 on a fresh key
-// replays a broadcast that beat the subscription (the durable-lane guarantee).
-function startStreamDefer(targetId, directive) {
-  const el = document.getElementById(targetId)
-  if (!el) {
-    console.warn(`[phlex-reactive] reactive:defer target #${targetId} is not on the page — skipped`)
-    return
-  }
-  const src = directive.getAttribute("data-reactive-defer-src")
-  if (!src) return
-  if (!globalThis.customElements?.get?.("pgbus-stream-source")) {
-    // The server chose push on server-side capability, but this page has no
-    // pgbus client. Degrade to the fetch lane using the fallback token the push
-    // directive carries — rather than dead-end the shimmer. No token (an app on
-    // a bespoke transport) is a loud no-op.
-    const fallbackToken = directive.getAttribute("data-reactive-defer-token")
-    if (fallbackToken) {
-      startFetchDefer(targetId, fallbackToken)
-      return
-    }
-    console.error(
-      "[phlex-reactive] reactive:defer via=stream but <pgbus-stream-source> is not registered " +
-        "and no fallback token was provided — is the pgbus client loaded on this page?",
-    )
-    return
-  }
-  supersedeDefer(targetId)
-  markDeferPending(el)
-  const source = document.createElement("pgbus-stream-source")
-  // Deterministic id: the JOB's broadcast removes it by this exact id — the
-  // subscription tears itself down with the payload it delivered.
-  source.id = deferSourceId(targetId)
-  source.setAttribute("src", src)
-  source.setAttribute("since-id", directive.getAttribute("data-reactive-defer-since-id") ?? "0")
-  source.setAttribute("hidden", "")
-  document.body.appendChild(source)
-  // Record only { via } — NOT a strong ref to the source element. The job's
-  // broadcast removes the source by its deterministic id (its
-  // disconnectedCallback closes the SSE), so holding srcEl here would pin the
-  // detached node in this module-level Map forever (a leak). Supersession
-  // re-finds the element by id instead. The entry is dropped on
-  // supersession or when the arriving broadcast replaces the target (a
-  // turbo:before-stream-render hook, below).
-  setPendingDefer(targetId, { via: "stream" })
-}
-
-// The deterministic id of a target's one-shot <pgbus-stream-source>.
-function deferSourceId(targetId) {
-  return `reactive-defer-src-${targetId}`
-}
-
-async function performDeferFetch(targetId, entry, source) {
-  // Bound the wait like the action fetch (issue #101) — a hung defer must not
-  // shimmer forever. A manual timer (not AbortSignal.timeout) so the catch can
-  // tell a TIMEOUT (fail loudly) from a SUPERSEDED abort (stay silent).
-  const timer = setTimeout(() => {
-    entry.timedOut = true
-    entry.abort.abort()
-  }, deferTimeoutMs())
-
-  // The timeout is cleared ONLY after the body is fully read (below), not the
-  // moment headers arrive — a server that streams headers then stalls the body
-  // must still abort, or the shimmer hangs forever (the abort signal covers the
-  // whole fetch + body read, mirroring #perform's AbortSignal.timeout).
-  let response
-  try {
-    // Counted per fetch() CALL — a fragment GET the browser answers from its
-    // HTTP cache still counts (it is a request the client issued; whether it
-    // touched the network is Resource Timing's transferSize).
-    countReactiveRequest("defer")
-    response = await fetch(...deferRequest(source, entry.abort.signal))
-  } catch (error) {
-    clearTimeout(timer)
-    if (pendingDefers.get(targetId) !== entry) return // superseded — silent
-    console.error("[phlex-reactive] deferred render failed", error)
-    failDefer(targetId, source)
-    return
-  }
-  if (pendingDefers.get(targetId) !== entry) {
-    clearTimeout(timer)
-    return // superseded mid-flight
-  }
-
-  // The body is about to be rendered as a turbo-stream, so it must BE one, from
-  // the URL we asked for. A base-controller filter that redirects to a sign-in
-  // page ends in a 200 HTML document — a failed load, never rendered.
-  if (response.redirected) {
-    clearTimeout(timer)
-    console.error(`[phlex-reactive] deferred render failed: redirected to ${response.url ?? "another URL"}`)
-    failDefer(targetId, source, response.status)
-    return
-  }
-
-  if (response.status === 204) {
-    clearTimeout(timer)
-    // render? false — keep the current content, just clear the pending state.
-    settleDefer(targetId)
-    return
-  }
-  if (!response.ok) {
-    clearTimeout(timer)
-    console.error(`[phlex-reactive] deferred render failed: HTTP ${response.status}`)
-    failDefer(targetId, source, response.status)
-    return
-  }
-  const contentType = response.headers?.get?.("Content-Type") || ""
-  if (!contentType.includes("turbo-stream")) {
-    clearTimeout(timer)
-    console.error(`[phlex-reactive] deferred render failed: expected a turbo-stream, got "${contentType}"`)
-    failDefer(targetId, source, response.status)
-    return
-  }
-
-  let html
-  try {
-    html = await response.text()
-  } catch (error) {
-    clearTimeout(timer)
-    if (pendingDefers.get(targetId) !== entry) return
-    console.error("[phlex-reactive] deferred render failed reading the body", error)
-    failDefer(targetId, source)
-    return
-  }
-  clearTimeout(timer)
-  if (pendingDefers.get(targetId) !== entry) return // superseded during read
-
-  settleDefer(targetId)
-  // A normal replace/morph of the target — the fresh root carries no pending
-  // markers and a fresh action token, so the component lands interactive.
-  window.Turbo.renderStreamMessage(html)
-}
-
-// Abort/unsubscribe whatever delivery is in flight for this target. The
-// deleted entry makes every late arrival fail its identity check — stale
-// content can never paint.
-function supersedeDefer(targetId) {
-  const existing = pendingDefers.get(targetId)
-  if (!existing) return
-  deletePendingDefer(targetId)
-  if (existing.via === "fetch") existing.abort.abort()
-  // Stream lane: re-find the old source by its deterministic id and remove it
-  // (unsubscribe) — we deliberately don't hold a strong ref to the detached
-  // node. Its disconnectedCallback closes the SSE.
-  else document.getElementById(deferSourceId(targetId))?.remove?.()
-}
-
-function markDeferPending(el) {
-  el.setAttribute("data-reactive-defer-pending", "true")
-  el.setAttribute("aria-busy", "true")
-}
-
-function clearDeferPending(el) {
-  el.removeAttribute("data-reactive-defer-pending")
-  el.removeAttribute("aria-busy")
-}
-
-// Success/204: drop the registry entry, clear pending, and clear any prior
-// defer failure marker (recovery resets error-driven CSS, issue #100 style).
-function settleDefer(targetId) {
-  deletePendingDefer(targetId)
-  const el = document.getElementById(targetId)
-  if (!el) return
-  clearDeferPending(el)
-  el.removeAttribute("data-reactive-error")
-}
-
-// Failure: clear pending (the shimmer must not lie), mark the root
-// (data-reactive-error="defer" — style it in pure CSS), and emit a bubbling
-// reactive:error whose retry() re-enters the defer fetch with the SAME source
-// (a token is still valid inside the TTL; an expired one 400s into this same
-// path. A fragment URL never expires).
-function failDefer(targetId, source, status) {
-  deletePendingDefer(targetId)
-  const el = document.getElementById(targetId)
-  if (!el) return
-  clearDeferPending(el)
-  el.setAttribute("data-reactive-error", "defer")
-  const retry = () => {
-    const fresh = document.getElementById(targetId)
-    if (!fresh) {
-      console.warn("[phlex-reactive] defer retry() ignored — the target left the DOM")
-      return
-    }
-    fresh.removeAttribute("data-reactive-error")
-    startFetchDefer(targetId, source)
-  }
-  el.dispatchEvent(
-    new CustomEvent("reactive:error", {
-      bubbles: true,
-      composed: true,
-      detail: { kind: "defer", target: targetId, status, retry },
-    }),
-  )
-}
-
-function deferPath() {
-  return document.querySelector('meta[name="phlex-reactive-defer-path"]')?.content || "/reactive/defer"
-}
-
-// CSRF is read LIVE per request (Rails can rotate it) — same contract as the
-// controller's #csrfToken.
-function deferCsrfToken() {
-  return document.querySelector('meta[name="csrf-token"]')?.content ?? ""
-}
-
-// Same page-stable meta + default as the controller's #timeoutMs (issue #101),
-// parsed defensively so a typo'd meta can never disable the bound.
-function deferTimeoutMs() {
-  const raw = document.querySelector('meta[name="phlex-reactive-timeout"]')?.content
-  const ms = Number(raw)
-  return Number.isFinite(ms) && ms > 0 ? ms : 30000
 }
 
 // Document-level self-dismissing flashes (issue #100). A flash rendered with
@@ -2040,35 +1633,62 @@ function streamOpTargets(args, root) {
 
 // --- Feature modules (issue #275) ---------------------------------------------
 // The client is a small core plus feature modules a page loads only when one
-// of its roots asks for them. Each entry is [needs, load, waiting?]:
+// of its roots asks for them. Each entry is [needs, load, waiting?, gates?]:
 //
 //   needs(root)    a cheap marker read — does this root use the feature?
 //   load()         a LITERAL import("phlex/reactive/features/<name>"), so a
 //                  bundler can see the specifier and the import map resolves
 //                  it to its own digested file (never a computed specifier).
-//   waiting(root)  optional: what must not be missed WHILE the import is on
-//                  its way. Runs when a root starts waiting and returns its
-//                  own undo, called when the feature connects or the root
-//                  disconnects. Core bytes — keep it to what cannot wait.
+//   waiting(root, pending)
+//                  optional: what must not be missed WHILE the import is on
+//                  its way. Runs when a root starts waiting, RECORDS into
+//                  `pending` (a plain object the feature receives later) and
+//                  returns its own undo. Core bytes — record, never act.
+//   gates          optional, true when the feature's connect changes what a
+//                  REQUEST reads (the draft restore writes the fields a
+//                  request collects). A root's action requests wait for its
+//                  features only while one that gates is still loading; a
+//                  feature that does not gate never delays a request.
 //
 // TABLE ORDER IS CONNECT ORDER (and disconnect order): persist is first
 // because its restore writes the values every other connect-time seed reads.
 //
 // A feature module exports
 //
-//   connect(controller, core)     once per root connection, after its import
-//   disconnect(controller, core)  FIRST in the controller's disconnect()
+//   install(shared)             optional; once, when it has loaded
+//   connect(controller, core, morphed, pending)
+//                               once per root connection; `pending` is what
+//                               its `waiting` hook recorded (undefined when
+//                               the root never had to wait)
+//   disconnect(controller, core)
+//                               FIRST in the controller's disconnect()
+//   abandon(root, pending)      optional; the root left BEFORE the feature
+//                               could connect — last chance to act on
+//                               what was recorded
 //
 // and never imports this file (two copies of the core would split its state).
-// Everything it needs from the controller arrives as `core`, the handle
-// #featureCore builds — the ONE door into the controller's private state:
+// `shared` is FEATURE_SHARED below: the core's single-instance counters.
+// Everything a feature needs from one controller arrives as `core`, the
+// handle #featureCore builds — the ONE door into its private state:
 //
-//   core.emit(name, detail, options)  raw-dispatch a lifecycle event (#emit)
-//   core.reseed()                     re-run the connect-time seeds that read
-//                                     field values
+//   core.emit(name, detail, options)      raw-dispatch a lifecycle event
+//   core.reseed()                         re-run the connect-time seeds that
+//                                         read field values
+//   core.proceed(target, action, params)  send an action down the ordinary
+//                                         pipeline (veto, queue, request)
+//   core.forgetToken()                    drop the token cached from a reply
 //
 // Later features add to that handle; nothing else of the controller is theirs
 // to touch beyond its public surface (element, application, …).
+//
+// WHEN A FEATURE CONNECTS. The first root on a page that needs a feature
+// waits for its import: connect() only starts it, and the feature connects
+// when the module has arrived — after every feature EARLIER in the table that
+// this root is also waiting for (table order), never after a later one: a
+// slow defer import does not hold the draft restore back. Once the module is
+// loaded (a later root, the next Turbo visit, a reconnect) the feature
+// connects inside connect() itself, in the same task, before the early-queue
+// drain.
 const PRODUCTION_FEATURES = [
   [
     "persist",
@@ -2078,20 +1698,41 @@ const PRODUCTION_FEATURES = [
         return Boolean(declared) && declared !== "off"
       },
       () => import("phlex/reactive/features/persist"),
-      // A successful submit of the form around the root forgets its draft.
-      // The feature listens for that itself once it has connected; until then
-      // this stands in, or a draft submitted during the import would outlive
-      // the submit and come back on the next visit.
-      (root) => {
-        const onSubmitEnd = (event) => {
-          const form = event.target
-          if (event.detail?.success && form?.tagName === "FORM" && form.contains?.(root)) {
-            withFeature("persist", (persist) => persist.forget(root))
-          }
+      // What the draft code must not miss while it is on its way: that the
+      // user edited a field (the edit must be drafted once the module is here)
+      // and that the form around the root was submitted successfully (the
+      // draft must be forgotten, not restored). The feature listens for both
+      // itself once it has connected.
+      (root, pending) => {
+        const edited = () => {
+          pending.edited = true
         }
-        document.addEventListener("turbo:submit-end", onSubmitEnd)
-        return () => document.removeEventListener("turbo:submit-end", onSubmitEnd)
+        const submitted = (event) => {
+          const form = event.target
+          if (event.detail?.success && form?.tagName === "FORM" && form.contains?.(root)) pending.submitted = true
+        }
+        root.addEventListener?.("input", edited)
+        root.addEventListener?.("change", edited)
+        document.addEventListener("turbo:submit-end", submitted)
+        return () => {
+          root.removeEventListener?.("input", edited)
+          root.removeEventListener?.("change", edited)
+          document.removeEventListener("turbo:submit-end", submitted)
+        }
       },
+      true,
+    ],
+  ],
+  [
+    // reply.defer, reactive_lazy, reactive_lazy(on:/cache:). A root is a lazy
+    // shell when it carries any of these; real content carries none.
+    "defer",
+    [
+      (root) =>
+        ["defer-token", "defer-src", "lazy-on", "lazy-visible"].some(
+          (marker) => root.getAttribute?.(`data-reactive-${marker}`) != null,
+        ),
+      () => import("phlex/reactive/features/defer"),
     ],
   ],
 ]
@@ -2102,33 +1743,47 @@ const FEATURES = new Map(PRODUCTION_FEATURES)
 // again only re-rejects. A failed feature stays failed until the page is
 // reloaded; every root it costs is told (reactive:error).
 const featureLoads = new Map()
+// name -> the loaded module: what lets a later root connect a feature inside
+// connect(), and a stream action or client op use it in the same tick.
+const featureModules = new Map()
 
 function loadFeature(name) {
   let loading = featureLoads.get(name)
-  if (!loading) featureLoads.set(name, (loading = FEATURES.get(name)[1]()))
+  if (!loading) {
+    loading = FEATURES.get(name)[1]().then((feature) => {
+      feature.install?.(FEATURE_SHARED)
+      featureModules.set(name, feature)
+      return feature
+    })
+    featureLoads.set(name, loading)
+  }
   return loading
 }
 
-// What went wrong, by phase — logged once per feature and phase per page (a
-// failed import would otherwise log again for every root that connects).
-const FEATURE_FAILURES = {
-  detect: (name) => `the "${name}" feature module could not tell whether a root needs it`,
-  load: (name) => `could not load the "${name}" feature module; it stays unavailable until the page is reloaded`,
-  timeout: (name) => `the "${name}" feature module is slow to load; its root carried on without it`,
-  connect: (name) => `the "${name}" feature module failed to connect`,
-}
+// Logged once per feature and phase per page (a failed import would otherwise
+// log again for every root that connects). `phase` says what went wrong:
+// "detect" (its marker check threw), "load" (the import failed — and stays
+// failed until the page is reloaded), "timeout" (slow; the root carried on
+// without it) or "connect" (it threw while wiring a root).
 const featureFailuresLogged = new Set()
 
 function logFeatureFailure(name, phase, error) {
-  const logged = `${name}:${phase}`
+  const logged = name + phase
   if (featureFailuresLogged.has(logged)) return
   featureFailuresLogged.add(logged)
-  console.error(`[phlex-reactive] ${FEATURE_FAILURES[phase](name)}`, error)
+  console.error(
+    `[phlex-reactive] the "${name}" feature module (phlex/reactive/features/${name}) is unavailable: ${phase}. ` +
+      "If you bundle or vendor the client, alias or pin phlex/reactive/features/* (README: esbuild / webpack / bun).",
+    error,
+  )
 }
 
-// Run `use(feature)` once the feature has loaded — for code with no root
-// connection to wait on (a client op). A feature that cannot load is logged.
+// Run `use(feature)` with a feature — for code with no root connection to
+// wait on (a client op, a stream action): in this tick when the module is
+// loaded, else once it has arrived. A feature that cannot load is logged.
 function withFeature(name, use) {
+  const feature = featureModules.get(name)
+  if (feature) return use(feature)
   loadFeature(name).then(use, (error) => logFeatureFailure(name, "load", error))
 }
 
@@ -2150,8 +1805,13 @@ export function reactiveFeatureNames() {
   return [...FEATURES.keys()]
 }
 
-export function __setReactiveFeatureForTest(name, needs, load, waiting) {
-  FEATURES.set(name, [needs, load, waiting])
+export function __setReactiveFeatureForTest(name, needs, load, waiting, gates) {
+  FEATURES.set(name, [needs, load, waiting, gates])
+}
+
+// Test-only: import a feature now (a later connect is then synchronous).
+export function __loadReactiveFeatureForTest(name) {
+  return loadFeature(name)
 }
 
 // Test-only: back to the shipped table, with nothing loaded or logged.
@@ -2159,10 +1819,28 @@ export function __resetReactiveFeaturesForTest() {
   FEATURES.clear()
   for (const [name, entry] of PRODUCTION_FEATURES) FEATURES.set(name, entry)
   featureLoads.clear()
+  featureModules.clear()
   featureFailuresLogged.clear()
 }
 
 const FEATURES_READY = Promise.resolve()
+
+// The single-instance module state a feature may add to (install()): ONE
+// in-flight activity count and one request total per page, whoever counts.
+// `waiting` maps a root to { <feature name>: pending } while it waits for that
+// feature's import (see the `waiting` hook above).
+function forgetWaiting(root, name, pending) {
+  const waiting = FEATURE_SHARED.waiting.get(root)
+  // (A root that reconnected meanwhile has a NEW record under the same name.)
+  if (waiting && waiting[name] === pending) delete waiting[name]
+}
+
+const FEATURE_SHARED = {
+  enter: enterReactiveActivity,
+  exit: exitReactiveActivity,
+  count: countReactiveRequest,
+  waiting: new WeakMap(),
+}
 
 // --- Early triggers (issue #273) ----------------------------------------------
 // phlex/reactive/early (imported eagerly by the app) queues trigger events that
@@ -2370,22 +2048,9 @@ export default class extends Controller {
   // Connect-time compute seed (issue #199): the bound re-seed attached to
   // turbo:morph-element so an in-place morph re-runs the compute, held for teardown.
   #boundSeedCompute
-  // Lazy initial mount (issue #165): the bound re-probe attached to
-  // turbo:morph-element so a Turbo page-refresh morph re-fires the defer fetch.
-  #boundProbeLazyDefer
-  // reactive_lazy(on:) (issue #276). Whether the root was a trigger shell when
-  // last looked at (connect, then every morph) — a morph that turns REAL
-  // content back into a shell re-materializes; one that leaves a shell a shell
-  // only re-arms it. #lazyInFlight is the ONE dedupe point every materialize
-  // passes (Stimulus binding, observer, re-armed listener, morph-back). The
-  // observer, the re-armed event listener (and the event name it is bound to)
-  // and the bound morph handler are held for teardown.
-  #lazyWasShell = false
-  #lazyInFlight = false
-  #lazyVisibleObserver = null
-  #lazyEventName = null
-  #boundLazyEvent
-  #boundLazyMorph
+  // The root-only morph listener of a token-bearing root (issue #275): a morph
+  // can add a feature's marker to a connected root. Held for teardown.
+  #boundRootMorph
   // Clipboard-trigger availability gate (issue #228): the bound morph re-sync,
   // held for teardown.
   #boundSyncClipboard
@@ -2406,8 +2071,9 @@ export default class extends Controller {
   #features = new Map() // name -> module connected on this connection
   #featuresWanted = new Set() // names this connection has asked for
   #featuresSettling = false // true while featuresReady is still pending
+  #featureGate = null // settles when the last feature that `gates` has connected
   #featureWaits = new Map() // pending import-timeout timer -> its wait's resolve
-  #featureUndos = new Map() // name -> undo of the feature's `waiting` hook
+  #featureHooks = new Map() // name -> [undo, pending] of a feature still on its way
   #featureEpoch = 0
   #featureHandle // the `core` handle features receive, built on first use
 
@@ -2437,54 +2103,21 @@ export default class extends Controller {
       )
     }
 
-    // Lazy initial mount (issue #165): a reactive_lazy shell carries its defer
-    // token as a ROOT attribute — enter the SAME module-level fetch path a
-    // reply directive uses (supersession, pending markers, error handling
-    // included). Probe on connect (a plain replace / cache restoration
-    // re-connects) AND on turbo:morph-element: a Turbo page-refresh MORPH
-    // re-shows the shell while keeping the element CONNECTED and firing no
-    // Stimulus lifecycle, so a connect-only probe would leave the morphed-in
-    // shell shimmering forever. The supersession registry makes a duplicate
-    // probe a no-op (same target id), so re-probing is safe. The attribute
-    // stays on the shell precisely so a re-appearance re-fires.
-    // Only wire the morph re-probe for a root that IS a lazy shell (carries the
-    // token) — a component that never uses reactive_lazy pays nothing (no
-    // listener), matching the dirty-tracking / show-sync gating precedent.
-    // A `cache:` shell (issue #277) carries a fragment URL instead of the token
-    // and takes the same path; an on: shell with a URL is NOT probed — it waits
-    // for its trigger (its root has no pending marker).
-    if (
-      (lazyDeferSource(this.element) || refusedFragmentSrc(this.element)) &&
-      this.#lazyShellKind() === null
-    ) {
-      this.#probeLazyDefer()
-      this.#boundProbeLazyDefer = () => this.#probeLazyDefer()
-      this.element.addEventListener?.("turbo:morph-element", this.#boundProbeLazyDefer)
-    }
-    // reactive_lazy(on:) shells (issue #276) carry NO defer token, so the probe
-    // above skips them: an event shell waits for its once-bound __materialize
-    // trigger, a :visible shell for the observer armed here. The morph handler
-    // is wired on EVERY token-bearing root, shell or not: a Turbo morph can
-    // turn a root that connected on REAL content back into a shell while it
-    // stays connected (no Stimulus lifecycle), and only a handler that is
-    // already listening can notice. A tokenless (client-only) root can never
-    // be an on: shell — the shell carries the identity token — so it skips this.
+    // Lazy shells (reactive_lazy, on:, cache:) are wired by the defer feature
+    // module (issue #275), which #loadFeatures below starts importing when the
+    // root carries one of its markers. What stays here is the root-only morph
+    // listener of a TOKEN-BEARING root: a Turbo morph can turn a root that
+    // connected on REAL content (no marker, so no feature) into a shell while
+    // it stays connected — no Stimulus lifecycle fires — and only a listener
+    // that is already there can notice and load the feature. It costs a root
+    // without any marker, before and after the morph, a few attribute reads and
+    // never an import. (turbo:morph-element BUBBLES: only a morph of the root
+    // itself counts.) A tokenless, client-only root has no such listener.
     if (this.element.getAttribute?.("data-reactive-token-value") != null) {
-      this.#lazyWasShell = this.#lazyShellKind() !== null
-      if (this.#lazyWasShell) this.#armLazyTrigger(false)
-      // turbo:morph-element BUBBLES: only a morph of the root itself counts,
-      // never one of a descendant (a morphed skeleton child, a nested root).
-      // The same morph can turn real content into a FETCH-ON-CONNECT shell
-      // (plain reactive_lazy, or cache: without on:): probe it too, unless this
-      // root connected as such a shell and already re-probes on every morph.
-      this.#boundLazyMorph = (event) => {
-        if (event.target !== this.element) return
-        // A morph can add a feature's marker to a connected root (issue #275).
-        this.#loadFeatures()
-        if (!this.#boundProbeLazyDefer) this.#probeLazyDefer()
-        this.#lazyAfterMorph()
+      this.#boundRootMorph = (event) => {
+        if (event.target === this.element) this.#loadFeatures(true)
       }
-      this.element.addEventListener?.("turbo:morph-element", this.#boundLazyMorph)
+      this.element.addEventListener?.("turbo:morph-element", this.#boundRootMorph)
     }
 
     // Client-only drafts (issue #239) live in the persist feature module
@@ -2665,11 +2298,12 @@ export default class extends Controller {
 
   // Starts the import of every feature this root needs and has not asked for
   // yet — at connect, and again after a morph of the root (which may have
-  // added a marker). Once ALL of a scan's imports have settled, or run out of
-  // time, its features connect in table order — the order their connect-time
+  // added a marker; `morphed`). Every import starts now; each feature connects
+  // when its own module has arrived (or is given up on) AND the features
+  // before it in the table have had their turn — the order their connect-time
   // seeds depend on, never the order the network delivered them in — unless
   // this connection ended meanwhile.
-  #loadFeatures() {
+  #loadFeatures(morphed) {
     const epoch = this.#featureEpoch
     const names = []
     for (const [name, [needs]] of FEATURES) {
@@ -2683,19 +2317,26 @@ export default class extends Controller {
       }
     }
     if (names.length === 0) return
-    for (const name of names) {
-      this.#featuresWanted.add(name)
-      try {
-        const undo = FEATURES.get(name)[2]?.(this.element)
-        if (undo) this.#featureUndos.set(name, undo)
-      } catch (error) {
-        this.#featureFailed(name, "detect", error)
-      }
+    for (const name of names) this.#featuresWanted.add(name)
+    // Every module already here (a later root, the next Turbo visit): connect
+    // now, in this task — nothing to wait for, so nothing to gate or time out.
+    if (!this.#featuresSettling && names.every((name) => featureModules.has(name))) {
+      for (const name of names) this.#connectFeature(epoch, name, featureModules.get(name), morphed)
+      return
     }
-    const loads = names.map((name) => this.#awaitFeature(epoch, name))
+    let chain = this.featuresReady
+    for (const name of names) {
+      const arrival = this.#awaitFeature(epoch, name)
+      chain = chain.then(() => arrival).then((feature) => feature && this.#connectFeature(epoch, name, feature, morphed))
+      if (FEATURES.get(name)[3]) this.#featureGate = chain
+    }
+    // Requests stop waiting the moment the last gating feature has connected.
+    const gate = this.#featureGate
+    gate?.then(() => {
+      if (this.#featureGate === gate) this.#featureGate = null
+    })
     this.#featuresSettling = true
-    const ready = Promise.all([this.featuresReady, ...loads]).then(([, ...features]) => {
-      features.forEach((feature, index) => feature && this.#connectFeature(epoch, names[index], feature))
+    const ready = chain.then(() => {
       if (this.featuresReady === ready) this.#featuresSettling = false
     })
     this.featuresReady = ready
@@ -2707,6 +2348,7 @@ export default class extends Controller {
   // its timeout still connects (late, and so out of table order).
   #awaitFeature(epoch, name) {
     const current = () => epoch === this.#featureEpoch
+    this.#startWaitingFor(name)
     return new Promise((resolve) => {
       let timedOut = false
       const timer = setTimeout(() => {
@@ -2726,8 +2368,7 @@ export default class extends Controller {
         (feature) => {
           settled()
           // Late: connect one microtask on, after whatever else was queued on
-          // this import while the root waited (the persist stand-in's forget()
-          // must clear the draft before a late restore can read it).
+          // this import while the root waited.
           if (timedOut) queueMicrotask(() => this.#connectFeature(epoch, name, feature))
           else resolve(feature)
         },
@@ -2740,25 +2381,44 @@ export default class extends Controller {
     })
   }
 
-  #connectFeature(epoch, name, feature) {
-    if (epoch !== this.#featureEpoch) return
-    this.#stopWaitingFor(name)
+  // Run the feature's `waiting` hook (if it has one) and remember its undo and
+  // what it records, for #connectFeature or #disconnectFeatures to hand on.
+  #startWaitingFor(name) {
+    const hook = FEATURES.get(name)[2]
+    if (!hook) return
+    const pending = {}
     try {
-      feature.connect?.(this, this.#featureCore())
-      this.#features.set(name, feature)
+      this.#featureHooks.set(name, [hook(this.element, pending), pending])
+      FEATURE_SHARED.waiting.set(this.element, { ...FEATURE_SHARED.waiting.get(this.element), [name]: pending })
     } catch (error) {
-      this.#featureFailed(name, "connect", error)
+      this.#featureFailed(name, "detect", error)
     }
   }
 
-  // The feature is here (or its root is leaving): undo its `waiting` hook.
-  #stopWaitingFor(name) {
-    const undo = this.#featureUndos.get(name)
-    this.#featureUndos.delete(name)
+  // The wait is over (the feature is here, or the root is leaving): undo the
+  // hook and return what it recorded. The shared record goes with it unless
+  // `abandoning`: a root that leaves keeps its record until abandon() has run,
+  // so anything else queued on the same import still finds it.
+  #stopWaitingFor(name, abandoning) {
+    const [undo, pending] = this.#featureHooks.get(name) ?? []
+    this.#featureHooks.delete(name)
+    if (!abandoning) forgetWaiting(this.element, name, pending)
     try {
       undo?.()
     } catch (error) {
       console.error(`[phlex-reactive] the "${name}" feature module failed to stop waiting`, error)
+    }
+    return pending
+  }
+
+  #connectFeature(epoch, name, feature, morphed) {
+    if (epoch !== this.#featureEpoch) return
+    const pending = this.#stopWaitingFor(name)
+    try {
+      feature.connect?.(this, this.#featureCore(), morphed, pending)
+      this.#features.set(name, feature)
+    } catch (error) {
+      this.#featureFailed(name, "connect", error)
     }
   }
 
@@ -2767,6 +2427,10 @@ export default class extends Controller {
     this.#featureHandle ??= {
       emit: (name, detail, options) => this.#emit(name, detail, options),
       reseed: () => this.#reseed(),
+      proceed: (target, action, params) => this.#proceed(target, action, params),
+      forgetToken: () => {
+        this.#tokenCache = undefined
+      },
     }
     return this.#featureHandle
   }
@@ -2791,6 +2455,12 @@ export default class extends Controller {
   #featureFailed(name, phase, error) {
     logFeatureFailure(name, phase, error)
     this.#markError("feature")
+    // A lazy shell whose module will never come (a failed import stays failed
+    // until the page is reloaded) must not go on shimmering as if it loaded.
+    if (phase === "load" && this.element.getAttribute?.("data-reactive-defer-pending")) {
+      this.element.removeAttribute("data-reactive-defer-pending")
+      this.element.removeAttribute("aria-busy")
+    }
     this.#emit("reactive:error", { kind: "feature", feature: name, phase, error })
   }
 
@@ -2806,9 +2476,19 @@ export default class extends Controller {
       resolve(null)
     }
     this.#featureWaits.clear()
-    for (const name of [...this.#featureUndos.keys()]) this.#stopWaitingFor(name)
+    // A feature this root was still waiting for never connected here: hand it
+    // what its hook recorded, once (and if) the module arrives.
+    for (const name of [...this.#featureHooks.keys()]) {
+      const pending = this.#stopWaitingFor(name, true)
+      const root = this.element
+      withFeature(name, (feature) => {
+        feature.abandon?.(root, pending)
+        forgetWaiting(root, name, pending)
+      })
+    }
     this.#featuresWanted.clear()
     this.#featuresSettling = false
+    this.#featureGate = null
     const connected = [...this.#features]
     this.#features.clear()
     for (const [name, feature] of connected) {
@@ -2941,12 +2621,8 @@ export default class extends Controller {
     this.#teardownNestedJsonSync()
     this.#teardownComputeSeed()
     this.#teardownClipboardGate()
-    if (this.#boundProbeLazyDefer) {
-      this.element.removeEventListener?.("turbo:morph-element", this.#boundProbeLazyDefer)
-    }
-    this.#disarmLazyTrigger()
-    if (this.#boundLazyMorph) {
-      this.element.removeEventListener?.("turbo:morph-element", this.#boundLazyMorph)
+    if (this.#boundRootMorph) {
+      this.element.removeEventListener?.("turbo:morph-element", this.#boundRootMorph)
     }
     // Early triggers (issue #273): a disconnected root records again.
     earlyState().connected.delete(this.element)
@@ -2958,152 +2634,6 @@ export default class extends Controller {
     // its :once trigger must work again after the re-wake).
     for (const el of this.#earlySpentOn) spentEarlyOnce.delete(el)
     this.#earlySpentOn.clear()
-  }
-
-  // Which reactive_lazy(on:) shell this root currently is — read live, because
-  // a morph rewrites the attributes on a connected element. null = real content.
-  #lazyShellKind() {
-    const el = this.element
-    if (el.getAttribute?.("data-reactive-lazy-visible") != null) return "visible"
-    if (el.getAttribute?.("data-reactive-lazy-on")) return "event"
-    return null
-  }
-
-  // Arm the shell's trigger. A :visible shell gets (at most one) observer. An
-  // event shell's FIRST event rides its Stimulus `once` binding, so on connect
-  // there is nothing to add; after a morph (`rearm`) that binding may be spent
-  // — Stimulus only re-binds when the descriptor attribute itself changed — so
-  // the controller listens for the event itself. Both can fire for one event;
-  // #materialize dedupes. Either trigger is consumed when a request starts
-  // (like `once`): one morph buys one attempt.
-  #armLazyTrigger(rearm) {
-    if (this.#lazyShellKind() === "visible") {
-      if (!this.#lazyVisibleObserver) this.#observeLazyVisible()
-    } else if (rearm) {
-      this.#listenLazyEvent()
-    }
-  }
-
-  #disarmLazyTrigger() {
-    this.#disconnectLazyVisible()
-    if (this.#lazyEventName) this.element.removeEventListener?.(this.#lazyEventName, this.#boundLazyEvent)
-    this.#lazyEventName = null
-  }
-
-  #listenLazyEvent() {
-    const name = this.element.getAttribute("data-reactive-lazy-on")
-    if (this.#lazyEventName === name) return
-    this.#disarmLazyTrigger()
-    this.#boundLazyEvent ??= () => this.#materialize()
-    this.element.addEventListener?.(name, this.#boundLazyEvent)
-    this.#lazyEventName = name
-  }
-
-  // turbo:morph-element OF the root (the listener filters out descendants'
-  // morphs): the morph is server truth arriving on a CONNECTED element. Four
-  // outcomes:
-  //   * now real content            → nothing to load; drop any armed trigger.
-  //   * a load is in flight         → leave it; its reply replaces the shell.
-  //   * was real, now a shell       → it was loaded and the morph wiped it, so
-  //                                   re-materialize now (for an event shell
-  //                                   the event — a panel opening — already
-  //                                   happened and won't fire again).
-  //   * was a shell, still a shell  → never triggered, or a failed load: re-arm
-  //                                   it (this is a failed load's retry path).
-  #lazyAfterMorph() {
-    const shell = this.#lazyShellKind() !== null
-    const wasShell = this.#lazyWasShell
-    this.#lazyWasShell = shell
-    if (!shell) return this.#disarmLazyTrigger()
-    if (this.#lazyInFlight) return
-    // The morphed-in shell's token is the page's current identity; a token
-    // cached from an earlier reply would materialize stale state.
-    this.#tokenCache = undefined
-    if (!wasShell) return this.#materialize()
-    this.#armLazyTrigger(true)
-  }
-
-  // THE materialize entry point: the shell's Stimulus binding (dispatch routes
-  // here), the :visible observer, the re-armed event listener and a morph-back
-  // all land here, so one in-flight flag makes "exactly one request" hold no
-  // matter how many of them fire. It rides the ordinary action pipeline
-  // (#proceed → the serialized queue → #perform): the reactive:before-dispatch
-  // veto, busy markers, error marker/events and the request counter all apply.
-  //
-  // A `cache:` shell (issue #277) carries its fragment URL: the load is then a
-  // GET on the defer pull lane (pending markers, timeout, reactive:error with
-  // retry()) instead of the action POST, so the browser's cache can answer —
-  // on the first trigger of a later page view, and on every morph-back.
-  #materialize() {
-    if (this.#lazyInFlight) return
-    const source = fragmentSource(this.element)
-    // A refused URL on an on: shell still has a safe way to load: the signed
-    // __materialize POST below. Say why the cacheable GET was skipped.
-    const refused = !source && refusedFragmentSrc(this.element)
-    if (refused) console.error(refusedFragmentMessage(refused))
-    // The GET skips #proceed, so raise its veto here: an app's
-    // reactive:before-dispatch listener controls a materialize either way.
-    if (source && this.#materializeVetoed()) return
-    const run = source
-      ? startFetchDefer(this.element.id, source)
-      : this.#proceed(this.element, LAZY_MATERIALIZE_ACTION, "{}")
-    if (!run) return // vetoed by reactive:before-dispatch (or the root has no id)
-    this.#lazyInFlight = true
-    // Consume the armed trigger (observer or re-armed listener): a failed load
-    // is retried by the NEXT morph, not by every later event.
-    this.#disarmLazyTrigger()
-    const done = () => {
-      this.#lazyInFlight = false
-    }
-    run.then(done, done)
-    return run
-  }
-
-  #materializeVetoed() {
-    const before = this.#emit(
-      "reactive:before-dispatch",
-      { action: LAZY_MATERIALIZE_ACTION, params: {}, element: this.element },
-      { cancelable: true },
-    )
-    return before.defaultPrevented
-  }
-
-  // reactive_lazy(on: :visible) (issue #276): materialize the first time the
-  // shell intersects the viewport (grown or shrunk by the rendered
-  // rootMargin). Without IntersectionObserver (very old engines) materialize
-  // right away: the content still loads, just not lazily.
-  #observeLazyVisible() {
-    if (typeof IntersectionObserver === "undefined") return queueMicrotask(() => this.#materialize())
-    const rootMargin = this.element.getAttribute("data-reactive-lazy-visible") || "0px"
-    this.#lazyVisibleObserver = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) this.#materialize()
-      },
-      { rootMargin }
-    )
-    this.#lazyVisibleObserver.observe(this.element)
-  }
-
-  #disconnectLazyVisible() {
-    this.#lazyVisibleObserver?.disconnect()
-    this.#lazyVisibleObserver = null
-  }
-
-  // Lazy initial mount probe (issue #165): fetch the real content when THIS
-  // root is a reactive_lazy shell that still carries its defer token AND the
-  // pending marker. Gating on the pending marker is what makes a re-probe (a
-  // Turbo morph re-showing the shell) fire while a re-probe of an already
-  // RESOLVED root (real content, no token, no marker) is a no-op. The
-  // module-level supersession registry dedupes a duplicate in-flight fetch for
-  // the same id, so calling this on both connect and every morph is safe.
-  #probeLazyDefer() {
-    const el = this.element
-    if (!el?.id) return
-    if (el.getAttribute?.("data-reactive-defer-pending") !== "true") return
-    const source = lazyDeferSource(el)
-    if (source) return startFetchDefer(el.id, source)
-    const refused = refusedFragmentSrc(el)
-    if (refused) failRefusedFragment(el, refused)
   }
 
   // Serialize requests per component. Each round trip rewrites the signed
@@ -3172,8 +2702,18 @@ export default class extends Controller {
 
     // A reactive_lazy(on:) shell's trigger (issue #276) goes through the one
     // materialize entry point, which dedupes it against the observer, the
-    // re-armed listener and a morph-back.
-    if (action === LAZY_MATERIALIZE_ACTION) return this.#materialize()
+    // re-armed listener and a morph-back. That entry point lives in the defer
+    // feature (issue #275): the synchronous part of this dispatch is done, and
+    // the load itself waits for the feature while it is still on its way.
+    if (action === LAZY_MATERIALIZE_ACTION) {
+      // Without the feature (it failed to load) a shell can still load the
+      // plain way: the signed __materialize POST.
+      const materialize = () => {
+        const defer = this.#features.get("defer")
+        return defer ? defer.materialize(this) : this.#proceed(target, action, "{}")
+      }
+      return this.#featuresSettling ? this.featuresReady.then(materialize) : materialize()
+    }
 
     // Resolve the EFFECTIVE confirm message (issue #179): a plain string confirm:
     // is that string (static, #52); a Hash confirm: (confirmWhen) evaluates its
@@ -4162,12 +3702,14 @@ export default class extends Controller {
     // morph (never inferred from the verb) and warns if any came back visible.
     const resurrect = this.#debugEnabled() ? this.#buildResurrectionCheck(optimistic, target) : null
     // A feature still loading may be about to change what this request reads
-    // (issue #275: the draft restore writes the fields #perform collects), so
-    // the request waits for the root's features — at most the feature timeout,
-    // and not at all once they have connected.
+    // (issue #275: the draft restore writes the fields #perform collects). Only
+    // such a feature — one that `gates` — holds a request back, until it has
+    // connected: at most the feature timeout, and on a root that never waited
+    // for one, not at all. A feature that does not gate (the defer module)
+    // never delays a request, however slow its import.
     const perform = () => this.#perform(action, params, inverse, settle, resurrect)
     this.queue = (this.queue ?? Promise.resolve())
-      .then(() => (this.#featuresSettling ? this.featuresReady.then(perform) : perform()))
+      .then(() => (this.#featureGate ? this.#featureGate.then(perform) : perform()))
     return this.queue
   }
 

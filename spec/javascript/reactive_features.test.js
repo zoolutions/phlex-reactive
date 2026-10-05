@@ -22,7 +22,7 @@
 //               that failed to load — and is logged once per page.
 //
 // Run with: bun test spec/javascript
-import { test, expect, mock, beforeAll, beforeEach } from "bun:test"
+import { test, expect, mock, beforeAll, beforeEach, afterAll } from "bun:test"
 import { Window } from "happy-dom"
 
 const window = new Window()
@@ -46,6 +46,10 @@ beforeEach(() => {
   document.body.innerHTML = ""
   resetFeatures()
 })
+
+// bun runs every test file in one process: leave the shipped table behind,
+// not this file's last fake (a "defer" whose import was made to fail).
+afterAll(() => resetFeatures())
 
 const MARKER = "data-fake-feature"
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0))
@@ -87,6 +91,11 @@ function fakeFeature({ name = "fake" } = {}) {
 }
 
 const namesOf = (log) => log.map(([name]) => name)
+
+// The one console line a feature failure logs, per feature and phase.
+const unavailable = (name, phase) =>
+  `[phlex-reactive] the "${name}" feature module (phlex/reactive/features/${name}) is unavailable: ${phase}. ` +
+  "If you bundle or vendor the client, alias or pin phlex/reactive/features/* (README: esbuild / webpack / bun)."
 
 test("a root that needs no feature loads none and is ready at once", async () => {
   const fake = fakeFeature()
@@ -281,9 +290,7 @@ test("a failed import surfaces as reactive:error and marks the root; featuresRea
 
   expect(errors).toEqual([{ kind: "feature", feature: "fake", phase: "load", error: failure }])
   expect(root.getAttribute("data-reactive-error")).toBe("feature")
-  expect(logged).toEqual([
-    ['[phlex-reactive] could not load the "fake" feature module; it stays unavailable until the page is reloaded', failure],
-  ])
+  expect(logged).toEqual([[unavailable("fake", "load"), failure]])
   expect(fake.log).toEqual([])
 })
 
@@ -318,7 +325,7 @@ test("a feature whose connect throws is reported as a connect failure; featuresR
   }
 
   expect(errors).toEqual([{ kind: "feature", feature: "fake", phase: "connect", error: failure }])
-  expect(logged).toEqual([['[phlex-reactive] the "fake" feature module failed to connect', failure]])
+  expect(logged).toEqual([[unavailable("fake", "connect"), failure]])
   expect(() => controller.disconnect()).not.toThrow()
 })
 
@@ -411,7 +418,7 @@ test("a marker check that throws is reported, counts as not needed, and connect(
   }
 
   expect(errors).toEqual([{ kind: "feature", feature: "broken", phase: "detect", error: failure }])
-  expect(logged).toEqual([['[phlex-reactive] the "broken" feature module could not tell whether a root needs it', failure]])
+  expect(logged).toEqual([[unavailable("broken", "detect"), failure]])
   expect(loads).toBe(0)
   // The root's other feature is unaffected.
   expect(fake.log).toEqual([["connect", controller]])
@@ -549,7 +556,7 @@ test("the shipped table lists the moved features, persist first", async () => {
 
   // Table order is connect order: the draft restore writes the values every
   // other connect-time seed reads, so persist stays first as features move.
-  expect(reactiveFeatureNames()).toEqual(["persist"])
+  expect(reactiveFeatureNames()).toEqual(["persist", "defer"])
 })
 
 // --- The core handle ----------------------------------------------------------
@@ -576,7 +583,7 @@ test("a feature receives the core handle on connect and on disconnect", async ()
   core.emit("fake:ping", { n: 1 })
   controller.disconnect()
 
-  expect(Object.keys(core).sort()).toEqual(["emit", "reseed"])
+  expect(Object.keys(core).sort()).toEqual(["emit", "forgetToken", "proceed", "reseed"])
   expect(events).toEqual([{ n: 1 }])
   expect(() => core.reseed()).not.toThrow()
   expect(seen.map(([name, who, handle]) => [name, who === controller, handle === core])).toEqual([
@@ -649,7 +656,7 @@ test("an import that never settles is given up on: reported, and the root's othe
   }
 
   expect(errors).toEqual([["first", "timeout"]])
-  expect(logged).toEqual(['[phlex-reactive] the "first" feature module is slow to load; its root carried on without it'])
+  expect(logged).toEqual([unavailable("first", "timeout")])
   expect(log).toEqual(["connect second"])
   expect(root.getAttribute("data-reactive-error")).toBe("feature")
 })
@@ -867,8 +874,9 @@ function triggerEvent(act, extra = {}) {
 }
 
 // A marked root with one text field, whose fake feature fills the field in
-// when it connects — as the draft restore does.
-function fieldRoot() {
+// when it connects — as the draft restore does. `gates` is the feature's own
+// say on whether a request must wait for it (the fourth table element).
+function fieldRoot({ gates = true } = {}) {
   const root = mountRoot()
   root.setAttribute("data-reactive-token-value", "tok")
   const input = document.createElement("input")
@@ -879,6 +887,8 @@ function fieldRoot() {
     "fake",
     (el) => el.hasAttribute(MARKER),
     () => new Promise((resolve) => pending.push(() => resolve({ connect: () => (input.value = "restored") }))),
+    undefined,
+    gates,
   )
   const controller = controllerFor(root)
   controller.tokenValue = "tok"
@@ -1025,9 +1035,14 @@ test("a feature's waiting hook runs while its import is pending and is undone wh
   setFeature(
     "fake",
     (root) => root.hasAttribute(MARKER),
-    () => new Promise((resolve) => (arrive = () => resolve({ connect: () => log.push("connect") }))),
-    (root) => {
+    () =>
+      new Promise(
+        (resolve) =>
+          (arrive = () => resolve({ connect: (_controller, _core, _morphed, pending) => log.push(["connect", pending]) })),
+      ),
+    (root, pending) => {
       log.push(`waiting ${root.id}`)
+      pending.seen = "an edit"
       return () => log.push("stopped waiting")
     },
   )
@@ -1038,7 +1053,57 @@ test("a feature's waiting hook runs while its import is pending and is undone wh
   arrive()
   await controller.featuresReady
 
-  expect(log).toEqual(["waiting root", "stopped waiting", "connect"])
+  // The hook is undone, then the feature connects and is handed what it recorded.
+  expect(log).toEqual(["waiting root", "stopped waiting", ["connect", { seen: "an edit" }]])
+})
+
+test("a root that leaves before the feature arrives is handed to abandon() with what the hook recorded", async () => {
+  const log = []
+  let arrive
+  setFeature(
+    "fake",
+    (root) => root.hasAttribute(MARKER),
+    () =>
+      new Promise(
+        (resolve) =>
+          (arrive = () =>
+            resolve({
+              connect: () => log.push("connect"),
+              abandon: (root, pending) => log.push(["abandon", root.id, pending]),
+            })),
+      ),
+    (_root, pending) => {
+      pending.seen = "an edit"
+      return () => log.push("stopped waiting")
+    },
+  )
+  const controller = controllerFor(mountRoot())
+
+  controller.connect()
+  controller.disconnect()
+  expect(log).toEqual(["stopped waiting"])
+  arrive()
+  await sleep(0)
+
+  expect(log).toEqual(["stopped waiting", ["abandon", "root", { seen: "an edit" }]])
+})
+
+test("a feature without a waiting hook is not asked to abandon anything", async () => {
+  const log = []
+  let arrive
+  setFeature(
+    "fake",
+    (root) => root.hasAttribute(MARKER),
+    () => new Promise((resolve) => (arrive = () => resolve({ abandon: () => log.push("abandon") }))),
+  )
+  const controller = controllerFor(mountRoot())
+
+  controller.connect()
+  controller.disconnect()
+  arrive()
+  await sleep(0)
+
+  expect(log).toEqual([])
 })
 
 test("the waiting hook is undone when the root disconnects before the feature arrives", async () => {
@@ -1120,4 +1185,292 @@ test("a root with no feature posts in the same turn it always did", async () => 
   await controller.queue
 
   expect(posts.map((post) => post.act)).toEqual(["save"])
+})
+
+// --- Table order, without waiting for later features --------------------------------
+
+test("a feature connects when ITS import arrives: a slower feature later in the table does not hold it back", async () => {
+  const { log, settle } = twoFeatures()
+  const controller = controllerFor(mountRoot())
+  controller.connect()
+
+  settle.first.resolve()
+  await sleep(0)
+  expect(log).toEqual(["connect first"])
+
+  settle.second.resolve()
+  await controller.featuresReady
+  expect(log).toEqual(["connect first", "connect second"])
+})
+
+// --- A module that is already loaded -----------------------------------------------
+
+test("once its module is loaded a feature connects INSIDE connect(), before the early drain", async () => {
+  const fake = fakeFeature()
+  const first = controllerFor(mountRoot({ id: "a" }))
+  first.connect()
+  fake.resolve()
+  await first.featuresReady
+
+  const root = mountRoot({ id: "b" })
+  const order = []
+  root.addEventListener("reactive:connect", () => order.push(`reactive:connect, feature connected: ${fake.log.length === 2}`))
+  const second = controllerFor(root)
+  const readyBefore = second.featuresReady
+  second.connect()
+  order.push("connect returned")
+
+  expect(order).toEqual(["reactive:connect, feature connected: true", "connect returned"])
+  // Nothing to wait for: no new promise, and (below) no request is held back.
+  expect(second.featuresReady).toBe(readyBefore)
+})
+
+test("a root whose gating feature is already loaded posts without waiting", async () => {
+  const posts = requestRig()
+  const warm = fieldRoot()
+  warm.controller.connect()
+  warm.arrive()
+  await warm.controller.featuresReady
+  warm.controller.disconnect()
+
+  warm.controller.connect()
+  warm.controller.featuresReady = new Promise(() => {})
+  await warm.controller.dispatch(triggerEvent("save"))
+  await warm.controller.queue
+
+  expect(posts.map((post) => [post.act, post.params.note])).toEqual([["save", "restored"]])
+})
+
+// --- Only a feature that `gates` holds a request back ---------------------------------
+
+test("a feature that does not gate never delays a request, however slow its import", async () => {
+  const posts = requestRig()
+  const { controller } = fieldRoot({ gates: false })
+  controller.connect()
+
+  await controller.dispatch(triggerEvent("save"))
+  await controller.queue
+
+  // Sent while the import is still pending — with the field as it was.
+  expect(posts.map((post) => [post.act, post.params.note])).toEqual([["save", ""]])
+})
+
+test("requests wait for the gating feature only, not for a slower one after it", async () => {
+  const posts = requestRig()
+  const root = mountRoot()
+  root.setAttribute("data-reactive-token-value", "tok")
+  const log = []
+  let arriveGating
+  setFeature("gating", (el) => el.hasAttribute(MARKER), () => new Promise((resolve) => (arriveGating = () => resolve({ connect: () => log.push("gating") }))), undefined, true)
+  setFeature("slow", (el) => el.hasAttribute(MARKER), () => new Promise(() => {}))
+  const controller = controllerFor(root)
+  controller.tokenValue = "tok"
+  controller.connect()
+
+  const done = controller.dispatch(triggerEvent("save"))
+  await sleep(0)
+  expect(posts).toEqual([])
+  arriveGating()
+  await done
+  await controller.queue
+
+  expect(log).toEqual(["gating"])
+  expect(posts.map((post) => post.act)).toEqual(["save"])
+})
+
+// --- A morph re-scan tells the feature it follows a morph ---------------------------------
+
+test("a feature connected by a morph re-scan is told so; one connected at connect() is not", async () => {
+  const seen = []
+  setFeature(
+    "fake",
+    (root) => root.hasAttribute(MARKER),
+    () => Promise.resolve({ connect: (_controller, _core, morphed) => seen.push(Boolean(morphed)) }),
+  )
+  const atConnect = controllerFor(mountRoot({ id: "a" }))
+  atConnect.connect()
+  await atConnect.featuresReady
+
+  const root = mountRoot({ marked: false, id: "b" })
+  root.setAttribute("data-reactive-token-value", "tok")
+  const later = controllerFor(root)
+  later.connect()
+  root.setAttribute(MARKER, "")
+  morph(root)
+  await later.featuresReady
+
+  expect(seen).toEqual([false, true])
+})
+
+// --- The reactive:defer stream action and the __materialize trigger -------------------
+//
+// Both belong to the defer feature and both can reach the core before the
+// feature has loaded: a reply.defer stream on a page with no lazy root, an
+// on: trigger fired (or replayed) while the import is still on its way.
+
+function stubTurboActions() {
+  globalThis.window = window
+  window.Turbo = { StreamActions: {}, renderStreamMessage: () => {} }
+  return window.Turbo.StreamActions
+}
+
+// A stand-in "defer" module behind an import the test settles by hand.
+function fakeDefer() {
+  const log = []
+  let arrive
+  const feature = {
+    streamAction: (el) => log.push(["stream", el.getAttribute("target")]),
+    materialize: (controller) => {
+      log.push(["materialize", controller.element.id])
+      return Promise.resolve()
+    },
+  }
+  setFeature(
+    "defer",
+    (root) => root.hasAttribute("data-reactive-lazy-on"),
+    () => new Promise((resolve, reject) => (arrive = { resolve: () => resolve(feature), reject })),
+  )
+  return { log, arrive: () => arrive.resolve(), fail: (error) => arrive.reject(error) }
+}
+
+const streamEl = (target) => ({ getAttribute: (name) => (name === "target" ? target : null) })
+
+test("a reactive:defer stream that arrives before the feature has loaded is kept and applied when it has", async () => {
+  const { registerReactiveDefer } = await import("../../app/javascript/phlex/reactive/reactive_controller.js")
+  const actions = stubTurboActions()
+  const defer = fakeDefer()
+  registerReactiveDefer()
+
+  actions["reactive:defer"].call(streamEl("totals"))
+  actions["reactive:defer"].call(streamEl("stats"))
+  expect(defer.log).toEqual([])
+
+  defer.arrive()
+  await sleep(0)
+  expect(defer.log).toEqual([
+    ["stream", "totals"],
+    ["stream", "stats"],
+  ])
+})
+
+test("once the feature is loaded a reactive:defer stream is applied in the same tick", async () => {
+  const { registerReactiveDefer } = await import("../../app/javascript/phlex/reactive/reactive_controller.js")
+  const actions = stubTurboActions()
+  const defer = fakeDefer()
+  registerReactiveDefer()
+  actions["reactive:defer"].call(streamEl("first"))
+  defer.arrive()
+  await sleep(0)
+
+  actions["reactive:defer"].call(streamEl("second"))
+
+  expect(defer.log.at(-1)).toEqual(["stream", "second"])
+})
+
+function lazyOnRoot() {
+  const root = mountRoot({ marked: false, id: "panel" })
+  root.setAttribute("data-reactive-token-value", "tok")
+  root.setAttribute("data-reactive-lazy-on", "panel:opened")
+  const controller = controllerFor(root)
+  controller.tokenValue = "tok"
+  return { root, controller }
+}
+
+test("a __materialize trigger during the import is prevented at once and materializes once the feature connected", async () => {
+  requestRig()
+  const defer = fakeDefer()
+  const { controller } = lazyOnRoot()
+  controller.connect()
+
+  const event = triggerEvent("__materialize")
+  const done = controller.dispatch(event)
+  expect(event.wasPrevented()).toBe(true)
+  await sleep(0)
+  expect(defer.log).toEqual([])
+
+  defer.arrive()
+  await done
+
+  expect(defer.log).toEqual([["materialize", "panel"]])
+})
+
+test("a __materialize trigger on a connected feature goes straight to it", async () => {
+  requestRig()
+  const defer = fakeDefer()
+  const { controller } = lazyOnRoot()
+  controller.connect()
+  defer.arrive()
+  await controller.featuresReady
+
+  controller.dispatch(triggerEvent("__materialize"))
+
+  expect(defer.log).toEqual([["materialize", "panel"]])
+})
+
+test("when the defer feature cannot load, a __materialize trigger still posts the plain action", async () => {
+  const posts = requestRig()
+  const defer = fakeDefer()
+  const { controller } = lazyOnRoot()
+  const consoleError = console.error
+  console.error = () => {}
+
+  try {
+    controller.connect()
+    const done = controller.dispatch(triggerEvent("__materialize"))
+    defer.fail(new Error("404"))
+    await done
+    await controller.queue
+  } finally {
+    console.error = consoleError
+  }
+
+  expect(defer.log).toEqual([])
+  expect(posts.map((post) => post.act)).toEqual(["__materialize"])
+})
+
+test("a lazy shell whose defer module cannot load stops claiming to be pending", async () => {
+  requestRig()
+  const defer = fakeDefer()
+  const { root, controller } = lazyOnRoot()
+  root.setAttribute("data-reactive-defer-pending", "true")
+  root.setAttribute("aria-busy", "true")
+  const errors = []
+  root.addEventListener("reactive:error", (event) => errors.push([event.detail.feature, event.detail.phase]))
+  const consoleError = console.error
+  console.error = () => {}
+
+  try {
+    controller.connect()
+    defer.fail(new Error("404"))
+    await controller.featuresReady
+  } finally {
+    console.error = consoleError
+  }
+
+  // Nothing is coming: the shimmer must not lie. The root is marked failed,
+  // and only a reload can bring the module back.
+  expect(errors).toEqual([["defer", "load"]])
+  expect(root.hasAttribute("data-reactive-defer-pending")).toBe(false)
+  expect(root.hasAttribute("aria-busy")).toBe(false)
+  expect(root.getAttribute("data-reactive-error")).toBe("feature")
+})
+
+test("a slow defer module leaves the pending marker alone: it may still arrive", async () => {
+  setFeatureTimeout(20)
+  requestRig()
+  fakeDefer()
+  const { root, controller } = lazyOnRoot()
+  root.setAttribute("data-reactive-defer-pending", "true")
+  const consoleError = console.error
+  console.error = () => {}
+
+  try {
+    controller.connect()
+    await controller.featuresReady
+  } finally {
+    console.error = consoleError
+    document.head.innerHTML = ""
+  }
+
+  expect(root.getAttribute("data-reactive-defer-pending")).toBe("true")
 })

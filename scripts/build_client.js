@@ -34,7 +34,7 @@ const srcDir = join(root, "app/javascript/phlex/reactive")
 // imports it on demand, by the bare specifier phlex/reactive/features/<name>.
 // lib/phlex/reactive/engine.rb (CLIENT_FEATURES) pins and precompiles the same
 // names; spec/phlex/engine_client_pin_spec.rb fails when the two lists differ.
-const ENTRIES = ["reactive_controller", "early", "confirm", "confirm_predicate", "compute", "inspect", "features/persist"]
+const ENTRIES = ["reactive_controller", "early", "confirm", "confirm_predicate", "compute", "inspect", "features/persist", "features/defer"]
 
 // Kept external so a minified module imports its sibling by the SAME bare
 // specifier the source uses — the import map (engine.rb pins) maps each to its
@@ -55,7 +55,26 @@ for (const name of ENTRIES) {
   await rm(join(srcDir, `${name}.min.js.map`), { force: true })
 }
 
+// The controller's `export function __…ForTest` seams exist for the JS suite,
+// which imports the SOURCE. They are core bytes every page would download, so
+// the shipped build drops them. Each is a top-level function closed by a `}`
+// in column 0; anything else named that way fails the build below.
+const TEST_SEAM = /^export function __\w+ForTest\([^)]*\) \{\n(?:(?!\}\n)[^\n]*\n)*\}\n/gm
+const stripTestSeams = {
+  name: "strip-test-seams",
+  setup(build) {
+    build.onLoad({ filter: /reactive_controller\.js$/ }, async ({ path }) => {
+      const contents = (await Bun.file(path).text()).replace(TEST_SEAM, "")
+      if (/ForTest/.test(contents.replace(/^\s*\/\/.*$/gm, ""))) {
+        throw new Error(`${path}: a __…ForTest seam survived the strip — keep seams top-level, one function each`)
+      }
+      return { contents, loader: "js" }
+    })
+  },
+}
+
 const result = await Bun.build({
+  plugins: [stripTestSeams],
   entrypoints: ENTRIES.map((name) => join(srcDir, `${name}.js`)),
   outdir: srcDir,
   // Entries live in more than one directory (features/): anchor the output

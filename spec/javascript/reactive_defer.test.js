@@ -32,8 +32,12 @@ beforeAll(async () => {
   }))
   const mod = await import("../../app/javascript/phlex/reactive/reactive_controller.js")
   registerReactiveDefer = mod.registerReactiveDefer
-  resetReactiveDefers = mod.resetReactiveDefers
-  pendingDeferVia = mod.pendingDeferVia
+  // The defer code is a feature module (issue #275). Loaded up front here, so
+  // the core's `reactive:defer` stream action reaches it in the same tick — the
+  // not-yet-loaded path has its own tests in reactive_features.test.js.
+  const defer = await mod.__loadReactiveFeatureForTest("defer")
+  resetReactiveDefers = defer.resetReactiveDefers
+  pendingDeferVia = defer.pendingDeferVia
 })
 
 function getPendingDeferVia(id) {

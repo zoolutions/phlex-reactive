@@ -23,6 +23,7 @@ import { test, expect, mock, beforeAll, beforeEach } from "bun:test"
 
 let ReactiveController
 let mod
+let defer
 
 beforeAll(async () => {
   mock.module("@hotwired/stimulus", () => ({
@@ -31,6 +32,10 @@ beforeAll(async () => {
     },
   }))
   mod = await import("../../app/javascript/phlex/reactive/reactive_controller.js")
+  // The defer code is a feature module (issue #275). Loaded up front, so a
+  // connect or a `reactive:defer` stream reaches it in the same tick; the
+  // not-yet-loaded path is covered in reactive_features.test.js.
+  defer = await mod.__loadReactiveFeatureForTest("defer")
   ReactiveController = mod.default
 })
 
@@ -169,7 +174,7 @@ function fireDispatch(controller, trigger, extra = {}) {
 
 beforeEach(() => {
   mod.resetReactiveActivity()
-  mod.resetReactiveDefers()
+  defer.resetReactiveDefers()
 })
 
 // --- the primitive ----------------------------------------------------------

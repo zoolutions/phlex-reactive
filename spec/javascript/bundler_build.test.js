@@ -19,8 +19,9 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const gemJs = join(dirname(fileURLToPath(import.meta.url)), "../../app/javascript")
-// Text only the persist feature contains: its localStorage key prefix.
-const PERSIST_MARK = "phlex-reactive:persist:"
+// Text only ONE feature contains: persist's localStorage key prefix, and the
+// id prefix of the defer feature's stream source element.
+const FEATURE_MARKS = { persist: "phlex-reactive:persist:", defer: "reactive-defer-src-" }
 
 let app
 
@@ -70,18 +71,24 @@ test("with code splitting the feature is its own chunk, loaded by a dynamic impo
 
   expect(result.success).toBe(true)
   const entry = files.find((file) => file.kind === "entry-point")
-  const withPersist = files.filter((file) => file.text.includes(PERSIST_MARK))
-  // The draft code is NOT in the entry chunk a page always loads …
-  expect(entry.text).not.toContain(PERSIST_MARK)
-  // … it is in one chunk of its own …
-  expect(withPersist).toHaveLength(1)
-  // … which the entry still reaches through a dynamic import.
-  expect(entry.text).toMatch(/import\(\s*["']\.\/[^"']+["']\s*\)/)
+  for (const mark of Object.values(FEATURE_MARKS)) {
+    // The feature's code is NOT in the entry chunk a page always loads …
+    expect(entry.text).not.toContain(mark)
+    // … it is in one chunk of its own …
+    expect(files.filter((file) => file.text.includes(mark))).toHaveLength(1)
+  }
+  // … and the two features are different chunks …
+  const chunkOf = (mark) => files.find((file) => file.text.includes(mark)).path
+  expect(chunkOf(FEATURE_MARKS.persist)).not.toBe(chunkOf(FEATURE_MARKS.defer))
+  // … which the entry still reaches through dynamic imports.
+  expect(entry.text.match(/import\(\s*["']\.\/[^"']+["']\s*\)/g)).toHaveLength(2)
 })
 
 test("without code splitting the feature is bundled in and the build still succeeds", async () => {
   const { result, files } = await bundle()
 
   expect(result.success).toBe(true)
-  expect(files.filter((file) => file.text.includes(PERSIST_MARK))).toHaveLength(1)
+  for (const mark of Object.values(FEATURE_MARKS)) {
+    expect(files.filter((file) => file.text.includes(mark))).toHaveLength(1)
+  }
 })

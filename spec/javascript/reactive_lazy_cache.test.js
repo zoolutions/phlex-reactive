@@ -25,7 +25,10 @@ beforeAll(async () => {
   }))
   const mod = await import("../../app/javascript/phlex/reactive/reactive_controller.js")
   Controller = mod.default
-  resetReactiveDefers = mod.resetReactiveDefers
+  // The defer code is a feature module (issue #275). Loaded up front, so a
+  // connect or a `reactive:defer` stream reaches it in the same tick; the
+  // not-yet-loaded path is covered in reactive_features.test.js.
+  resetReactiveDefers = (await mod.__loadReactiveFeatureForTest("defer")).resetReactiveDefers
   REQUESTS_ATTR = mod.REQUESTS_ATTR
 })
 

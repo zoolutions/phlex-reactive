@@ -31,7 +31,12 @@ beforeAll(async () => {
   // state keeps this file independent of the order the suite runs in.
   delete globalThis[KEY]
   ;({ startEarly } = await import("../../app/javascript/phlex/reactive/early.js?dormant"))
-  ReactiveController = (await import("../../app/javascript/phlex/reactive/reactive_controller.js")).default
+  const mod = await import("../../app/javascript/phlex/reactive/reactive_controller.js")
+  ReactiveController = mod.default
+  // The defer code is a feature module (issue #275). Loaded up front, so a
+  // connect or a `reactive:defer` stream reaches it in the same tick; the
+  // not-yet-loaded path is covered in reactive_features.test.js.
+  await mod.__loadReactiveFeatureForTest("defer")
 })
 
 beforeEach(() => {
