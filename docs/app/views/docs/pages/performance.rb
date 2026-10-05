@@ -1081,9 +1081,9 @@ module Views
                   plain ' (the default client: the core and every feature module in one file): 351 KB of '
                   plain 'source → '
                   strong { '82 KB' }
-                  plain ' minified (−77%); 111 KB → '
+                  plain ' minified (−77%). Gzipped, the source would be 111 KB; the minified file is '
                   strong { '24.8 KB' }
-                  plain ' gzipped (−78%).'
+                  plain ' (−78%).'
                 end
                 li do
                   code { 'confirm.js' }
