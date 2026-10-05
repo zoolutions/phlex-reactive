@@ -153,8 +153,10 @@ task bench: "bench:micro"
 # Output is deterministic, so the .min.js/.min.js.map are committed and shipped
 # in the gem; consumers need no bun. See scripts/build_client.js.
 namespace :build do
-  # `**` so the feature modules under features/ are guarded too (issue #275).
-  min_glob = "app/javascript/phlex/reactive/**/*.min.js*"
+  # A pathspec, not a shell glob: its `*` crosses directories, so this also
+  # guards the feature modules under features/ (issue #275). Do not "fix" it
+  # to `**/` — that stops matching the top-level files.
+  min_glob = "app/javascript/phlex/reactive/*.min.js*"
 
   desc "Minify the client runtime (reactive_controller/confirm/compute) via bun"
   task :js do
