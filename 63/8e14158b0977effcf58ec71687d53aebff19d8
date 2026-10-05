@@ -1,0 +1,21 @@
+spec/phlex/reactive/fragment_id_spec.rb
+  s_b652aca9af6826::t_58e10e38ff51cc 1-160
+spec/phlex/reactive/lazy_shell_size_spec.rb
+  s_b652aca9af6826::t_c36894e6cafe6b 1-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "638e14158b0977effcf58ec71687d53aebff19d8",
+  "prompts": {},
+  "sessions": {
+    "s_b652aca9af6826": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "00f98917-30a6-412a-80ef-52ee01685b36",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
