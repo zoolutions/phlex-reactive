@@ -322,9 +322,7 @@ test("a stream with no per-call attr and no carrier declaration passes through",
 })
 
 test("chains with the dismiss wrapper — both run on one stream render", async () => {
-  __resetReactiveStreamRenderForTest()
-  registerReactiveDismiss()
-
+  // (One listener serves both since issue #275; beforeEach registered it.)
   const el = addTarget("card", {
     "data-reactive-effect-update": "highlight",
     "data-test-duration": "0.2s",

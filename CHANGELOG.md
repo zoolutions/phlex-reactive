@@ -930,8 +930,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     `on:` event during a lazy shell's wait loads it exactly once afterwards;
     a `reactive:defer` stream is kept and applied; only drafts hold a root's
     other actions back. A stream that brings a page's first effect or
-    dismissing flash renders when the effects module has arrived (at most a
-    second later), and the streams behind it keep their order; a dirty-tracked
+    dismissing flash waits up to a second for the effects module, and the
+    streams behind it keep their order; if it is still loading after that
+    they render without the effect, and the module sweeps up the flashes it
+    missed when it arrives; a dirty-tracked
     form counts an edit made before its module arrived, but `warn_unsaved`
     does not prompt for a navigation in that window (preload
     `phlex/reactive/features/form` where that matters);

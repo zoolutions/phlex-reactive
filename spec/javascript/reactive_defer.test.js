@@ -31,6 +31,9 @@ beforeAll(async () => {
     },
   }))
   const mod = await import("../../app/javascript/phlex/reactive/reactive_controller.js")
+  // The opt-in entry: it tells the shared runtime where each feature module
+  // lives, which the load-up-front seam below goes through.
+  await import("../../app/javascript/phlex/reactive/core.js")
   registerReactiveDefer = mod.registerReactiveDefer
   // The defer code is a feature module (issue #275). Loaded up front here, so
   // the core's `reactive:defer` stream action reaches it in the same tick — the

@@ -369,7 +369,7 @@ module Views
               rake bench           # the micro-benchmark suite (alias for bench:micro)
               rake bench:micro     # render, reactive_token, verify/sign, coerce_params — isolates each method
               rake bench:request   # end-to-end POST /reactive/actions through the full Rack stack
-              rake bench:client    # the client hot paths (extractToken, collectFields, recompute, connect) via bun
+              rake bench:client    # the client hot paths (extractToken, collectFields, recompute, runOps, connect) via bun
               rake bench:one[render]  # a single micro-bench by name
             SHELL
             DocsUI::Prose() do
@@ -959,10 +959,15 @@ module Views
                 plain " (the one walk that auto-collects a root's named inputs into the action params, "
                 plain 'scoped past nested reactive roots), and '
                 code { 'recompute' }
-                plain ' (the client-side data-binding compute), and '
+                plain ' (the client-side data-binding compute), '
+                code { 'runOps' }
+                plain ' (a client-only binding record), and '
                 code { 'connect()' }
-                plain ' over 2,000 roots (what every root pays once; the one place a feature module '
-                plain 'adds work per root, issue #275). All are driven through the '
+                plain ' + '
+                code { 'disconnect()' }
+                plain ' over 2,000 roots (a lifecycle-cycle cost, not connect alone: what every root '
+                plain 'pays once, and the one place a feature module adds work per root, issue #275). '
+                plain 'All are driven through the '
                 strong { "controller's public surface" }
                 plain ' ('
                 code { 'dispatch()' }
@@ -1169,9 +1174,9 @@ module Views
                                    'that needs it arrives: one with an effect, or with a `dismiss_after:` flash.']],
                             [[:code, 'phlex/reactive/features/dev'], '0.5 KB',
                              'Inside the one file.',
-                             [:md, 'Development only, and then with the core (effectively eager): on a page that ' \
-                                   'carries the `phlex-reactive-env` development meta, or while a latency delay is ' \
-                                   'stored. Never in production.']],
+                             [:md, 'With the core (effectively eager) on a page that carries the ' \
+                                   '`phlex-reactive-env` development meta, and on the first request while a delay ' \
+                                   'is stored for the tab (wherever that is). Without either, never.']],
                             [[:code, 'phlex/reactive/early'], '1.1 KB',
                              'On every page, if you import it.',
                              'The same.']

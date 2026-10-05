@@ -52,7 +52,12 @@ beforeAll(async () => {
 
 const realSetTimeout = globalThis.setTimeout
 const realConsole = globalThis.console
-const ORIGINALS = { sessionStorage: globalThis.sessionStorage, window: globalThis.window, fetch: globalThis.fetch }
+const ORIGINALS = {
+  sessionStorage: globalThis.sessionStorage,
+  window: globalThis.window,
+  fetch: globalThis.fetch,
+  navigator: globalThis.navigator,
+}
 let timers
 let errors
 let warns
@@ -226,18 +231,18 @@ describe("effects: a stream that needs the module before it is loaded", () => {
       await appendInto(list)(stream)
     })
 
-    // Turbo runs each stream's render on its own; the plain one would be first.
-    const done = [two.render(second), one.render(first)]
+    // Turbo calls each stream's render in arrival order and awaits each on its
+    // own: without the hold on BOTH, the plain second stream would render at
+    // once, ahead of the first.
+    const done = [one.render(first), two.render(second)]
     await settle()
     expect(order).toEqual([])
 
     effects.arrive()
     await Promise.all(done)
 
-    // Resumed in the order Turbo called them — the order they would have run
-    // in had nothing waited.
-    expect(order).toEqual(["two", "one"])
-    expect(list.textContent).toBe("twoone")
+    expect(order).toEqual(["one", "two"])
+    expect(list.textContent).toBe("onetwo")
   })
 
   test("a dismissing flash that arrives by stream is scheduled when it has RENDERED, from the render", async () => {
@@ -475,6 +480,9 @@ describe("form: edits made before the module arrived", () => {
 })
 
 describe("dev: the latency simulator before its module is loaded", () => {
+  // The module warns once per page that the sim is on; forget that here.
+  beforeEach(() => devModule.resetLatencySim())
+
   function storage(initial = {}) {
     const map = new Map(Object.entries(initial))
     return {

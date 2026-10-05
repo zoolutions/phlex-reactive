@@ -99,12 +99,19 @@ export function dispatchOnce(controller, action = "go") {
 // window's DOM event constructors onto globalThis — otherwise a global
 // CustomEvent produces a node happy-dom's dispatchEvent rejects. (We don't pull
 // in @happy-dom/global-registrator for this one need.)
+//
+// ONE Window for every bench that asks (memoized): the benches register at
+// import time and run later, so the globals the last caller installed are the
+// ones every bench runs under — a second Window would hand the others a
+// foreign Event class.
+let dom
 export async function makeDom() {
+  if (dom) return dom
   const { Window } = await import("happy-dom")
   const window = new Window({ url: "http://localhost/" })
   globalThis.Event = window.Event
   globalThis.CustomEvent = window.CustomEvent
-  return { window, document: window.document }
+  return (dom = { window, document: window.document })
 }
 
 // A reactive root <div> with a form of `fieldCount` text inputs (name="f0"…),

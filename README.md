@@ -277,7 +277,7 @@ imports one the first time a root on the page needs it:
 | `phlex/reactive/features/defer` (`reply.defer`, `reactive_lazy`) | 2.8 KB | inside the one file | fetched when a root is a `reactive_lazy` shell, a morph turns one into a shell, or a `reply.defer` arrives |
 | `phlex/reactive/features/form` (dirty tracking, `warn_unsaved`, the paste-trigger gate) | 1.0 KB | inside the one file | fetched when a root tracks dirty fields or holds a `paste_into` trigger |
 | `phlex/reactive/features/effects` (`reactive_effects`, `dismiss_after`) | 1.7 KB | inside the one file | fetched when a root declares an effect, or when the first stream that needs it arrives: one with an effect, or with a dismissing flash |
-| `phlex/reactive/features/dev` (the latency simulator) | 0.5 KB | inside the one file | development only: fetched with the core on a page that carries `<meta name="phlex-reactive-env" content="development">`, or while a delay is stored. Never in production |
+| `phlex/reactive/features/dev` (the latency simulator) | 0.5 KB | inside the one file | fetched with the core on a page that carries `<meta name="phlex-reactive-env" content="development">`, and on the first request while a delay is stored for the tab (wherever that is). Without either, never |
 | `phlex/reactive/early` | 1.1 KB | on every page, if you import it | the same |
 
 More of the client moves into feature modules with each release until the
