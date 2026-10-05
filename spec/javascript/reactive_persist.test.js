@@ -31,6 +31,9 @@ let loadFeature
 beforeAll(async () => {
   mock.module("@hotwired/stimulus", () => ({ Controller: class {} }))
   const mod = await import("../../app/javascript/phlex/reactive/reactive_controller.js")
+  // The opt-in entry: it tells the shared runtime where each feature module
+  // lives. Without it a cold feature has no import to wait for.
+  await import("../../app/javascript/phlex/reactive/core.js")
   ReactiveController = mod.default
   // Forgets every loaded feature module: the next connect() imports again.
   coldFeatures = mod.__resetReactiveFeaturesForTest

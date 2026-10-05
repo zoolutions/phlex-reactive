@@ -20,7 +20,7 @@ module Phlex
       # build script (scripts/build_client.js), the core's own table and the
       # default entry name the same features —
       # spec/phlex/engine_client_pin_spec.rb fails when they disagree.
-      CLIENT_FEATURES = %w[persist defer].freeze
+      CLIENT_FEATURES = %w[persist defer form effects dev].freeze
 
       # Mount POST /reactive/actions -> Phlex::Reactive::ActionsController#create
       # and POST /reactive/defer -> #deferred (the pull-lane defer endpoint,

@@ -74,7 +74,7 @@ Rails.application.routes.draw do
   # Issue #275: a persist root that also posts an action, and the persist
   # feature module served after a delay (the "restore has not run yet" window).
   get "persist_action" => "demos#persist_action"
-  get "slow_feature/persist.js" => "demos#slow_persist_feature"
+  get "slow_feature/:name.js" => "demos#slow_feature", constraints: { name: /[a-z]+/ }
   post "persist_form" => "demos#persist_form_submit"
   # Issue #241: reactive_persist over rich editors (real Trix + Lexxy + a bare
   # contenteditable); ?late=1 defers the editor definitions past connect.

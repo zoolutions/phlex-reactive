@@ -901,14 +901,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     and the three override seams), nothing fetched on demand, a draft restored
     and a lazy shell armed inside `connect()` as before. Existing importmap
     pins, bundler aliases and vendored copies keep working as they are. It is
-    24,789 B gzipped, 2,517 B more than the 22,272 B it was before: the price
-    of the feature loader and of each feature being a module of its own.
+    24,835 B gzipped, 2,563 B more than the 22,272 B it was before: the price
+    of each feature being a module of its own, with a table to find it by. It
+    contains no `import()` at all.
   - **`phlex/reactive/core` — new, opt-in — is the controller without its
-    feature modules** (19,740 B gzipped today, heading for about 10 KB as
-    more moves out). It imports `phlex/reactive/features/persist` (3,210 B,
-    the `reactive_persist` drafts) and `phlex/reactive/features/defer`
-    (2,846 B: `reply.defer`, `reactive_lazy`, `reactive_lazy(on:/cache:)`)
-    the first time a root on the page needs one. The engine pins the core and
+    feature modules** (18,518 B gzipped today, heading for about 10 KB as
+    more moves out). It imports a feature the first time something on the
+    page needs it: `phlex/reactive/features/persist` (3,210 B, the
+    `reactive_persist` drafts), `…/defer` (2,846 B: `reply.defer`,
+    `reactive_lazy`, `reactive_lazy(on:/cache:)`), `…/form` (1,015 B: dirty
+    tracking, `warn_unsaved`, the paste-trigger gate), `…/effects` (1,693 B:
+    `reactive_effects` and `dismiss_after`) and `…/dev` (491 B: the latency
+    simulator, development only). The engine pins the core and
     every feature (`preload: false`) and precompiles them. An app imports it
     INSTEAD of `reactive_controller`, never both; loading both logs `the
     client was loaded twice`. The README's "The split client" section has the
@@ -925,7 +929,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     feature timeout, fails to load, or the root leaves the page first. An
     `on:` event during a lazy shell's wait loads it exactly once afterwards;
     a `reactive:defer` stream is kept and applied; only drafts hold a root's
-    other actions back. `reactive:error` gains `kind: "feature"`, whose
+    other actions back. A stream that brings a page's first effect or
+    dismissing flash renders when the effects module has arrived (at most a
+    second later), and the streams behind it keep their order; a dirty-tracked
+    form counts an edit made before its module arrived, but `warn_unsaved`
+    does not prompt for a navigation in that window (preload
+    `phlex/reactive/features/form` where that matters);
+    `enableLatencySim` / `disableLatencySim` are exported by
+    `phlex/reactive/features/dev` (the default client still exports them
+    itself). `reactive:error` gains `kind: "feature"`, whose
     detail carries `feature`, `error` and a `phase` (one of `"load"`,
     `"timeout"`, `"connect"`, `"detect"`); a feature that failed to load
     stays failed until the page is reloaded.
@@ -937,7 +949,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - The shipped builds no longer export the controller's `__…ForTest` seams
     (they remain in the source the JS suite imports).
   - `spec/javascript/bundle_budget.test.js` holds a ratchet on the default
-    file, the core, each feature and the split total (25,796 B).
+    file, the core, each feature and the split total (27,773 B).
+  - `rake bench:client` gains a `connect()` bench (2,000 roots), the one
+    place a feature module adds work to every root.
 
 - **`on_client` emits a binding record (#271).** `data-reactive-ops-param` now
   holds `{"on":…,"ops":[…], "window"?, "outside"?, "confirm"?, "confirmWhen"?}`

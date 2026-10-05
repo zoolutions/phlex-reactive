@@ -1,0 +1,4 @@
+var r="phlex-reactive:latency",t=!1;function o(e){if(typeof sessionStorage>"u")return;sessionStorage.setItem("phlex-reactive:latency",String(e))}function i(){if(typeof sessionStorage>"u")return;sessionStorage.removeItem("phlex-reactive:latency"),t=!1}function s(){if(typeof window<"u")window.PhlexReactive={enableLatencySim:o,disableLatencySim:i}}function a(){t=!1}function f(){if(typeof sessionStorage>"u")return Promise.resolve();let e=Number(sessionStorage.getItem("phlex-reactive:latency"));if(!Number.isFinite(e)||e<=0)return Promise.resolve();if(!t)t=!0,console.warn(`[phlex-reactive] latency simulator ACTIVE — every action is delayed by ${e}ms. Call PhlexReactive.disableLatencySim() (or clear sessionStorage) to turn it off.`);return new Promise((n)=>setTimeout(n,e))}export{r as LATENCY_KEY,s as attach,f as delay,i as disableLatencySim,o as enableLatencySim,a as resetLatencySim};
+
+//# debugId=1331BE74D31B276664756E2164756E21
+//# sourceMappingURL=dev.min.js.map

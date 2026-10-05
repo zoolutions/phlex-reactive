@@ -29,9 +29,16 @@
               which imports the feature pins below on demand. %>
           "reactive_controller": "<%= ENV["REACTIVE_CLIENT"] == "split" ? "/vendor/core.js" : "/vendor/reactive_controller.js" %>",
           "phlex/reactive/confirm": "/vendor/confirm.js",
-          <%# Issue #275: ?slow=<ms> on /persist_action serves the feature late. %>
-          "phlex/reactive/features/persist": "<%= @slow_feature_ms ? "/slow_feature/persist.js?ms=#{@slow_feature_ms}" : "/vendor/features/persist.js" %>",
-          "phlex/reactive/features/defer": "/vendor/features/defer.js",
+          <%# Issue #275: every feature module, pinned as the engine pins them.
+              ?slow=<ms> serves ONE of them late — the persist module on
+              /persist_action, or the one ?slow_feature=<name> names — which
+              opens the window between the controller connecting and that
+              feature arriving. %>
+          <% slow_ms = @slow_feature_ms || (params[:slow_feature].present? ? params[:slow].to_i.clamp(0, 5000) : nil) %>
+          <% slow_name = params[:slow_feature].presence || "persist" %>
+          <% Phlex::Reactive::Engine::CLIENT_FEATURES.each do |name| %>
+          "phlex/reactive/features/<%= name %>": "<%= slow_ms && slow_name == name ? "/slow_feature/#{name}.js?ms=#{slow_ms}" : "/vendor/features/#{name}.js" %>",
+          <% end %>
           "phlex/reactive/confirm_predicate": "/vendor/confirm_predicate.js",
           "phlex/reactive/compute": "/vendor/compute.js",
           "phlex/reactive/inspect": "/vendor/inspect.js",

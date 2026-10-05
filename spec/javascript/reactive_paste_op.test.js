@@ -281,6 +281,12 @@ class FakeNode {
     return this.#descendants().filter((n) => n.matches(selector))
   }
 
+  // The form feature's marker check: one compound query for either marker.
+  querySelector(selector) {
+    if (!selector.includes("data-reactive-clipboard")) return null
+    return this.#descendants().find((n) => n.matches("[data-reactive-clipboard]")) ?? null
+  }
+
   contains() {
     return true
   }

@@ -24,7 +24,7 @@ Any change to a **hot path** must come with a bench and a before/after:
 | Identity token signing | `lib/phlex/reactive/component.rb` (`reactive_token`, `on`, `reactive_attrs`) |
 | Param coercion | `app/controllers/phlex/reactive/actions_controller.rb` (`coerce_params` and friends) |
 | Broadcast render | `lib/phlex/reactive/streamable.rb` (`broadcast_*_to`) |
-| Client dispatch | `app/javascript/phlex/reactive/core.js` (and `features/*.js`) |
+| Client dispatch, connect | `app/javascript/phlex/reactive/runtime.js` (and `features/*.js`) |
 
 A pure docs/test/refactor change with no hot-path edit does not need a bench.
 
@@ -42,7 +42,7 @@ A pure docs/test/refactor change with no hot-path edit does not need a bench.
 5. **Update the docs + CHANGELOG** — if representative numbers moved, update
    the performance page (`docs/app/views/docs/pages/performance.rb`); note the
    change under a `perf:` CHANGELOG entry.
-6. **Re-sync the vendored client** — any `core.js` or `features/*.js` edit
+6. **Re-sync the vendored client** — any `runtime.js`, `core.js` or `features/*.js` edit
    re-copies the rebuilt files to `spec/dummy/public/vendor/` (AGENTS.md has
    the list); run `bun test
    spec/javascript`.

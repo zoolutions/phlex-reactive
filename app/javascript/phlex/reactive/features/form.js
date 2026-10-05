@@ -1,0 +1,205 @@
+// phlex/reactive/features/form — what a form root sets up when it connects
+// and re-syncs after a morph, with no round trip: dirty tracking and the
+// navigate-away guard (issue #103), and the paste-trigger availability gate
+// (issue #228). One of the feature modules the core imports on demand (issue
+// #275); in the default client it is part of the one file.
+//
+// The two share a module because they share a shape, not a page: a marker
+// check at connect, one pass over the root's own controls, the same pass
+// again on turbo:morph-element. The gate alone is smaller than what a module
+// of its own costs the core.
+//
+// This module never imports the core: it reaches a controller through the
+// `core` handle (core.owns — is this control this root's own, issue #15).
+
+// controller -> what connect() wired, for disconnect() to remove exactly that.
+const wired = new WeakMap()
+
+export function connect(controller, core) {
+  const root = controller.element
+  const state = {}
+  wired.set(controller, state)
+
+  // Dirty tracking (issue #103) — ONLY when this root opts in (track_dirty: or a
+  // reactive_field(dirty:)), so a component that never uses it pays nothing (no
+  // baseline scan, no morph listener on every broadcast). A plain (outerHTML)
+  // replace re-connects the controller, so seed the baseline scan here — the root
+  // reflects current-vs-default WITHOUT waiting for the first input. An in-place
+  // morph / broadcast morph keeps the element CONNECTED and fires no Stimulus
+  // lifecycle, so ALSO listen for turbo:morph-element on the root to re-scan
+  // after the morph writes fresh default* attributes (reactive:applied is NOT a
+  // valid hook — it fires when streams are handed to Turbo, BEFORE the DOM
+  // mutation). Both listeners are torn down in disconnect().
+  if (dirtyTrackingEnabled(root, core)) {
+    state.scanDirty = () => scan(controller, core)
+    root.addEventListener?.("turbo:morph-element", state.scanDirty)
+    scan(controller, core)
+
+    // warn_unsaved: arm a navigate-away guard gated on a LIVE dirty-count read
+    // (never a cached snapshot — the count is re-derived from the DOM each time).
+    // beforeunload covers a real browser unload; turbo:before-visit covers a
+    // Turbo in-app navigation (it does NOT fire on restoration visits — the
+    // documented gap). Registered on window only when the marker is present.
+    if (root.getAttribute?.("data-reactive-warn-unsaved") === "true") armUnsavedGuard(root, state)
+  }
+
+  // Clipboard-trigger availability gate (issue #228) — ONLY when this root
+  // owns a paste trigger (on_client marks one with data-reactive-clipboard).
+  // The Async Clipboard API is absent in insecure contexts and some webviews;
+  // a paste button that can never work must not show. The gate OWNS a marked
+  // trigger's `hidden` flag: author the trigger `hidden` and this pass reveals
+  // it where the API exists (a dead button never paints); turbo:morph-element
+  // re-syncs because a morph rewrites the trigger back to its authored hidden
+  // state. The decision is made ONCE at connect — render the paste trigger
+  // unconditionally: a trigger first INTRODUCED by a later morph of a root
+  // that already tracks dirtiness stays ungated (hidden) until a full replace
+  // re-connects the controller.
+  if (clipboardGateEnabled(root, core)) {
+    state.syncClipboard = () => syncClipboardTriggers(root, core)
+    root.addEventListener?.("turbo:morph-element", state.syncClipboard)
+    syncClipboardTriggers(root, core)
+  }
+}
+
+// Remove the listeners on disconnect (Turbo morph/navigation) so a morph
+// re-scan or a navigate-away guard never runs against a detached root.
+export function disconnect(controller) {
+  const state = wired.get(controller)
+  if (!state) return
+  wired.delete(controller)
+  const root = controller.element
+  if (state.scanDirty) root.removeEventListener?.("turbo:morph-element", state.scanDirty)
+  if (state.syncClipboard) root.removeEventListener?.("turbo:morph-element", state.syncClipboard)
+  if (typeof window !== "undefined" && typeof window.removeEventListener === "function") {
+    if (state.beforeUnload) window.removeEventListener("beforeunload", state.beforeUnload)
+    if (state.beforeVisit) window.removeEventListener("turbo:before-visit", state.beforeVisit)
+  }
+}
+
+// Whether this root opts into dirty tracking (issue #103): track_dirty: puts the
+// trackDirty descriptor on the ROOT's data-action; a per-field reactive_field(
+// dirty:) puts it on a descendant field. Either turns tracking on. A quick
+// attribute read + one scoped query, evaluated once per connect (a cold path).
+function dirtyTrackingEnabled(root, core) {
+  if ((root.getAttribute?.("data-action") ?? "").includes("reactive#trackDirty")) return true
+  const nodes = root.querySelectorAll?.('[data-action*="reactive#trackDirty"]') ?? []
+  for (const el of nodes) if (core.owns(el)) return true
+  return false
+}
+
+// Dirty tracking (issue #103). Wired by reactive_field(dirty: true) /
+// reactive_root(track_dirty: true): an `input` on an owned field runs a FULL
+// re-scan of every field this root owns (the controller's trackDirty action
+// calls this). NO round trip, NO shipped state.
+//
+// Re-compute the dirty flag for EVERY field this root owns in one pass, then
+// reflect the total onto the root. Called on an owned field's input, on
+// connect (baseline seed), and after a turbo:morph-element re-render (fresh
+// default* attrs). dirty = current ≠ the DOM's own default:
+//   checkbox/radio → checked  !== defaultChecked
+//   select         → some option.selected !== option.defaultSelected
+//   else           → value    !== defaultValue
+// A full pass (not per-target) is REQUIRED: a radio group's previously-checked
+// radio flips to checked=false with NO input event, so per-target toggling
+// would leave its flag stale. File inputs are skipped — a file has no server
+// default baseline. Per-dirty-field data-reactive-dirty="true" ("true" STRING,
+// not a valueless boolean attr — mirrors the on() flag convention); the root
+// carries data-reactive-dirty="<count>" and DROPS the attr at zero, so
+// `[data-reactive-dirty]` styles the whole form and `[data-reactive-dirty]`
+// on a field styles just the changed control — both pure CSS, zero JS.
+export function scan(controller, core) {
+  const root = controller.element
+  // Runs at bootstrap (the connect baseline seed) as well as on input/morph, so
+  // it must never throw — degrade to a no-op if the root can't be queried (a real
+  // reactive root always can; this guards minimal/test element stubs).
+  if (typeof root?.querySelectorAll !== "function") return
+
+  let count = 0
+  root.querySelectorAll("input[name], select[name], textarea[name]").forEach((field) => {
+    if (!core.owns(field)) return // skip a nested reactive root's fields (issue #15)
+    if (field.type === "file") return // no server default baseline to diff against
+
+    if (fieldDirty(field)) {
+      field.setAttribute("data-reactive-dirty", "true")
+      count++
+    } else {
+      field.removeAttribute("data-reactive-dirty")
+    }
+  })
+
+  if (count > 0) root.setAttribute("data-reactive-dirty", String(count))
+  else root.removeAttribute("data-reactive-dirty")
+}
+
+// Whether a single owned control differs from its server-rendered default.
+function fieldDirty(field) {
+  if (field.type === "checkbox" || field.type === "radio") {
+    return field.checked !== field.defaultChecked
+  }
+  if (field.tag === "select" || field.options) {
+    // Any option whose selected state diverges from its defaultSelected. Guard
+    // for a stub/absent options list (degrade to clean).
+    return Array.from(field.options ?? []).some((o) => o.selected !== o.defaultSelected)
+  }
+  return field.value !== field.defaultValue
+}
+
+// The live dirty-field count, re-derived from the DOM (never a cached snapshot)
+// — the source of truth for the warn_unsaved guard's gate.
+function dirtyCount(root) {
+  const raw = root.getAttribute?.("data-reactive-dirty")
+  const n = Number(raw)
+  return Number.isFinite(n) && n > 0 ? n : 0
+}
+
+// Arm the navigate-away guard (warn_unsaved: true, issue #103). beforeunload
+// blocks a real browser unload; turbo:before-visit blocks a Turbo in-app
+// navigation (it does NOT fire on restoration visits — the documented gap).
+// Both read the LIVE dirty count, so a clean form never blocks. Handlers are
+// stored so disconnect() removes exactly them.
+function armUnsavedGuard(root, state) {
+  if (typeof window === "undefined" || typeof window.addEventListener !== "function") return
+
+  state.beforeUnload = (event) => {
+    if (dirtyCount(root) === 0) return undefined
+    // The spec dance: preventDefault + a truthy returnValue triggers the native
+    // "leave site?" prompt. The string is legacy (modern browsers show their own
+    // copy) but must be non-empty/truthy to arm the dialog.
+    event.preventDefault()
+    event.returnValue = "You have unsaved changes."
+    return event.returnValue
+  }
+  state.beforeVisit = (event) => {
+    if (dirtyCount(root) === 0) return
+    const ok = typeof window.confirm === "function" ? window.confirm("You have unsaved changes. Leave anyway?") : true
+    if (!ok) event.preventDefault?.()
+  }
+
+  window.addEventListener("beforeunload", state.beforeUnload)
+  window.addEventListener("turbo:before-visit", state.beforeVisit)
+}
+
+// Whether this root owns a clipboard-marked paste trigger (issue #228). The
+// ROOT itself counts (a button-only component that mixes on_client(paste_into)
+// onto reactive_root), then one scoped query; a NESTED root's triggers are
+// its own controller's to gate (issue #15 ownership).
+function clipboardGateEnabled(root, core) {
+  if (root.getAttribute?.("data-reactive-clipboard")) return true
+  const nodes = root.querySelectorAll?.("[data-reactive-clipboard]") ?? []
+  for (const el of nodes) if (core.owns(el)) return true
+  return false
+}
+
+// Set every owned paste trigger's `hidden` from clipboard availability
+// (issue #228): available → revealed (the authored `hidden` was only the
+// no-dead-button first paint), missing → hidden (insecure context /
+// webview). The gate owns the flag on MARKED elements only — nothing else
+// is ever touched. A marked ROOT is gated too: when the component IS the
+// paste button, hiding the root is exactly "the dead button never shows".
+function syncClipboardTriggers(root, core) {
+  const available = typeof globalThis.navigator?.clipboard?.readText === "function"
+  if (root.getAttribute?.("data-reactive-clipboard")) root.hidden = !available
+  for (const el of root.querySelectorAll?.("[data-reactive-clipboard]") ?? []) {
+    if (core.owns(el)) el.hidden = !available
+  }
+}

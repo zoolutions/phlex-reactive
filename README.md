@@ -272,9 +272,12 @@ imports one the first time a root on the page needs it:
 | Module | Gzipped | Default client | Split client |
 |---|---:|---|---|
 | `phlex/reactive/reactive_controller` | 24.8 KB | loaded with your controllers | not loaded |
-| `phlex/reactive/core` | 19.7 KB | not loaded (it is inside the file above) | loaded with your controllers |
+| `phlex/reactive/core` | 18.5 KB | not loaded (it is inside the file above) | loaded with your controllers |
 | `phlex/reactive/features/persist` (`reactive_persist` drafts) | 3.2 KB | inside the one file | fetched when a root declares `reactive_persist`, or a `persist_state` / `persist_clear` op runs |
 | `phlex/reactive/features/defer` (`reply.defer`, `reactive_lazy`) | 2.8 KB | inside the one file | fetched when a root is a `reactive_lazy` shell, a morph turns one into a shell, or a `reply.defer` arrives |
+| `phlex/reactive/features/form` (dirty tracking, `warn_unsaved`, the paste-trigger gate) | 1.0 KB | inside the one file | fetched when a root tracks dirty fields or holds a `paste_into` trigger |
+| `phlex/reactive/features/effects` (`reactive_effects`, `dismiss_after`) | 1.7 KB | inside the one file | fetched when a root declares an effect, or when the first stream that needs it arrives: one with an effect, or with a dismissing flash |
+| `phlex/reactive/features/dev` (the latency simulator) | 0.5 KB | inside the one file | development only: fetched with the core on a page that carries `<meta name="phlex-reactive-env" content="development">`, or while a delay is stored. Never in production |
 | `phlex/reactive/early` | 1.1 KB | on every page, if you import it | the same |
 
 More of the client moves into feature modules with each release until the
@@ -292,7 +295,22 @@ visit the module is already loaded and nothing waits). While it waits:
   the feature timeout (10 s), fails to load, or the root leaves the page
   first, in which case it goes out with the values on the page;
 - a `reactive_lazy` shell shows its placeholder a moment longer; an `on:`
-  event that fires in that window loads the shell once the module is there.
+  event that fires in that window loads the shell once the module is there;
+- a stream that brings the page's first effect or dismissing flash — a
+  broadcast, an action's reply — is rendered when the effects module has
+  arrived, so that very stream is animated and its flash dismissed on time
+  (`dismiss_after:` counts from the render). Every stream that arrives while
+  it waits renders after it, in order. The wait is capped at one second;
+  after that the streams render without the effect, and a flash they brought
+  is dismissed counting from the module's arrival instead. A root that
+  declares an effect loads the module when it connects, so this only happens
+  on a page where no root does;
+- a dirty-tracked form counts an edit made in the window when the module
+  arrives. `warn_unsaved:` does not prompt for a navigation in the window
+  itself: preload the module on a page where that matters (below);
+- the latency simulator delays a request from the first one on (the request
+  waits for the module). `enableLatencySim` / `disableLatencySim` are
+  exported by `phlex/reactive/features/dev` here, not by the controller.
 
 None of that exists with the default client.
 
@@ -303,6 +321,7 @@ page uses, and they are there before any root connects:
 # config/importmap.rb — after the engine's own pins
 pin "phlex/reactive/core", to: "phlex/reactive/core.min.js", preload: true
 pin "phlex/reactive/features/persist", to: "phlex/reactive/features/persist.min.js", preload: true
+pin "phlex/reactive/features/form", to: "phlex/reactive/features/form.min.js", preload: true # warn_unsaved: from the first moment
 ```
 
 (or a `<link rel="modulepreload">` on the pages that need it). A root that is

@@ -6,9 +6,9 @@
 class DemosController < ActionController::Base
   layout "application"
 
-  # slow_persist_feature answers a module import with JavaScript; Rails would
-  # refuse a non-XHR GET for JS as a cross-origin script include.
-  skip_after_action :verify_same_origin_request, only: :slow_persist_feature
+  # slow_feature answers a module import with JavaScript; Rails would refuse
+  # a non-XHR GET for JS as a cross-origin script include.
+  skip_after_action :verify_same_origin_request, only: :slow_feature
 
   def counter
     render_component CounterComponent.new(count: 0)
@@ -438,9 +438,13 @@ class DemosController < ActionController::Base
     render html: html.html_safe, layout: "lazy_controller"
   end
 
-  def slow_persist_feature
+  # A feature module, served after ?ms= (the layouts pin one to this route).
+  def slow_feature
+    name = params[:name]
+    return head(:not_found) unless Phlex::Reactive::Engine::CLIENT_FEATURES.include?(name)
+
     sleep(params[:ms].to_i.clamp(0, 5000) / 1000.0)
-    send_file Rails.public_path.join("vendor/features/persist.js"), type: "text/javascript", disposition: "inline"
+    send_file Rails.public_path.join("vendor/features/#{name}.js"), type: "text/javascript", disposition: "inline"
   end
 
   # Issue #241: reactive_persist over rich editors. ?body= / ?notes= render

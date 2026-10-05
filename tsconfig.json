@@ -9,6 +9,7 @@
       "phlex/reactive/inspect": ["./app/javascript/phlex/reactive/inspect.js"],
       "phlex/reactive/early": ["./app/javascript/phlex/reactive/early.js"],
       "phlex/reactive/core": ["./app/javascript/phlex/reactive/core.js"],
+      "phlex/reactive/runtime": ["./app/javascript/phlex/reactive/runtime.js"],
       "phlex/reactive/features/*": ["./app/javascript/phlex/reactive/features/*.js"],
       "@hotwired/stimulus": ["./benchmark/client/support/stimulus_shim.js"]
     }

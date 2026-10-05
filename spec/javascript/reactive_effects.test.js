@@ -14,8 +14,7 @@ import { test, expect, mock, beforeEach, afterEach } from "bun:test"
 import { Window } from "happy-dom"
 
 let registerReactiveEffects
-let __resetReactiveEffectsForTest
-let __resetReactiveDismissForTest
+let __resetReactiveStreamRenderForTest
 let registerReactiveDismiss
 
 let window
@@ -49,9 +48,8 @@ beforeEach(async () => {
   mock.module("@hotwired/stimulus", () => ({ Controller: class {} }))
   ;({
     registerReactiveEffects,
-    __resetReactiveEffectsForTest,
+    __resetReactiveStreamRenderForTest,
     registerReactiveDismiss,
-    __resetReactiveDismissForTest,
   } = await import("../../app/javascript/phlex/reactive/reactive_controller.js"))
 
   window = new Window()
@@ -74,7 +72,7 @@ beforeEach(async () => {
   warns = []
   console.warn = (...args) => warns.push(args.join(" "))
   installFakeTimers()
-  __resetReactiveEffectsForTest()
+  __resetReactiveStreamRenderForTest()
   registerReactiveEffects()
 })
 
@@ -99,7 +97,9 @@ function makeStream(action, target, { effect = null, content = null } = {}) {
 
 // Fire turbo:before-stream-render the way Turbo does (detail.newStream + a
 // detail.render the interceptor may wrap), then hand back the detail so the
-// test invokes the (possibly wrapped) render like Turbo would.
+// test invokes the (possibly wrapped) render like Turbo would. The ONE
+// listener always adds the dismiss wrapper; a stream the effects left alone
+// is one whose render carries no __reactiveEffectsWrapped marker.
 function fire(stream, render) {
   const detail = { render, newStream: stream }
   document.dispatchEvent(new window.CustomEvent("turbo:before-stream-render", { detail }))
@@ -172,7 +172,7 @@ test('per-call "off" suppresses a declared effect (render untouched)', () => {
   addTarget("row", { "data-reactive-effect-exit": "fade", "data-test-duration": "0.2s" })
   const render = async () => {}
   const detail = fire(makeStream("remove", "row", { effect: "off" }), render)
-  expect(detail.render).toBe(render) // never wrapped
+  expect(detail.render.__reactiveEffectsWrapped).toBeUndefined() // never wrapped
 })
 
 test("enter: the inserted clone gets the class post-render and the marker is cleared", async () => {
@@ -288,14 +288,14 @@ test("prefers-reduced-motion disables everything (render untouched)", () => {
   addTarget("row", { "data-reactive-effect-exit": "fade", "data-test-duration": "0.2s" })
   const render = async () => {}
   const detail = fire(makeStream("remove", "row"), render)
-  expect(detail.render).toBe(render)
+  expect(detail.render.__reactiveEffectsWrapped).toBeUndefined()
 })
 
 test("unknown effect name warns and skips (client-side default-deny)", () => {
   addTarget("row", { "data-test-duration": "0.2s" })
   const render = async () => {}
   const detail = fire(makeStream("remove", "row", { effect: "sparkle" }), render)
-  expect(detail.render).toBe(render)
+  expect(detail.render.__reactiveEffectsWrapped).toBeUndefined()
   expect(warns.join(" ")).toContain("sparkle")
 })
 
@@ -303,26 +303,26 @@ test("malformed legs JSON warns and skips", () => {
   addTarget("row", { "data-test-duration": "0.2s" })
   const render = async () => {}
   const detail = fire(makeStream("remove", "row", { effect: "[broken" }), render)
-  expect(detail.render).toBe(render)
+  expect(detail.render.__reactiveEffectsWrapped).toBeUndefined()
   expect(warns.join(" ")).toContain("legs")
 })
 
 test("reactive:* and unknown actions are never wrapped", () => {
   addTarget("row", { "data-reactive-effect-exit": "fade", "data-test-duration": "0.2s" })
   const render = async () => {}
-  expect(fire(makeStream("reactive:token", "row"), render).render).toBe(render)
-  expect(fire(makeStream("reactive:js", "row"), render).render).toBe(render)
+  expect(fire(makeStream("reactive:token", "row"), render).render.__reactiveEffectsWrapped).toBeUndefined()
+  expect(fire(makeStream("reactive:js", "row"), render).render.__reactiveEffectsWrapped).toBeUndefined()
 })
 
 test("a stream with no per-call attr and no carrier declaration passes through", () => {
   addTarget("plain")
   const render = async () => {}
   const detail = fire(makeStream("replace", "plain"), render)
-  expect(detail.render).toBe(render)
+  expect(detail.render.__reactiveEffectsWrapped).toBeUndefined()
 })
 
 test("chains with the dismiss wrapper — both run on one stream render", async () => {
-  __resetReactiveDismissForTest()
+  __resetReactiveStreamRenderForTest()
   registerReactiveDismiss()
 
   const el = addTarget("card", {

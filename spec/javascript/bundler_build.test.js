@@ -22,9 +22,16 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const gemJs = join(dirname(fileURLToPath(import.meta.url)), "../../app/javascript")
-// Text only ONE feature contains: persist's localStorage key prefix, and the
-// id prefix of the defer feature's stream source element.
-const FEATURE_MARKS = { persist: "phlex-reactive:persist:", defer: "reactive-defer-src-" }
+// Text only ONE feature contains: persist's localStorage key prefix, the id
+// prefix of the defer feature's stream source element, the unsaved guard's
+// marker, the effect class prefix, the latency simulator's banner.
+const FEATURE_MARKS = {
+  persist: "phlex-reactive:persist:",
+  defer: "reactive-defer-src-",
+  form: "data-reactive-warn-unsaved",
+  effects: "reactive-fx--",
+  dev: "latency simulator ACTIVE",
+}
 const DYNAMIC_IMPORT = /import\(\s*["'][^"']+["']\s*\)/g
 
 let app
@@ -159,9 +166,9 @@ test("with code splitting each feature of the split core is its own chunk, loade
     // … it is in one chunk of its own …
     expect(files.filter((file) => file.text.includes(mark))).toHaveLength(1)
   }
-  // … and the two features are different chunks …
+  // … and every feature is a different chunk …
   const chunkOf = (mark) => files.find((file) => file.text.includes(mark)).path
-  expect(chunkOf(FEATURE_MARKS.persist)).not.toBe(chunkOf(FEATURE_MARKS.defer))
+  expect(new Set(Object.values(FEATURE_MARKS).map(chunkOf)).size).toBe(Object.keys(FEATURE_MARKS).length)
   // … which the entry still reaches through dynamic imports.
   expect(entry.text.match(DYNAMIC_IMPORT)).toHaveLength(Object.keys(FEATURE_MARKS).length)
 })
