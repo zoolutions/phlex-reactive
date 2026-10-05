@@ -18,7 +18,8 @@ RSpec.describe "minified client build" do # rubocop:disable RSpec/DescribeClass
     # measured against everything that is bundled into it.
     "reactive_controller.js" => {
       min: "reactive_controller.min.js",
-      bundles: %w[runtime.js features/persist.js features/defer.js features/form.js features/effects.js features/dev.js],
+      bundles: %w[runtime.js features/persist.js features/defer.js features/form.js features/bindings.js features/compute.js
+                  features/effects.js features/hints.js features/devtools.js],
       # The default export (the Stimulus controller) plus representative named
       # exports an app registers/overrides — re-exported from the core.
       exports: %w[default registerReactiveActions enableLatencySim],
@@ -32,10 +33,22 @@ RSpec.describe "minified client build" do # rubocop:disable RSpec/DescribeClass
     "core.js" => {
       min: "core.min.js",
       bundles: %w[runtime.js],
-      # (The latency simulator's exports live in features/dev for this entry.)
+      # (The latency simulator's exports live in features/devtools for this
+      # entry.) The compute and confirm_predicate seams are imported by the
+      # compute and bindings feature modules, not by the runtime, so this
+      # entry reaches only Stimulus and the confirm seam.
       exports: %w[default registerReactiveActions registerReactiveFeature],
-      externals: ["@hotwired/stimulus", "phlex/reactive/confirm", "phlex/reactive/confirm_predicate",
-                  "phlex/reactive/compute"]
+      externals: ["@hotwired/stimulus", "phlex/reactive/confirm"]
+    },
+    "features/compute.js" => {
+      min: "features/compute.min.js",
+      exports: %w[connect recompute],
+      externals: ["phlex/reactive/compute"]
+    },
+    "features/bindings.js" => {
+      min: "features/bindings.min.js",
+      exports: %w[connect confirmMessage],
+      externals: ["phlex/reactive/confirm_predicate"]
     },
     "confirm.js" => {
       min: "confirm.min.js",
@@ -59,7 +72,8 @@ RSpec.describe "minified client build" do # rubocop:disable RSpec/DescribeClass
       it "is committed alongside a linked sourcemap" do
         expect(File).to exist(min_path)
         expect(File).to exist(map_path)
-        expect(File.read(min_path)).to include("sourceMappingURL=#{spec[:min]}.map")
+        # (The link is relative to the file, so a features/ module links its basename.)
+        expect(File.read(min_path)).to include("sourceMappingURL=#{File.basename(spec[:min])}.map")
       end
 
       it "is meaningfully smaller than the commented source" do

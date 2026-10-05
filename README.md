@@ -271,17 +271,22 @@ imports one the first time a root on the page needs it:
 
 | Module | Gzipped | Default client | Split client |
 |---|---:|---|---|
-| `phlex/reactive/reactive_controller` | 24.8 KB | loaded with your controllers | not loaded |
-| `phlex/reactive/core` | 18.5 KB | not loaded (it is inside the file above) | loaded with your controllers |
+| `phlex/reactive/reactive_controller` | 26.1 KB | loaded with your controllers | not loaded |
+| `phlex/reactive/core` | 12.3 KB | not loaded (it is inside the file above) | loaded with your controllers |
 | `phlex/reactive/features/persist` (`reactive_persist` drafts) | 3.2 KB | inside the one file | fetched when a root declares `reactive_persist`, or a `persist_state` / `persist_clear` op runs |
 | `phlex/reactive/features/defer` (`reply.defer`, `reactive_lazy`) | 2.8 KB | inside the one file | fetched when a root is a `reactive_lazy` shell, a morph turns one into a shell, or a `reply.defer` arrives |
 | `phlex/reactive/features/form` (dirty tracking, `warn_unsaved`, the paste-trigger gate) | 1.0 KB | inside the one file | fetched when a root tracks dirty fields or holds a `paste_into` trigger |
 | `phlex/reactive/features/effects` (`reactive_effects`, `dismiss_after`) | 1.7 KB | inside the one file | fetched when a root declares an effect, or when the first stream that needs it arrives: one with an effect, or with a dismissing flash |
-| `phlex/reactive/features/dev` (the latency simulator) | 0.5 KB | inside the one file | fetched with the core on a page that carries `<meta name="phlex-reactive-env" content="development">`, and on the first request while a delay is stored for the tab (wherever that is). Without either, never |
+| `phlex/reactive/features/bindings` (`reactive_show`, show targets, `reactive_on_complete`, `reactive_filter`, `reactive_tags`, nested rows, the conditional `confirm:`) | 5.4 KB | inside the one file | fetched when a root declares one of them, or holds a trigger with a conditional confirm |
+| `phlex/reactive/features/compute` (`reactive_compute`, `reactive_text`) | 2.1 KB | inside the one file | fetched when a root carries a compute binding |
+| `phlex/reactive/features/hints` (`optimistic:`, `busy:`) | 1.0 KB | inside the one file | fetched when a root holds a trigger that declares a hint |
+| `phlex/reactive/features/devtools` (the latency simulator, the zero-target warnings, the debug trace) | 1.6 KB | inside the one file | fetched with the core on a page that carries `<meta name="phlex-reactive-env" content="development">` or while a delay is stored for the tab; at connect for a root in debug mode; otherwise the first time a verbose root has something to warn about. In production with none of these, never |
 | `phlex/reactive/early` | 1.1 KB | on every page, if you import it | the same |
 
-More of the client moves into feature modules with each release until the
-core is about 10 KB; the default file stays one file throughout.
+That is the whole split: everything that can leave the core has. What
+remains in it — the request pipeline, the signed token, field collection,
+client ops and `on_client` bindings, early-trigger replay, list navigation —
+is what every reactive page uses.
 
 **What you trade.** With the default client a feature is simply there when a
 root connects. With the split client the **first** root of a page load that
@@ -308,9 +313,31 @@ visit the module is already loaded and nothing waits). While it waits:
 - a dirty-tracked form counts an edit made in the window when the module
   arrives. `warn_unsaved:` does not prompt for a navigation in the window
   itself: preload the module on a page where that matters (below);
+- a form's bindings — `reactive_show`, `reactive_filter`, the tag chips, the
+  nested-row JSON field — show what the server rendered until the module
+  arrives, then seed from the fields as they are: a choice made in the window
+  is kept and reflected, a tag picked in the window is added, a conditional
+  `confirm:` asks once the module can evaluate it. Because the JSON-mode rows
+  write a field a request collects, a root with any of these holds its
+  requests until the module is here (bounded as above);
+- a `reactive_compute` root shows the server's values for its outputs until
+  the module arrives (about 20–25 ms with the module served from the same
+  host, measured on the split client in the browser suite; one request's
+  worth on a real network), then seeds; an edit made in the window is
+  recomputed from the value the user typed, never overwritten. Such a root
+  holds its requests until the module is here, for the same reason;
+- a trigger with an `optimistic:` or `busy:` hint: its request waits for the
+  hints module (at most the feature timeout), the hint applies, and the
+  request goes out — once. The busy markers (`aria-busy`,
+  `data-reactive-busy`, `busy_on`) are on from the click, as always; a
+  failure after a late apply still reverts the optimistic hint. A root whose
+  triggers declare a hint loads the module when it connects, so this is the
+  first click of a page's first root at most;
 - the latency simulator delays a request from the first one on (the request
-  waits for the module). `enableLatencySim` / `disableLatencySim` are
-  exported by `phlex/reactive/features/dev` here, not by the controller.
+  waits for the module); a zero-target warning on a verbose root, or a debug
+  trace, is logged once the module is here. `enableLatencySim` /
+  `disableLatencySim` are exported by `phlex/reactive/features/devtools`
+  here, not by the controller.
 
 None of that exists with the default client.
 
@@ -322,6 +349,8 @@ page uses, and they are there before any root connects:
 pin "phlex/reactive/core", to: "phlex/reactive/core.min.js", preload: true
 pin "phlex/reactive/features/persist", to: "phlex/reactive/features/persist.min.js", preload: true
 pin "phlex/reactive/features/form", to: "phlex/reactive/features/form.min.js", preload: true # warn_unsaved: from the first moment
+pin "phlex/reactive/features/bindings", to: "phlex/reactive/features/bindings.min.js", preload: true # show/filter/tags seeded at connect
+pin "phlex/reactive/features/compute", to: "phlex/reactive/features/compute.min.js", preload: true # computed fields right at connect
 ```
 
 (or a `<link rel="modulepreload">` on the pages that need it). A root that is

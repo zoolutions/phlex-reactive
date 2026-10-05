@@ -86,6 +86,27 @@ RSpec.describe "The default client: one file, nothing on demand (issue #275)", :
     expect(on_demand_fetches).to eq([])
   end
 
+  it "fetches no feature module for hints, computes, show bindings or tag chips" do
+    visit "/hinted?load=eager&slow=1500&slow_feature=hints"
+    find("[data-testid='bump']").click
+    expect(page).to have_css("[data-testid='bump'].pressed") # applied in the click's own task
+    expect(page).to have_css("[data-testid='clicks']", text: "1")
+    expect(on_demand_fetches).to eq([])
+
+    visit "/compute_seed?slow=1500&slow_feature=compute"
+    expect(page).to have_field("total", with: "6") # seeded inside connect
+    expect(on_demand_fetches).to eq([])
+
+    visit "/conditional_fieldset?slow=1500&slow_feature=bindings"
+    select "Express", from: "mode"
+    expect(page).to have_css("[data-testid='mode-details']", visible: :visible)
+    expect(on_demand_fetches).to eq([])
+
+    visit "/tags_field"
+    expect(page).to have_css("[data-reactive-tags-field][data-reactive-connected]")
+    expect(on_demand_fetches).to eq([])
+  end
+
   it "a stream's effect is applied when its event fires — it never waits (the split client's hold does not exist)" do
     visit "/counter?slow=1500&slow_feature=effects"
     expect(page).to have_css("#counter[data-reactive-connected]")

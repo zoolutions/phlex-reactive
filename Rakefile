@@ -49,6 +49,16 @@ namespace :spec do
     spec/system/dirty_form_spec.rb
     spec/system/paste_into_spec.rb
     spec/system/latency_sim_spec.rb
+    spec/system/optimistic_spec.rb
+    spec/system/loading_button_spec.rb
+    spec/system/compute_seed_spec.rb
+    spec/system/order_compute_spec.rb
+    spec/system/conditional_fieldset_spec.rb
+    spec/system/conditional_confirm_spec.rb
+    spec/system/tags_field_spec.rb
+    spec/system/draft_order_spec.rb
+    spec/system/draft_order_json_spec.rb
+    spec/system/debug_mode_spec.rb
   ]
 
   desc "Run the split-client system specs (phlex/reactive/core + features on demand) under the current server"

@@ -35,7 +35,7 @@ RSpec.describe "The split client: the effects, form and dev feature modules (iss
 
     expect(fetches("effects")).to eq(0)
     expect(fetches("form")).to eq(0)
-    expect(fetches("dev")).to eq(0)
+    expect(fetches("devtools")).to eq(0)
   end
 
   describe "effects" do
@@ -135,14 +135,14 @@ RSpec.describe "The split client: the effects, form and dev feature modules (iss
     end
   end
 
-  describe "dev" do
+  describe "devtools" do
     it "is fetched by a page with the development meta, and attaches the console handle" do
       visit "/latency"
       expect(page).to have_css("#latency[data-reactive-connected]")
 
       expect(page).to have_css("#latency") # (settle)
       Timeout.timeout(5) { sleep 0.05 until page.evaluate_script("typeof window.PhlexReactive") == "object" }
-      expect(fetches("dev")).to eq(1)
+      expect(fetches("devtools")).to eq(1)
     end
 
     it "delays the very first request when a delay is stored, on a page without the meta" do
@@ -156,7 +156,7 @@ RSpec.describe "The split client: the effects, form and dev feature modules (iss
       expect(page).to have_css("#counter[aria-busy='true']")
       expect(page).to have_css("[data-testid='count']", text: "1", wait: 8)
       expect(page.evaluate_script("typeof window.PhlexReactive")).to eq("undefined")
-      expect(fetches("dev")).to eq(1)
+      expect(fetches("devtools")).to eq(1)
     ensure
       page.execute_script("sessionStorage.clear()")
     end
