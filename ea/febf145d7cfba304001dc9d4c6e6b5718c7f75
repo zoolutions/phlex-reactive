@@ -1,0 +1,39 @@
+spec/javascript/reactive_request_count.test.js
+  s_b4f052d694d82f::t_bf35eb042110ba 28-30
+spec/javascript/reactive_dormant.test.js
+  s_b4f052d694d82f::t_bf35eb042110ba 35-37
+CHANGELOG.md
+  s_b4f052d694d82f::t_bf35eb042110ba 933-936
+spec/javascript/reactive_defer.test.js
+  s_b4f052d694d82f::t_bf35eb042110ba 34-36
+spec/javascript/reactive_split_features.test.js
+  s_b4f052d694d82f::t_bf35eb042110ba 55-60,234-237,244-245,483-485
+README.md
+  s_b4f052d694d82f::t_bf35eb042110ba 280
+spec/javascript/reactive_activity.test.js
+  s_b4f052d694d82f::t_bf35eb042110ba 35-37
+spec/javascript/reactive_effects.test.js
+  s_b4f052d694d82f::t_bf35eb042110ba 325
+benchmark/client/support/harness.js
+  s_b4f052d694d82f::t_bf35eb042110ba 102-107,109,114
+spec/javascript/reactive_lazy_cache.test.js
+  s_b4f052d694d82f::t_bf35eb042110ba 27-29
+docs/app/views/docs/pages/performance.rb
+  s_b4f052d694d82f::t_bf35eb042110ba 372,962-964,966-970,1177-1179
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "eafebf145d7cfba304001dc9d4c6e6b5718c7f75",
+  "prompts": {},
+  "sessions": {
+    "s_b4f052d694d82f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a4f9e839-a934-4e75-9b79-590503d3a110",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
