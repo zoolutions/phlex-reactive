@@ -32,9 +32,9 @@ const buildScript = readFileSync(join(root, "scripts/build_client.js"), "utf8")
 const MODULES = [...buildScript.match(/const ENTRIES = \[([^\]]*)\]/)[1].matchAll(/"([^"]+)"/g)].map(([, name]) => name)
 
 const EARLY_GZIP_BUDGET = 1100
-// Phase 1 of #275 (loader scaffold, nothing moved yet): 22,656 B — the
-// monolith's 22,272 B plus 384 B of loader.
-const CORE_GZIP_CEILING = 22_750
+// Phase 1 of #275 (loader scaffold, nothing moved yet): 22,787 B — the
+// monolith's 22,272 B plus 515 B of loader.
+const CORE_GZIP_CEILING = 23_000
 // NOT asserted yet — see the header.
 const TARGET_CORE_GZIP = 8 * 1024
 

@@ -14,9 +14,12 @@
 //               that connected on this connection.
 //   ready       a promise on the controller, resolved once this root's
 //               features are loaded and connected. It never rejects.
-//   failure     a failed import emits reactive:error { kind: "feature" } and
-//               marks the root — never a silent dead root — and is retried by
-//               the next root that needs the feature.
+//   failure     never a silent dead root: reactive:error { kind: "feature",
+//               feature, phase, error } on every root it costs, with phase
+//               "load" (the import failed), "connect" (the feature threw) or
+//               "detect" (its marker check threw). A failed import STAYS
+//               failed until the page is reloaded — a browser caches a module
+//               that failed to load — and is logged once per page.
 //
 // Run with: bun test spec/javascript
 import { test, expect, mock, beforeAll, beforeEach } from "bun:test"
@@ -276,14 +279,15 @@ test("a failed import surfaces as reactive:error and marks the root; ready still
     console.error = consoleError
   }
 
-  expect(errors).toEqual([{ kind: "feature", feature: "fake", error: failure }])
+  expect(errors).toEqual([{ kind: "feature", feature: "fake", phase: "load", error: failure }])
   expect(root.getAttribute("data-reactive-error")).toBe("feature")
-  expect(logged.length).toBe(1)
-  expect(String(logged[0][0])).toContain('"fake"')
+  expect(logged).toEqual([
+    ['[phlex-reactive] could not load the "fake" feature module; it stays unavailable until the page is reloaded', failure],
+  ])
   expect(fake.log).toEqual([])
 })
 
-test("a feature whose connect throws is reported the same way; ready still resolves", async () => {
+test("a feature whose connect throws is reported as a connect failure; ready still resolves", async () => {
   const root = mountRoot()
   const errors = []
   root.addEventListener("reactive:error", (event) => errors.push(event.detail))
@@ -302,7 +306,8 @@ test("a feature whose connect throws is reported the same way; ready still resol
       }),
   )
   const consoleError = console.error
-  console.error = () => {}
+  const logged = []
+  console.error = (...args) => logged.push(args)
   const controller = controllerFor(root)
 
   try {
@@ -312,30 +317,105 @@ test("a feature whose connect throws is reported the same way; ready still resol
     console.error = consoleError
   }
 
-  expect(errors).toEqual([{ kind: "feature", feature: "fake", error: failure }])
+  expect(errors).toEqual([{ kind: "feature", feature: "fake", phase: "connect", error: failure }])
+  expect(logged).toEqual([['[phlex-reactive] the "fake" feature module failed to connect', failure]])
   expect(() => controller.disconnect()).not.toThrow()
 })
 
-test("a failed import is retried by the next root that needs the feature", async () => {
+// A browser caches a module that failed to load (a 404, an evaluation error):
+// importing it again re-rejects without a request. So the loader does not
+// pretend to retry — the feature is gone until the page is reloaded.
+test("a failed import stays failed: later roots are told, nothing is re-imported, one log line", async () => {
   const fake = fakeFeature()
+  const failure = new Error("404")
+  const errors = []
   const consoleError = console.error
-  console.error = () => {}
+  const logged = []
+  console.error = (...args) => logged.push(args)
+  const roots = ["a", "b", "c"].map((id) => mountRoot({ id }))
+  for (const root of roots) {
+    root.addEventListener("reactive:error", (event) => errors.push([root.id, event.detail.phase, event.detail.error]))
+  }
+
   try {
-    const first = controllerFor(mountRoot({ id: "a" }))
+    const first = controllerFor(roots[0])
     first.connect()
-    fake.reject(new Error("offline"))
+    fake.reject(failure)
     await first.ready
+    for (const root of roots.slice(1)) {
+      const controller = controllerFor(root)
+      controller.connect()
+      await controller.ready
+    }
   } finally {
     console.error = consoleError
   }
 
-  const second = controllerFor(mountRoot({ id: "b" }))
-  second.connect()
-  fake.resolve()
-  await second.ready
+  expect(fake.loads()).toBe(1)
+  expect(errors).toEqual([
+    ["a", "load", failure],
+    ["b", "load", failure],
+    ["c", "load", failure],
+  ])
+  expect(roots.map((root) => root.getAttribute("data-reactive-error"))).toEqual(["feature", "feature", "feature"])
+  expect(logged.length).toBe(1)
+  expect(fake.log).toEqual([])
+})
 
-  expect(fake.loads()).toBe(2)
-  expect(fake.log).toEqual([["connect", second]])
+// needs() runs inside connect(), before the early drain. If it could abort
+// connect() the root would be dead and its queued triggers lost.
+test("a marker check that throws is reported, counts as not needed, and connect() still drains", async () => {
+  const failure = new Error("bad marker")
+  let loads = 0
+  setFeature(
+    "broken",
+    () => {
+      throw failure
+    },
+    () => {
+      loads++
+      return Promise.resolve({})
+    },
+  )
+  const fake = fakeFeature()
+  const root = mountRoot()
+  const button = document.createElement("button")
+  const token = "click->reactive#dispatch"
+  button.setAttribute("data-action", token)
+  root.appendChild(button)
+  const early = (globalThis[Symbol.for("phlex-reactive.early")] ??= { queue: [], connected: new WeakSet() })
+  early.queue.length = 0
+  early.queue.push({
+    event: new window.MouseEvent("click", { bubbles: true, cancelable: true }),
+    el: button,
+    root,
+    descs: [{ token, type: "click", method: "dispatch", filter: "" }],
+    at: performance.now(),
+  })
+  const errors = []
+  root.addEventListener("reactive:error", (event) => errors.push(event.detail))
+  const consoleError = console.error
+  const logged = []
+  console.error = (...args) => logged.push(args)
+  const controller = controllerFor(root)
+  const replayed = []
+  controller.dispatch = (event) => replayed.push(event.type)
+
+  try {
+    expect(() => controller.connect()).not.toThrow()
+    expect(replayed).toEqual(["click"])
+    fake.resolve()
+    await controller.ready
+  } finally {
+    console.error = consoleError
+  }
+
+  expect(errors).toEqual([{ kind: "feature", feature: "broken", phase: "detect", error: failure }])
+  expect(logged).toEqual([['[phlex-reactive] the "broken" feature module could not tell whether a root needs it', failure]])
+  expect(loads).toBe(0)
+  // The root's other feature is unaffected.
+  expect(fake.log).toEqual([["connect", controller]])
+  expect(replayed).toEqual(["click"])
 })
 
 // Two features on one root, each behind its own hand-settled import.

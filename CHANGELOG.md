@@ -899,11 +899,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   controller gains a loader for feature modules (none exists yet, so nothing
   loads) and a `ready` promise on each controller that resolves once the
   features its root needs are connected — already resolved today. A feature
-  that fails to load will emit `reactive:error` with `kind: "feature"`.
+  that cannot be used will emit `reactive:error` with `kind: "feature"` and a
+  `phase` (`"load"`, `"connect"` or `"detect"`) on every root it costs, and
+  log once per page; a feature that failed to load stays failed until the
+  page is reloaded, because browsers cache a failed module.
   `spec/javascript/bundle_budget.test.js` now reports every module's gzipped
   size and holds the controller to a ceiling that each later step lowers
-  (22,656 B today as that test measures it, with bun's zlib at level 9; the
-  loader added 384 B).
+  (22,787 B today as that test measures it, with bun's zlib at level 9; the
+  loader added 515 B).
 
 - **`on_client` emits a binding record (#271).** `data-reactive-ops-param` now
   holds `{"on":…,"ops":[…], "window"?, "outside"?, "confirm"?, "confirmWhen"?}`

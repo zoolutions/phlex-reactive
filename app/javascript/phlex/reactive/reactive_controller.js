@@ -2492,19 +2492,26 @@ function streamOpTargets(args, root) {
 // below costs a root one loop over nothing.
 const FEATURES = new Map()
 
-// name -> the one import promise every root shares. A failed import is
-// forgotten so the next root that needs the feature tries again.
+// name -> the one import promise every root shares, kept even when it
+// rejected: a browser caches a module that failed to load, so importing it
+// again only re-rejects. A failed feature stays failed until the page is
+// reloaded; every root it costs is told (reactive:error).
 const featureLoads = new Map()
 
 function loadFeature(name) {
   let loading = featureLoads.get(name)
-  if (!loading) {
-    loading = FEATURES.get(name)[1]()
-    featureLoads.set(name, loading)
-    loading.catch(() => featureLoads.delete(name))
-  }
+  if (!loading) featureLoads.set(name, (loading = FEATURES.get(name)[1]()))
   return loading
 }
+
+// What went wrong, by phase — logged once per feature and phase per page (a
+// failed import would otherwise log again for every root that connects).
+const FEATURE_FAILURES = {
+  detect: (name) => `the "${name}" feature module could not tell whether a root needs it`,
+  load: (name) => `could not load the "${name}" feature module; it stays unavailable until the page is reloaded`,
+  connect: (name) => `the "${name}" feature module failed to connect`,
+}
+const featureFailuresLogged = new Set()
 
 export function reactiveFeatureNames() {
   return [...FEATURES.keys()]
@@ -2518,6 +2525,7 @@ export function __setReactiveFeatureForTest(name, needs, load) {
 export function __resetReactiveFeaturesForTest() {
   FEATURES.clear()
   featureLoads.clear()
+  featureFailuresLogged.clear()
 }
 
 const FEATURES_READY = Promise.resolve()
@@ -3028,17 +3036,24 @@ export default class extends Controller {
   // the network delivered them in — unless this connection ended meanwhile.
   #loadFeatures() {
     const epoch = ++this.#featureEpoch
+    // A marker check that throws, a failed import, or a connect that threw
+    // loses that feature only — and never the rest of connect().
+    const failed = (name, phase, error) => {
+      if (epoch === this.#featureEpoch) this.#featureFailed(name, phase, error)
+    }
     const names = []
-    for (const [name, [needs]] of FEATURES) if (needs(this.element)) names.push(name)
+    for (const [name, [needs]] of FEATURES) {
+      try {
+        if (needs(this.element)) names.push(name)
+      } catch (error) {
+        failed(name, "detect", error)
+      }
+    }
     if (names.length === 0) {
       this.ready = FEATURES_READY
       return
     }
-    // A failed import, or a connect that threw, loses that feature only.
-    const failed = (name, error) => {
-      if (epoch === this.#featureEpoch) this.#featureFailed(name, error)
-    }
-    const loads = names.map((name) => loadFeature(name).catch((error) => failed(name, error)))
+    const loads = names.map((name) => loadFeature(name).catch((error) => failed(name, "load", error)))
     this.ready = Promise.all(loads).then((features) => {
       features.forEach((feature, index) => {
         if (!feature || epoch !== this.#featureEpoch) return
@@ -3046,18 +3061,23 @@ export default class extends Controller {
           feature.connect?.(this)
           this.#features.set(names[index], feature)
         } catch (error) {
-          failed(names[index], error)
+          failed(names[index], "connect", error)
         }
       })
     })
   }
 
-  // A feature that cannot load leaves its part of the root dead: say so, on
-  // the root (reactive:error, the error marker) and in the console.
-  #featureFailed(name, error) {
-    console.error(`[phlex-reactive] could not load the "${name}" feature module`, error)
+  // A feature that is missing leaves its part of the root dead: say so on
+  // every root it costs (reactive:error, the error marker), and once in the
+  // console. `phase` is "detect", "load" or "connect".
+  #featureFailed(name, phase, error) {
+    const logged = `${name}:${phase}`
+    if (!featureFailuresLogged.has(logged)) {
+      featureFailuresLogged.add(logged)
+      console.error(`[phlex-reactive] ${FEATURE_FAILURES[phase](name)}`, error)
+    }
     this.#markError("feature")
-    this.#emit("reactive:error", { kind: "feature", feature: name, error })
+    this.#emit("reactive:error", { kind: "feature", feature: name, phase, error })
   }
 
   // A feature whose disconnect throws must not keep the others, or the rest
