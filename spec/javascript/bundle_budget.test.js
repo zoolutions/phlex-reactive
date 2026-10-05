@@ -55,7 +55,7 @@ const EARLY_GZIP_BUDGET = 1100
 const SLACK = 250
 
 // The DEFAULT bundle. Before the split the one file was 22,272 B (a32937b).
-// It is now the runtime + every feature bundled: 24,835 B — 2,563 B more,
+// It is now the runtime + every feature bundled: 24,851 B — 2,579 B more,
 // the price of each feature being a module of its own with a table to find it
 // by. Phase 3 left it at 24,789 B. (What only the opt-in client can do — the
 // import() table, the stream hold — is in core.js, not in this file.)
@@ -64,7 +64,7 @@ const BUNDLE_GZIP_CEILING = 24_900
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
 // out) to 21,233 B, phase 3 (defer / lazy out) to 19,740 B, phase 4 (effects
 // and dismiss, dirty tracking and the paste gate, the latency simulator out)
-// to 18,518 B.
+// to 18,536 B.
 const CORE_GZIP_CEILING = 18_550
 const FEATURE_GZIP_CEILINGS = {
   "features/persist": 3_300,
@@ -73,8 +73,8 @@ const FEATURE_GZIP_CEILINGS = {
   "features/effects": 1_750,
   "features/dev": 550,
 }
-// Phase 4: 18,518 B core + 3,210 + 2,846 + 1,015 + 1,693 + 491 B of
-// features = 27,773 B.
+// Phase 4: 18,536 B core + 3,210 + 2,846 + 1,015 + 1,693 + 491 B of
+// features = 27,791 B.
 const SPLIT_TOTAL_GZIP_CEILING = 27_800
 // NOT asserted yet — see the header.
 const TARGET_CORE_GZIP = 10 * 1024

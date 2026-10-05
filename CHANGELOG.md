@@ -901,11 +901,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     and the three override seams), nothing fetched on demand, a draft restored
     and a lazy shell armed inside `connect()` as before. Existing importmap
     pins, bundler aliases and vendored copies keep working as they are. It is
-    24,835 B gzipped, 2,563 B more than the 22,272 B it was before: the price
+    24,851 B gzipped, 2,579 B more than the 22,272 B it was before: the price
     of each feature being a module of its own, with a table to find it by. It
     contains no `import()` at all.
   - **`phlex/reactive/core` — new, opt-in — is the controller without its
-    feature modules** (18,518 B gzipped today, heading for about 10 KB as
+    feature modules** (18,536 B gzipped today, heading for about 10 KB as
     more moves out). It imports a feature the first time something on the
     page needs it: `phlex/reactive/features/persist` (3,210 B, the
     `reactive_persist` drafts), `…/defer` (2,846 B: `reply.defer`,
@@ -951,7 +951,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - The shipped builds no longer export the controller's `__…ForTest` seams
     (they remain in the source the JS suite imports).
   - `spec/javascript/bundle_budget.test.js` holds a ratchet on the default
-    file, the core, each feature and the split total (27,773 B).
+    file, the core, each feature and the split total (27,791 B).
   - `rake bench:client` gains a `connect()` bench (2,000 roots), the one
     place a feature module adds work to every root.
 

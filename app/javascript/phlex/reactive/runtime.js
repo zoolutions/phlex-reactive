@@ -1465,7 +1465,17 @@ const featuresGiven = new Map()
 // — `load`, a function returning its import() — and, optionally, what to
 // record while that import is on its way (`waiting`, see above).
 export function registerReactiveFeatureLoader(name, load, waiting) {
+  featureLoaders.set(name, [load, waiting])
+  applyFeatureLoader(name)
+}
+
+// name -> [load, waiting] the opt-in entry registered: kept apart from the
+// table so a test's reset of the table puts them back.
+const featureLoaders = new Map()
+
+function applyFeatureLoader(name) {
   const entry = FEATURES.get(name)
+  const [load, waiting] = featureLoaders.get(name)
   entry[1] = load
   entry[2] = waiting
 }
@@ -1564,6 +1574,9 @@ export function __loadReactiveFeatureForTest(name) {
 export function __resetReactiveFeaturesForTest(cold) {
   FEATURES.clear()
   for (const [name, entry] of PRODUCTION_FEATURES) FEATURES.set(name, entry)
+  // (Only the opt-in entry registers any; with the default entry alone the
+  // table stays without a way to import, as shipped.)
+  for (const name of featureLoaders.keys()) applyFeatureLoader(name)
   featureLoads.clear()
   featureModules.clear()
   if (!cold) for (const [name, feature] of featuresGiven) featureModules.set(name, feature)
