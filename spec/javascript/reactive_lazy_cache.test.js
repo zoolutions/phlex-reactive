@@ -299,6 +299,26 @@ for (const [label, src] of refused) {
   })
 }
 
+// Issue #293: a morph that re-shows the shell with a URL the client refuses
+// must SUPERSEDE the fetch already in flight for that root — its late arrival
+// must never paint over the refused shell (or clear its error marker).
+test("a refused URL morphed in supersedes the in-flight fetch for the same root", async () => {
+  const pending = gate()
+  nextResponse = () => pending.promise
+  const el = makeRoot(cachedShell())
+  connect(el)
+  await settle()
+  expect(calls.length).toBe(1)
+
+  el.morphTo({ [SRC]: "https://evil.example/reactive/fragment/abc", [PENDING]: "true" })
+  pending.release()
+  await settle()
+
+  expect(rendered).toEqual([])
+  expect(el.attrs[SRC]).toBe("https://evil.example/reactive/fragment/abc")
+  expect(el.attrs["data-reactive-error"]).toBe("defer")
+})
+
 test("a fragment-path meta injected into <body> is ignored — only <head> can widen the path", async () => {
   bodyMetas["phlex-reactive-fragment-path"] = "/uploads"
   connect(makeRoot({ [SRC]: "/uploads/payload", [PENDING]: "true" }))

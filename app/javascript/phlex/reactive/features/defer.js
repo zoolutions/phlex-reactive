@@ -205,8 +205,12 @@ function refusedFragmentMessage(src) {
 // A fetch-on-connect shell whose URL was refused has no other way to load, so
 // it must not shimmer forever: clear pending, mark the root, and emit the same
 // bubbling reactive:error a failed load does (no retry() — the URL won't change).
+// It supersedes whatever load is in flight for this root first (issue #293):
+// that load was for the shell this morph replaced, and its late arrival must
+// neither paint over this one nor clear its error marker.
 function failRefusedFragment(el, src) {
   console.error(refusedFragmentMessage(src))
+  supersedeDefer(el.id)
   clearDeferPending(el)
   el.setAttribute("data-reactive-error", "defer")
   el.dispatchEvent(
