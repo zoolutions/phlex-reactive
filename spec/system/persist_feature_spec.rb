@@ -15,7 +15,7 @@ require "system_helper"
 #
 # ?slow=<ms> serves the module after a delay, so the "controller connected,
 # restore not yet run" window is wide enough to act in.
-RSpec.describe "The persist feature module (issue #275)", type: :system do
+RSpec.describe "The split client: the persist feature module (issue #275)", :split_client, type: :system do
   def storage_key = "phlex-reactive:persist:dummy-persist-action"
   # How late the slow copy of the module arrives: the window to act in.
   def slow_ms = 1500
@@ -90,12 +90,43 @@ RSpec.describe "The persist feature module (issue #275)", type: :system do
 
       expect(page).to have_field("note", with: "Ada")
       expect(page).to have_field("extra", with: "typed early")
-      # Nothing was drafted from the blanks in that window; the next keystroke
-      # drafts both fields.
-      expect(draft_fields).to eq("note" => "Ada")
-      find("[data-testid='extra']").send_keys("!")
-      expect(page).to have_field("extra", with: "typed early!")
-      expect(draft_fields).to eq("note" => "Ada", "extra" => "typed early!")
+      # What was typed in that window is drafted when the module arrives — with
+      # the restored field, never the blank the server rendered for it — and
+      # without another keystroke.
+      expect(draft_fields).to eq("note" => "Ada", "extra" => "typed early")
+    end
+
+    it "drafts what was typed in that window even when the user leaves without typing again" do
+      seed_draft("note" => "Ada")
+      visit "/persist_action?slow=300"
+      find("[data-testid='extra']").send_keys("typed early")
+      expect(page).to have_field("note", with: "Ada")
+
+      visit "/counter"
+      visit "/persist_action"
+
+      expect(page).to have_field("extra", with: "typed early")
+      expect(page).to have_field("note", with: "Ada")
+    end
+
+    it "drafts what was typed even when the user leaves BEFORE the module arrives" do
+      seed_draft("note" => "Ada")
+      visit "/persist_action?slow=#{slow_ms}"
+      expect(page).to have_css("#persist-action[data-reactive-connected]")
+      find("[data-testid='extra']").send_keys("typed early")
+      expect(find("[data-testid='note']").value).to eq("")
+
+      # A Turbo visit: the page (and the import that is still on its way) lives on.
+      page.execute_script("Turbo.visit('/counter')")
+      expect(page).to have_css("#counter")
+      # The module arrives after the root has gone, and is handed what it missed.
+      deadline = Time.now + Capybara.default_max_wait_time
+      sleep 0.05 until draft_fields == { "note" => "Ada", "extra" => "typed early" } || Time.now > deadline
+      expect(draft_fields).to eq("note" => "Ada", "extra" => "typed early")
+
+      visit "/persist_action"
+      expect(page).to have_field("extra", with: "typed early")
+      expect(page).to have_field("note", with: "Ada")
     end
   end
 

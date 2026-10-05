@@ -20,9 +20,10 @@
 // Every assertion below counts actual `__materialize` POSTs, not observers.
 //
 // Run with: bun test spec/javascript
-import { test, expect, mock, beforeAll, beforeEach, afterEach } from "bun:test"
+import { test, expect, mock, describe, beforeAll, beforeEach, afterEach } from "bun:test"
 
 let Controller
+let coldFeatures
 
 beforeAll(async () => {
   mock.module("@hotwired/stimulus", () => ({
@@ -30,7 +31,14 @@ beforeAll(async () => {
       constructor() {}
     },
   }))
-  Controller = (await import("../../app/javascript/phlex/reactive/reactive_controller.js")).default
+  const mod = await import("../../app/javascript/phlex/reactive/reactive_controller.js")
+  Controller = mod.default
+  // The defer code is a feature module (issue #275). Loaded up front, so a
+  // connect or a `reactive:defer` stream reaches it in the same tick; the
+  // not-yet-loaded path is covered in reactive_features.test.js.
+  await mod.__loadReactiveFeatureForTest("defer")
+  // Forgets every loaded feature module: the next connect() imports again.
+  coldFeatures = mod.__resetReactiveFeaturesForTest
 })
 
 let observers
@@ -631,4 +639,119 @@ test("after an early replay, a morph-back on the same element still gives exactl
   pending.release()
   await settle()
   expect(posts.length).toBe(2)
+})
+
+// --- the defer module is itself loaded on demand (issue #275) --------------------
+// reactive_lazy(on:) lives in a feature module. On the FIRST lazy root of a
+// page the module is still on its way when the controller connects — and the
+// shell's trigger can fire (or be replayed from before connect) in that gap.
+// The core does the synchronous part at once and the load waits for the
+// module: exactly one request, whatever fired, however often.
+
+describe("while the defer module is still on its way", () => {
+  // No feature module loaded — the opt-in phlex/reactive/core — and the
+  // default entry's features handed back afterwards.
+  beforeEach(() => coldFeatures(true))
+  afterEach(() => coldFeatures())
+
+  const moduleArrived = async (controller) => {
+    await controller.featuresReady
+    await settle()
+  }
+
+  test("an event fired three times before connect is replayed into exactly one request, after the import", async () => {
+    const el = makeRoot(renderedEventShell())
+    queueEarly(el, 3)
+
+    const controller = connect(el)
+    // Replayed inside connect() — the queue is drained — but nothing is sent yet.
+    expect(globalThis[EARLY].queue).toEqual([])
+    expect(posts).toEqual([])
+
+    await moduleArrived(controller)
+    expect(posts).toEqual([{ token: "shell-token", act: "__materialize", params: {} }])
+
+    // Stimulus's `once` listener is still armed (the replay bypassed it).
+    stimulusFires(controller)
+    await settle()
+    expect(posts.length).toBe(1)
+  })
+
+  test("a live event during the import is not lost and not duplicated", async () => {
+    const pending = gate()
+    nextResponse = () => pending.promise
+    const controller = connect(makeRoot(renderedEventShell()))
+
+    stimulusFires(controller)
+    stimulusFires(controller)
+    expect(posts).toEqual([])
+
+    await moduleArrived(controller)
+    expect(posts.length).toBe(1)
+    pending.release()
+    await settle()
+    expect(posts.length).toBe(1)
+  })
+
+  test("a replayed event and a live one during the import still give one request", async () => {
+    const el = makeRoot(renderedEventShell())
+    queueEarly(el, 1)
+    const controller = connect(el)
+    stimulusFires(controller)
+
+    await moduleArrived(controller)
+
+    expect(posts.length).toBe(1)
+  })
+
+  test("a :visible shell is observed once the module arrives, and loads once", async () => {
+    const el = makeRoot(visibleShell())
+    const controller = connect(el)
+    expect(observers.length).toBe(0)
+
+    await moduleArrived(controller)
+    expect(observers.length).toBe(1)
+    observers[0].trigger(true)
+    await settle()
+
+    expect(posts.length).toBe(1)
+  })
+
+  test("a morph that turns real content into a shell loads the module and re-materializes once", async () => {
+    const el = makeRoot(realContent())
+    const controller = connect(el)
+    await settle()
+    expect(posts).toEqual([])
+
+    el.morphTo(eventShell("morphed-token"))
+    expect(posts).toEqual([])
+    await moduleArrived(controller)
+
+    expect(posts).toEqual([{ token: "morphed-token", act: "__materialize", params: {} }])
+  })
+
+  test("a morph from real content to real content imports nothing and requests nothing", async () => {
+    const el = makeRoot(realContent())
+    const controller = connect(el)
+    const ready = controller.featuresReady
+
+    el.morphTo(realContent("next-token"))
+    await settle()
+
+    // No scan hit: the shared, already-resolved promise is still in place.
+    expect(controller.featuresReady).toBe(ready)
+    expect(posts).toEqual([])
+  })
+
+  test("disconnect before the module arrives arms nothing and requests nothing", async () => {
+    const el = makeRoot(visibleShell())
+    const controller = connect(el)
+    const ready = controller.featuresReady
+    controller.disconnect()
+    await ready
+    await settle()
+
+    expect(observers.length).toBe(0)
+    expect(posts).toEqual([])
+  })
 })

@@ -19,6 +19,7 @@ RSpec.describe "vendored client modules" do
   # -> /vendor/reactive_controller.js); its CONTENT is the minified twin.
   vendored_modules = {
     "reactive_controller.js" => "reactive_controller.min.js",
+    "core.js" => "core.min.js",
     "early.js" => "early.min.js",
     "confirm.js" => "confirm.min.js",
     "confirm_predicate.js" => "confirm_predicate.min.js",

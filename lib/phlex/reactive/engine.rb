@@ -11,14 +11,16 @@ module Phlex
     class Engine < ::Rails::Engine
       isolate_namespace Phlex::Reactive
 
-      # The client's feature modules (issue #275): parts of the runtime the
-      # controller imports only when a root on the page uses them, each by the
-      # bare specifier phlex/reactive/features/<name>. Listed here once; the
+      # The client's feature modules (issue #275), each its own file at the
+      # bare specifier phlex/reactive/features/<name>. The DEFAULT client
+      # (phlex/reactive/reactive_controller) is one file with all of them
+      # bundled in and never fetches these. The opt-in phlex/reactive/core
+      # imports one only when a root on the page uses it. Listed here once; the
       # precompile list and the importmap pins below are built from it. The
-      # build script (scripts/build_client.js) and the controller's own table
-      # name the same features — spec/phlex/engine_client_pin_spec.rb fails
-      # when the three disagree.
-      CLIENT_FEATURES = %w[persist].freeze
+      # build script (scripts/build_client.js), the core's own table and the
+      # default entry name the same features —
+      # spec/phlex/engine_client_pin_spec.rb fails when they disagree.
+      CLIENT_FEATURES = %w[persist defer].freeze
 
       # Mount POST /reactive/actions -> Phlex::Reactive::ActionsController#create
       # and POST /reactive/defer -> #deferred (the pull-lane defer endpoint,
@@ -50,6 +52,8 @@ module Phlex
           it.config.assets.precompile += %w[
             phlex/reactive/reactive_controller.min.js
             phlex/reactive/reactive_controller.min.js.map
+            phlex/reactive/core.min.js
+            phlex/reactive/core.min.js.map
             phlex/reactive/early.min.js
             phlex/reactive/early.min.js.map
             phlex/reactive/confirm.min.js
@@ -73,10 +77,22 @@ module Phlex
       # asset pipeline instead (see README).
       initializer "phlex_reactive.importmap", after: "importmap" do
         if defined?(::Importmap::Map) && it.respond_to?(:importmap)
+          # The DEFAULT client: one file, the core and every feature bundled.
           it.importmap.pin(
             "phlex/reactive/reactive_controller",
             to: "phlex/reactive/reactive_controller.min.js",
             preload: true
+          )
+          # The OPT-IN client (issue #275): the controller without its
+          # features, which it imports on demand (the feature pins below). An
+          # app imports this INSTEAD of reactive_controller, never both. Not
+          # preloaded: an app that does not opt in must not fetch it. One that
+          # does re-pins it with preload: true, like any entry it imports
+          # eagerly.
+          it.importmap.pin(
+            "phlex/reactive/core",
+            to: "phlex/reactive/core.min.js",
+            preload: false
           )
           # The early-trigger capture (issue #273): a ~1 KB module the app
           # imports EAGERLY (`import "phlex/reactive/early"`) so a trigger that
@@ -129,10 +145,11 @@ module Phlex
             to: "phlex/reactive/inspect.min.js",
             preload: false
           )
-          # Feature modules (issue #275). NOT preloaded: the controller imports
-          # one only when a root on the page uses it, so a page without such a
-          # root never fetches it. An app that wants one on every page (to
-          # shorten the first visit's wait) can re-pin it with preload: true.
+          # Feature modules (issue #275), for the opt-in phlex/reactive/core.
+          # NOT preloaded: the core imports one only when a root on the page
+          # uses it, so a page without such a root never fetches it — and the
+          # default client never does. An app on the core that knows it needs
+          # one on every page re-pins it with preload: true.
           importmap = it.importmap
           CLIENT_FEATURES.each do
             importmap.pin(

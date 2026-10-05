@@ -24,10 +24,14 @@
               `import "@hotwired/turbo-rails"` (the cable cells) is unaffected. %>
           "@hotwired/turbo-rails": "/vendor/turbo_rails_shim.js",
           "@hotwired/stimulus": "/vendor/stimulus.js",
-          "reactive_controller": "/vendor/reactive_controller.js",
+          <%# Issue #275: the DEFAULT client is one file with every feature
+              bundled in. REACTIVE_CLIENT=split loads the opt-in core instead,
+              which imports the feature pins below on demand. %>
+          "reactive_controller": "<%= ENV["REACTIVE_CLIENT"] == "split" ? "/vendor/core.js" : "/vendor/reactive_controller.js" %>",
           "phlex/reactive/confirm": "/vendor/confirm.js",
           <%# Issue #275: ?slow=<ms> on /persist_action serves the feature late. %>
           "phlex/reactive/features/persist": "<%= @slow_feature_ms ? "/slow_feature/persist.js?ms=#{@slow_feature_ms}" : "/vendor/features/persist.js" %>",
+          "phlex/reactive/features/defer": "/vendor/features/defer.js",
           "phlex/reactive/confirm_predicate": "/vendor/confirm_predicate.js",
           "phlex/reactive/compute": "/vendor/compute.js",
           "phlex/reactive/inspect": "/vendor/inspect.js",

@@ -242,6 +242,12 @@ jobs:
         run: sudo bunx --bun playwright install-deps chromium 2>/dev/null || true
       - name: System specs
         run: bundle exec rspec spec/system
+      - name: System specs, split client
+        # The suite above runs on the DEFAULT client (one bundled file). The
+        # opt-in split client (phlex/reactive/core + features on demand, issue
+        # #275) gets a focused set, on the cable cells of both servers.
+        if: matrix.transport == 'cable'
+        run: bundle exec rake spec:system_split
       - name: Upload failure screenshots
         uses: actions/upload-artifact@v7
         if: failure()

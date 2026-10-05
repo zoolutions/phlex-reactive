@@ -78,6 +78,10 @@ RSpec.describe Phlex::Reactive::Engine do
       end
     end
 
+    it "precompiles the opt-in core and its sourcemap (issue #275)" do
+      expect(assets.precompile).to include("phlex/reactive/core.min.js", "phlex/reactive/core.min.js.map")
+    end
+
     it "precompiles the effects stylesheet (issue #215)" do
       expect(assets.precompile).to include("phlex/reactive/effects.css")
     end
@@ -135,6 +139,11 @@ RSpec.describe Phlex::Reactive::Engine do
       end
     end
 
+    it "pins the opt-in core to its minified build, not preloaded (issue #275)" do
+      # An app that stays on the default client must never fetch it.
+      expect(importmap.pins["phlex/reactive/core"]).to eq(to: "phlex/reactive/core.min.js", preload: false)
+    end
+
     it "pins the confirm and compute seams to their minified builds" do
       expect(importmap.pins["phlex/reactive/confirm"][:to]).to eq("phlex/reactive/confirm.min.js")
       expect(importmap.pins["phlex/reactive/compute"][:to]).to eq("phlex/reactive/compute.min.js")
@@ -155,10 +164,22 @@ RSpec.describe Phlex::Reactive::Engine do
     end
 
     it "matches the features the controller can import" do
-      source = File.read(File.join(root, "app/javascript/phlex/reactive/reactive_controller.js"))
+      source = File.read(File.join(root, "app/javascript/phlex/reactive/core.js"))
       imported = source.scan(%r{import\("phlex/reactive/features/([\w-]+)"\)}).flatten
 
       expect(described_class::CLIENT_FEATURES).to match_array(imported.uniq)
+    end
+
+    it "matches the features the default bundle registers" do
+      # reactive_controller.js imports every feature statically and hands it to
+      # the core. One missing here would be fetched on demand by the default
+      # client — the one thing that client must never do.
+      source = File.read(File.join(root, "app/javascript/phlex/reactive/reactive_controller.js"))
+      imported = source.scan(%r{^import \* as \w+ from "phlex/reactive/features/([\w-]+)"$}).flatten
+      registered = source.scan(/^registerReactiveFeature\("([\w-]+)", \w+\)$/).flatten
+
+      expect(imported).to match_array(described_class::CLIENT_FEATURES)
+      expect(registered).to eq(imported)
     end
 
     it "is pinned in each of the dummy app's hand-written import maps" do

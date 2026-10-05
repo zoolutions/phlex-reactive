@@ -20,22 +20,38 @@
 // innerHTML.
 //
 // The feature contract (reactive_controller.js "Feature modules"):
-//   connect(controller, core)     once per root connection, after the import
-//   disconnect(controller, core)  before the core's own teardown
+//   install(shared)                              once, when the module loads
+//   connect(controller, core, morphed, pending)  per root connection
+//   disconnect(controller, core)                 before the core's teardown
+//   abandon(root, pending)                       the root left before connect
 // `core` is the controller's handle for features: core.emit(name, detail)
 // raw-dispatches a lifecycle event from the root; core.reseed() re-runs the
 // connect-time seeds that read field values (dirty baseline, show bindings,
 // on-complete arming, filter, tags, nested JSON, compute).
 //
-// TIMING. The restore used to run inside connect(), before those seeds. It
-// now runs when this module has arrived — a moment later on a first visit,
-// the same task on any later one — so after writing the draft into the
-// controls it asks the core to reseed. Until the restore has run the root
-// writes no draft (a keystroke typed in that window is kept in its field and
-// drafted by the next one), the core holds the root's action requests back
-// (they would post the server's blanks), and a persist_state op waits (its
-// snapshot would overwrite the draft with those blanks). The core also stands
-// in for the submit listener below while the import is on its way (forget()).
+// TIMING. On the first root of a page that needs it, this module is still on
+// its way when the controller connects, so the restore runs a moment AFTER
+// connect() — and the connect-time seeds, which ran on the server's values,
+// are re-run (core.reseed()). On any later root the module is loaded and the
+// restore runs inside connect() as it always did.
+//
+// While a root waits for this module:
+//   * it writes no draft, and its action requests are held back (they would
+//     post the server's blanks) — the core's side of it;
+//   * the core records, in `pending`, that the user edited a field and that
+//     the form was submitted successfully; connect() drafts the edit, or
+//     forgets the draft instead of restoring it;
+//   * a persist_state / persist_clear op waits in pending.ops — its snapshot
+//     would overwrite the draft with those blanks.
+// A root that leaves before the module arrives is handed to abandon().
+
+// The core's shared state (install()): shared.waiting maps a root to
+// { persist: pending } while that root waits for this module.
+let shared
+
+export function install(given) {
+  shared = given
+}
 
 const PERSIST_VERSION = 1
 const PERSIST_PREFIX = "phlex-reactive:persist:"
@@ -455,7 +471,10 @@ function persistDeferEditors(root, payload, fields) {
 // The persist_state op body: merge a FLAT bag into the root's draft (re-
 // snapshotting the fields so the write is whole) and mirror it on the root.
 // A root without reactive_persist is a call-site bug — warn and skip.
-function persistWriteState(root, state) {
+// `restored` false: the root never restored (it left before this module
+// arrived), so its controls hold the server's blanks — keep the drafted
+// fields and merge the bag only.
+function persistWriteState(root, state, restored = true) {
   const payload = persistPayload(root)
   if (!payload) {
     console.warn("[phlex-reactive] persist_state on a root without reactive_persist — skipped")
@@ -464,7 +483,8 @@ function persistWriteState(root, state) {
   if (!state || typeof state !== "object") return
   const current = persistRead(root, payload)
   const merged = { ...(current?.state ?? {}), ...state }
-  if (persistWrite(root, payload, { fields: persistSnapshot(root, payload), state: merged })) {
+  const fields = restored ? persistSnapshot(root, payload) : (current?.fields ?? {})
+  if (persistWrite(root, payload, { fields, state: merged })) {
     root.setAttribute?.(PERSIST_STATE_ATTR, JSON.stringify(merged))
   }
 }
@@ -479,10 +499,6 @@ function persistClearRoot(root) {
 // controller -> { payload, timer, onInput, onChange, onSubmitEnd } for the
 // connection this feature is wired to.
 const wired = new WeakMap()
-// Root elements whose restore has run (and whose controller is connected).
-const restored = new WeakSet()
-// root element -> persist ops that arrived before its restore.
-const waiting = new WeakMap()
 
 // Restore the draft into the owned controls, expose the state bag, announce,
 // then arm the write listeners. The restore reads ONCE and never writes back:
@@ -490,16 +506,22 @@ const waiting = new WeakMap()
 // draft with the server's blanks. The submit-end listener is DOCUMENT-level
 // (the event fires on the form, which is usually an ANCESTOR of this root)
 // and gated on the form containing this root.
-export function connect(controller, core) {
+//
+// `pending` is what the core recorded while this root waited for the module
+// (undefined when it never had to): see TIMING at the top.
+export function connect(controller, core, _morphed, pending) {
   const root = controller.element
   const payload = persistPayload(root)
   if (!payload) return
+  // Submitted successfully while we were on our way: the draft is done with.
+  if (pending?.submitted) persistRemove(root, payload)
   const draft = persistRead(root, payload)
   if (draft) {
     persistApply(root, payload, draft.fields)
     if (draft.state) root.setAttribute?.(PERSIST_STATE_ATTR, JSON.stringify(draft.state))
     core.emit("reactive:persist-restored", { key: payload.key, fields: draft.fields, state: draft.state ?? {} })
-    // The connect-time seeds ran on the server's values; they read fields.
+    // If the connect-time seeds ran before this restore, they ran on the
+    // server's values; they read fields.
     core.reseed()
   }
 
@@ -516,10 +538,55 @@ export function connect(controller, core) {
   document.addEventListener?.("turbo:submit-end", state.onSubmitEnd)
   wired.set(controller, state)
 
-  restored.add(root)
-  const ops = waiting.get(root)
-  waiting.delete(root)
-  for (const op of ops ?? []) op()
+  // An edit made while we were on our way had no listener to draft it: draft
+  // it now, with everything the restore just filled in around it.
+  if (pending?.edited && !pending.submitted) writeNow(root, state)
+  for (const op of pending?.ops ?? []) op(true)
+}
+
+// The root left before this module could connect to it. Nothing was restored
+// into it, so its controls hold what the server rendered plus whatever the
+// user did: forget the draft if the form was submitted; otherwise keep the
+// drafted fields, add the ones the user CHANGED, and run the ops that waited.
+export function abandon(root, pending) {
+  if (!pending) return
+  const payload = persistPayload(root)
+  if (!payload) return
+  if (pending.submitted) return persistRemove(root, payload)
+  if (pending.edited) {
+    const current = persistRead(root, payload)
+    const fields = { ...current?.fields }
+    const snapshot = persistSnapshot(root, payload)
+    for (const name of changedNames(root, payload)) {
+      if (Object.hasOwn(snapshot, name)) fields[name] = snapshot[name]
+    }
+    persistWrite(root, payload, { fields, state: current?.state ?? null })
+  }
+  for (const op of pending.ops ?? []) op(false)
+}
+
+// The names of the owned controls the user changed on a root that never
+// restored: those whose live state differs from what the SERVER rendered (the
+// DOM keeps that as defaultValue / defaultChecked / the `selected` attribute), so a
+// server-prefilled value is never mistaken for an edit, and an emptied field
+// or an unticked box counts as one. An editor has no such default: it counts
+// once it holds anything.
+function changedNames(root, payload) {
+  const names = new Set()
+  for (const { el, name, kind } of persistControls(root, payload)) {
+    const changed =
+      kind === "editor"
+        ? persistEditorReady(el) && !persistEditorBlank(el)
+        : kind === "contenteditable"
+          ? (el.textContent ?? "").trim() !== ""
+          : el.type === "checkbox" || el.type === "radio"
+            ? el.checked !== el.defaultChecked
+            : el.tagName === "SELECT"
+              ? [...el.options].some((option) => option.selected !== option.hasAttribute("selected"))
+              : el.value !== el.defaultValue
+    if (changed) names.add(name)
+  }
+  return names
 }
 
 // Flush a pending write while the fields are still readable (Turbo
@@ -528,8 +595,6 @@ export function connect(controller, core) {
 export function disconnect(controller) {
   const root = controller.element
   const state = wired.get(controller)
-  restored.delete(root)
-  waiting.delete(root)
   if (!state) return
   wired.delete(controller)
   if (state.timer !== null) writeNow(root, state)
@@ -581,28 +646,23 @@ function submitEnd(root, state, event) {
 
 // --- The persist_state / persist_clear client ops --------------------------
 
-// A root whose controller has connected but whose restore has not run yet
-// still shows the server's blanks: an op that snapshots or clears it now
-// would destroy the draft the restore is about to read. Such an op waits for
-// the restore. Any other root (never connected, or restored) runs it at once.
-function afterRestore(root, op) {
-  const connected = globalThis[Symbol.for("phlex-reactive.early")]?.connected
-  if (!connected?.has(root) || restored.has(root) || !persistPayload(root)) return op()
-  waiting.set(root, [...(waiting.get(root) ?? []), op])
+// A root that is still waiting for this module shows the server's blanks: an
+// op that snapshots or clears it now would destroy the draft the restore is
+// about to read. Such an op waits in the root's pending record and runs after
+// the restore (connect) — or, if the root leaves first, without one (abandon).
+// Any other root runs it at once.
+function whenRestored(root, op) {
+  const pending = shared?.waiting.get(root)?.persist
+  // (No payload: connect() will not restore this root, so nothing would ever
+  // run a queued op — a morph can take the marker away while we load.)
+  if (!pending || !persistPayload(root)) return op(true)
+  ;(pending.ops ??= []).push(op)
 }
 
 export function writeState(root, state) {
-  afterRestore(root, () => persistWriteState(root, state))
+  whenRestored(root, (restored) => persistWriteState(root, state, restored))
 }
 
 export function clearRoot(root) {
-  afterRestore(root, () => persistClearRoot(root))
-}
-
-// The form around `root` was submitted successfully while this module was
-// still loading (the core's stand-in listener saw it): forget the draft NOW,
-// not after a restore — the restore that follows then finds nothing, and a
-// root that has already left takes no stale draft into its next visit.
-export function forget(root) {
-  persistClearRoot(root)
+  whenRestored(root, () => persistClearRoot(root))
 }
