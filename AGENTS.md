@@ -68,7 +68,7 @@ plus **feature modules** (`features/<name>.js`), and it ships as TWO entries
 
 | Entry | Built from | What it is |
 |---|---|---|
-| `phlex/reactive/reactive_controller` | `reactive_controller.js` (imports every feature and registers it) + `runtime.js` + `features/*.js` | the DEFAULT: one bundled file, nothing fetched on demand, features connect inside `connect()`. It contains no `import()` |
+| `phlex/reactive/reactive_controller` | `reactive_controller.js` + `runtime.js` (built with `__SPLIT__` false: imports every feature statically) + `features/*.js` | the DEFAULT: one bundled file, nothing fetched on demand, features connect inside `connect()`. It contains no `import()` |
 | `phlex/reactive/core` | `core.js` (where each feature module lives, and what only a client that waits for one needs) + `runtime.js` | opt-in: imports a feature when something on the page needs it |
 
 The features are `persist`, `defer`, `form`, `bindings`, `compute`, `effects`,
@@ -78,7 +78,13 @@ complete for these; `runtime.js` is what both entries are built with.
 Behaviour goes in `runtime.js` or a feature, never in `reactive_controller.js`.
 Code that only the opt-in client can run — an `import()`, what to record or
 hold back while a module is on its way — goes in `core.js`, so the default
-file does not carry it. The JS suite and the browser suite run on the default
+file does not carry it. The runtime itself is built twice (issue #305): with
+`__SPLIT__` false for the default entry (it imports each feature statically and
+calls it directly — no table, no loader) and true for the core. A place in
+`runtime.js` that reaches a feature reads the BARE `__SPLIT__` in an `if`/`else`
+or a ternary, never `if (!__SPLIT__) return` followed by the split code: bun
+folds the first, but keeps whatever the second references (and with it the
+table). The budget test asserts the default file has no `import()` and no table. The JS suite and the browser suite run on the default
 entry; the opt-in path has its own tests (the cold reset seam in JS, with
 `core.js` imported, and `rake spec:system_split` in the browser).
 
@@ -93,15 +99,17 @@ cp app/javascript/phlex/reactive/core.min.js \
    spec/dummy/public/vendor/core.js                  # the opt-in entry (same for confirm/compute/inspect),
 cp app/javascript/phlex/reactive/features/persist.min.js \
    spec/dummy/public/vendor/features/persist.js      # and EVERY feature: features/<name>.min.js -> features/<name>.js
-bun test spec/javascript                      # JS unit suite
+bun test spec/javascript                      # JS unit suite (__SPLIT__ true: the opt-in shape)
+bun test --define __SPLIT__=false spec/javascript   # …and as the shipped default entry (CI runs both)
 bundle exec rake spec:system_split            # the browser specs that matter on the split client
 ```
 
 An edit to `runtime.js` changes BOTH entries; an edit to a feature changes
 `reactive_controller.min.js` (the bundle) and its own file. A NEW feature is
-named in six places that must agree — `ENTRIES` in `scripts/build_client.js`,
+named in seven places that must agree — `ENTRIES` in `scripts/build_client.js`,
 `CLIENT_FEATURES` in `lib/phlex/reactive/engine.rb`, the runtime's feature
-table (its marker check), `core.js` (its literal `import()`), the default
+table (its marker check), the runtime's static imports and `__SPLIT__`-false
+call sites (issue #305), `core.js` (its literal `import()`), the default
 entry's imports and `registerReactiveFeature` calls, and a ceiling in
 `spec/javascript/bundle_budget.test.js`. (The dummy layouts pin whatever
 `CLIENT_FEATURES` lists.) `spec/phlex/engine_client_pin_spec.rb` (the lists

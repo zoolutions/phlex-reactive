@@ -10,6 +10,21 @@ import { Controller } from "@hotwired/stimulus"
 // bundlers/bun resolve it the same way they already resolve
 // "phlex/reactive/reactive_controller" (see tsconfig.json paths for the tests).
 import { confirmResolver } from "phlex/reactive/confirm"
+// The feature modules, imported STATICALLY (issue #305). Only the default
+// entry uses these: there `__SPLIT__` is false (scripts/build_client.js
+// defines it), every reference below sits in a `__SPLIT__ ? … : …` branch the
+// minifier keeps, and the features end up in the same file as the runtime,
+// called directly. The opt-in entry (core) is built with `__SPLIT__` true:
+// those branches fold away, and its build resolves these five imports to an
+// empty module, so core.min.js imports no feature until a root needs one.
+import * as persistFeature from "phlex/reactive/features/persist"
+import * as deferFeature from "phlex/reactive/features/defer"
+import * as formFeature from "phlex/reactive/features/form"
+import * as bindingsFeature from "phlex/reactive/features/bindings"
+import * as computeFeature from "phlex/reactive/features/compute"
+import * as effectsFeature from "phlex/reactive/features/effects"
+import * as hintsFeature from "phlex/reactive/features/hints"
+import * as devtoolsFeature from "phlex/reactive/features/devtools"
 
 // phlex/reactive/runtime — the reactive controller WITHOUT its feature
 // modules (issue #275): the code both client entries share. It is not an
@@ -17,12 +32,12 @@ import { confirmResolver } from "phlex/reactive/confirm"
 // it. An app reaches it one of two ways, never both:
 //
 //   phlex/reactive/reactive_controller  the default: this runtime bundled with
-//                                       every feature in one file. Features
-//                                       are handed over up front
-//                                       (registerReactiveFeature) and connect
-//                                       inside connect(). It has NO way to
-//                                       import one: nothing here names a
-//                                       feature module's file.
+//                                       every feature in one file, built with
+//                                       __SPLIT__ false (issue #305): the
+//                                       features are imported statically and
+//                                       called directly, and connect inside
+//                                       connect(). It has no table and NO way
+//                                       to import one.
 //   phlex/reactive/core                 opt-in: this runtime plus the table of
 //                                       import() calls (core.js). A feature is
 //                                       imported the first time a root on the
@@ -120,13 +135,21 @@ export function registerReactiveJs() {
     // With a target: scope to that element (missing → no-op). Without: document.
     const root = targetId ? document.getElementById(targetId) : null
     if (targetId && !root) {
-      if (verbose) withFeature("devtools", (devtools) => devtools.missingRoot(targetId))
+      if (verbose) {
+        if (__SPLIT__) withFeature("devtools", (devtools) => devtools.missingRoot(targetId))
+        else devtoolsFeature.missingRoot(targetId)
+      }
       return
     }
     applyOps(
       list,
       (args) => streamOpTargets(args, root),
-      verbose ? (name, args) => withFeature("devtools", (devtools) => devtools.diagnoseStream(name, args, root)) : undefined,
+      verbose
+        ? (name, args) =>
+            __SPLIT__
+              ? withFeature("devtools", (devtools) => devtools.diagnoseStream(name, args, root))
+              : devtoolsFeature.diagnoseStream(name, args, root)
+        : undefined,
     )
   }
 }
@@ -142,7 +165,8 @@ export function registerReactiveDefer() {
   const actions = window.Turbo?.StreamActions
   if (!actions || actions["reactive:defer"]) return
   actions["reactive:defer"] = function () {
-    withFeature("defer", (defer) => defer.streamAction(this))
+    if (__SPLIT__) withFeature("defer", (defer) => defer.streamAction(this))
+    else deferFeature.streamAction(this)
   }
 }
 
@@ -164,12 +188,12 @@ export function registerReactiveStreamRender() {
   if (typeof document === "undefined" || typeof document.addEventListener !== "function") return
   streamRenderRegistered = true
   document.addEventListener("turbo:before-stream-render", (event) => {
-    const effects = featureModules.get("effects")
     // The opt-in entry sees every stream (it may hold one for a module the
     // incoming content needs); with no entry hook, a loaded effects module
-    // wraps the stream directly.
-    if (streamWithoutEffects) streamWithoutEffects(event, effects)
-    else effects?.wrap(event)
+    // wraps the stream directly — in the default entry, always.
+    if (!__SPLIT__) effectsFeature.wrap(event)
+    else if (streamWithoutEffects) streamWithoutEffects(event, featureModules.get("effects"))
+    else featureModules.get("effects")?.wrap(event)
   })
 }
 // The names this registration had while it was two listeners.
@@ -246,9 +270,13 @@ function latencyStored() {
 // once it has done its part (see reactive_controller.js and core.js).
 export function registerReactiveDev() {
   if (typeof document === "undefined") return
-  if (!featureModules.has("devtools") && !FEATURES.get("devtools")[1]) return
+  if (__SPLIT__ && !featureModules.has("devtools") && !FEATURES.get("devtools")[1]) return
   const development = document.querySelector?.('meta[name="phlex-reactive-env"]')?.content === "development"
-  if (development || latencyStored()) withFeature("devtools", (devtools) => development && devtools.attach())
+  // (The default entry has the module in it: there is nothing to load, and
+  // attach() is idempotent, so the second call is harmless.)
+  if (!__SPLIT__) {
+    if (development) devtoolsFeature.attach()
+  } else if (development || latencyStored()) withFeature("devtools", (devtools) => development && devtools.attach())
 }
 
 // --- Global reactive-activity signal (issue #201) --------------------------
@@ -587,8 +615,12 @@ const CLIENT_OPS = Object.freeze({
   // subscriber's draft from a broadcast would be hostile.
   // The draft code lives in the persist feature module (issue #275), so both
   // ops run once it has loaded — at once on a root that restored a draft.
-  persist_state: (el, args) => withFeature("persist", (persist) => persist.writeState(el, args.state)),
-  persist_clear: (el) => withFeature("persist", (persist) => persist.clearRoot(el)),
+  persist_state: (el, args) =>
+    __SPLIT__
+      ? withFeature("persist", (persist) => persist.writeState(el, args.state))
+      : persistFeature.writeState(el, args.state),
+  persist_clear: (el) =>
+    __SPLIT__ ? withFeature("persist", (persist) => persist.clearRoot(el)) : persistFeature.clearRoot(el),
 })
 
 // The form a submit op commits (issue #226), in order: the target itself when
@@ -965,79 +997,71 @@ function streamOpTargets(args, root) {
 // one: a slow defer import does not hold the draft restore back. Once the
 // module is loaded (a later root, the next Turbo visit, a reconnect) it too
 // connects inside connect().
+//
+// THE DEFAULT ENTRY HAS NONE OF THIS (issue #305). It is built with
+// `__SPLIT__` false: the runtime imports every feature statically and calls
+// it directly — connect() connects what the root's markers ask for, in this
+// order, by name in the source and by nothing at all in the minified file.
+// No table, no loader, no import(): what is below is the opt-in entry's.
+
+// The marker checks of the features that connect per root. The default entry
+// calls them directly (#connectFeaturesNow); the table below hands them to
+// the loader.
+function persistNeeded(root) {
+  const declared = root.getAttribute?.("data-reactive-persist")
+  return Boolean(declared) && declared !== "off"
+}
+
+// reply.defer, reactive_lazy, reactive_lazy(on:/cache:). A root is a lazy
+// shell when it carries any of these; real content carries none.
+function deferNeeded(root) {
+  return ["defer-token", "defer-src", "lazy-on", "lazy-visible"].some(
+    (marker) => root.getAttribute?.(`data-reactive-${marker}`) != null,
+  )
+}
+
+// Dirty tracking with its navigate-away guard, and the paste-trigger gate:
+// the root or anything inside it carries one of the two markers. (A nested
+// root's marker loads the module for its parent too; the module then checks
+// ownership before it wires anything.)
+function formNeeded(root) {
+  return (
+    (root.getAttribute?.("data-action") ?? "").includes("reactive#trackDirty") ||
+    root.getAttribute?.("data-reactive-clipboard") != null ||
+    root.querySelector?.('[data-action*="reactive#trackDirty"],[data-reactive-clipboard]') != null
+  )
+}
+
+// Show bindings and cross-root show targets, completion bindings, option
+// filtering, the tag-chip input and draft nested rows: a form's client-only
+// bindings. The root declares one, or owns an element that does. (The probes
+// the connect-time gates ran before the split, unchanged.)
+function bindingsNeeded(root) {
+  return (
+    ["show-targets", "on-complete", "filter-input", "tags-field"].some(
+      (marker) => root.getAttribute?.(`data-reactive-${marker}`) != null,
+    ) ||
+    (root.querySelectorAll?.("[data-reactive-show-field], [data-reactive-show]") ?? []).length > 0 ||
+    root.querySelector?.("[data-reactive-nested-json], [data-reactive-nested-list], [data-reactive-confirm-when-param]") !=
+      null
+  )
+}
+
+// Client-side computes: the root carries a reactive_compute binding.
+function computeNeeded(root) {
+  return root.getAttribute?.("data-reactive-compute-inputs-param") != null
+}
+
 const PRODUCTION_FEATURES = [
-  [
-    "persist",
-    [
-      (root) => {
-        const declared = root.getAttribute?.("data-reactive-persist")
-        return Boolean(declared) && declared !== "off"
-      },
-      null,
-      // (Its `waiting` hook is the opt-in entry's: core.js.)
-      null,
-      true,
-    ],
-  ],
-  [
-    // reply.defer, reactive_lazy, reactive_lazy(on:/cache:). A root is a lazy
-    // shell when it carries any of these; real content carries none.
-    "defer",
-    [
-      (root) =>
-        ["defer-token", "defer-src", "lazy-on", "lazy-visible"].some(
-          (marker) => root.getAttribute?.(`data-reactive-${marker}`) != null,
-        ),
-      null,
-    ],
-  ],
-  [
-    // Dirty tracking with its navigate-away guard, and the paste-trigger
-    // gate: the root or anything inside it carries one of the two markers.
-    // (A nested root's marker loads the module for its parent too; the
-    // module then checks ownership before it wires anything.)
-    "form",
-    [
-      (root) =>
-        (root.getAttribute?.("data-action") ?? "").includes("reactive#trackDirty") ||
-        root.getAttribute?.("data-reactive-clipboard") != null ||
-        root.querySelector?.('[data-action*="reactive#trackDirty"],[data-reactive-clipboard]') != null,
-      null,
-    ],
-  ],
-  [
-    // Show bindings and cross-root show targets, completion bindings, option
-    // filtering, the tag-chip input and draft nested rows: a form's
-    // client-only bindings. The root declares one, or owns an element that
-    // does. Its seeds write what a request reads (the JSON-mode rows), so it
-    // gates.
-    "bindings",
-    [
-      // (The probes the connect-time gates ran before the split, unchanged.)
-      (root) =>
-        ["show-targets", "on-complete", "filter-input", "tags-field"].some(
-          (marker) => root.getAttribute?.(`data-reactive-${marker}`) != null,
-        ) ||
-        (root.querySelectorAll?.("[data-reactive-show-field], [data-reactive-show]") ?? []).length > 0 ||
-        root.querySelector?.(
-          "[data-reactive-nested-json], [data-reactive-nested-list], [data-reactive-confirm-when-param]",
-        ) != null,
-      null,
-      null,
-      true,
-    ],
-  ],
-  [
-    // Client-side computes: the root carries a reactive_compute binding. The
-    // seed writes output fields a request collects, so it gates.
-    "compute",
-    [
-      (root) => root.getAttribute?.("data-reactive-compute-inputs-param") != null,
-      null,
-      null,
-      true,
-    ],
-  ],
+  // (Its `waiting` hook is the opt-in entry's: core.js.) The draft restore
+  // writes what a request reads, so it gates.
+  ["persist", [persistNeeded, null, null, true]],
+  ["defer", [deferNeeded, null]],
+  ["form", [formNeeded, null]],
+  // Its seeds write what a request reads (the JSON-mode rows), so it gates.
+  ["bindings", [bindingsNeeded, null, null, true]],
+  // The seed writes output fields a request collects, so it gates.
+  ["compute", [computeNeeded, null, null, true]],
   [
     // Stream effects and dismissing flashes are document-level: the module
     // has no connect. A root that DECLARES an effect only gets it fetched
@@ -1070,31 +1094,34 @@ const PRODUCTION_FEATURES = [
     [(root) => root.getAttribute?.("data-reactive-debug") === "true", null],
   ],
 ]
-const FEATURES = new Map(PRODUCTION_FEATURES)
+// (Only the opt-in entry has a table: `new Map` would keep it in the default.)
+const FEATURES = __SPLIT__ ? new Map(PRODUCTION_FEATURES) : null
 
 // name -> the one import promise every root shares, kept even when it
 // rejected: a browser caches a module that failed to load, so importing it
 // again only re-rejects. A failed feature stays failed until the page is
 // reloaded; every root it costs is told (reactive:error).
-const featureLoads = new Map()
+const featureLoads = __SPLIT__ ? new Map() : null
 // name -> the loaded module: what lets a later root connect a feature inside
 // connect(), and a stream action or client op use it in the same tick.
-const featureModules = new Map()
+const featureModules = __SPLIT__ ? new Map() : null
 // The modules the default bundle handed over (registerReactiveFeature); only
 // the test seam below reads it back.
-const featuresGiven = new Map()
+const featuresGiven = __SPLIT__ ? new Map() : null
 
 // How the opt-in entry (core.js) tells the runtime where a feature module is
 // — `load`, a function returning its import() — and, optionally, what to
 // record while that import is on its way (`waiting`, see above).
 export function registerReactiveFeatureLoader(name, load, waiting) {
-  featureLoaders.set(name, [load, waiting])
-  applyFeatureLoader(name)
+  if (__SPLIT__) {
+    featureLoaders.set(name, [load, waiting])
+    applyFeatureLoader(name)
+  }
 }
 
 // name -> [load, waiting] the opt-in entry registered: kept apart from the
 // table so a test's reset of the table puts them back.
-const featureLoaders = new Map()
+const featureLoaders = __SPLIT__ ? new Map() : null
 
 function applyFeatureLoader(name) {
   const entry = FEATURES.get(name)
@@ -1107,9 +1134,11 @@ function applyFeatureLoader(name) {
 // phlex/reactive/reactive_controller does for every feature before anything
 // can connect. Such a feature is never imported: it connects inside connect().
 export function registerReactiveFeature(name, feature) {
-  feature.install?.(FEATURE_SHARED)
-  featureModules.set(name, feature)
-  featuresGiven.set(name, feature)
+  if (__SPLIT__) {
+    feature.install?.(FEATURE_SHARED)
+    featureModules.set(name, feature)
+    featuresGiven.set(name, feature)
+  }
 }
 
 // For the opt-in entry: the features some of `elements` (reactive roots a
@@ -1117,12 +1146,14 @@ export function registerReactiveFeature(name, feature) {
 // table, so a new feature is covered by its own marker check.
 export function unloadedFeaturesFor(elements) {
   const names = []
-  for (const [name, [needs]] of FEATURES) {
-    if (!needs || featureModules.has(name)) continue
-    try {
-      if (elements.some((el) => needs(el))) names.push(name)
-    } catch {
-      // a marker check that throws is that root's problem at connect, not the stream's
+  if (__SPLIT__) {
+    for (const [name, [needs]] of FEATURES) {
+      if (!needs || featureModules.has(name)) continue
+      try {
+        if (elements.some((el) => needs(el))) names.push(name)
+      } catch {
+        // a marker check that throws is that root's problem at connect, not the stream's
+      }
     }
   }
   return names
@@ -1131,7 +1162,9 @@ export function unloadedFeaturesFor(elements) {
 // For the opt-in entry: import a feature now. Resolves with the module, or
 // with undefined once the failure has been logged.
 export function loadReactiveFeature(name) {
-  return loadFeature(name).catch((error) => logFeatureFailure(name, "load", error))
+  return __SPLIT__
+    ? loadFeature(name).catch((error) => logFeatureFailure(name, "load", error))
+    : Promise.resolve()
 }
 
 function loadFeature(name) {
@@ -1190,10 +1223,13 @@ function featureTimeoutMs() {
 }
 
 export function reactiveFeatureNames() {
-  return [...FEATURES.keys()]
+  return __SPLIT__
+    ? [...FEATURES.keys()]
+    : ["persist", "defer", "form", "bindings", "compute", "effects", "hints", "devtools"]
 }
 
 export function __setReactiveFeatureForTest(name, needs, load, waiting, gates) {
+  if (!__SPLIT__) return
   FEATURES.set(name, [needs, load, waiting, gates])
 }
 
@@ -1204,13 +1240,26 @@ export function __reactiveFeatureEntryForTest(name) {
 
 // Test-only: import a feature now (a later connect is then synchronous).
 export function __loadReactiveFeatureForTest(name) {
-  return loadFeature(name)
+  if (__SPLIT__) return loadFeature(name)
+  const modules = {
+    persist: persistFeature,
+    defer: deferFeature,
+    form: formFeature,
+    bindings: bindingsFeature,
+    compute: computeFeature,
+    effects: effectsFeature,
+    hints: hintsFeature,
+    devtools: devtoolsFeature,
+  }
+  return Promise.resolve(modules[name])
 }
 
 // Test-only: back to the shipped table, with nothing logged and only the
 // modules the default bundle handed over still loaded — or, `cold`, with none
 // loaded at all: the state of a page that imported phlex/reactive/core.
 export function __resetReactiveFeaturesForTest(cold) {
+  // (The default entry has no table to reset: its features are static.)
+  if (!__SPLIT__) return
   FEATURES.clear()
   for (const [name, entry] of PRODUCTION_FEATURES) FEATURES.set(name, entry)
   // (Only the opt-in entry registers any; with the default entry alone the
@@ -1239,6 +1288,20 @@ const FEATURE_SHARED = {
   exit: exitReactiveActivity,
   count: countReactiveRequest,
   waiting: new WeakMap(),
+}
+
+// The default entry's per-root features, one bit each (#connectFeaturesNow).
+const PERSIST = 1
+const DEFER = 2
+const FORM = 4
+const BINDINGS = 8
+const COMPUTE = 16
+
+// The default entry's features are part of this file: install them now, as
+// the opt-in entry does when one arrives.
+if (!__SPLIT__) {
+  persistFeature.install(FEATURE_SHARED)
+  deferFeature.install(FEATURE_SHARED)
 }
 
 // --- Early triggers (issue #273) ----------------------------------------------
@@ -1425,6 +1488,10 @@ export default class extends Controller {
   #featureTurns = new Map() // name -> settles once that feature has had its turn to connect
   #featureEpoch = 0
   #featureHandle // the `core` handle features receive, built on first use
+  // The default entry (issue #305): one bit per feature, PERSIST … COMPUTE —
+  // asked for (its marker read true) and connected on this connection.
+  #featuresAsked = 0
+  #featuresOn = 0
 
   // Mark that a reactive controller actually connected, so the registration
   // guard above knows the controller was registered (issue #26 part 2).
@@ -1464,7 +1531,9 @@ export default class extends Controller {
     // itself counts.) A tokenless, client-only root has no such listener.
     if (this.element.getAttribute?.("data-reactive-token-value") != null) {
       this.#boundRootMorph = (event) => {
-        if (event.target === this.element) this.#loadFeatures(true)
+        if (event.target !== this.element) return
+        if (__SPLIT__) this.#loadFeatures(true)
+        else this.#connectFeaturesNow(true)
       }
       this.element.addEventListener?.("turbo:morph-element", this.#boundRootMorph)
     }
@@ -1479,11 +1548,74 @@ export default class extends Controller {
     // runs a waking click twice).
     this.#featureEpoch++
     this.featuresReady = FEATURES_READY
-    this.#loadFeatures()
+    if (__SPLIT__) this.#loadFeatures()
+    else this.#connectFeaturesNow()
 
     // LAST, after every feature above is wired: a replayed trigger must find
     // the controller exactly as a live event after connect would.
     this.#announceConnected()
+  }
+
+  // The default entry (issue #305): every feature is in this file, so each
+  // one this root's markers ask for connects now, by a direct call, in the
+  // order the opt-in entry's table gives (persist first: its restore writes
+  // the values the later seeds read). Again after a morph of the root, for a
+  // marker the morph added. The features with no per-root connect (effects,
+  // hints, devtools) act when called.
+  #connectFeaturesNow(morphed) {
+    if (!__SPLIT__) {
+      this.#connectFeatureNow(PERSIST, "persist", persistNeeded, (core) => persistFeature.connect(this, core, morphed))
+      this.#connectFeatureNow(DEFER, "defer", deferNeeded, (core) => deferFeature.connect(this, core, morphed))
+      this.#connectFeatureNow(FORM, "form", formNeeded, (core) => formFeature.connect(this, core, morphed))
+      this.#connectFeatureNow(BINDINGS, "bindings", bindingsNeeded, (core) => bindingsFeature.connect(this, core, morphed))
+      this.#connectFeatureNow(COMPUTE, "compute", computeNeeded, (core) => computeFeature.connect(this, core, morphed))
+    }
+  }
+
+  // Once per connection: a marker check that throws loses that feature (and
+  // is read again after a morph), a connect that throws loses it until the
+  // root reconnects — never the rest of connect().
+  #connectFeatureNow(bit, name, needs, connect) {
+    if (!__SPLIT__) {
+      if (this.#featuresAsked & bit) return
+      try {
+        if (!needs(this.element)) return
+      } catch (error) {
+        return this.#featureFailed(name, "detect", error)
+      }
+      this.#featuresAsked |= bit
+      try {
+        connect(this.#featureCore())
+        this.#featuresOn |= bit
+      } catch (error) {
+        this.#featureFailed(name, "connect", error)
+      }
+    }
+  }
+
+  // FIRST in disconnect(), in connect order, while the root is still intact
+  // (the draft flush reads its fields).
+  #disconnectFeaturesNow() {
+    if (!__SPLIT__) {
+      const on = this.#featuresOn
+      this.#featuresAsked = this.#featuresOn = 0
+      const core = this.#featureCore()
+      if (on & PERSIST) this.#disconnectFeatureNow("persist", () => persistFeature.disconnect(this, core))
+      if (on & DEFER) this.#disconnectFeatureNow("defer", () => deferFeature.disconnect(this, core))
+      if (on & FORM) this.#disconnectFeatureNow("form", () => formFeature.disconnect(this, core))
+      if (on & BINDINGS) this.#disconnectFeatureNow("bindings", () => bindingsFeature.disconnect(this, core))
+      if (on & COMPUTE) this.#disconnectFeatureNow("compute", () => computeFeature.disconnect(this, core))
+    }
+  }
+
+  #disconnectFeatureNow(name, disconnect) {
+    if (!__SPLIT__) {
+      try {
+        disconnect()
+      } catch (error) {
+        console.error(`[phlex-reactive] the "${name}" feature module failed to disconnect`, error)
+      }
+    }
   }
 
   // Starts the import of every feature this root needs and has not asked for
@@ -1494,55 +1626,57 @@ export default class extends Controller {
   // seeds depend on, never the order the network delivered them in — unless
   // this connection ended meanwhile.
   #loadFeatures(morphed) {
-    const epoch = this.#featureEpoch
-    const names = []
-    for (const [name, [needs]] of FEATURES) {
-      if (!needs || this.#featuresWanted.has(name)) continue
-      // Loaded, and with nothing to do per root: its marker need not be read.
-      const loaded = featureModules.get(name)
-      if (loaded && !loaded.connect) continue
-      // A marker check that throws loses that feature, never the rest of
-      // connect() — above all not the early drain that follows it.
-      try {
-        if (needs(this.element)) names.push(name)
-      } catch (error) {
-        this.#featureFailed(name, "detect", error)
+    if (__SPLIT__) {
+      const epoch = this.#featureEpoch
+      const names = []
+      for (const [name, [needs]] of FEATURES) {
+        if (!needs || this.#featuresWanted.has(name)) continue
+        // Loaded, and with nothing to do per root: its marker need not be read.
+        const loaded = featureModules.get(name)
+        if (loaded && !loaded.connect) continue
+        // A marker check that throws loses that feature, never the rest of
+        // connect() — above all not the early drain that follows it.
+        try {
+          if (needs(this.element)) names.push(name)
+        } catch (error) {
+          this.#featureFailed(name, "detect", error)
+        }
       }
-    }
-    if (names.length === 0) return
-    for (const name of names) this.#featuresWanted.add(name)
-    // Every module already here (a later root, the next Turbo visit): connect
-    // now, in this task — nothing to wait for, so nothing to gate or time out.
-    if (!this.#featuresSettling && names.every((name) => featureModules.has(name))) {
-      for (const name of names) this.#connectFeature(epoch, name, featureModules.get(name), morphed)
-      return
-    }
-    for (const name of names) {
-      const arrival = this.#awaitFeature(epoch, name)
-      // Its turn comes after the features BEFORE it in the table that this
-      // root is still waiting for — never after a later one, even one whose
-      // import started earlier (a morph can add an earlier feature's marker).
-      const earlier = []
-      for (const key of FEATURES.keys()) {
-        if (key === name) break
-        if (this.#featureTurns.has(key)) earlier.push(this.#featureTurns.get(key))
+      if (names.length === 0) return
+      for (const name of names) this.#featuresWanted.add(name)
+      // Every module already here (a later root, the next Turbo visit): connect
+      // now, in this task — nothing to wait for, so nothing to gate or time out.
+      if (!this.#featuresSettling && names.every((name) => featureModules.has(name))) {
+        for (const name of names) this.#connectFeature(epoch, name, featureModules.get(name), morphed)
+        return
       }
-      const turn = Promise.all(earlier)
-        .then(() => arrival)
-        .then((feature) => feature && this.#connectFeature(epoch, name, feature, morphed))
-      this.#featureTurns.set(name, turn)
-      if (FEATURES.get(name)[3]) this.#featureGate = turn
+      for (const name of names) {
+        const arrival = this.#awaitFeature(epoch, name)
+        // Its turn comes after the features BEFORE it in the table that this
+        // root is still waiting for — never after a later one, even one whose
+        // import started earlier (a morph can add an earlier feature's marker).
+        const earlier = []
+        for (const key of FEATURES.keys()) {
+          if (key === name) break
+          if (this.#featureTurns.has(key)) earlier.push(this.#featureTurns.get(key))
+        }
+        const turn = Promise.all(earlier)
+          .then(() => arrival)
+          .then((feature) => feature && this.#connectFeature(epoch, name, feature, morphed))
+        this.#featureTurns.set(name, turn)
+        if (FEATURES.get(name)[3]) this.#featureGate = turn
+      }
+      // Requests stop waiting the moment the last gating feature has connected.
+      const gate = this.#featureGate
+      gate?.then(() => {
+        if (this.#featureGate === gate) this.#featureGate = null
+      })
+      this.#featuresSettling = true
+      const ready = Promise.all(this.#featureTurns.values()).then(() => {
+        if (this.featuresReady === ready) this.#featuresSettling = false
+      })
+      this.featuresReady = ready
     }
-    // Requests stop waiting the moment the last gating feature has connected.
-    const gate = this.#featureGate
-    gate?.then(() => {
-      if (this.#featureGate === gate) this.#featureGate = null
-    })
-    this.#featuresSettling = true
-    const ready = Promise.all(this.#featureTurns.values()).then(() => {
-      if (this.featuresReady === ready) this.#featuresSettling = false
-    })
-    this.featuresReady = ready
   }
 
   // One feature's import, for one scan: resolves with the module, or with
@@ -1550,51 +1684,55 @@ export default class extends Controller {
   // broken feature never holds back the others. A module that arrives after
   // its timeout still connects (late, and so out of table order).
   #awaitFeature(epoch, name) {
-    const current = () => epoch === this.#featureEpoch
-    this.#startWaitingFor(name)
-    return new Promise((resolve) => {
-      let timedOut = false
-      const timer = setTimeout(() => {
-        this.#featureWaits.delete(timer)
-        timedOut = true
-        if (current()) this.#featureFailed(name, "timeout", new Error(`not loaded after ${featureTimeoutMs()} ms`))
-        resolve(null)
-      }, featureTimeoutMs())
-      // Kept with its resolve: a disconnect ends the wait (#disconnectFeatures),
-      // or whatever is queued behind featuresReady would hang on a stuck import.
-      this.#featureWaits.set(timer, resolve)
-      const settled = () => {
-        clearTimeout(timer)
-        this.#featureWaits.delete(timer)
-      }
-      loadFeature(name).then(
-        (feature) => {
-          settled()
-          // Late: connect one microtask on, after whatever else was queued on
-          // this import while the root waited.
-          if (timedOut) queueMicrotask(() => this.#connectFeature(epoch, name, feature))
-          else resolve(feature)
-        },
-        (error) => {
-          settled()
-          if (current()) this.#featureFailed(name, "load", error)
+    if (__SPLIT__) {
+      const current = () => epoch === this.#featureEpoch
+      this.#startWaitingFor(name)
+      return new Promise((resolve) => {
+        let timedOut = false
+        const timer = setTimeout(() => {
+          this.#featureWaits.delete(timer)
+          timedOut = true
+          if (current()) this.#featureFailed(name, "timeout", new Error(`not loaded after ${featureTimeoutMs()} ms`))
           resolve(null)
-        },
-      )
-    })
+        }, featureTimeoutMs())
+        // Kept with its resolve: a disconnect ends the wait (#disconnectFeatures),
+        // or whatever is queued behind featuresReady would hang on a stuck import.
+        this.#featureWaits.set(timer, resolve)
+        const settled = () => {
+          clearTimeout(timer)
+          this.#featureWaits.delete(timer)
+        }
+        loadFeature(name).then(
+          (feature) => {
+            settled()
+            // Late: connect one microtask on, after whatever else was queued on
+            // this import while the root waited.
+            if (timedOut) queueMicrotask(() => this.#connectFeature(epoch, name, feature))
+            else resolve(feature)
+          },
+          (error) => {
+            settled()
+            if (current()) this.#featureFailed(name, "load", error)
+            resolve(null)
+          },
+        )
+      })
+    }
   }
 
   // Run the feature's `waiting` hook (if it has one) and remember its undo and
   // what it records, for #connectFeature or #disconnectFeatures to hand on.
   #startWaitingFor(name) {
-    const hook = FEATURES.get(name)[2]
-    if (!hook) return
-    const pending = {}
-    try {
-      this.#featureHooks.set(name, [hook(this.element, pending), pending])
-      FEATURE_SHARED.waiting.set(this.element, { ...FEATURE_SHARED.waiting.get(this.element), [name]: pending })
-    } catch (error) {
-      this.#featureFailed(name, "detect", error)
+    if (__SPLIT__) {
+      const hook = FEATURES.get(name)[2]
+      if (!hook) return
+      const pending = {}
+      try {
+        this.#featureHooks.set(name, [hook(this.element, pending), pending])
+        FEATURE_SHARED.waiting.set(this.element, { ...FEATURE_SHARED.waiting.get(this.element), [name]: pending })
+      } catch (error) {
+        this.#featureFailed(name, "detect", error)
+      }
     }
   }
 
@@ -1603,25 +1741,29 @@ export default class extends Controller {
   // `abandoning`: a root that leaves keeps its record until abandon() has run,
   // so anything else queued on the same import still finds it.
   #stopWaitingFor(name, abandoning) {
-    const [undo, pending] = this.#featureHooks.get(name) ?? []
-    this.#featureHooks.delete(name)
-    if (!abandoning) forgetWaiting(this.element, name, pending)
-    try {
-      undo?.()
-    } catch (error) {
-      console.error(`[phlex-reactive] the "${name}" feature module failed to stop waiting`, error)
+    if (__SPLIT__) {
+      const [undo, pending] = this.#featureHooks.get(name) ?? []
+      this.#featureHooks.delete(name)
+      if (!abandoning) forgetWaiting(this.element, name, pending)
+      try {
+        undo?.()
+      } catch (error) {
+        console.error(`[phlex-reactive] the "${name}" feature module failed to stop waiting`, error)
+      }
+      return pending
     }
-    return pending
   }
 
   #connectFeature(epoch, name, feature, morphed) {
-    if (epoch !== this.#featureEpoch) return
-    const pending = this.#stopWaitingFor(name)
-    try {
-      feature.connect?.(this, this.#featureCore(), morphed, pending)
-      this.#features.set(name, feature)
-    } catch (error) {
-      this.#featureFailed(name, "connect", error)
+    if (__SPLIT__) {
+      if (epoch !== this.#featureEpoch) return
+      const pending = this.#stopWaitingFor(name)
+      try {
+        feature.connect?.(this, this.#featureCore(), morphed, pending)
+        this.#features.set(name, feature)
+      } catch (error) {
+        this.#featureFailed(name, "connect", error)
+      }
     }
   }
 
@@ -1664,9 +1806,15 @@ export default class extends Controller {
   // restore). Each is the same re-sync its feature runs after a morph; a root
   // that did not opt into one skips it. on-complete re-ARMS without firing.
   #reseed() {
-    this.#features.get("form")?.scan(this, this.#featureCore())
-    this.#features.get("bindings")?.reseed(this)
-    this.#features.get("compute")?.seed(this)
+    if (!__SPLIT__) {
+      if (this.#featuresOn & FORM) formFeature.scan(this, this.#featureCore())
+      if (this.#featuresOn & BINDINGS) bindingsFeature.reseed(this)
+      if (this.#featuresOn & COMPUTE) computeFeature.seed(this)
+    } else {
+      this.#features.get("form")?.scan(this, this.#featureCore())
+      this.#features.get("bindings")?.reseed(this)
+      this.#features.get("compute")?.seed(this)
+    }
   }
 
   // A feature that is missing leaves its part of the root dead: say so on
@@ -1688,35 +1836,37 @@ export default class extends Controller {
   // intact (the draft flush reads its fields). A feature whose disconnect
   // throws must not keep the others, or the rest of disconnect(), from running.
   #disconnectFeatures() {
-    this.#featureEpoch++
-    // End every wait still open: nothing will connect on this connection, and
-    // a request queued behind featuresReady must not hang on a stuck import.
-    for (const [timer, resolve] of this.#featureWaits) {
-      clearTimeout(timer)
-      resolve(null)
-    }
-    this.#featureWaits.clear()
-    // A feature this root was still waiting for never connected here: hand it
-    // what its hook recorded, once (and if) the module arrives.
-    for (const name of [...this.#featureHooks.keys()]) {
-      const pending = this.#stopWaitingFor(name, true)
-      const root = this.element
-      withFeature(name, (feature) => {
-        feature.abandon?.(root, pending)
-        forgetWaiting(root, name, pending)
-      })
-    }
-    this.#featuresWanted.clear()
-    this.#featureTurns.clear()
-    this.#featuresSettling = false
-    this.#featureGate = null
-    const connected = [...this.#features]
-    this.#features.clear()
-    for (const [name, feature] of connected) {
-      try {
-        feature.disconnect?.(this, this.#featureCore())
-      } catch (error) {
-        console.error(`[phlex-reactive] the "${name}" feature module failed to disconnect`, error)
+    if (__SPLIT__) {
+      this.#featureEpoch++
+      // End every wait still open: nothing will connect on this connection, and
+      // a request queued behind featuresReady must not hang on a stuck import.
+      for (const [timer, resolve] of this.#featureWaits) {
+        clearTimeout(timer)
+        resolve(null)
+      }
+      this.#featureWaits.clear()
+      // A feature this root was still waiting for never connected here: hand it
+      // what its hook recorded, once (and if) the module arrives.
+      for (const name of [...this.#featureHooks.keys()]) {
+        const pending = this.#stopWaitingFor(name, true)
+        const root = this.element
+        withFeature(name, (feature) => {
+          feature.abandon?.(root, pending)
+          forgetWaiting(root, name, pending)
+        })
+      }
+      this.#featuresWanted.clear()
+      this.#featureTurns.clear()
+      this.#featuresSettling = false
+      this.#featureGate = null
+      const connected = [...this.#features]
+      this.#features.clear()
+      for (const [name, feature] of connected) {
+        try {
+          feature.disconnect?.(this, this.#featureCore())
+        } catch (error) {
+          console.error(`[phlex-reactive] the "${name}" feature module failed to disconnect`, error)
+        }
       }
     }
   }
@@ -1820,7 +1970,8 @@ export default class extends Controller {
     // Features FIRST (issue #275): the persist feature flushes a pending draft
     // write while the fields are still readable (Turbo disconnects before
     // leaving the page — a fast visit otherwise loses the last keystrokes).
-    this.#disconnectFeatures()
+    if (__SPLIT__) this.#disconnectFeatures()
+    else this.#disconnectFeaturesNow()
     this.#clearAllDebounces()
     this.#clearAllThrottles()
     if (this.#boundRootMorph) {
@@ -1911,8 +2062,11 @@ export default class extends Controller {
       // Without the feature (it failed to load) a shell can still load the
       // plain way: the signed __materialize POST.
       const materialize = () => {
-        const defer = this.#features.get("defer")
-        return defer ? defer.materialize(this) : this.#proceed(target, action, "{}")
+        if (!__SPLIT__) return deferFeature.materialize(this)
+        else {
+          const defer = this.#features.get("defer")
+          return defer ? defer.materialize(this) : this.#proceed(target, action, "{}")
+        }
       }
       return this.#featuresSettling ? this.featuresReady.then(materialize) : materialize()
     }
@@ -1966,22 +2120,27 @@ export default class extends Controller {
   #effectiveConfirmMessage(confirm, confirmWhen) {
     if (confirm) return confirm
     if (!confirmWhen) return null
-    const loaded = featureModules.get("bindings")
-    if (loaded) return loaded.confirmMessage(this, this.#featureCore(), confirmWhen)
-    return this.#awaitFeatureOrNull("bindings").then(
-      (bindings) => bindings && bindings.confirmMessage(this, this.#featureCore(), confirmWhen),
-    )
+    if (!__SPLIT__) return bindingsFeature.confirmMessage(this, this.#featureCore(), confirmWhen)
+    else {
+      const loaded = featureModules.get("bindings")
+      if (loaded) return loaded.confirmMessage(this, this.#featureCore(), confirmWhen)
+      return this.#awaitFeatureOrNull("bindings").then(
+        (bindings) => bindings && bindings.confirmMessage(this, this.#featureCore(), confirmWhen),
+      )
+    }
   }
 
   // A feature's module, or null once its import failed (logged) or outlasted
   // the feature timeout — for the two places a REQUEST waits on an import
   // without a root connection to wait with (a hint, a conditional confirm).
   #awaitFeatureOrNull(name) {
-    let timer
-    return Promise.race([
-      loadFeature(name).catch((error) => (logFeatureFailure(name, "load", error), null)),
-      new Promise((resolve) => (timer = setTimeout(() => resolve(null), featureTimeoutMs()))),
-    ]).finally(() => clearTimeout(timer))
+    if (__SPLIT__) {
+      let timer
+      return Promise.race([
+        loadFeature(name).catch((error) => (logFeatureFailure(name, "load", error), null)),
+        new Promise((resolve) => (timer = setTimeout(() => resolve(null), featureTimeoutMs()))),
+      ]).finally(() => clearTimeout(timer))
+    }
   }
 
 
@@ -2013,7 +2172,10 @@ export default class extends Controller {
     if (matching.length === 0 && records.length > 0) {
       // Issue #271: a hand-edited attr or a descriptor the matcher doesn't
       // know. Verbose gate only (the devtools feature dedupes).
-      if (this.#verboseEnabled()) this.#devtools((devtools) => devtools.noBinding(this, event))
+      if (this.#verboseEnabled()) {
+        if (__SPLIT__) this.#devtools((devtools) => devtools.noBinding(this, event))
+        else devtoolsFeature.noBinding(this, event)
+      }
       return
     }
     for (const record of matching) {
@@ -2060,7 +2222,9 @@ export default class extends Controller {
   // (the opt-in client) the entry records the edit, and the module runs one
   // recompute when it connects.
   recompute(event) {
-    return featureModules.get("compute")?.recompute(this, this.#featureCore(), event)
+    return __SPLIT__
+      ? featureModules.get("compute")?.recompute(this, this.#featureCore(), event)
+      : computeFeature.recompute(this, this.#featureCore(), event)
   }
 
   // Tag-chip input (issue #203) and draft nested rows (issue #208) are the
@@ -2074,35 +2238,49 @@ export default class extends Controller {
   tagsAdd(event) {
     if (event?.defaultPrevented) return
     if (this.#listnavOptions(event).some((el) => el.hasAttribute?.("data-reactive-highlighted"))) return
-    return this.#bindingsAction("tagsAdd", event)
+    return __SPLIT__
+      ? this.#bindingsAction("tagsAdd", event)
+      : bindingsFeature.tagsAdd(this, this.#featureCore(), event)
   }
 
   tagsPick(event) {
-    return this.#bindingsAction("tagsPick", event)
+    return __SPLIT__
+      ? this.#bindingsAction("tagsPick", event)
+      : bindingsFeature.tagsPick(this, this.#featureCore(), event)
   }
 
   tagsRemove(event) {
-    return this.#bindingsAction("tagsRemove", event)
+    return __SPLIT__
+      ? this.#bindingsAction("tagsRemove", event)
+      : bindingsFeature.tagsRemove(this, this.#featureCore(), event)
   }
 
   nestedAdd(event) {
-    return this.#bindingsAction("nestedAdd", event)
+    return __SPLIT__
+      ? this.#bindingsAction("nestedAdd", event)
+      : bindingsFeature.nestedAdd(this, this.#featureCore(), event)
   }
 
   nestedRemove(event) {
-    return this.#bindingsAction("nestedRemove", event)
+    return __SPLIT__
+      ? this.#bindingsAction("nestedRemove", event)
+      : bindingsFeature.nestedRemove(this, this.#featureCore(), event)
   }
 
   syncNestedJson(event) {
-    return featureModules.get("bindings")?.syncNestedJson(this, this.#featureCore(), event)
+    return __SPLIT__
+      ? featureModules.get("bindings")?.syncNestedJson(this, this.#featureCore(), event)
+      : bindingsFeature.syncNestedJson(this, this.#featureCore(), event)
   }
 
   #bindingsAction(name, event) {
-    const loaded = featureModules.get("bindings")
-    if (loaded) return loaded[name](this, this.#featureCore(), event)
-    event?.preventDefault?.()
-    const snapshot = { currentTarget: event?.currentTarget ?? null, target: event?.target ?? null, preventDefault() {} }
-    return withFeature("bindings", (bindings) => bindings[name](this, this.#featureCore(), snapshot))
+    if (__SPLIT__) {
+      const loaded = featureModules.get("bindings")
+      if (loaded) return loaded[name](this, this.#featureCore(), event)
+      event?.preventDefault?.()
+      const snapshot = { currentTarget: event?.currentTarget ?? null, target: event?.target ?? null, preventDefault() {} }
+      return withFeature("bindings", (bindings) => bindings[name](this, this.#featureCore(), snapshot))
+    }
   }
 
   // Dirty tracking (issue #103) is the form feature's (issue #275,
@@ -2111,7 +2289,8 @@ export default class extends Controller {
   // when it is here. While it is still on its way nothing is lost — it scans
   // the whole root when it connects.
   trackDirty() {
-    ;(this.#features.get("form") ?? featureModules.get("form"))?.scan(this, this.#featureCore())
+    if (!__SPLIT__) formFeature.scan(this, this.#featureCore())
+    else (this.#features.get("form") ?? featureModules.get("form"))?.scan(this, this.#featureCore())
   }
 
   // Client-side list navigation (combobox keyboard nav, issue #72). Wired by
@@ -2273,19 +2452,26 @@ export default class extends Controller {
     const wanted = Boolean(optimistic || busy)
     const apply = (hints) => {
       if (!wanted || !hints) return
-      pending.inverse = hints.optimistic(this, this.#featureCore(), optimistic, target)
-      pending.undo.push(...hints.busy(this, this.#featureCore(), busy, target))
+      const core = this.#featureCore()
+      pending.inverse = __SPLIT__
+        ? hints.optimistic(this, core, optimistic, target)
+        : hintsFeature.optimistic(this, core, optimistic, target)
+      pending.undo.push(...(__SPLIT__ ? hints.busy(this, core, busy, target) : hintsFeature.busy(this, core, busy, target)))
       // Debug-only teaching aid (issue #181): if optimistic: { hide: true } is
       // used for instant-delete but the reply RE-RENDERS the element (bringing
       // it back), that hint was pointless — the developer likely wanted
       // reply.remove. Capture the hidden nodes now; the success path re-checks
       // the OBSERVED DOM after the morph (never inferred from the verb).
-      if (this.#debugEnabled()) pending.resurrect = hints.resurrection(this, this.#featureCore(), optimistic, target)
+      if (this.#debugEnabled()) {
+        pending.resurrect = __SPLIT__
+          ? hints.resurrection(this, core, optimistic, target)
+          : hintsFeature.resurrection(this, core, optimistic, target)
+      }
     }
     // A hint applies ONCE per enqueue — the single flush point every path
     // funnels through — never per raw dispatch. With the module here (the
     // default client, always) that is now, synchronously.
-    const loaded = featureModules.get("hints")
+    const loaded = __SPLIT__ ? featureModules.get("hints") : true
     if (!wanted || loaded) apply(loaded)
     // A feature still loading may be about to change what this request reads
     // (issue #275: the draft restore writes the fields #perform collects). Only
@@ -2437,9 +2623,12 @@ export default class extends Controller {
   // A request waits for the module only while a delay is stored (so the very
   // first delayed request is delayed too); with none stored this is two reads.
   #maybeSimulateLatency() {
-    const devtools = featureModules.get("devtools")
-    if (devtools) return devtools.delay()
-    if (latencyStored()) return loadFeature("devtools").then((loaded) => loaded.delay(), () => {})
+    if (!__SPLIT__) return devtoolsFeature.delay()
+    else {
+      const devtools = featureModules.get("devtools")
+      if (devtools) return devtools.delay()
+      if (latencyStored()) return loadFeature("devtools").then((loaded) => loaded.delay(), () => {})
+    }
   }
 
   // Client debug mode (issue #108) — the "devtools-lite" lens. On when the Ruby
@@ -2627,7 +2816,10 @@ export default class extends Controller {
         if ((response.headers.get("Content-Type") || "").includes("turbo-stream")) {
           const fresh = this.#extractToken(errorBody)
           this.#currentToken = fresh ?? this.#currentToken
-          if (debug) this.#devtools((devtools) => devtools.recordBody(debug, errorBody, fresh))
+          if (debug) {
+            if (__SPLIT__) this.#devtools((devtools) => devtools.recordBody(debug, errorBody, fresh))
+            else devtoolsFeature.recordBody(debug, errorBody, fresh)
+          }
           window.Turbo.renderStreamMessage(errorBody)
         }
         this.#markError("http")
@@ -2652,7 +2844,10 @@ export default class extends Controller {
       // Debug (issue #108): record the stream actions/targets + whether a refresh
       // arrived, from the body we JUST read (reuse — no second text() read). Never
       // the token or template contents.
-      if (debug) this.#devtools((devtools) => devtools.recordBody(debug, html, fresh))
+      if (debug) {
+        if (__SPLIT__) this.#devtools((devtools) => devtools.recordBody(debug, html, fresh))
+        else devtoolsFeature.recordBody(debug, html, fresh)
+      }
       // Turbo applies the <turbo-stream> ops by id. A plain replace is an
       // outerHTML swap (focus on the replaced subtree is lost); a method="morph"
       // replace (Response.morph) or an update morphs in place, preserving the
@@ -2690,7 +2885,10 @@ export default class extends Controller {
       // once — success, any transport/response failure, or an apply throw. Null
       // when debug is off (zero cost). The round-trip ms is measured now, at the
       // finally, so it spans the whole #perform (fetch + apply) regardless of exit.
-      if (debug) this.#devtools((devtools) => devtools.trace(this, { ...debug, ms: this.#debugNow() - debug.started }))
+      if (debug) {
+        if (__SPLIT__) this.#devtools((devtools) => devtools.trace(this, { ...debug, ms: this.#debugNow() - debug.started }))
+        else devtoolsFeature.trace(this, { ...debug, ms: this.#debugNow() - debug.started })
+      }
     }
   }
 
@@ -3108,7 +3306,8 @@ export default class extends Controller {
   // work: the DOM probes, the dedupe, the trap-specific hint.
   #diagnoseZeroTargets(label, args) {
     if (!this.#verboseEnabled()) return
-    this.#devtools((devtools) => devtools.diagnose(this, label, args))
+    if (__SPLIT__) this.#devtools((devtools) => devtools.diagnose(this, label, args))
+    else devtoolsFeature.diagnose(this, label, args)
   }
 
   // Run `use` with the devtools feature: now when it is loaded (the default
@@ -3116,7 +3315,7 @@ export default class extends Controller {
   // late is still a warning. Called only past a debug/verbose gate, so a page
   // with neither never asks for the module.
   #devtools(use) {
-    withFeature("devtools", use)
+    if (__SPLIT__) withFeature("devtools", use)
   }
 
   // Resolve an op's targets: "@root" is this element; a selector resolves

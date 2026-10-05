@@ -651,7 +651,8 @@ test("after an early replay, a morph-back on the same element still gives exactl
 // The core does the synchronous part at once and the load waits for the
 // module: exactly one request, whatever fired, however often.
 
-describe("while the defer module is still on its way", () => {
+// The opt-in entry only: the default entry (issue #305) has no import to wait for.
+describe.skipIf(!__SPLIT__)("while the defer module is still on its way", () => {
   // No feature module loaded — the opt-in phlex/reactive/core — and the
   // default entry's features handed back afterwards.
   beforeEach(() => coldFeatures(true))

@@ -4,9 +4,10 @@
 // install generator wires up.
 //
 // The client's source is a shared runtime (runtime.js: the controller) plus
-// feature modules (features/*.js, issue #275). This entry imports all of them
-// STATICALLY and hands each feature to the runtime before the controller can
-// connect anything, so:
+// feature modules (features/*.js, issue #275). In this entry every feature is
+// there before the controller can connect anything — the shipped file is
+// built with __SPLIT__ false, and the runtime imports each one statically and
+// calls it directly (issue #305) — so:
 //
 //   * nothing is imported on demand — no request for a feature, ever;
 //   * every feature a root needs connects inside connect(), in the same task,
@@ -16,8 +17,8 @@
 //
 // In short: it behaves as the client did before it was split. The shipped
 // reactive_controller.min.js is this module BUNDLED with the runtime and the
-// features (scripts/build_client.js). It contains no import() at all: the
-// table of where each feature module lives belongs to the other entry. The seams an app may override stay
+// features (scripts/build_client.js). It contains no import() and no feature
+// table at all: those belong to the other entry. The seams an app may override stay
 // separate modules, imported by their bare names exactly as before:
 // phlex/reactive/confirm, phlex/reactive/confirm_predicate, phlex/reactive/compute.
 //
@@ -35,38 +36,45 @@ import * as effects from "phlex/reactive/features/effects"
 import * as hints from "phlex/reactive/features/hints"
 import * as devtools from "phlex/reactive/features/devtools"
 
-// Table order is the runtime's (persist first); this only supplies the
-// features — for each, a plain object of exactly what the runtime calls, so
-// the bundler can drop the rest of the module's exports (and the module
-// namespace object itself).
-registerReactiveFeature("persist", { install: persist.install, connect: persist.connect, disconnect: persist.disconnect, abandon: persist.abandon, writeState: persist.writeState, clearRoot: persist.clearRoot })
-registerReactiveFeature("defer", { install: defer.install, connect: defer.connect, disconnect: defer.disconnect, streamAction: defer.streamAction, materialize: defer.materialize })
-registerReactiveFeature("form", { connect: form.connect, disconnect: form.disconnect, scan: form.scan })
-registerReactiveFeature("bindings", {
-  connect: bindings.connect,
-  disconnect: bindings.disconnect,
-  reseed: bindings.reseed,
-  tagsAdd: bindings.tagsAdd,
-  tagsPick: bindings.tagsPick,
-  tagsRemove: bindings.tagsRemove,
-  nestedAdd: bindings.nestedAdd,
-  nestedRemove: bindings.nestedRemove,
-  syncNestedJson: bindings.syncNestedJson,
-  confirmMessage: bindings.confirmMessage,
-})
-registerReactiveFeature("compute", { connect: compute.connect, disconnect: compute.disconnect, seed: compute.seed, recompute: compute.recompute })
-registerReactiveFeature("effects", { wrap: effects.wrap, sweep: effects.sweep })
-registerReactiveFeature("hints", { optimistic: hints.optimistic, busy: hints.busy, resurrection: hints.resurrection })
-registerReactiveFeature("devtools", {
-  attach: devtools.attach,
-  delay: devtools.delay,
-  diagnose: devtools.diagnose,
-  noBinding: devtools.noBinding,
-  diagnoseStream: devtools.diagnoseStream,
-  missingRoot: devtools.missingRoot,
-  recordBody: devtools.recordBody,
-  trace: devtools.trace,
-})
+// The shipped file is built with __SPLIT__ false (scripts/build_client.js):
+// the runtime then imports every feature itself and calls it directly, and
+// this hand-over folds away with the table it would fill (issue #305). With
+// __SPLIT__ true — the JS suite's default, where this entry and core.js share
+// one runtime — it hands each feature over, as below.
+if (__SPLIT__) {
+  // Table order is the runtime's (persist first); this only supplies the
+  // features — for each, a plain object of exactly what the runtime calls, so
+  // the bundler can drop the rest of the module's exports (and the module
+  // namespace object itself).
+  registerReactiveFeature("persist", { install: persist.install, connect: persist.connect, disconnect: persist.disconnect, abandon: persist.abandon, writeState: persist.writeState, clearRoot: persist.clearRoot })
+  registerReactiveFeature("defer", { install: defer.install, connect: defer.connect, disconnect: defer.disconnect, streamAction: defer.streamAction, materialize: defer.materialize })
+  registerReactiveFeature("form", { connect: form.connect, disconnect: form.disconnect, scan: form.scan })
+  registerReactiveFeature("bindings", {
+    connect: bindings.connect,
+    disconnect: bindings.disconnect,
+    reseed: bindings.reseed,
+    tagsAdd: bindings.tagsAdd,
+    tagsPick: bindings.tagsPick,
+    tagsRemove: bindings.tagsRemove,
+    nestedAdd: bindings.nestedAdd,
+    nestedRemove: bindings.nestedRemove,
+    syncNestedJson: bindings.syncNestedJson,
+    confirmMessage: bindings.confirmMessage,
+  })
+  registerReactiveFeature("compute", { connect: compute.connect, disconnect: compute.disconnect, seed: compute.seed, recompute: compute.recompute })
+  registerReactiveFeature("effects", { wrap: effects.wrap, sweep: effects.sweep })
+  registerReactiveFeature("hints", { optimistic: hints.optimistic, busy: hints.busy, resurrection: hints.resurrection })
+  registerReactiveFeature("devtools", {
+    attach: devtools.attach,
+    delay: devtools.delay,
+    diagnose: devtools.diagnose,
+    noBinding: devtools.noBinding,
+    diagnoseStream: devtools.diagnoseStream,
+    missingRoot: devtools.missingRoot,
+    recordBody: devtools.recordBody,
+    trace: devtools.trace,
+  })
+}
 // The runtime registered with Turbo while it was being evaluated, before the
 // dev module was handed over: give a development page its console handle now, in
 // this task, as it always was.
