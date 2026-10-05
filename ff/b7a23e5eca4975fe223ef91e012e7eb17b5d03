@@ -1,0 +1,69 @@
+spec/javascript/bundler_build.test.js
+  s_b4f052d694d82f::t_e4055b36baedf9 22-24,74-84,91-93
+spec/javascript/reactive_lazy_on.test.js
+  s_b4f052d694d82f::t_0ca73143f8786f 23,26-27,41-43,645-757
+  s_b4f052d694d82f::t_feeaa63d896f4f 35-40
+spec/system/defer_feature_spec.rb
+  s_b4f052d694d82f::t_7ff49fc3daebba 1-88
+app/javascript/phlex/reactive/reactive_controller.js
+  s_b4f052d694d82f::t_881f6f5f524bad 1812-1814
+  s_b4f052d694d82f::t_615f84d3925ac0 2458-2463
+  s_b4f052d694d82f::t_2781fa43bfbcb5 125-131,136,1636,1647-1651,1670-1672,1674-1679,1683-1685,1723-1731,1735,1746-1748,1752-1759,1781-1783,1785-1786,1808-1809,1822,1828-1829,1844,2051-2053,2106-2115,2117-2118,2120,2306,2320-2326,2430-2433,2624-2625,2705-2716,3705
+  s_b4f052d694d82f::t_ef6f3e55f0b775 1642-1646,1658-1667,1686-1691,1701-1710,1712-1720,1763-1767,1771,1774-1778,1830-1831,1838-1843,2074,2076,2301-2303,2327,2329-2331,2339,2351,2371,2384-2389,2391-2392,2394,2398,2403-2404,2411-2421,2479-2481,2483,2488,2491,3706-3709,3712
+  s_b4f052d694d82f::t_5af8c5568c41f0 2333-2337
+  s_b4f052d694d82f::t_3850495e980250 1835
+  s_b4f052d694d82f::t_af1f141a45c863 1732-1734
+  s_b4f052d694d82f::t_b9de401f1400cc 1832-1834,1836-1837,2399-2402,2405,2482,2484-2487
+spec/javascript/reactive_request_count.test.js
+  s_b4f052d694d82f::t_8379516dd75558 19
+  s_b4f052d694d82f::t_feeaa63d896f4f 28-31,175
+spec/dummy/app/views/layouts/application.html.erb
+  s_b4f052d694d82f::t_9af7f831d5f2de 31
+spec/javascript/reactive_dormant.test.js
+  s_b4f052d694d82f::t_feeaa63d896f4f 34-39
+app/javascript/phlex/reactive/features/defer.js
+  s_b4f052d694d82f::t_311244904169e7 1-665
+lib/phlex/reactive/engine.rb
+  s_b4f052d694d82f::t_9af7f831d5f2de 21
+spec/system/persist_feature_spec.rb
+  s_b4f052d694d82f::t_8f9657d7db3701 93-129
+spec/javascript/reactive_persist.test.js
+  s_b4f052d694d82f::t_815d6a0cbdc87c 14-18,24,28,33-36,1082-1083,1087-1090,1283,1288-1323,1325-1336,1338-1349,1351-1363,1365-1382,1425-1438
+  s_b4f052d694d82f::t_b9de401f1400cc 29,37,1091-1097,1245,1324,1337,1350,1364
+spec/javascript/bundle_budget.test.js
+  s_b4f052d694d82f::t_5c60448a5a7088 50-51,53-54,56-57
+spec/javascript/reactive_activity.test.js
+  s_b4f052d694d82f::t_8379516dd75558 26
+  s_b4f052d694d82f::t_feeaa63d896f4f 35-38,177
+spec/dummy/app/views/layouts/lazy_controller.html.erb
+  s_b4f052d694d82f::t_9af7f831d5f2de 27
+spec/javascript/reactive_defer.test.js
+  s_b4f052d694d82f::t_881f6f5f524bad 35-40
+app/javascript/phlex/reactive/features/persist.js
+  s_b4f052d694d82f::t_b2fe93595b4e85 23-26,32-54,474-477,486-487,509-512,516-517,523-524,541-566,626-634,638,642
+scripts/build_client.js
+  s_b4f052d694d82f::t_9af7f831d5f2de 37
+  s_b4f052d694d82f::t_ac0b7b012dd40e 58-75,77
+spec/javascript/reactive_lazy_cache.test.js
+  s_b4f052d694d82f::t_feeaa63d896f4f 28-31
+spec/javascript/reactive_features.test.js
+  s_b4f052d694d82f::t_413fd9b811670c 95-99,293,328,421,559,586,659,877-879,890-891,1038-1043,1045,1056-1106,1189-1428
+  s_b4f052d694d82f::t_008417c899699d 1430-1476
+  s_b4f052d694d82f::t_8be1dec4a1c006 25,50-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ffb7a23e5eca4975fe223ef91e012e7eb17b5d03",
+  "prompts": {},
+  "sessions": {
+    "s_b4f052d694d82f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a4f9e839-a934-4e75-9b79-590503d3a110",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
