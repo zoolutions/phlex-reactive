@@ -308,6 +308,38 @@ describe("hints: the first click of a cold page", () => {
     controller.disconnect()
   })
 
+  test("the wait's timer is cleared once the module arrives (no 10 s timer left per request)", async () => {
+    const hints = slowFeature("hints", hintsModule)
+    const realSetTimeout = globalThis.setTimeout
+    const realClearTimeout = globalThis.clearTimeout
+    const live = new Set()
+    globalThis.setTimeout = (fn, ms) => {
+      const id = realSetTimeout(fn, ms)
+      if (ms >= 1000) live.add(id)
+      return id
+    }
+    globalThis.clearTimeout = (id) => {
+      live.delete(id)
+      realClearTimeout(id)
+    }
+    try {
+      const { root, controller } = addRoot("c", {}, `<button data-reactive-optimistic-param='${HINT}'>go</button>`)
+      controller.connect() // the root's own wait for the module arms one timer
+      const armedAtConnect = live.size
+      const done = controller.dispatch(clickEvent(root.querySelector("button"), { optimistic: { add_class: ["busy"] } }))
+      await settle()
+      expect(live.size).toBe(armedAtConnect + 1) // the request's feature-timeout timer, armed
+      hints.arrive()
+      await done
+      await settle()
+      expect(live.size).toBe(0) // every wait's timer cleared
+      controller.disconnect()
+    } finally {
+      globalThis.setTimeout = realSetTimeout
+      globalThis.clearTimeout = realClearTimeout
+    }
+  })
+
   test("a trigger without a hint never waits for the module", async () => {
     const hints = slowFeature("hints", hintsModule)
     const { root, controller } = addRoot("c", {}, `<button>go</button>`)

@@ -272,7 +272,7 @@ imports one the first time a root on the page needs it:
 | Module | Gzipped | Default client | Split client |
 |---|---:|---|---|
 | `phlex/reactive/reactive_controller` | 26.1 KB | loaded with your controllers | not loaded |
-| `phlex/reactive/core` | 12.3 KB | not loaded (it is inside the file above) | loaded with your controllers |
+| `phlex/reactive/core` | 12.4 KB | not loaded (it is inside the file above) | loaded with your controllers |
 | `phlex/reactive/features/persist` (`reactive_persist` drafts) | 3.2 KB | inside the one file | fetched when a root declares `reactive_persist`, or a `persist_state` / `persist_clear` op runs |
 | `phlex/reactive/features/defer` (`reply.defer`, `reactive_lazy`) | 2.8 KB | inside the one file | fetched when a root is a `reactive_lazy` shell, a morph turns one into a shell, or a `reply.defer` arrives |
 | `phlex/reactive/features/form` (dirty tracking, `warn_unsaved`, the paste-trigger gate) | 1.0 KB | inside the one file | fetched when a root tracks dirty fields or holds a `paste_into` trigger |
@@ -305,7 +305,10 @@ visit the module is already loaded and nothing waits). While it waits:
   broadcast, an action's reply — is rendered when the effects module has
   arrived, so that very stream is animated and its flash dismissed on time
   (`dismiss_after:` counts from the render). Every stream that arrives while
-  it waits renders after it, in order. The wait is capped at one second;
+  it waits renders after it, in order. The wait is capped at one second
+  (under an import that never settles, each later stream that needs the
+  feature pays its own one-second hold — bounded, never wedged — and a plain
+  stream behind it waits with it, for order);
   after that the streams render without the effect, and a flash they brought
   is dismissed counting from the module's arrival instead. A root that
   declares an effect loads the module when it connects, so this only happens
@@ -335,7 +338,10 @@ visit the module is already loaded and nothing waits). While it waits:
   `data-reactive-busy`, `busy_on`) are on from the click, as always; a
   failure after a late apply still reverts the optimistic hint. A root whose
   triggers declare a hint loads the module when it connects, so this is the
-  first click of a page's first root at most;
+  first click of a page's first root at most. In that window a
+  `busy: { disable: true }` hint cannot stop a second click: three rapid
+  clicks are three ordered requests (the default bundle's synchronous
+  disable blocks the second and third);
 - the latency simulator delays a request from the first one on (the request
   waits for the module); a zero-target warning on a verbose root, or a debug
   trace, is logged once the module is here. `enableLatencySim` /
@@ -344,19 +350,26 @@ visit the module is already loaded and nothing waits). While it waits:
 
 None of that exists with the default client.
 
-**Taking the small core without the wait.** Preload the features you know a
-page uses, and they are there before any root connects:
+**Taking the small core without the network wait.** Preload the features
+you know a page uses:
 
 ```ruby
 # config/importmap.rb — after the engine's own pins
 pin "phlex/reactive/core", to: "phlex/reactive/core.min.js", preload: true
 pin "phlex/reactive/features/persist", to: "phlex/reactive/features/persist.min.js", preload: true
-pin "phlex/reactive/features/form", to: "phlex/reactive/features/form.min.js", preload: true # warn_unsaved: from the first moment
-pin "phlex/reactive/features/bindings", to: "phlex/reactive/features/bindings.min.js", preload: true # show/filter/tags seeded at connect
-pin "phlex/reactive/features/compute", to: "phlex/reactive/features/compute.min.js", preload: true # computed fields right at connect
+pin "phlex/reactive/features/form", to: "phlex/reactive/features/form.min.js", preload: true # the unsaved guard a task after connect
+pin "phlex/reactive/features/bindings", to: "phlex/reactive/features/bindings.min.js", preload: true # show/filter/tags a task after connect
+pin "phlex/reactive/features/compute", to: "phlex/reactive/features/compute.min.js", preload: true # computed fields a task after connect
 ```
 
-(or a `<link rel="modulepreload">` on the pages that need it). A root that is
+(or a `<link rel="modulepreload">` on the pages that need it). The module is
+then already loaded, so there is no network wait — but a preloaded module
+still arrives through `import()`, which resolves in a later task: the
+feature connects in the task **after** `connect()`, not inside it (measured:
+with `modulepreload` the compute seed lands 29–51 ms after `reactive:connect`
+on localhost), `featuresReady` is pending for that moment, and the first
+root's request gate applies to it. The default bundle is the only way to get
+connect-time seeds. A root that is
 [dormant](#installation) fetches nothing at all — not the core, not a feature —
 until its first trigger; the trigger is then replayed after the core has
 loaded, and waits for a feature like any other.

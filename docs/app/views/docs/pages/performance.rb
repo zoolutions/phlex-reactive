@@ -1153,7 +1153,7 @@ module Views
                             [[:code, 'phlex/reactive/reactive_controller'], '26.1 KB',
                              'When your controllers load (or at the first trigger, for a page whose only roots are dormant).',
                              'Never.'],
-                            [[:code, 'phlex/reactive/core'], '12.3 KB',
+                            [[:code, 'phlex/reactive/core'], '12.4 KB',
                              'Never: it is inside the one file.',
                              'When your controllers load (or at the first trigger, for a page whose only roots are dormant).'],
                             [[:code, 'phlex/reactive/features/persist'], '3.2 KB',
@@ -1202,7 +1202,7 @@ module Views
                 plain 'client. A page that uses every one of them downloads 5.1 KB more, in nine requests '
                 plain 'instead of one. This is the whole split: everything that can leave the core has. '
                 plain 'The maintainer\'s target for the core was 10,240 B; the honest moves leave it at '
-                plain '12,372 B, which the budget test holds as its ratchet (and prints the target against).'
+                plain '12,383 B, which the budget test holds as its ratchet (and prints the target against).'
               end
               p do
                 plain 'Two things are not feature modules, in either client. The offline hook ('
@@ -1297,25 +1297,45 @@ module Views
                   plain ' event.'
                 end
               end
-              h3 { 'Taking the small core without the wait' }
+              h3 { 'Taking the small core without the network wait' }
               p do
-                plain 'Preload the features you know a page uses and they are there before any root '
-                plain 'connects, so nothing above applies to them:'
+                plain 'Preload the features you know a page uses:'
               end
             end
             DocsUI::Code(<<~RUBY, lexer: :ruby, filename: 'config/importmap.rb')
               # after the engine's own pins
               pin "phlex/reactive/core", to: "phlex/reactive/core.min.js", preload: true
               pin "phlex/reactive/features/persist", to: "phlex/reactive/features/persist.min.js", preload: true
-              pin "phlex/reactive/features/form", to: "phlex/reactive/features/form.min.js", preload: true # warn_unsaved: from the first moment
-              pin "phlex/reactive/features/bindings", to: "phlex/reactive/features/bindings.min.js", preload: true # show/filter/tags at connect
-              pin "phlex/reactive/features/compute", to: "phlex/reactive/features/compute.min.js", preload: true # computed fields at connect
+              pin "phlex/reactive/features/form", to: "phlex/reactive/features/form.min.js", preload: true # the unsaved guard a task after connect
+              pin "phlex/reactive/features/bindings", to: "phlex/reactive/features/bindings.min.js", preload: true # show/filter/tags a task after connect
+              pin "phlex/reactive/features/compute", to: "phlex/reactive/features/compute.min.js", preload: true # computed fields a task after connect
             RUBY
             DocsUI::Prose() do
               p do
                 plain 'That preloads the module on every page. To preload it only where it is used, render '
                 code { '<link rel="modulepreload">' }
-                plain ' for it on those pages.'
+                plain ' for it on those pages. The module is then already loaded, so there is no network '
+                plain 'wait — but a preloaded module still arrives through '
+                code { 'import()' }
+                plain ', which resolves in a later task: the feature connects in the task '
+                strong { 'after' }
+                code { ' connect()' }
+                plain ', not inside it (measured: with '
+                code { 'modulepreload' }
+                plain ' the compute seed lands 29–51 ms after '
+                code { 'reactive:connect' }
+                plain ' on localhost), '
+                code { 'featuresReady' }
+                plain ' is pending for that moment, and the first root\'s request gate applies to it. '
+                plain 'The default bundle is the only way to get connect-time seeds.'
+              end
+              h3 { 'Verified on' }
+              p do
+                plain 'Chromium (the browser suite, under Puma and Falcon). Not run: Firefox or WebKit; a real '
+                plain 'importmap-rails app with Propshaft digests on the default entry (the docs site is one, '
+                plain 'and its suite passes, but its network requests were not inspected); the per-root '
+                code { 'connect()' }
+                plain ' bench on a quiet machine.'
               end
               h3 { 'With dormant roots and early capture' }
               ul do

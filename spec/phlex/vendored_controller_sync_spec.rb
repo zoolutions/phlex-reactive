@@ -34,6 +34,13 @@ RSpec.describe "vendored client modules" do
   entries = File.read(File.join(root, "scripts/build_client.js"))[/const ENTRIES = \[([^\]]*)\]/, 1]
   vendored_modules.merge!(entries.scan(%r{"(features/[^"]+)"}).flatten.to_h { ["#{it}.js", "#{it}.min.js"] })
 
+  it "vendors exactly the feature modules the build emits (no stray copy under features/)" do
+    built = vendored_modules.keys.grep(%r{\Afeatures/}).map { File.basename(it) }.sort
+    vendored = Dir[File.join(root, "spec/dummy/public/vendor/features/*.js")].map { File.basename(it) }.sort
+
+    expect(vendored).to eq(built)
+  end
+
   # Explicit block param (not `it`): the block body defines RSpec `it` examples,
   # so naming the param `it` would shadow RSpec's example method.
   vendored_modules.each do |vendor_name, source_name|
