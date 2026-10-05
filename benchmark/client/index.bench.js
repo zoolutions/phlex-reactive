@@ -20,5 +20,6 @@ await import("./extract_token.bench.js")
 await import("./collect_fields.bench.js")
 await import("./recompute.bench.js")
 await import("./run_ops.bench.js")
+await import("./connect.bench.js")
 
 await run({ colors: false, throw: true })

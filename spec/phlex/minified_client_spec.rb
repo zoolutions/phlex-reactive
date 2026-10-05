@@ -18,7 +18,7 @@ RSpec.describe "minified client build" do # rubocop:disable RSpec/DescribeClass
     # measured against everything that is bundled into it.
     "reactive_controller.js" => {
       min: "reactive_controller.min.js",
-      bundles: %w[core.js features/persist.js features/defer.js],
+      bundles: %w[runtime.js features/persist.js features/defer.js features/form.js features/effects.js features/dev.js],
       # The default export (the Stimulus controller) plus representative named
       # exports an app registers/overrides — re-exported from the core.
       exports: %w[default registerReactiveActions enableLatencySim],
@@ -27,10 +27,13 @@ RSpec.describe "minified client build" do # rubocop:disable RSpec/DescribeClass
       externals: ["@hotwired/stimulus", "phlex/reactive/confirm", "phlex/reactive/confirm_predicate",
                   "phlex/reactive/compute"]
     },
-    # The OPT-IN client: the controller without its features.
+    # The OPT-IN client: the runtime without the features, which it imports
+    # on demand. Its own source is the table of those imports.
     "core.js" => {
       min: "core.min.js",
-      exports: %w[default registerReactiveActions enableLatencySim registerReactiveFeature],
+      bundles: %w[runtime.js],
+      # (The latency simulator's exports live in features/dev for this entry.)
+      exports: %w[default registerReactiveActions registerReactiveFeature],
       externals: ["@hotwired/stimulus", "phlex/reactive/confirm", "phlex/reactive/confirm_predicate",
                   "phlex/reactive/compute"]
     },

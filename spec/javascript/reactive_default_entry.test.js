@@ -90,7 +90,7 @@ function persistRoot() {
 }
 
 test("the entry hands every feature in the core's table to the core", () => {
-  expect(entry.reactiveFeatureNames()).toEqual(["persist", "defer"])
+  expect(entry.reactiveFeatureNames()).toEqual(["persist", "defer", "form", "effects", "dev"])
   expect(typeof entry.registerReactiveFeature).toBe("function")
 })
 
@@ -207,9 +207,10 @@ test("a second copy of the core says, loudly, that the client was loaded twice",
   console.error = (...args) => logged.push(String(args[0]))
 
   try {
-    // A second module instance of the core: what an app gets when it imports
-    // the default bundle (its own copy of the core inside) AND phlex/reactive/core.
-    await import("../../app/javascript/phlex/reactive/core.js?second-copy")
+    // A second module instance of the runtime: what an app gets when it
+    // imports the default bundle (its own copy inside) AND phlex/reactive/core
+    // (which carries another).
+    await import("../../app/javascript/phlex/reactive/runtime.js?second-copy")
     await tick()
   } finally {
     console.error = consoleError

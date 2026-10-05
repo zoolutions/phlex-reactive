@@ -3,10 +3,10 @@
 // The gem ships one minified file per module; the browser pays their gzipped
 // size. The client has TWO entries, and an app loads one of them:
 //
-//   reactive_controller    the DEFAULT: the core and every feature in ONE
-//                          file. Every page with a reactive root loads all of
-//                          it, and nothing later.
-//   core                   opt-in: the controller alone. It then imports
+//   reactive_controller    the DEFAULT: the runtime and every feature in
+//                          ONE file. Every page with a reactive root loads
+//                          all of it, and nothing later.
+//   core                   opt-in: the runtime alone. It then imports
 //                          features/<name> on a page that uses one.
 //
 // This file REPORTS every built module and holds these lines:
@@ -46,7 +46,8 @@ const srcDir = join(root, "app/javascript/phlex/reactive")
 const buildScript = readFileSync(join(root, "scripts/build_client.js"), "utf8")
 const ENTRIES = [...buildScript.match(/const ENTRIES = \[([^\]]*)\]/)[1].matchAll(/"([^"]+)"/g)].map(([, name]) => name)
 const BUNDLE = buildScript.match(/const BUNDLE = "([^"]+)"/)[1]
-const MODULES = [BUNDLE, ...ENTRIES]
+const SPLIT = buildScript.match(/const SPLIT = "([^"]+)"/)[1]
+const MODULES = [BUNDLE, SPLIT, ...ENTRIES]
 const FEATURES = ENTRIES.filter((name) => name.startsWith("features/"))
 
 const EARLY_GZIP_BUDGET = 1100
@@ -54,19 +55,27 @@ const EARLY_GZIP_BUDGET = 1100
 const SLACK = 250
 
 // The DEFAULT bundle. Before the split the one file was 22,272 B (a32937b).
-// It is now the core + persist + defer bundled: 24,789 B — 2,517 B more, the
-// price of the feature loader and of each feature being a module of its own.
-const BUNDLE_GZIP_CEILING = 25_000
-// The split core. The monolith was 22,272 B; phase 1 (the loader) brought it
-// to 22,787 B, phase 2 (persist + editors out) to 21,233 B, phase 3 (defer /
-// lazy out, and the hooks the default bundle registers through) to 19,740 B.
-const CORE_GZIP_CEILING = 19_900
+// It is now the runtime + every feature bundled: 24,851 B — 2,579 B more,
+// the price of each feature being a module of its own with a table to find it
+// by. Phase 3 left it at 24,789 B. (What only the opt-in client can do — the
+// import() table, the stream hold — is in core.js, not in this file.)
+const BUNDLE_GZIP_CEILING = 24_900
+// The split core (the runtime + the import table). The monolith was 22,272 B;
+// phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
+// out) to 21,233 B, phase 3 (defer / lazy out) to 19,740 B, phase 4 (effects
+// and dismiss, dirty tracking and the paste gate, the latency simulator out)
+// to 18,536 B.
+const CORE_GZIP_CEILING = 18_550
 const FEATURE_GZIP_CEILINGS = {
-  "features/persist": 3_400,
-  "features/defer": 3_000,
+  "features/persist": 3_300,
+  "features/defer": 2_900,
+  "features/form": 1_100,
+  "features/effects": 1_750,
+  "features/dev": 550,
 }
-// Phase 3: 19,740 B core + 3,210 B persist + 2,846 B defer = 25,796 B.
-const SPLIT_TOTAL_GZIP_CEILING = 26_000
+// Phase 4: 18,536 B core + 3,210 + 2,846 + 1,015 + 1,693 + 491 B of
+// features = 27,791 B.
+const SPLIT_TOTAL_GZIP_CEILING = 27_800
 // NOT asserted yet — see the header.
 const TARGET_CORE_GZIP = 10 * 1024
 
@@ -87,7 +96,7 @@ function expectRatchet(actual, ceiling) {
 
 test("every client module has a committed minified build", () => {
   expect(BUNDLE).toBe("reactive_controller")
-  expect(ENTRIES).toContain("core")
+  expect(SPLIT).toBe("core")
   expect(ENTRIES).toContain("early")
   for (const name of MODULES) expect(existsSync(builtPath(name))).toBe(true)
 })
@@ -133,7 +142,7 @@ test("the split core does not grow past its ratchet", () => {
 
 test("the split core is smaller than the default bundle by at least what moved out", () => {
   // The point of the split: a page that uses no feature downloads less.
-  expect(sizeOf(BUNDLE).gzip - sizeOf("core").gzip).toBeGreaterThan(4_500)
+  expect(sizeOf(BUNDLE).gzip - sizeOf("core").gzip).toBeGreaterThan(6_000)
 })
 
 test("every feature module has a ceiling, and stays under it", () => {

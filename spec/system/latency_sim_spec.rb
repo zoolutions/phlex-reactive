@@ -10,13 +10,23 @@ require "system_helper"
 # a real browser. Runs under Puma AND Falcon (the round trip must behave the same
 # sync and async).
 RSpec.describe "Latency simulator (issue #102)", type: :system do
+  # typeof window.PhlexReactive — once the client has attached it. The default
+  # client does so while its module evaluates; the split client (issue #275)
+  # imports the dev feature module first, so wait for it.
+  def latency_handle
+    Timeout.timeout(5) { sleep 0.05 until page.evaluate_script("typeof window.PhlexReactive") == "object" }
+    "object"
+  rescue Timeout::Error
+    page.evaluate_script("typeof window.PhlexReactive")
+  end
+
   it "makes aria-busy visible during the injected delay, then clears on the morph" do
     visit "/latency"
     expect(page).to have_css("[data-testid='bump']")
 
     # The dev gate: the page carries <meta name="phlex-reactive-env" content=
     # "development">, so the client attached the global handle.
-    expect(page.evaluate_script("typeof window.PhlexReactive")).to eq("object")
+    expect(latency_handle).to eq("object")
 
     # Enable a generous delay so the busy window is reliably observable under both
     # servers (Capybara's waiting matcher polls within the window).
@@ -41,6 +51,7 @@ RSpec.describe "Latency simulator (issue #102)", type: :system do
   it "disableLatencySim removes the delay (aria-busy no longer lingers)" do
     visit "/latency"
     expect(page).to have_css("[data-testid='bump']")
+    expect(latency_handle).to eq("object")
 
     page.execute_script("window.PhlexReactive.enableLatencySim(1500)")
     page.execute_script("window.PhlexReactive.disableLatencySim()")

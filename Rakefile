@@ -43,6 +43,12 @@ namespace :spec do
     spec/system/dormant_root_spec.rb
     spec/system/dormant_cache_spec.rb
     spec/system/reactive_request_count_spec.rb
+    spec/system/effects_spec.rb
+    spec/system/failure_surface_spec.rb
+    spec/system/notifications_spec.rb
+    spec/system/dirty_form_spec.rb
+    spec/system/paste_into_spec.rb
+    spec/system/latency_sim_spec.rb
   ]
 
   desc "Run the split-client system specs (phlex/reactive/core + features on demand) under the current server"

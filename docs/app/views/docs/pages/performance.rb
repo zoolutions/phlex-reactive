@@ -369,7 +369,7 @@ module Views
               rake bench           # the micro-benchmark suite (alias for bench:micro)
               rake bench:micro     # render, reactive_token, verify/sign, coerce_params — isolates each method
               rake bench:request   # end-to-end POST /reactive/actions through the full Rack stack
-              rake bench:client    # the client dispatch hot path (extractToken, collectFields, recompute) via bun
+              rake bench:client    # the client hot paths (extractToken, collectFields, recompute, runOps, connect) via bun
               rake bench:one[render]  # a single micro-bench by name
             SHELL
             DocsUI::Prose() do
@@ -952,19 +952,29 @@ module Views
                 plain 'The client hot path — the JS that runs in the browser on every click and keystroke — '
                 plain 'is benched off-browser with mitata + happy-dom ('
                 code { 'rake bench:client' }
-                plain '). The three benched paths are '
+                plain '). The benched paths are '
                 code { '#extractToken' }
                 plain ' (regex-reading the next signed token out of the turbo-stream response body), '
                 code { '#collectFields' }
                 plain " (the one walk that auto-collects a root's named inputs into the action params, "
                 plain 'scoped past nested reactive roots), and '
                 code { 'recompute' }
-                plain ' (the client-side data-binding compute). All three are driven through the '
+                plain ' (the client-side data-binding compute), '
+                code { 'runOps' }
+                plain ' (a client-only binding record), and '
+                code { 'connect()' }
+                plain ' + '
+                code { 'disconnect()' }
+                plain ' over 2,000 roots (a lifecycle-cycle cost, not connect alone: what every root '
+                plain 'pays once, and the one place a feature module adds work per root, issue #275). '
+                plain 'All are driven through the '
                 strong { "controller's public surface" }
                 plain ' ('
                 code { 'dispatch()' }
                 plain ' / '
                 code { 'recompute()' }
+                plain ' / '
+                code { 'connect()' }
                 plain ') — no test-only export is added to the shipped controller.'
               end
               h3 { 'How to read these — two different kinds of number' }
@@ -1143,7 +1153,7 @@ module Views
                             [[:code, 'phlex/reactive/reactive_controller'], '24.8 KB',
                              'When your controllers load (or at the first trigger, for a page whose only roots are dormant).',
                              'Never.'],
-                            [[:code, 'phlex/reactive/core'], '19.7 KB',
+                            [[:code, 'phlex/reactive/core'], '18.5 KB',
                              'Never: it is inside the one file.',
                              'When your controllers load (or at the first trigger, for a page whose only roots are dormant).'],
                             [[:code, 'phlex/reactive/features/persist'], '3.2 KB',
@@ -1154,16 +1164,37 @@ module Views
                              'Inside the one file.',
                              [:md, 'When the first `reactive_lazy` shell connects, a morph turns a root into one, or a ' \
                                    '`reply.defer` arrives.']],
+                            [[:code, 'phlex/reactive/features/form'], '1.0 KB',
+                             'Inside the one file.',
+                             [:md, 'When the first root that tracks dirty fields (`track_dirty:`, `warn_unsaved:`) or ' \
+                                   'holds a `paste_into` trigger connects.']],
+                            [[:code, 'phlex/reactive/features/effects'], '1.7 KB',
+                             'Inside the one file.',
+                             [:md, 'When the first root that declares an effect connects, or when the first stream ' \
+                                   'that needs it arrives: one with an effect, or with a `dismiss_after:` flash.']],
+                            [[:code, 'phlex/reactive/features/dev'], '0.5 KB',
+                             'Inside the one file.',
+                             [:md, 'With the core (effectively eager) on a page that carries the ' \
+                                   '`phlex-reactive-env` development meta, and on the first request while a delay ' \
+                                   'is stored for the tab (wherever that is). Without either, never.']],
                             [[:code, 'phlex/reactive/early'], '1.1 KB',
                              'On every page, if you import it.',
                              'The same.']
                           ])
             DocsUI::Prose() do
               p do
-                plain 'A page that uses neither drafts nor lazy components downloads 5.0 KB less with the '
-                plain 'split client. A page that uses both downloads 1.0 KB more, in three requests instead '
-                plain 'of one. More of the client moves into feature modules with each release, until the '
-                plain 'core is about 10 KB; the default file stays one file throughout.'
+                plain 'A page that uses none of these features downloads 6.3 KB less with the split '
+                plain 'client. A page that uses every one of them downloads 2.9 KB more, in six requests '
+                plain 'instead of one. More of the client moves into feature modules with each release, '
+                plain 'until the core is about 10 KB; the default file stays one file throughout.'
+              end
+              p do
+                plain 'Two things are not feature modules, in either client. The offline hook ('
+                code { 'data-reactive-offline' }
+                plain ' on '
+                code { '<html>' }
+                plain ') and the offline fallback flash stay in the core: they are needed exactly when '
+                plain 'the network is gone, which is when a module cannot be fetched.'
               end
               h3 { 'What the split client makes you wait for' }
               p do
@@ -1194,6 +1225,27 @@ module Views
                   plain ' event in the window loads the shell once the module is there.'
                 end
                 li do
+                  plain 'A stream that brings the page\'s first effect or dismissing flash (a broadcast, '
+                  plain 'an action\'s reply) is rendered when the effects module has arrived, so that very '
+                  plain 'stream is animated and its flash is dismissed on time: '
+                  code { 'dismiss_after:' }
+                  plain ' counts from the render. Every stream that arrives while it waits renders after '
+                  plain 'it, in order. The wait is capped at one second; after that the streams render '
+                  plain 'without the effect, and a flash they brought is dismissed counting from the '
+                  plain 'module\'s arrival. A root that declares an effect loads the module when it '
+                  plain 'connects, so this happens only on a page where no root does.'
+                end
+                li do
+                  plain 'A dirty-tracked form counts an edit made in the window when the module arrives. '
+                  code { 'warn_unsaved:' }
+                  plain ' does not prompt for a navigation in the window itself; preload the form module '
+                  plain 'on a page where that matters.'
+                end
+                li do
+                  plain 'The latency simulator delays a request from the first one on: the request waits '
+                  plain 'for the module.'
+                end
+                li do
                   plain 'A module that cannot be imported leaves its feature off for that page load: one '
                   plain 'console error, '
                   code { 'data-reactive-error="feature"' }
@@ -1212,6 +1264,7 @@ module Views
               # after the engine's own pins
               pin "phlex/reactive/core", to: "phlex/reactive/core.min.js", preload: true
               pin "phlex/reactive/features/persist", to: "phlex/reactive/features/persist.min.js", preload: true
+              pin "phlex/reactive/features/form", to: "phlex/reactive/features/form.min.js", preload: true # warn_unsaved: from the first moment
             RUBY
             DocsUI::Prose() do
               p do

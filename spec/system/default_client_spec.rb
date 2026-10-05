@@ -64,6 +64,47 @@ RSpec.describe "The default client: one file, nothing on demand (issue #275)", :
     expect(on_demand_fetches).to eq([])
   end
 
+  it "fetches no feature module for effects, a dismissing flash, dirty tracking or the latency simulator" do
+    visit "/effects"
+    find("[data-testid='fx-ping']").click
+    expect(page).to have_css("[data-testid='fx-demo'].reactive-fx--highlight-update")
+    expect(on_demand_fetches).to eq([])
+
+    visit "/failure_surface"
+    find("[data-testid='flash-now']").click
+    expect(page).to have_css("#flash [data-reactive-dismiss-scheduled]", text: "gone soon")
+    expect(on_demand_fetches).to eq([])
+
+    visit "/dirty_form/#{Todo.create!(title: "original").id}"
+    find("[data-testid='title']").set("edited")
+    expect(page).to have_css("[id^='dirtyform'][data-reactive-dirty='1']")
+    expect(on_demand_fetches).to eq([])
+
+    visit "/latency"
+    expect(page).to have_css("#latency[data-reactive-connected]")
+    expect(page.evaluate_script("typeof window.PhlexReactive")).to eq("object")
+    expect(on_demand_fetches).to eq([])
+  end
+
+  it "a stream's effect is applied when its event fires — it never waits (the split client's hold does not exist)" do
+    visit "/counter?slow=1500&slow_feature=effects"
+    expect(page).to have_css("#counter[data-reactive-connected]")
+    page.execute_script(<<~JS)
+      const style = document.createElement("style")
+      style.textContent = "@keyframes fx-out { to { opacity: 0 } } .reactive-fx--fade-exit { animation: fx-out 900ms }"
+      document.head.appendChild(style)
+      Turbo.renderStreamMessage(
+        '<turbo-stream action="append" targets="body"><template><p id="doomed">doomed</p></template></turbo-stream>' +
+        '<turbo-stream action="remove" target="doomed" data-reactive-effect="fade"></turbo-stream>'
+      )
+    JS
+
+    # Animating well before the 1.5 s the module would take if it were fetched.
+    expect(page).to have_css("#doomed.reactive-fx--fade-exit", wait: 1)
+    expect(page).to have_no_css("#doomed")
+    expect(on_demand_fetches).to eq([])
+  end
+
   it "fetches no feature module for a deferred reply, and applies it" do
     visit "/defer"
     find("[data-testid='defer-bump']").click

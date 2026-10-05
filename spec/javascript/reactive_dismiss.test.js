@@ -11,7 +11,7 @@
 import { test, expect, mock, beforeEach, afterEach } from "bun:test"
 
 let registerReactiveDismiss
-let __resetReactiveDismissForTest
+let __resetReactiveStreamRenderForTest
 
 // A minimal element stub: records whether it was removed, and its own attrs.
 function makeFlash(ms, { scheduled = false } = {}) {
@@ -85,10 +85,10 @@ function drainTimers(uptoMs) {
 
 beforeEach(async () => {
   mock.module("@hotwired/stimulus", () => ({ Controller: class {} }))
-  ;({ registerReactiveDismiss, __resetReactiveDismissForTest } = await import(
+  ;({ registerReactiveDismiss, __resetReactiveStreamRenderForTest } = await import(
     "../../app/javascript/phlex/reactive/reactive_controller.js"
   ))
-  __resetReactiveDismissForTest() // fresh registration per test (shared process)
+  __resetReactiveStreamRenderForTest() // fresh registration per test (shared process)
   installFakeTimers()
 })
 

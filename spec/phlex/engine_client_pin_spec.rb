@@ -163,20 +163,35 @@ RSpec.describe Phlex::Reactive::Engine do
       expect(described_class::CLIENT_FEATURES).to match_array(built)
     end
 
-    it "matches the features the controller can import" do
+    it "matches the features the opt-in entry can import" do
       source = File.read(File.join(root, "app/javascript/phlex/reactive/core.js"))
-      imported = source.scan(%r{import\("phlex/reactive/features/([\w-]+)"\)}).flatten
+      loader = %r{^registerReactiveFeatureLoader\("([\w-]+)", \(\) => import\("phlex/reactive/features/\1"\)(?:, \w+)?\)$}
+      imported = source.scan(loader).flatten
 
-      expect(described_class::CLIENT_FEATURES).to match_array(imported.uniq)
+      expect(imported).to match_array(described_class::CLIENT_FEATURES)
+    end
+
+    it "matches the runtime's feature table, in its order" do
+      source = File.read(File.join(root, "app/javascript/phlex/reactive/runtime.js"))
+      table = source[/^const PRODUCTION_FEATURES = \[\n(.*?)^\]\n/m, 1]
+
+      expect(table.scan(%r{^  \[\n(?:\s*//[^\n]*\n)*\s*"([\w-]+)",$|^  \["([\w-]+)", }).flatten.compact)
+        .to eq(described_class::CLIENT_FEATURES)
+    end
+
+    it "keeps every import() out of the shared runtime (the default client must have no way to fetch a feature)" do
+      source = File.read(File.join(root, "app/javascript/phlex/reactive/runtime.js")).gsub(%r{^\s*//.*$}, "")
+
+      expect(source).not_to match(/\bimport\(/)
     end
 
     it "matches the features the default bundle registers" do
       # reactive_controller.js imports every feature statically and hands it to
-      # the core. One missing here would be fetched on demand by the default
+      # the runtime. One missing here would be fetched on demand by the default
       # client — the one thing that client must never do.
       source = File.read(File.join(root, "app/javascript/phlex/reactive/reactive_controller.js"))
       imported = source.scan(%r{^import \* as \w+ from "phlex/reactive/features/([\w-]+)"$}).flatten
-      registered = source.scan(/^registerReactiveFeature\("([\w-]+)", \w+\)$/).flatten
+      registered = source.scan(/^registerReactiveFeature\("([\w-]+)", \{ .* \}\)$/).flatten
 
       expect(imported).to match_array(described_class::CLIENT_FEATURES)
       expect(registered).to eq(imported)
@@ -188,8 +203,14 @@ RSpec.describe Phlex::Reactive::Engine do
       layouts = Dir[File.join(root, "spec/dummy/app/views/layouts/*.html.erb")]
 
       expect(layouts.size).to be >= 2
-      layouts.product(described_class::CLIENT_FEATURES).each do |layout, feature|
-        expect(File.read(layout)).to include(%("phlex/reactive/features/#{feature}":)), "#{layout} has no pin for #{feature}"
+      # Each layout pins whatever CLIENT_FEATURES lists, so a new feature
+      # cannot be forgotten there.
+      layouts.each do
+        source = File.read(it)
+
+        expect(source).to include("Phlex::Reactive::Engine::CLIENT_FEATURES.each do |name|"),
+          "#{it} does not pin the features"
+        expect(source).to include(%("phlex/reactive/features/<%= name %>":))
       end
     end
 

@@ -22,9 +22,9 @@ import { test, expect, mock, beforeAll } from "bun:test"
 import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 
-// The confirm import lives in the core (core.js); the default entry
+// The confirm import lives in the shared runtime (runtime.js); the default entry
 // (reactive_controller.js) bundles the core and leaves this seam external.
-const SOURCE = fileURLToPath(new URL("../../app/javascript/phlex/reactive/core.js", import.meta.url))
+const SOURCE = fileURLToPath(new URL("../../app/javascript/phlex/reactive/runtime.js", import.meta.url))
 
 let ReactiveController
 let confirmModule
