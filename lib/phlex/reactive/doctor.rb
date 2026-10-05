@@ -490,15 +490,17 @@ module Phlex
       end
 
       def import_maps
-        configured = Phlex::Reactive.importmaps&.call
-        return configured if configured
-
-        map = ::Rails.application.respond_to?(:importmap) ? ::Rails.application.importmap : nil
-        map ? { "application" => map } : {}
+        default = ::Rails.application.respond_to?(:importmap) ? ::Rails.application.importmap : nil
+        maps = default ? { "application" => default } : {}
+        maps.merge(Phlex::Reactive.importmaps&.call || {})
+      rescue StandardError
+        maps || {}
       end
 
       def map_pins_early?(map)
         map.packages.key?("phlex/reactive/early")
+      rescue StandardError
+        true
       end
 
       # Only meaningful when importmap is in use. True when importmap is present

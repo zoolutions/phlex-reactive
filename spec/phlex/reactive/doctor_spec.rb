@@ -556,6 +556,20 @@ RSpec.describe Phlex::Reactive::Doctor do
         expect(checks.map(&:message)).to contain_exactly(a_string_including('import map "application"'))
       end
 
+      it "adds the configured maps to the default one" do
+        allow(Rails.application).to receive(:importmap).and_return(bare)
+        Phlex::Reactive.importmaps = -> { { "landing" => bare } }
+
+        names = doctor.early_pin_check([dormant]).map(&:message)
+        expect(names).to contain_exactly(a_string_including('"application"'), a_string_including('"landing"'))
+      end
+
+      it "survives a registry that raises" do
+        Phlex::Reactive.importmaps = -> { raise "boom" }
+
+        expect { doctor.early_pin_check([dormant]) }.not_to raise_error
+      end
+
       it "passes quietly for the default map when it pins the module" do
         allow(Rails.application).to receive(:importmap).and_return(pinned)
 
