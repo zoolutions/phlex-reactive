@@ -1,0 +1,30 @@
+.claude/rules/performance.md
+  s_b4f052d694d82f::t_b5a7666a23414b 27,45-47
+README.md
+  s_b4f052d694d82f::t_17f5808fb9f278 152-155,243-270,272-278,280-281,283-286,288-315,336-347,1440-1448,2636-2648
+AGENTS.md
+  s_b4f052d694d82f::t_b5a7666a23414b 52,63-76,82,84-86,88,91-98,126
+docs/app/views/docs/pages/performance.rb
+  s_b4f052d694d82f::t_93e13cdf6100ea 29,1111-1137,1158-1242
+  s_b4f052d694d82f::t_69ee04c1772b90 1138-1157
+docs/app/views/docs/pages/installation.rb
+  s_b4f052d694d82f::t_93e13cdf6100ea 165-177,197-203
+CHANGELOG.md
+  s_b4f052d694d82f::t_17f5808fb9f278 897-929,931-932,934-938
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "cc640ce9e3ff3ebf2dbabffc8801aa83a2d23cfb",
+  "prompts": {},
+  "sessions": {
+    "s_b4f052d694d82f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a4f9e839-a934-4e75-9b79-590503d3a110",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
