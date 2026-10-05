@@ -48,6 +48,11 @@ beforeAll(async () => {
   effectsModule = await import(`${SOURCE}/features/effects.js`)
   formModule = await import(`${SOURCE}/features/form.js`)
   devModule = await import(`${SOURCE}/features/devtools.js`)
+  // One stream-render listener on THIS file's document: registered once here
+  // (a registration per test would stack listeners), after clearing the
+  // runtime's guard (another file registered on its own document).
+  mod.__resetReactiveStreamRenderForTest()
+  mod.registerReactiveStreamRender()
 })
 
 const realSetTimeout = globalThis.setTimeout
@@ -97,9 +102,6 @@ beforeEach(() => {
   // Cold: the state of a page that imported phlex/reactive/core.
   resetFeatures(true)
   resetStreamHold()
-  // One document listener for the whole file: a re-registration per test
-  // would stack listeners (the runtime's guard is what the reset clears).
-  mod.registerReactiveStreamRender()
 })
 
 afterEach(() => {

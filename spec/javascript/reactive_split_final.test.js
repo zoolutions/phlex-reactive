@@ -58,6 +58,11 @@ beforeAll(async () => {
   devtoolsModule = await import(`${SOURCE}/features/devtools.js`)
   computeSeam = await import(`${SOURCE}/compute.js`)
   confirmSeam = await import(`${SOURCE}/confirm.js`)
+  // One stream-render listener on THIS file's document: registered once here
+  // (a registration per test would stack listeners), after clearing the
+  // runtime's guard (another file registered on its own document).
+  mod.__resetReactiveStreamRenderForTest()
+  mod.registerReactiveStreamRender()
 })
 
 const realConsole = globalThis.console
@@ -103,9 +108,6 @@ beforeEach(() => {
   // Cold: the state of a page that imported phlex/reactive/core.
   resetFeatures(true)
   resetStreamHold()
-  // One document listener for the whole file: a re-registration per test
-  // would stack listeners (the runtime's guard is what the reset clears).
-  mod.registerReactiveStreamRender()
   computeSeam.__resetComputeRegistryForTest?.()
 })
 
