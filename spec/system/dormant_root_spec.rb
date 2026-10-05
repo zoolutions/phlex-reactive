@@ -14,7 +14,8 @@ RSpec.describe "Dormant roots (issue #274 — mount the controller on first use)
 
   def controller_fetches
     page.evaluate_script(<<~JS)
-      performance.getEntriesByType("resource").filter((entry) => entry.name.includes("reactive_controller")).length
+      performance.getEntriesByType("resource")
+        .filter((entry) => entry.name.includes("/vendor/reactive_controller.js") || entry.name.includes("/vendor/core.js")).length
     JS
   end
 

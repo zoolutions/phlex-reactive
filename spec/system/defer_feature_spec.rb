@@ -16,7 +16,7 @@ require "system_helper"
 #
 # (What a lazy shell does once the module is there is the business of
 # lazy_mount_spec, lazy_on_spec, lazy_cache_spec and defer_spec.)
-RSpec.describe "The defer feature module (issue #275)", type: :system do
+RSpec.describe "The split client: the defer feature module (issue #275)", :split_client, type: :system do
   around do
     SlowTotalsComponent.render_delay_ms = 100
     it.run

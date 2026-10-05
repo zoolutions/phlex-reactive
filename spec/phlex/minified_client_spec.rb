@@ -13,14 +13,26 @@ RSpec.describe "minified client build" do # rubocop:disable RSpec/DescribeClass
 
   # source => minified twin, with the exports a consumer/importmap depends on.
   modules = {
+    # The DEFAULT client (issue #275): one file, the core and every feature
+    # module bundled. Its own source is a few lines of imports, so its size is
+    # measured against everything that is bundled into it.
     "reactive_controller.js" => {
       min: "reactive_controller.min.js",
+      bundles: %w[core.js features/persist.js features/defer.js],
       # The default export (the Stimulus controller) plus representative named
-      # exports an app registers/overrides.
+      # exports an app registers/overrides — re-exported from the core.
       exports: %w[default registerReactiveActions enableLatencySim],
-      # Cross-module imports kept EXTERNAL — emitted as bare specifiers that
-      # resolve through the import map, never inlined.
-      externals: ["@hotwired/stimulus", "phlex/reactive/confirm", "phlex/reactive/compute"]
+      # The override seams stay EXTERNAL even in the bundle — emitted as bare
+      # specifiers that resolve through the import map, never inlined.
+      externals: ["@hotwired/stimulus", "phlex/reactive/confirm", "phlex/reactive/confirm_predicate",
+                  "phlex/reactive/compute"]
+    },
+    # The OPT-IN client: the controller without its features.
+    "core.js" => {
+      min: "core.min.js",
+      exports: %w[default registerReactiveActions enableLatencySim registerReactiveFeature],
+      externals: ["@hotwired/stimulus", "phlex/reactive/confirm", "phlex/reactive/confirm_predicate",
+                  "phlex/reactive/compute"]
     },
     "confirm.js" => {
       min: "confirm.min.js",
@@ -48,7 +60,9 @@ RSpec.describe "minified client build" do # rubocop:disable RSpec/DescribeClass
       end
 
       it "is meaningfully smaller than the commented source" do
-        expect(File.size(min_path)).to be < File.size(source_path)
+        sources = [source_name, *spec[:bundles]].sum { |name| File.size(File.join(js_dir, name)) }
+
+        expect(File.size(min_path)).to be < sources / 2
       end
 
       it "strips the comment prose (the source's block-comment banner is gone)" do

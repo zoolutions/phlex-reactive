@@ -1085,8 +1085,10 @@ test("a multi-select in a MIXED group keeps the selection the server rendered", 
 // server's blanks — and nothing may treat those blanks as the user's values.
 
 describe("while the persist module is still on its way", () => {
-// Every test here starts with no feature module loaded.
-beforeEach(() => coldFeatures())
+// Every test here starts with no feature module loaded — the opt-in
+// phlex/reactive/core — and hands the default entry's features back after.
+beforeEach(() => coldFeatures(true))
+afterEach(() => coldFeatures())
 
 // The module has arrived and everything queued on its import has run — for a
 // test whose root left, so that nothing awaits featuresReady.

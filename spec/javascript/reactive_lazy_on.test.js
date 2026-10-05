@@ -24,7 +24,6 @@ import { test, expect, mock, describe, beforeAll, beforeEach, afterEach } from "
 
 let Controller
 let coldFeatures
-let warmFeatures
 
 beforeAll(async () => {
   mock.module("@hotwired/stimulus", () => ({
@@ -40,7 +39,6 @@ beforeAll(async () => {
   await mod.__loadReactiveFeatureForTest("defer")
   // Forgets every loaded feature module: the next connect() imports again.
   coldFeatures = mod.__resetReactiveFeaturesForTest
-  warmFeatures = () => mod.__loadReactiveFeatureForTest("defer")
 })
 
 let observers
@@ -651,9 +649,10 @@ test("after an early replay, a morph-back on the same element still gives exactl
 // module: exactly one request, whatever fired, however often.
 
 describe("while the defer module is still on its way", () => {
-  beforeEach(() => coldFeatures())
-  // Leave the module loaded for whatever test file runs next.
-  afterEach(() => warmFeatures())
+  // No feature module loaded — the opt-in phlex/reactive/core — and the
+  // default entry's features handed back afterwards.
+  beforeEach(() => coldFeatures(true))
+  afterEach(() => coldFeatures())
 
   const moduleArrived = async (controller) => {
     await controller.featuresReady

@@ -18,7 +18,7 @@ RSpec.describe "A dormant reactive_lazy(on:, cache:) shell (issues #274/#276/#27
 
   def controller_fetches
     page.evaluate_script(<<~JS)
-      performance.getEntriesByType("resource").filter((e) => e.name.includes("reactive_controller")).length
+      performance.getEntriesByType("resource").filter((e) => e.name.includes("/vendor/reactive_controller.js") || e.name.includes("/vendor/core.js")).length
     JS
   end
 

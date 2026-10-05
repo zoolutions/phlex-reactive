@@ -44,11 +44,15 @@ beforeEach(() => {
   globalThis.document = window.document
   globalThis.CustomEvent = window.CustomEvent
   document.body.innerHTML = ""
-  resetFeatures()
+  // Cold: no feature module loaded — the state of a page on the opt-in
+  // phlex/reactive/core. (This file is imported through the default entry,
+  // which hands every feature over up front; that path has its own section.)
+  resetFeatures(true)
 })
 
 // bun runs every test file in one process: leave the shipped table behind,
-// not this file's last fake (a "defer" whose import was made to fail).
+// with the default entry's features loaded again — not this file's last fake
+// (a "defer" whose import was made to fail).
 afterAll(() => resetFeatures())
 
 const MARKER = "data-fake-feature"

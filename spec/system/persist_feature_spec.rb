@@ -15,7 +15,7 @@ require "system_helper"
 #
 # ?slow=<ms> serves the module after a delay, so the "controller connected,
 # restore not yet run" window is wide enough to act in.
-RSpec.describe "The persist feature module (issue #275)", type: :system do
+RSpec.describe "The split client: the persist feature module (issue #275)", :split_client, type: :system do
   def storage_key = "phlex-reactive:persist:dummy-persist-action"
   # How late the slow copy of the module arrives: the window to act in.
   def slow_ms = 1500

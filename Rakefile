@@ -25,6 +25,31 @@ namespace :spec do
     end
   end
 
+  # The specs that exercise what only the OPT-IN split client does (issue
+  # #275): a feature module imported on demand, the import window, replayed
+  # and dormant triggers across it, and request counting.
+  split_client_specs = %w[
+    spec/system/persist_feature_spec.rb
+    spec/system/defer_feature_spec.rb
+    spec/system/persist_form_spec.rb
+    spec/system/persist_editors_spec.rb
+    spec/system/defer_spec.rb
+    spec/system/lazy_mount_spec.rb
+    spec/system/lazy_on_spec.rb
+    spec/system/lazy_cache_spec.rb
+    spec/system/early_triggers_spec.rb
+    spec/system/dormant_root_spec.rb
+    spec/system/dormant_cache_spec.rb
+    spec/system/reactive_request_count_spec.rb
+  ]
+
+  desc "Run the split-client system specs (phlex/reactive/core + features on demand) under the current server"
+  task :system_split do
+    # The full suite runs on the DEFAULT client (one bundled file). This is the
+    # focused set for the opt-in entry; CAPYBARA_SERVER picks the server.
+    sh({ "REACTIVE_CLIENT" => "split" }, "bundle exec rspec #{split_client_specs.join(" ")}")
+  end
+
   desc "Run the browser system specs across server × transport (puma/falcon × cable/pgbus)"
   task :system_matrix do
     # Issue #187: the full transport matrix, mirroring :system_servers one
