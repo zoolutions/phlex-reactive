@@ -1,0 +1,8 @@
+# The client source reads a build-time flag, __SPLIT__ (issue #305;
+# scripts/build_client.js defines it per entry). Running the SOURCE — the JS
+# suite, the client benches — needs a value too: true, the opt-in entry's
+# shape, where the default entry hands its features to the shared runtime.
+# The suite also runs as the shipped default entry:
+#   bun test --define __SPLIT__=false spec/javascript
+[define]
+"__SPLIT__" = "true"

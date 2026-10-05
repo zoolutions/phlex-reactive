@@ -25,7 +25,13 @@
 //             connects with the module present.
 //
 // Run with: bun test spec/javascript
-import { test, expect, mock, beforeAll, beforeEach, afterEach, afterAll, describe } from "bun:test"
+import { test as anyTest, expect, mock, beforeAll, beforeEach, afterEach, afterAll, describe as anyDescribe } from "bun:test"
+
+// The opt-in entry's loader (issue #275). The shipped default entry has none
+// (issue #305: built with __SPLIT__ false), so under
+// `bun test --define __SPLIT__=false` there is nothing here to test.
+const test = anyTest.skipIf(!__SPLIT__)
+const describe = anyDescribe.skipIf(!__SPLIT__)
 import { Window } from "happy-dom"
 
 const window = new Window()

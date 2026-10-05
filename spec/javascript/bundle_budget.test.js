@@ -55,10 +55,21 @@ const EARLY_GZIP_BUDGET = 1100
 const SLACK = 250
 
 // The DEFAULT bundle. Before the split the one file was 22,272 B (a32937b).
-// It is now the runtime + every feature bundled: 26,132 B — 3,860 B more,
-// the price of each feature being a module of its own with a table to find it
-// by. Phase 3 left it at 24,789 B, phase 4 at 24,851 B.
-const BUNDLE_GZIP_CEILING = 26_250
+// The split left it at 26,132 B — 3,860 B more. Issue #305 builds it with
+// __SPLIT__ false: the runtime imports every feature statically and calls it
+// directly, so the loader, the feature table and the hand-over fold away
+// (24,675 B, 1,457 B recovered).
+//
+// BUDGET OUTCOME (issue #305; the rest is #310): the target is TARGET_BUNDLE_GZIP, 22,700 B (the
+// pre-split size plus a loader's worth). It is reported on every run, and is
+// the ratchet itself when met. What the flag cannot recover is how the
+// features are WRITTEN as modules — per-root state records where the
+// controller had private fields, exported wrappers, the `core` handle — not
+// the boundary between them and the runtime. The ratchet below sits 230 B
+// above the real size (just inside SLACK): room for a fix in flight, not for
+// a feature.
+const BUNDLE_GZIP_CEILING = 24_900
+const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
 // out) to 21,233 B, phase 3 (defer / lazy out) to 19,740 B, phase 4 (effects
@@ -80,8 +91,9 @@ const FEATURE_GZIP_CEILINGS = {
   "features/devtools": 1_750,
 }
 // Phase 5: 12,383 B core + 5,360 + 2,846 + 2,084 + 1,024 + 1,693 + 3,210 + 1,015 + 1,589 B of
-// features = 31,204 B.
-const SPLIT_TOTAL_GZIP_CEILING = 31_250
+// features = 31,204 B. Issue #305 (the default entry's static path) costs the
+// core 84 B: 12,467 + 18,821 = 31,288 B.
+const SPLIT_TOTAL_GZIP_CEILING = 31_500
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 
@@ -125,7 +137,7 @@ test("reports the gzipped size of every module", () => {
     `${[
       "[phlex-reactive] client bundle sizes",
       ...sizes.map(row),
-      `  default bundle (everything, one file): ${bundle.gzip} B gzip`,
+      `  default bundle (everything, one file): ${bundle.gzip} B gzip — ${bundle.gzip <= TARGET_BUNDLE_GZIP ? "target met" : `${bundle.gzip - TARGET_BUNDLE_GZIP} B over the ${TARGET_BUNDLE_GZIP} B target (ratchet ${BUNDLE_GZIP_CEILING})`}`,
       `  split total (core + ${FEATURES.length} features): ${splitTotal()} B gzip — ${splitTotal() - bundle.gzip} B more than the bundle`,
       `  split core target: ${TARGET_CORE_GZIP} B gzip — ${core.gzip <= TARGET_CORE_GZIP ? "met" : `${core.gzip - TARGET_CORE_GZIP} B over (ratchet ${CORE_GZIP_CEILING})`}`,
     ].join("\n")}\n`,
@@ -148,7 +160,28 @@ test("the split core does not grow past its ratchet", () => {
 
 test("the split core is smaller than the default bundle by at least what moved out", () => {
   // The point of the split: a page that uses no feature downloads less.
-  expect(sizeOf(BUNDLE).gzip - sizeOf("core").gzip).toBeGreaterThan(13_500)
+  // (12,203 B since issue #305 took the loader out of the bundle.)
+  expect(sizeOf(BUNDLE).gzip - sizeOf("core").gzip).toBeGreaterThan(12_000)
+})
+
+// Issue #305: the default entry is built with __SPLIT__ false, so nothing of
+// the opt-in entry's loader may be in it — no import(), no feature table, no
+// wait for a module. Each mark is checked against core.min.js too, so a mark
+// that stops meaning anything fails here instead of passing vacuously.
+const LOADER_MARKS = {
+  "an import()": /\bimport\(/,
+  "the feature table": /\["persist",\[/,
+  "the loader's no-import fallback": /this entry has no way to import it/,
+  "the feature import timeout": /phlex-reactive-feature-timeout/,
+}
+
+test("the default bundle carries no import() and no feature lookup table", () => {
+  const bundle = readFileSync(builtPath(BUNDLE), "utf8")
+  const core = readFileSync(builtPath("core"), "utf8")
+  for (const [what, mark] of Object.entries(LOADER_MARKS)) {
+    expect({ what, inCore: mark.test(core) }).toEqual({ what, inCore: true })
+    expect({ what, inBundle: mark.test(bundle) }).toEqual({ what, inBundle: false })
+  }
 })
 
 test("every feature module has a ceiling, and stays under it", () => {

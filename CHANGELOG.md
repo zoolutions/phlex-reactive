@@ -903,11 +903,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     the three override seams), nothing fetched on demand, every feature
     connected inside `connect()` as before. Existing importmap pins, bundler
     aliases and vendored copies keep working as they are. It contains no
-    `import()` at all. It is 26,132 B gzipped, 3,860 B more than the 22,272 B
-    it was before the split: the price of every feature being a module of its
-    own, with a table to find it by.
+    `import()` at all. It is 24,675 B gzipped, 2,403 B more than the 22,272 B
+    it was before the split. The split first left it at 26,132 B; #305 builds
+    it with `__SPLIT__` false, so the runtime imports every feature statically
+    and calls it directly — no feature table, no loader, no `withFeature` —
+    and recovers 1,457 B of that. What remains is how the features are written
+    as modules (per-root state records where the controller had private
+    fields, exported wrappers, the `core` handle), not the boundary between
+    them. The budget test holds a 24,900 B ratchet; getting back to the
+    22,700 B target (the pre-split size plus a loader's worth) is #310.
   - **`phlex/reactive/core` — new, opt-in — is the controller without its
-    feature modules** (12,383 B gzipped). It imports a feature the first time
+    feature modules** (12,467 B gzipped). It imports a feature the first time
     something on the page needs it, by a literal bare-specifier `import()`:
     `phlex/reactive/features/persist` (3,210 B: `reactive_persist` drafts and
     rich-text editors), `…/defer` (2,846 B: `reply.defer`, `reactive_lazy`,

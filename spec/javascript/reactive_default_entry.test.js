@@ -220,3 +220,30 @@ test("a second copy of the core says, loudly, that the client was loaded twice",
   expect(logged[0]).toContain("phlex/reactive/reactive_controller")
   expect(logged[0]).toContain("phlex/reactive/core")
 })
+
+// Issue #305: the default entry connects its features by direct calls. A
+// marker check that throws loses that feature — said on the root — and never
+// the rest of connect(). (Runs under both __SPLIT__ values.)
+test("a marker check that throws is reported on the root, and connect() still finishes", () => {
+  document.body.innerHTML = `<div id="root" data-controller="reactive" data-reactive-token-value="tok"></div>`
+  const root = document.getElementById("root")
+  root.querySelector = () => {
+    throw new Error("broken probe")
+  }
+  const failures = []
+  root.addEventListener("reactive:error", (event) => failures.push(`${event.detail.feature}:${event.detail.phase}`))
+  const consoleError = console.error
+  console.error = () => {}
+  try {
+    const controller = new ReactiveController()
+    controller.element = root
+    controller.tokenValue = "tok"
+    controller.connect()
+  } finally {
+    console.error = consoleError
+  }
+
+  expect(failures).toContain("form:detect")
+  expect(root.getAttribute("data-reactive-error")).toBe("feature")
+  expect(root.hasAttribute("data-reactive-connected")).toBe(true)
+})

@@ -114,6 +114,39 @@ const stripTestSeams = {
   },
 }
 
+// THE __SPLIT__ FLAG (issue #305). runtime.js is written for both entries:
+// every place it reaches a feature reads the bare identifier __SPLIT__, which
+// each build DEFINES, so the minifier folds the branch the entry does not
+// take away (a `const SPLIT = __SPLIT__` would stop that folding — always the
+// bare name):
+//
+//   reactive_controller  false: runtime.js imports every feature statically
+//                        and calls it directly. No table, no loader, no
+//                        import(), and no module boundary left to keep names
+//                        across — the features and the runtime minify as one
+//                        scope.
+//   core                 true: the table and the loader core.js feeds with its
+//                        import() calls.
+//
+// The JS suite runs the source under both values (bunfig.toml defines true;
+// `bun test --define __SPLIT__=false` runs it as the default entry).
+//
+// In the core build those static imports must not survive: a feature is
+// external there, and an unused external import is still an import the
+// browser would fetch up front. So the core build resolves a STATIC import of
+// a feature (runtime.js's) to an empty module — the code that used it is
+// folded away with __SPLIT__ — while a DYNAMIC import (core.js's) stays a real
+// external import of the feature's own file.
+const stubStaticFeatures = {
+  name: "stub-static-features",
+  setup(build) {
+    build.onResolve({ filter: /^phlex\/reactive\/features\// }, ({ kind }) =>
+      kind === "dynamic-import" ? undefined : { path: "static-feature", namespace: "stub" },
+    )
+    build.onLoad({ filter: /.*/, namespace: "stub" }, () => ({ contents: "", loader: "js" }))
+  },
+}
+
 const shared = {
   plugins: [stripTestSeams],
   outdir: srcDir,
@@ -127,8 +160,19 @@ const shared = {
 
 const builds = [
   await Bun.build({ ...shared, entrypoints: ENTRIES.map((name) => join(srcDir, `${name}.js`)), external: SEAMS }),
-  await Bun.build({ ...shared, entrypoints: [join(srcDir, `${BUNDLE}.js`)], external: SEAMS }),
-  await Bun.build({ ...shared, entrypoints: [join(srcDir, `${SPLIT}.js`)], external: FEATURES_EXTERNAL }),
+  await Bun.build({
+    ...shared,
+    entrypoints: [join(srcDir, `${BUNDLE}.js`)],
+    external: SEAMS,
+    define: { __SPLIT__: "false" },
+  }),
+  await Bun.build({
+    ...shared,
+    plugins: [...shared.plugins, stubStaticFeatures],
+    entrypoints: [join(srcDir, `${SPLIT}.js`)],
+    external: FEATURES_EXTERNAL,
+    define: { __SPLIT__: "true" },
+  }),
 ]
 
 for (const result of builds) {

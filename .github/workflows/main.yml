@@ -211,6 +211,12 @@ jobs:
         # Transport-independent; run once (the cable/puma cell) to avoid 4× repeats.
         if: matrix.transport == 'cable'
         run: bun test spec/javascript
+      - name: JS unit tests (the default entry's static path, __SPLIT__ false)
+        # The source reads a build-time flag (issue #305): bunfig.toml defines
+        # it true (the opt-in entry's shape); the shipped default entry is
+        # built with it false. Run the suite as both, or one path goes untested.
+        if: matrix.transport == 'cable'
+        run: bun test --define __SPLIT__=false spec/javascript
       - name: Minified client is in sync (drift guard)
         # The committed *.min.js/*.min.js.map must match a fresh build — the bun
         # minifier output is deterministic for ONE bun version, the one pinned in

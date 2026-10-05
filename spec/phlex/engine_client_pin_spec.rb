@@ -191,10 +191,20 @@ RSpec.describe Phlex::Reactive::Engine do
       # client — the one thing that client must never do.
       source = File.read(File.join(root, "app/javascript/phlex/reactive/reactive_controller.js"))
       imported = source.scan(%r{^import \* as \w+ from "phlex/reactive/features/([\w-]+)"$}).flatten
-      registered = source.scan(/^registerReactiveFeature\("([\w-]+)", \{/).flatten
+      registered = source.scan(/^\s*registerReactiveFeature\("([\w-]+)", \{/).flatten
 
       expect(imported).to match_array(described_class::CLIENT_FEATURES)
       expect(registered).to eq(imported)
+    end
+
+    it "matches the features the runtime imports statically for the default entry (issue #305)" do
+      # Built with __SPLIT__ false, the default entry reaches each feature
+      # through these imports, not the table: one missing here is a feature
+      # the default client does not have.
+      source = File.read(File.join(root, "app/javascript/phlex/reactive/runtime.js"))
+      imported = source.scan(%r{^import \* as \w+ from "phlex/reactive/features/([\w-]+)"$}).flatten
+
+      expect(imported).to eq(described_class::CLIENT_FEATURES)
     end
 
     it "is pinned in each of the dummy app's hand-written import maps" do

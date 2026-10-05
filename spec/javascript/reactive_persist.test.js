@@ -1087,7 +1087,8 @@ test("a multi-select in a MIXED group keeps the selection the server rendered", 
 // connect() instead of inside it. Until it has run the root still shows the
 // server's blanks — and nothing may treat those blanks as the user's values.
 
-describe("while the persist module is still on its way", () => {
+// The opt-in entry only: the default entry (issue #305) has no import to wait for.
+describe.skipIf(!__SPLIT__)("while the persist module is still on its way", () => {
   // Every test here starts with no feature module loaded — the opt-in
   // phlex/reactive/core — and hands the default entry's features back after.
   beforeEach(() => coldFeatures(true))
