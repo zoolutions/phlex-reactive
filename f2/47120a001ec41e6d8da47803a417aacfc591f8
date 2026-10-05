@@ -1,0 +1,43 @@
+.github/workflows/main.yml
+  s_b4f052d694d82f::t_a965eb8cec2447 216-221
+spec/javascript/bundle_budget.test.js
+  s_b4f052d694d82f::t_3e80371c97aca4 49-50,52,54-55
+spec/phlex/engine_client_pin_spec.rb
+  s_b4f052d694d82f::t_75ee509342f3aa 170-171
+  s_b4f052d694d82f::t_f396dd04743ae0 164-169,172-174
+README.md
+  s_b4f052d694d82f::t_13e3892c63663f 254,1377-1383
+app/javascript/phlex/reactive/reactive_controller.js
+  s_b4f052d694d82f::t_eb227de63eb730 2043,2045-2052,2081-2094,2153-2154,2409-2410,2686-2694,2713,2718-2720,2723,2742,2751-2761,2799-2806
+docs/app/views/docs/pages/installation.rb
+  s_b4f052d694d82f::t_13e3892c63663f 174
+app/javascript/phlex/reactive/features/persist.js
+  s_b4f052d694d82f::t_eb227de63eb730 37-38,601-607
+spec/javascript/reactive_persist.test.js
+  s_b4f052d694d82f::t_f396dd04743ae0 1197-1279
+.bun-version
+  s_b4f052d694d82f::t_a965eb8cec2447 1
+spec/javascript/reactive_features.test.js
+  s_b4f052d694d82f::t_f396dd04743ae0 957-1064
+AGENTS.md
+  s_b4f052d694d82f::t_13e3892c63663f 81-83
+CHANGELOG.md
+  s_b4f052d694d82f::t_3e80371c97aca4 903,905
+  s_b4f052d694d82f::t_13e3892c63663f 904,916-919
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f247120a001ec41e6d8da47803a417aacfc591f8",
+  "prompts": {},
+  "sessions": {
+    "s_b4f052d694d82f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a4f9e839-a934-4e75-9b79-590503d3a110",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
