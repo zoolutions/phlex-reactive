@@ -1,0 +1,93 @@
+package.json
+  s_b4f052d694d82f::t_6cf95ebef1d8f6 11
+app/javascript/phlex/reactive/features/persist.js
+  s_b4f052d694d82f::t_3211b50b18ff38 1-599
+scripts/build_client.js
+  s_b4f052d694d82f::t_62565d73dd7167 33-37,47-49,61-63
+  s_b4f052d694d82f::t_d9ec71a6c94d0e 9
+CHANGELOG.md
+  s_b4f052d694d82f::t_d9ec71a6c94d0e 898-929
+spec/dummy/public/vendor/features/persist.js
+  ai_agent 1-4
+spec/dummy/app/views/layouts/application.html.erb
+  s_b4f052d694d82f::t_33f2b6e908a25c 29-30
+AGENTS.md
+  s_b4f052d694d82f::t_581cd87d3efa02 75-83
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 5,7-8
+spec/dummy/public/vendor/reactive_controller.min.js.map
+  ai_agent 5,7-8
+spec/system/persist_feature_spec.rb
+  s_b4f052d694d82f::t_bdbb71fa9638a2 25
+  s_b4f052d694d82f::t_b8ed883ff93aa2 1-18,22-24,26-33,35-38,40-69,71-84,86-120,122-131
+  s_b4f052d694d82f::t_ae04d2e2f19eb1 19-21,34,39,70,85,121
+Rakefile
+  s_b4f052d694d82f::t_62565d73dd7167 156-157
+README.md
+  s_b4f052d694d82f::t_d9ec71a6c94d0e 240-273,1368-1381,2567-2575
+spec/dummy/app/controllers/demos_controller.rb
+  s_b4f052d694d82f::t_33f2b6e908a25c 428-445
+  s_b4f052d694d82f::t_1ffe8a5acf781f 9-12
+docs/app/views/docs/pages/installation.rb
+  s_b4f052d694d82f::t_d9ec71a6c94d0e 165-170,173-187,190-197
+bun.lock
+  ai_agent 7,26
+app/javascript/phlex/reactive/reactive_controller.js
+  s_b4f052d694d82f::t_23fbe5c2ea3094 1308-1311,2050-2080,2099,2104-2130,2139,2142,2379-2384,2387,2389-2391,2393,2463-2464,2471-2474,2638-2639,2647-2652,2654,2657-2659,2663,2666-2672,2674-2741,2746,2748,2753-2755,2758-2761,2766,2880-2883,4114-4118,4120,4772
+  s_b4f052d694d82f::t_307c6168dbe79c 1205-1210,1212,1214-1216,1219
+spec/javascript/reactive_persist.test.js
+  s_b4f052d694d82f::t_ff28af50ddf81e 6-9,13-17,328,1071-1126,1131-1226
+  s_b4f052d694d82f::t_3dce001e7732b7 112-125,166,168,175,179,186,188,212,214,223,225,232,234,239,241,256,259,269,274,278,281,288,293,298,302,307,310,315,318,323,332,336,340,344,346,358,361,366,369,377,380,386,389,397,400,403,410,413,415,420,422,424,431,434,440,443,450,453,571,573,589,600,612,620,631,639,645,651,657,660,673,692,704,706,719,723,729,733,745,747,757,763,770,778,783,792,797,799,807,818,826,831,839,848,857,865,870,879,884,892,897,907,913,918,929,939,945,956,961,970,976,982,998,1007,1024,1042,1051,1066
+  s_b4f052d694d82f::t_64b973d5881f5a 1127-1130
+spec/dummy/app/views/layouts/lazy_controller.html.erb
+  s_b4f052d694d82f::t_33f2b6e908a25c 25-26
+spec/phlex/vendored_controller_sync_spec.rb
+  s_b4f052d694d82f::t_435e1507b6ce3b 28-29
+  s_b4f052d694d82f::t_6a9d7a9cee0161 30-32
+lib/phlex/reactive/engine.rb
+  s_b4f052d694d82f::t_d9ec71a6c94d0e 40
+  s_b4f052d694d82f::t_fcdc1479ee25bd 136,138
+  s_b4f052d694d82f::t_b01781da950b6e 14-22,67,132-135,141-143
+  s_b4f052d694d82f::t_6a9d7a9cee0161 65-66,137,139-140
+spec/javascript/reactive_features.test.js
+  s_b4f052d694d82f::t_4e04c3356af6a9 547,550-591,593,595-601,603-605,611-612,618-620,622-984
+  s_b4f052d694d82f::t_db235ad7d77fb2 592,594,602,606-610,613-617,621
+  s_b4f052d694d82f::t_d8d95bf58e10bc 15,96,102,105,117,132,166,173,179,184,196,210,214,225,238,257,263,277,290
+spec/dummy/config/routes.rb
+  s_b4f052d694d82f::t_33f2b6e908a25c 74-77
+spec/javascript/bundler_build.test.js
+  s_b4f052d694d82f::t_a0a0daa3f80018 1-87
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,3
+spec/javascript/bundle_budget.test.js
+  s_b4f052d694d82f::t_32059a3a8dbcec 4,8-10,12-18,20-22,42,45-55,57,66-67,91,108-125
+app/javascript/phlex/reactive/features/persist.min.js.map
+  ai_agent 1-10
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,3
+tsconfig.json
+  s_b4f052d694d82f::t_62565d73dd7167 11
+spec/phlex/engine_client_pin_spec.rb
+  s_b4f052d694d82f::t_6a9d7a9cee0161 73,75-76,132-134,159,165-166
+  s_b4f052d694d82f::t_435e1507b6ce3b 71-72,74,77-80,129-131,135-137,143-158,160-164,167
+spec/dummy/app/components/persist_action_component.rb
+  s_b4f052d694d82f::t_4246183353753e 1-32
+app/javascript/phlex/reactive/features/persist.min.js
+  ai_agent 1-4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "1f7559be266e60f9bd9e5e43a025db4c590b749b",
+  "prompts": {},
+  "sessions": {
+    "s_b4f052d694d82f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a4f9e839-a934-4e75-9b79-590503d3a110",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
