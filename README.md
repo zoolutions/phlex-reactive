@@ -2484,6 +2484,12 @@ instead of a per-render token; the client GETs it and the endpoint answers
 first open, reuse across page views" with no app JavaScript, and a refresh morph
 re-materializes from the browser cache instead of costing a request.
 
+The shell stays in the page in the fragment's place: a record-less `on:` +
+`cache:` shell with a viewer and a version is about 290 B gzipped (it carries
+the URL and no token). Defer what is clearly bigger than that — roughly 1 KB
+gzipped or more — or slow to render; a dozen links is cheaper inline. See the
+deferred-rendering page for the numbers.
+
 What keeps a private cache safe:
 
 - **Never `public`.** `max_age` is capped by
@@ -2504,7 +2510,7 @@ What keeps a private cache safe:
   Return a value unique per viewer: it is expanded like a cache key, so `0`,
   `"0"` and `[0]` are one viewer, and `true` — or an unsaved record — is
   everyone (return `nil` for guests).
-- **Opt-in only.** The fragment id is signed under its own purpose: it is not
+- **Opt-in only.** The fragment id is MACed under its own purpose: it is not
   an identity or defer token and those are not fragment ids (400 either way). A
   component without `cache:` is not reachable over GET (404). The id names no
   viewer, but it carries the signed state / record GlobalID in a URL — signed,

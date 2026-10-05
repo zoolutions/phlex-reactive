@@ -6,6 +6,27 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Performance
+
+- **A cacheable lazy shell is less than half the size (#306).** A
+  `reactive_lazy(on:, cache:)` shell with `reactive_cache_viewer` and
+  `reactive_cache_version` gzips to about 290 B (was about 580–670 B). The
+  fragment id is the identity encoded once plus a 128-bit MAC (it was the
+  verifier's token wrapped in a second Base64); `u` is 22 base64url characters
+  and `v` 11. A `cache:` shell no longer carries the identity token: a fragment
+  URL the client refuses falls back to a GET of the same id under the fragment
+  path it knows (`cache: "no-store"`), not to the `__materialize` POST, and a
+  failed defer module is reported by its `reactive:error` (`kind: "feature"`)
+  without a POST. Ids minted before this change still verify; their old `u`
+  no longer matches, so such a URL renders but is `no-store`. The
+  deferred-rendering page now says when deferring pays off.
+
+### Fixed
+
+- **A refused fragment URL supersedes the in-flight lazy load (#293).** A morph
+  that re-showed a lazy shell with a URL the client refuses left the earlier
+  load running, and its late arrival painted over the refused shell.
+
 ### Added
 
 - **`phlex_reactive:doctor` finds the early import anywhere and checks every import map (#307).** The dormant-roots check now scans every app JS entry and inline module scripts in `app/views` and `app/components` (naming the file), and a new advisory line per import map lacking the `phlex/reactive/early` pin; set `Phlex::Reactive.importmaps = -> { { "landing" => map } }` for maps outside `Rails.application.importmap`.
