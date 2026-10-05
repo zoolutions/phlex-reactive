@@ -79,7 +79,8 @@ module Phlex
           action_check(components),
           id_check(components),
           authorization_check(components),
-          dormant_check(components)
+          dormant_check(components),
+          *early_pin_check(components)
         ].compact
       end
 
@@ -261,15 +262,33 @@ module Phlex
       # may live in a file the doctor doesn't scan. A per-render
       # reactive_root(dormant: true) is invisible here (it isn't a declaration).
       def dormant_check(components, early: imports_early?)
-        dormant = components.select { it.respond_to?(:reactive_dormant?) && it.reactive_dormant? }
+        dormant = dormant_components(components)
         return if dormant.empty?
 
         label = "#{dormant.size} dormant #{dormant.one? ? "component" : "components"} (#{dormant.map(&:name).join(", ")})"
-        return Check.new(:ok, "#{label}; phlex/reactive/early is imported", name: :dormant) if early
+        return Check.new(:ok, "#{label}; phlex/reactive/early is imported#{early_location(early)}", name: :dormant) if early
 
         Check.new(:unknown, "#{label}, but no import of phlex/reactive/early was found", name: :dormant,
           fix: "A dormant root is woken by that module — without it the root never mounts. Add to " \
                "your entrypoint, before any controller loads:\n  import \"phlex/reactive/early\"")
+      end
+
+      # Every import map the app registers must pin phlex/reactive/early when a
+      # dormant root exists (issue #307): a map without the pin cannot resolve
+      # the specifier, so the import fails on the pages that map serves. One
+      # advisory check per map lacking the pin; none when every map has it.
+      # Maps: Rails.application.importmap, or Phlex::Reactive.importmaps (a
+      # callable returning { name => Importmap::Map }) for an app with its own.
+      def early_pin_check(components)
+        return [] if dormant_components(components).empty?
+
+        import_maps.filter_map do |name, map|
+          next if map_pins_early?(map)
+
+          Check.new(:unknown, "import map \"#{name}\" does not pin phlex/reactive/early", name: :early_pin,
+            fix: "A dormant root rendered on a page served by this map cannot load the module. Add to " \
+                 "the map's file:\n  pin \"phlex/reactive/early\", to: \"phlex/reactive/early.min.js\", preload: true")
+        end
       end
 
       # --- rendering --------------------------------------------------------
@@ -296,6 +315,11 @@ module Phlex
         "phlex/reactive/actions"
       end
 
+      STIMULUS_ENTRYPOINTS = %w[
+        app/javascript/controllers/index.js
+        app/javascript/controllers/application.js
+        app/javascript/application.js
+      ].freeze
       EARLY_IMPORT = %r{import\s+["']phlex/reactive/early["']}
       # Closed comments, which may span lines: HTML, JS block and ERB.
       BLOCK_COMMENT = %r{<!--.*?-->|/\*.*?\*/|<%#.*?%>}m
@@ -416,11 +440,7 @@ module Phlex
       # small/importmap app often registers inline in <head> rather than in a
       # dedicated entrypoint file. Only existing files are returned.
       def stimulus_registration_files
-        candidates = %w[
-          app/javascript/controllers/index.js
-          app/javascript/controllers/application.js
-          app/javascript/application.js
-        ].map { app_path(it) }
+        candidates = STIMULUS_ENTRYPOINTS.map { app_path(it) }
         candidates += ::Dir.glob(app_path("app/views/layouts/**/*.erb"))
         candidates.select { File.exist?(it) }
       end
@@ -431,13 +451,56 @@ module Phlex
         false
       end
 
-      # Does any Stimulus entrypoint candidate import phlex/reactive/early?
+      # The relative path of the first file that imports phlex/reactive/early,
+      # or false. The Stimulus registration files go first, then every other app
+      # JavaScript entry (vendor excluded) and inline module scripts in views and
+      # components (issue #307).
       def imports_early?
-        stimulus_registration_files.any? do
-          Doctor.imports_early_source?(File.read(it))
+        (stimulus_registration_files | early_import_candidates).each do
+          return relative(it) if Doctor.imports_early_source?(early_source(it))
         rescue StandardError
-          false
+          next
         end
+        false
+      end
+
+      # A Ruby file's `# …` comment lines are not code (a layout that mentions
+      # the import in a comment must not pass the check).
+      def early_source(path)
+        source = File.read(path)
+        path.end_with?(".rb") ? source.lines.grep_v(/\A\s*#/).join : source
+      end
+
+      def early_import_candidates
+        globs = %w[app/javascript/**/*.js app/views/**/*.{rb,erb} app/components/**/*.{rb,erb}].map { app_path(it) }
+        ::Dir.glob(globs).reject { it.include?("/vendor/") }.sort
+      end
+
+      # " (path)" when the import sits outside the JavaScript entrypoints the
+      # doctor always scanned (those keep their original output).
+      def early_location(early)
+        return "" unless early.is_a?(String)
+        return "" if STIMULUS_ENTRYPOINTS.include?(early)
+
+        " (#{early})"
+      end
+
+      def dormant_components(components)
+        components.select { it.respond_to?(:reactive_dormant?) && it.reactive_dormant? }
+      end
+
+      def import_maps
+        default = ::Rails.application.respond_to?(:importmap) ? ::Rails.application.importmap : nil
+        maps = default ? { "application" => default } : {}
+        maps.merge(Phlex::Reactive.importmaps&.call || {})
+      rescue StandardError
+        maps || {}
+      end
+
+      def map_pins_early?(map)
+        map.packages.key?("phlex/reactive/early")
+      rescue StandardError
+        true
       end
 
       # Only meaningful when importmap is in use. True when importmap is present

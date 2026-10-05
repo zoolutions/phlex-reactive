@@ -434,6 +434,150 @@ RSpec.describe Phlex::Reactive::Doctor do
     end
   end
 
+  # Issue #307: the import may live in any app entry point or inline in a layout
+  # or component, and EVERY import map that renders a dormant root needs the pin.
+  describe "the early import, wherever it lives" do
+    let(:root) { Pathname(Dir.mktmpdir) }
+    let(:dormant) do
+      Class.new(ApplicationComponent) do
+        include Phlex::Reactive::Component
+
+        def self.name = "SleepyMenu"
+        reactive_state :n
+        reactive_dormant
+        def initialize(n: 0) = (@n = n)
+        def id = "sleepy"
+      end
+    end
+    let(:import) { %(import "phlex/reactive/early"\n) }
+
+    before { allow(Rails).to receive(:root).and_return(root) }
+
+    after { FileUtils.remove_entry(root) }
+
+    def write(path, content)
+      root.join(path).tap { it.dirname.mkpath }.write(content)
+    end
+
+    def dormant_message = doctor.dormant_check([dormant]).message
+
+    it "finds an import in a Phlex layout and names the file" do
+      write("app/views/layouts/base.rb", "script(type: 'module') { raw(safe('#{import.strip}')) }\n")
+
+      expect(doctor.send(:imports_early?)).to eq("app/views/layouts/base.rb")
+      check = doctor.dormant_check([dormant])
+      expect(check).to be_ok
+      expect(check.message).to include("phlex/reactive/early is imported (app/views/layouts/base.rb)")
+    end
+
+    it "finds an import in an ERB layout and names the file" do
+      write("app/views/layouts/landing.html.erb", %(<script type="module">#{import}</script>\n))
+
+      expect(doctor.dormant_check([dormant]).message).to include("(app/views/layouts/landing.html.erb)")
+    end
+
+    it "finds an import in a component" do
+      write("app/components/shell.rb", "raw(safe('#{import.strip}'))\n")
+
+      expect(doctor.send(:imports_early?)).to eq("app/components/shell.rb")
+    end
+
+    it "finds an import in a per-page entry file and names it" do
+      write("app/javascript/pages/landing.js", import)
+
+      expect(dormant_message).to include("(app/javascript/pages/landing.js)")
+    end
+
+    it "ignores vendored JavaScript" do
+      write("app/javascript/vendor/thing.js", import)
+
+      expect(doctor.send(:imports_early?)).to be(false).or be_nil
+      expect(doctor.dormant_check([dormant])).not_to be_ok
+    end
+
+    it "ignores a commented-out import in a layout" do
+      write("app/views/layouts/base.rb", "# #{import}")
+      write("app/views/layouts/old.html.erb", %(<%# #{import.strip} %>\n))
+
+      expect(doctor.dormant_check([dormant])).not_to be_ok
+    end
+
+    it "leaves the output unchanged for an import in a Stimulus registration file" do
+      write("app/javascript/application.js", import)
+
+      check = doctor.dormant_check([dormant])
+      expect(check.message).to eq("1 dormant component (SleepyMenu); phlex/reactive/early is imported")
+    end
+
+    describe "#early_pin_check" do
+      def map_with(*pins)
+        Struct.new(:packages).new(pins.to_h { [it, { path: "#{it}.js" }] })
+      end
+
+      let(:pinned) { map_with("phlex/reactive/early") }
+      let(:bare) { map_with("other") }
+
+      after { Phlex::Reactive.importmaps = nil }
+
+      it "is absent when nothing is dormant" do
+        Phlex::Reactive.importmaps = -> { { "landing" => bare } }
+
+        expect(doctor.early_pin_check([])).to be_empty
+      end
+
+      it "reports nothing when every map pins the module" do
+        Phlex::Reactive.importmaps = -> { { "app" => pinned, "landing" => pinned } }
+
+        expect(doctor.early_pin_check([dormant])).to be_empty
+      end
+
+      it "names the map lacking the pin, with the fix" do
+        Phlex::Reactive.importmaps = -> { { "app" => pinned, "landing" => bare } }
+
+        checks = doctor.early_pin_check([dormant])
+        expect(checks.size).to eq(1)
+        expect(checks.first.status).to eq(:unknown)
+        expect(checks.first.name).to eq(:early_pin)
+        expect(checks.first.message).to include('import map "landing"', "phlex/reactive/early")
+        expect(checks.first.fix).to include('pin "phlex/reactive/early"')
+      end
+
+      it "reports the map by name in the doctor's output" do
+        Phlex::Reactive.importmaps = -> { { "app" => pinned, "landing" => bare } }
+        allow(doctor).to receive(:registered_components).and_return([dormant]) # rubocop:disable RSpec/SubjectStub
+
+        expect(doctor.report).to include('? import map "landing" does not pin phlex/reactive/early')
+      end
+
+      it "checks Rails.application.importmap when no registry is configured" do
+        allow(Rails.application).to receive(:importmap).and_return(bare)
+
+        checks = doctor.early_pin_check([dormant])
+        expect(checks.map(&:message)).to contain_exactly(a_string_including('import map "application"'))
+      end
+
+      it "adds the configured maps to the default one" do
+        allow(Rails.application).to receive(:importmap).and_return(bare)
+        Phlex::Reactive.importmaps = -> { { "landing" => bare } }
+
+        names = doctor.early_pin_check([dormant]).map(&:message)
+        expect(names).to contain_exactly(a_string_including('"application"'), a_string_including('"landing"'))
+      end
+
+      it "survives a registry that raises" do
+        Phlex::Reactive.importmaps = -> { raise "boom" }
+
+        expect { doctor.early_pin_check([dormant]) }.not_to raise_error
+      end
+
+      it "passes quietly for the default map when it pins the module" do
+        allow(Rails.application).to receive(:importmap).and_return(pinned)
+
+        expect(doctor.early_pin_check([dormant])).to be_empty
+      end
+    end
+  end
+
   describe "output rendering" do
     before { Rails.application.eager_load! }
 

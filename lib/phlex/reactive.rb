@@ -133,6 +133,12 @@ module Phlex
       # ActionPolicy::Unauthorized, ...).
       attr_accessor :authorization_errors
 
+      # Import maps `phlex_reactive:doctor` checks for the `phlex/reactive/early`
+      # pin (issue #307): a callable returning `{ name => Importmap::Map }`, for
+      # an app with more than one map (one per entry point). nil (the default)
+      # checks `Rails.application.importmap` only.
+      attr_accessor :importmaps
+
       # The path the action endpoint is mounted at. Default "/reactive/actions".
       # Set before boot if it collides with an app route. The client runtime
       # reads it from a <meta name="phlex-reactive-action-path"> tag if present,
