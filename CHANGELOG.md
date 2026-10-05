@@ -895,6 +895,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Groundwork for splitting the client (#275) — no behaviour change.** The
+  controller gains a loader for feature modules (none exists yet, so nothing
+  loads) and a `ready` promise on each controller that resolves once the
+  features its root needs are connected — already resolved today. A feature
+  that fails to load will emit `reactive:error` with `kind: "feature"`.
+  `spec/javascript/bundle_budget.test.js` now reports every module's gzipped
+  size and holds the controller to a ceiling that each later step lowers
+  (22,627 B today; the loader added 355 B).
+
 - **`on_client` emits a binding record (#271).** `data-reactive-ops-param` now
   holds `{"on":…,"ops":[…], "window"?, "outside"?, "confirm"?, "confirmWhen"?}`
   instead of the bare `[[op, args]]` list, with every space written as
