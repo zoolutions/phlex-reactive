@@ -2062,8 +2062,10 @@ export default class extends Controller {
       // Without the feature (it failed to load) a shell can still load the
       // plain way: the signed __materialize POST.
       const materialize = () => {
-        if (!__SPLIT__) return deferFeature.materialize(this)
-        else {
+        // (A shell whose defer connect threw has nothing wired: the plain POST.)
+        if (!__SPLIT__) {
+          return this.#featuresOn & DEFER ? deferFeature.materialize(this) : this.#proceed(target, action, "{}")
+        } else {
           const defer = this.#features.get("defer")
           return defer ? defer.materialize(this) : this.#proceed(target, action, "{}")
         }
