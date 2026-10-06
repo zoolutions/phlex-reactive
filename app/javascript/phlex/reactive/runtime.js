@@ -1460,7 +1460,7 @@ export default class extends Controller {
   #busyTokenCounts = new WeakMap() // element -> Map(action -> count): its data-reactive-busy token set
   // Dirty tracking (issue #103): the bound re-scan (turbo:morph-element) and the
   // navigate-away guard handlers, held so disconnect() can remove exactly them.
-  // The root-only morph listener of a token-bearing root (issue #275): a morph
+  // The root-only morph listener of a token root or lazy shell (#275, #312): a morph
   // can add a feature's marker to a connected root. Held for teardown.
   #boundRootMorph
   // Clipboard-trigger availability gate (issue #228): the bound morph re-sync,
