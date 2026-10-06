@@ -6,3 +6,7 @@
 #   bun test --define __SPLIT__=false spec/javascript
 [define]
 "__SPLIT__" = "true"
+
+# Fail fast on a node_modules that drifted from bun.lock (issue #331).
+[test]
+preload = ["./spec/javascript/support/lockfile_guard.js"]

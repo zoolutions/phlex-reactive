@@ -64,7 +64,8 @@ const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 // Mount markup and let the MutationObserver register its trigger event types.
 // happy-dom delivers mutation records on its own timers: wait for them rather
-// than for one tick (one tick lost the race under a loaded full-suite run).
+// than for one tick. (The intermittent miss this once blamed on timing was a
+// garbage-collected observer in a stale happy-dom, issue #331.)
 async function mount(html) {
   document.body.innerHTML = html
   await window.happyDOM.waitUntilComplete()
@@ -104,6 +105,23 @@ test("records a click on an on() trigger inside a root that has not connected", 
   expect(entry.root).toBe(root)
   expect(entry.event).toBe(event)
   expect(event.defaultPrevented).toBe(true)
+})
+
+// Issue #331: happy-dom before 20.11.2 held a MutationObserver's callback only
+// through a WeakRef, so any garbage collection between startEarly() and the
+// markup arriving silently killed the scan, and the click above was never
+// recorded (about one full-suite run in sixteen). A browser keeps an observer
+// alive while its target lives, so early.js holding no reference is correct.
+test("still records a trigger whose markup arrives after a garbage collection", async () => {
+  Bun.gc(true)
+  // focusin: a type no earlier test installs, so only the observer's scan can add its listener.
+  const root = await mount(`
+    <div id="gc" data-controller="reactive">
+      <button data-action="focusin->reactive#dispatch">Go</button>
+    </div>`)
+  root.querySelector("button").dispatchEvent(new window.FocusEvent("focusin", { bubbles: true }))
+
+  expect(state().queue).toHaveLength(1)
 })
 
 test("records a custom event fired on the root itself", async () => {
