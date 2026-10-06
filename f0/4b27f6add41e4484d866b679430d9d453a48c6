@@ -1,0 +1,39 @@
+lib/phlex/reactive/doctor/fiber_isolation.rb
+  s_d02db4353d49da::t_bbad2074746abb 1-86
+spec/phlex/reactive/mcp_spec.rb
+  s_d02db4353d49da::t_bbad2074746abb 122-130
+spec/requests/inventory_tasks_spec.rb
+  s_d02db4353d49da::t_bbad2074746abb 77-83,165-168
+spec/phlex/reactive/doctor/fiber_isolation_spec.rb
+  s_d02db4353d49da::t_bbad2074746abb 1-115
+spec/phlex/reactive/inspector_spec.rb
+  s_d02db4353d49da::t_bbad2074746abb 55-76,245-246
+docs/app/views/docs/pages/tooling.rb
+  s_d02db4353d49da::t_bbad2074746abb 82-90
+lib/phlex/reactive/streamable.rb
+  s_d02db4353d49da::t_bbad2074746abb 78,324-333
+spec/phlex/reactive/streamable_registry_spec.rb
+  s_d02db4353d49da::t_bbad2074746abb 1-33
+lib/phlex/reactive/doctor.rb
+  s_d02db4353d49da::t_bbad2074746abb 19-20,81
+spec/dummy/app/components/inherited_skip_component.rb
+  s_d02db4353d49da::t_bbad2074746abb 1-14
+docs/app/views/docs/pages/installation.rb
+  s_d02db4353d49da::t_bbad2074746abb 23,282-317
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f04b27f6add41e4484d866b679430d9d453a48c6",
+  "prompts": {},
+  "sessions": {
+    "s_d02db4353d49da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5775b781-4946-4755-bdd4-dcdc0ac0b0ea",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
