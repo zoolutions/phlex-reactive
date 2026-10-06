@@ -205,6 +205,36 @@ test("reactive_show takes a checked count too", () => {
   expect($("#many").hidden).toBe(false)
 })
 
+test("a cross-root show target counts a group in both the field-keyed and the #id-keyed form", () => {
+  const targets = JSON.stringify({
+    "ids[]": { "#some": [{ field: "ids[]", checked_gte: 1 }] },
+    "#two": { any: [[{ field: "ids[]", checked_eq: 2 }]] },
+  }).replaceAll('"', "&quot;")
+  const { $$ } = mount(
+    `<p id="some">some</p><p id="two">two</p>` +
+      LIST.replace('data-controller="reactive"', `data-controller="reactive" data-reactive-show-targets="${targets}"`),
+  )
+  const some = document.getElementById("some")
+  const two = document.getElementById("two")
+  expect([some.hidden, two.hidden]).toEqual([true, true])
+
+  tick($$('[name="ids[]"]')[0], true)
+  expect([some.hidden, two.hidden]).toEqual([false, true])
+  tick($$('[name="ids[]"]')[2], true)
+  expect([some.hidden, two.hidden]).toEqual([false, false])
+})
+
+test("reactive_on_complete fires on the rising edge of a checked count", () => {
+  const onComplete = JSON.stringify([
+    { any: [[{ field: "ids[]", checked_gte: 2 }]], ops: [["add_class", { to: "@root", classes: ["many"] }]] },
+  ]).replaceAll('"', "&quot;")
+  const { root, $$ } = mount(LIST.replace('data-controller="reactive"', `data-controller="reactive" data-reactive-on-complete="${onComplete}"`))
+  tick($$('[name="ids[]"]')[0], true)
+  expect(root.classList.contains("many")).toBe(false)
+  tick($$('[name="ids[]"]')[1], true)
+  expect(root.classList.contains("many")).toBe(true)
+})
+
 test("the count write is change-guarded (an unchanged count leaves the text node alone)", () => {
   const { $, $$ } = mount(LIST)
   const node = $("#count").firstChild

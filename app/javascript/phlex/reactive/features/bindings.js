@@ -504,7 +504,8 @@ function syncShowTargets(c, fieldValue) {
     if (value === null) continue // no owned field with that name — leave them be
     // Every target's terms share this one field, so a constant resolver folds
     // the group (issue #180): a target's value is a DNF GROUP (terms ANDed).
-    const resolve = () => value
+    // (A checked_* term asks for the group's count instead, issue #319.)
+    const resolve = (_, count) => (count ? fieldValue(name, true) : value)
     for (const [selector, group] of Object.entries(targets)) {
       if (!guardShowTargetSelector(selector)) continue
       // 0.10 wire: the value is a DNF GROUP (an array of terms, ANDed).
