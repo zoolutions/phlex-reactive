@@ -33,7 +33,8 @@ module SystemExampleTimeout
   end
 
   def self.guard(seconds, label: nil)
-    return yield unless seconds.positive?
+    raise ArgumentError, "timeout must be finite and non-negative, got #{seconds}" unless seconds.finite? && seconds >= 0
+    return yield if seconds.zero?
 
     done = Thread::Queue.new
     watchdog = start_watchdog(Thread.current, seconds, label, done)

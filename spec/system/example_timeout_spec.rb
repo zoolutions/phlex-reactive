@@ -26,6 +26,12 @@ RSpec.describe "System example timeout (issue #320)", type: :system do
     end
   end
 
+  it "rejects a negative or NaN bound instead of silently disabling the watchdog (only 0 opts out)" do
+    expect { SystemExampleTimeout.guard(-1) { :ran } }.to raise_error(ArgumentError, /finite and non-negative/)
+    expect { SystemExampleTimeout.guard(Float::NAN) { :ran } }.to raise_error(ArgumentError, /finite and non-negative/)
+    expect(SystemExampleTimeout.guard(0) { :ran }).to eq(:ran)
+  end
+
   # 3 s, not less: the bound also covers the before hooks (fixtures, a first DB
   # checkout on a pgbus cell), and firing there would end the whole run.
   it "fails an example that outlives its metadata bound, naming the bound", timeout: 3 do
