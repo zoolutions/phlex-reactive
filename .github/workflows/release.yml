@@ -44,7 +44,7 @@ jobs:
   # ── shared: keep identical across the gems ────────────────────────────────
   build:
     needs: test
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     outputs:
       gem: ${{ steps.gem.outputs.gem }}
       version: ${{ steps.gem.outputs.version }}
@@ -120,7 +120,7 @@ jobs:
 
   publish-rubygems:
     needs: build
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     environment: rubygems
     permissions:
       id-token: write
@@ -166,7 +166,7 @@ jobs:
 
   upload-release-assets:
     needs: [build, publish-rubygems]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: write
     steps:
