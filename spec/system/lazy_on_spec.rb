@@ -32,6 +32,13 @@ RSpec.describe "reactive_lazy(on:) (issue #276)", type: :system do
 
   # Morph a root to a remembered snapshot, the way a Turbo page refresh or a
   # morphing stream would: same element, attributes and children rewritten.
+  #
+  # Returns once the morph HAS RUN (issue #313). renderStreamMessage only
+  # appends the <turbo-stream>; Turbo performs it a frame later (nextRepaint)
+  # and removes the element after. The root's turbo:morph-element listener
+  # (the lazy re-arm) runs synchronously inside that morph, so "no stream
+  # left" proves the root is re-armed — while every marker the morphed-in
+  # shell carries may already be on the old shell, and holds before it.
   def morph_to(id, snapshot:)
     page.execute_script(<<~JS)
       window.Turbo.renderStreamMessage(
@@ -39,6 +46,7 @@ RSpec.describe "reactive_lazy(on:) (issue #276)", type: :system do
           window.__snapshots[#{snapshot.to_json}] + "</template></turbo-stream>"
       )
     JS
+    expect(page).to have_no_css("turbo-stream", visible: :all)
   end
 
   # The page-shipped shell of /lazy_on (scope "mine"), fetched without visiting.
@@ -196,8 +204,11 @@ RSpec.describe "reactive_lazy(on:) (issue #276)", type: :system do
       expect(page).to have_reactive_requests(0)
 
       # A morph (here: to a shell the server WILL render) re-arms the same node.
+      # The failed shell carries data-reactive-lazy-on too: only the error
+      # marker going away shows the morph replaced it.
       same_node_marker("lazy-panel")
       morph_to("lazy-panel", snapshot: "freshShell")
+      expect(page).to have_no_css("#lazy-panel[data-reactive-error]")
       expect(page).to have_css("#lazy-panel[data-reactive-lazy-on]")
       expect(same_node?("lazy-panel")).to be(true)
       expect(page).to have_reactive_requests(0)
