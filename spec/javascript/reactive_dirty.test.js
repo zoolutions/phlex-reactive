@@ -6,7 +6,7 @@
 // runs #scanDirty(), a FULL PASS over every field this reactive root owns:
 //
 //   checkbox/radio → checked  !== defaultChecked
-//   select         → some option.selected !== option.defaultSelected
+//   select         → some option.selected !== its reset state (issue #297)
 //   else           → value    !== defaultValue
 //
 // A full pass (not a per-target toggle) is REQUIRED for radio groups: when a new
@@ -251,6 +251,128 @@ test("a select back at its default selection is NOT dirty", () => {
   expect(root.getAttribute("data-reactive-dirty")).toBeNull()
 })
 
+// Issue #297: a single <select> with no `selected` option. The browser selects
+// the first (enabled) option, but its defaultSelected stays false — the select's
+// RESET state is that first option, so a pristine form must scan clean.
+test("a pristine single select with no selected option is NOT dirty (issue #297)", () => {
+  const root = reactiveRoot()
+  const status = new FakeNode({
+    tag: "select",
+    name: "status",
+    options: [
+      { selected: true, defaultSelected: false },
+      { selected: false, defaultSelected: false },
+    ],
+  })
+  root.append(status)
+  const controller = buildController(root)
+
+  controller.trackDirty({ target: status })
+  expect(status.getAttribute("data-reactive-dirty")).toBeNull()
+  expect(root.getAttribute("data-reactive-dirty")).toBeNull()
+
+  // Picking another option IS a change from that reset state.
+  status.options[0].selected = false
+  status.options[1].selected = true
+  controller.trackDirty({ target: status })
+  expect(status.getAttribute("data-reactive-dirty")).toBe("true")
+})
+
+test("the reset state of a select with no selected option skips a disabled first option (issue #297)", () => {
+  const root = reactiveRoot()
+  const status = new FakeNode({
+    tag: "select",
+    name: "status",
+    options: [
+      { selected: false, defaultSelected: false, disabled: true },
+      { selected: true, defaultSelected: false },
+    ],
+  })
+  root.append(status)
+  const controller = buildController(root)
+
+  controller.trackDirty({ target: status })
+  expect(status.getAttribute("data-reactive-dirty")).toBeNull()
+})
+
+test("the reset state skips a first option inside a disabled optgroup (issue #297)", () => {
+  const root = reactiveRoot()
+  const status = new FakeNode({
+    tag: "select",
+    name: "status",
+    options: [
+      { selected: false, defaultSelected: false, closest: (sel) => (sel === "optgroup" ? { disabled: true } : null) },
+      { selected: true, defaultSelected: false },
+    ],
+  })
+  root.append(status)
+  const controller = buildController(root)
+
+  controller.trackDirty({ target: status })
+  expect(status.getAttribute("data-reactive-dirty")).toBeNull()
+})
+
+test("an option outside any optgroup can be the reset state", () => {
+  const root = reactiveRoot()
+  const status = new FakeNode({
+    tag: "select",
+    name: "status",
+    options: [
+      { selected: true, defaultSelected: false, closest: () => null },
+      { selected: false, defaultSelected: false, closest: () => null },
+    ],
+  })
+  root.append(status)
+  const controller = buildController(root)
+
+  controller.trackDirty({ target: status })
+  expect(status.getAttribute("data-reactive-dirty")).toBeNull()
+})
+
+test("a multiple select with nothing selected by default stays clean until an option is picked", () => {
+  const root = reactiveRoot()
+  const tags = new FakeNode({
+    tag: "select",
+    name: "tags",
+    options: [
+      { selected: false, defaultSelected: false },
+      { selected: false, defaultSelected: false },
+    ],
+  })
+  tags.multiple = true
+  root.append(tags)
+  const controller = buildController(root)
+
+  controller.trackDirty({ target: tags })
+  expect(tags.getAttribute("data-reactive-dirty")).toBeNull()
+
+  tags.options[0].selected = true
+  controller.trackDirty({ target: tags })
+  expect(tags.getAttribute("data-reactive-dirty")).toBe("true")
+})
+
+test("a size > 1 select resets to no selection, so nothing selected is clean (issue #297)", () => {
+  const root = reactiveRoot()
+  const list = new FakeNode({
+    tag: "select",
+    name: "list",
+    options: [
+      { selected: false, defaultSelected: false },
+      { selected: false, defaultSelected: false },
+    ],
+  })
+  list.size = 4
+  root.append(list)
+  const controller = buildController(root)
+
+  controller.trackDirty({ target: list })
+  expect(list.getAttribute("data-reactive-dirty")).toBeNull()
+
+  list.options[0].selected = true
+  controller.trackDirty({ target: list })
+  expect(list.getAttribute("data-reactive-dirty")).toBe("true")
+})
+
 test("radio group: selecting a new radio marks the deselected default radio dirty too (full pass)", () => {
   // The decisive full-pass case. The default was radio A (defaultChecked). The
   // user picks radio B. B fires the input event; A gets NO event but flipped to
@@ -431,6 +553,67 @@ test("warn_unsaved: turbo:before-visit is vetoed while dirty and allowed when cl
   let dirtyPrevented = false
   beforeVisit({ preventDefault: () => (dirtyPrevented = true) })
   expect(dirtyPrevented).toBe(true)
+})
+
+// Issue #298: two warn_unsaved roots on one page each arm a turbo:before-visit
+// guard. One visit must prompt ONCE, and any dirty root can veto it. Every
+// registered listener receives the SAME event object (one dispatch).
+function twoGuardedRoots({ dirty: [firstDirty, secondDirty], answer }) {
+  const winListeners = {}
+  const asked = []
+  const win = {
+    addEventListener: (name, fn) => ((winListeners[name] ??= []).push(fn)),
+    removeEventListener: (name, fn) => (winListeners[name] = (winListeners[name] ?? []).filter((f) => f !== fn)),
+    confirm: (message) => (asked.push(message), answer),
+  }
+  const controllers = [firstDirty, secondDirty].map((dirty, i) => {
+    const root = dirtyRoot()
+    root.id = `form-${i}`
+    root.setAttribute("data-reactive-warn-unsaved", "true")
+    root.append(new FakeNode({ tag: "input", type: "text", name: "title", value: dirty ? "changed" : "orig", defaultValue: "orig" }))
+    const controller = buildController(root)
+    globalThis.window = win
+    controller.connect()
+    return controller
+  })
+  const visit = () => {
+    const event = { defaultPrevented: false, preventDefault: () => (event.defaultPrevented = true) }
+    for (const fn of winListeners["turbo:before-visit"] ?? []) fn(event)
+    return event
+  }
+  return { asked, visit, controllers, winListeners }
+}
+
+test("two dirty warn_unsaved roots prompt ONCE for one visit, and a decline vetoes it (issue #298)", () => {
+  const { asked, visit } = twoGuardedRoots({ dirty: [true, true], answer: false })
+
+  expect(visit().defaultPrevented).toBe(true)
+  expect(asked.length).toBe(1)
+})
+
+test("two dirty warn_unsaved roots: accepting the one prompt lets the visit through (issue #298)", () => {
+  const { asked, visit } = twoGuardedRoots({ dirty: [true, true], answer: true })
+
+  expect(visit().defaultPrevented).toBe(false)
+  expect(asked.length).toBe(1)
+})
+
+test("a clean root does not stop a dirty sibling from vetoing the visit (issue #298)", () => {
+  const { asked, visit } = twoGuardedRoots({ dirty: [false, true], answer: false })
+
+  expect(visit().defaultPrevented).toBe(true)
+  expect(asked.length).toBe(1)
+})
+
+test("each visit asks again; disconnecting both roots removes every guard (issue #298)", () => {
+  const { asked, visit, controllers, winListeners } = twoGuardedRoots({ dirty: [true, true], answer: false })
+
+  visit()
+  visit()
+  expect(asked.length).toBe(2)
+
+  for (const controller of controllers) controller.disconnect()
+  expect(winListeners["turbo:before-visit"]).toEqual([])
 })
 
 test("no warn_unsaved marker → no navigate-away guard registered", () => {
