@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   lint:
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-24.04
     name: Lint
     steps:
       - uses: actions/checkout@v7
@@ -28,7 +28,7 @@ jobs:
         run: gem build phlex-reactive.gemspec --strict
 
   test:
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-24.04
     name: Ruby ${{ matrix.ruby }}
     strategy:
       fail-fast: false
@@ -49,7 +49,7 @@ jobs:
         run: bundle exec rspec spec/phlex spec/requests spec/generators
 
   bench:
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-24.04
     name: Benchmarks (report only)
     steps:
       - uses: actions/checkout@v7
@@ -80,7 +80,7 @@ jobs:
           if-no-files-found: warn
 
   site:
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-24.04
     name: Demo site (${{ matrix.server }})
     # The docs/ Rails app is a separate app that dogfoods the gem via
     # `path: ".."`. Run its request + system suites under BOTH real servers,
@@ -149,7 +149,7 @@ jobs:
         run: bundle exec rspec spec/system
 
   system:
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-24.04
     name: System (${{ matrix.server }} / ${{ matrix.transport }})
     # Run the browser suite across TWO real servers × TWO transports (issue #187):
     #   server:    puma (sync, thread-pool) | falcon (async, fiber-per-request)
