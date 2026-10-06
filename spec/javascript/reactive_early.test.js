@@ -157,16 +157,201 @@ test("prevents every firing of a :once trigger (the replay, not the recorder, de
   expect(events.every((event) => event.defaultPrevented)).toBe(true)
 })
 
-test("does not record @window bindings or foreign controllers", async () => {
+test("does not record foreign controllers' bindings, window-bound or not", async () => {
   const root = await mount(`
     <div id="p" data-controller="reactive">
-      <button id="w" data-action="click@window->reactive#dispatch">W</button>
-      <button id="o" data-action="click->other#go">O</button>
+      <button id="o" data-action="click->other#go click@window->other#go">O</button>
     </div>`)
-  const events = [click(root.querySelector("#w")), click(root.querySelector("#o"))]
+  const event = click(root.querySelector("#o"))
 
   expect(state().queue).toHaveLength(0)
-  expect(events.some((event) => event.defaultPrevented)).toBe(false)
+  expect(event.defaultPrevented).toBe(false)
+})
+
+// --- early.js: window-bound triggers (issue #303) ------------------------------
+
+function press(target, key, init = {}) {
+  const event = new window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...init })
+  target.dispatchEvent(event)
+  return event
+}
+
+const HOTKEY = `<div id="p" data-controller="reactive"><button id="h" data-action="keydown.k@window->reactive#dispatch" data-reactive-action-param="toggle" data-reactive-window-param="true">Panel</button></div>`
+
+test("records a window-bound hotkey pressed anywhere on the page, without preventing it", async () => {
+  const root = await mount(HOTKEY)
+  const event = press(document.body, "k")
+
+  expect(state().queue).toHaveLength(1)
+  const [entry] = state().queue
+  expect(entry.win).toBe(true)
+  expect(entry.el).toBe(root.querySelector("#h"))
+  expect(entry.root).toBe(root)
+  // A window binding is never prevented (dispatch() does not either): a
+  // browser shortcut on the same key keeps working.
+  expect(event.defaultPrevented).toBe(false)
+})
+
+test("records a window-bound on_client trigger", async () => {
+  await mount(`<div id="p" data-controller="reactive" data-action="click@window->reactive#runOps" data-reactive-ops-param='{"on":"click","window":true,"ops":[]}'></div>`)
+  click(document.body)
+
+  expect(state().queue.map((entry) => [entry.win, entry.descs[0].method])).toEqual([[true, "runOps"]])
+})
+
+test("a window-bound key filter must match, modifiers included", async () => {
+  await mount(`<div id="p" data-controller="reactive"><span data-action="keydown.ctrl+k@window->reactive#dispatch"></span></div>`)
+  press(document.body, "j", { ctrlKey: true })
+  press(document.body, "k")
+  expect(state().queue).toHaveLength(0)
+
+  press(document.body, "k", { ctrlKey: true })
+  expect(state().queue).toHaveLength(1)
+})
+
+test("outside: triggers are not recorded; a window binding beside one still is", async () => {
+  await mount(`
+    <div>
+      <div id="a" data-controller="reactive"><span data-action="click@window->reactive#dispatch" data-reactive-window-param="true" data-reactive-outside-param="true"></span></div>
+      <div id="b" data-controller="reactive" data-action="click@window->reactive#runOps" data-reactive-ops-param='{"on":"click","window":true,"outside":true,"ops":[]}'></div>
+      <div id="c" data-controller="reactive" data-action="click@window->reactive#runOps" data-reactive-ops-param='{"on":"click","window":true,"outside":true,"ops":[]} {"on":"click","window":true,"ops":[]}'></div>
+    </div>`)
+  click(document.body)
+
+  expect(state().queue.map((entry) => entry.root.id)).toEqual(["c"])
+})
+
+test("an element bound to click AND click@window records one entry per listener", async () => {
+  const root = await mount(`<div id="p" data-controller="reactive"><button data-action="click->reactive#dispatch click@window->reactive#dispatch">Go</button></div>`)
+  click(root.querySelector("button"))
+
+  expect(state().queue.map((entry) => Boolean(entry.win)).sort()).toEqual([false, true])
+})
+
+test("a window-bound hotkey wakes a dormant root once, however often it is pressed", async () => {
+  const root = await mount(`<div id="p" data-controller="menu" data-reactive-dormant="reactive"><span data-action="keydown.k@window->reactive#dispatch"></span></div>`)
+  press(document.body, "k")
+  press(document.body, "k")
+  press(document.body, "k")
+
+  expect(root.dataset.controller).toBe("menu reactive")
+  expect(root.hasAttribute("data-reactive-dormant")).toBe(false)
+  expect(state().queue).toHaveLength(3)
+})
+
+test("a window-bound trigger that left the page is not recorded", async () => {
+  const root = await mount(HOTKEY)
+  root.querySelector("#h").remove()
+  press(document.body, "k")
+
+  expect(state().queue).toHaveLength(0)
+})
+
+test("picks up window-bound triggers added after start", async () => {
+  await mount(`<div id="p" data-controller="reactive"></div>`)
+  document.querySelector("#p").innerHTML = `<span data-action="keydown.esc@window->reactive#dispatch"></span>`
+  await window.happyDOM.waitUntilComplete()
+  await flush()
+  press(document.body, "Escape")
+
+  expect(state().queue).toHaveLength(1)
+})
+
+test("connect() replays a window-bound entry as the window listener would see it", async () => {
+  const root = await mount(HOTKEY)
+  press(document.body, "k")
+  const { calls } = connect(root)
+
+  expect(calls).toHaveLength(1)
+  const replay = calls[0].event
+  expect(calls[0].method).toBe("dispatch")
+  expect(replay.currentTarget).toBe(window)
+  expect(replay.key).toBe("k")
+  expect(replay.params).toEqual({ action: "toggle", window: true })
+})
+
+test("connect() replays both entries of an element bound to click AND click@window", async () => {
+  const root = await mount(`<div id="p" data-controller="reactive"><button data-action="click->reactive#dispatch click@window->reactive#dispatch">Go</button></div>`)
+  const button = root.querySelector("button")
+  click(button)
+  const { calls } = connect(root)
+
+  const targets = calls.map((call) => call.event.currentTarget)
+  expect(targets).toHaveLength(2)
+  expect(targets).toContain(button)
+  expect(targets).toContain(window)
+})
+
+test("a hotkey replayed while its original still propagates is not run again by the window listener", async () => {
+  const root = await mount(HOTKEY)
+  const seen = countDispatches(root)
+  let controller
+  // The waking keypress connects the controller mid-propagation (an eagerly
+  // registered controller), then reaches Stimulus's freshly bound window
+  // listener — bubble phase on window, after everything else.
+  document.addEventListener("keydown", () => (controller ??= realConnect(root)))
+  window.addEventListener("keydown", (event) => {
+    event.params = { action: "toggle", window: true }
+    controller.dispatch(event)
+  })
+  press(document.body, "k")
+
+  expect(seen).toEqual(["toggle"])
+})
+
+test("a spent :once hotkey swallows the still-armed window listener's firing; an element-bound call is not that binding", async () => {
+  const root = await mount(HOTKEY.replace("#dispatch", "#dispatch:once"))
+  const seen = countDispatches(root)
+  press(document.body, "k")
+  press(document.body, "k")
+  const controller = realConnect(root)
+  expect(seen).toEqual(["toggle"])
+
+  controller.dispatch(liveWindowEvent("k"))
+  expect(seen).toEqual(["toggle"])
+  controller.dispatch({ ...liveEvent(root, "keydown"), key: "k", params: { action: "toggle" } })
+  expect(seen).toEqual(["toggle", "toggle"])
+})
+
+test("a window-bound entry older than 1.5 s is dropped (warned under verbose); an element-bound one of that age is kept", async () => {
+  const root = await mount(`<div id="p" data-controller="reactive" data-reactive-verbose="true"><button data-action="click->reactive#dispatch keydown.k@window->reactive#dispatch">Go</button></div>`)
+  click(root.querySelector("button"))
+  press(document.body, "k")
+  advanceClock(1_600)
+  const { calls } = connect(root)
+
+  expect(calls.map((call) => call.event.type)).toEqual(["click"])
+  expect(warns.join("\n")).toContain("1500 ms window-trigger TTL")
+})
+
+test("a window-bound entry younger than 1.5 s is replayed", async () => {
+  const root = await mount(HOTKEY)
+  press(document.body, "k")
+  advanceClock(1_400)
+  const { calls } = connect(root)
+
+  expect(calls).toHaveLength(1)
+})
+
+test("a shorter configured TTL also shortens the window-bound one", async () => {
+  document.head.innerHTML = `<meta name="phlex-reactive-early-ttl" content="500">`
+  const root = await mount(HOTKEY)
+  press(document.body, "k")
+  advanceClock(600)
+  const { calls } = connect(root)
+
+  expect(calls).toHaveLength(0)
+})
+
+test("a replayed window-bound on_client entry never runs an outside: record", async () => {
+  const root = await mount(`<div id="p" data-controller="reactive" data-action="click@window->reactive#runOps" data-reactive-ops-param='{"on":"click","window":true,"outside":true,"ops":[["add_class",{"to":"@root","classes":["outside"]}]]} {"on":"click","window":true,"ops":[["add_class",{"to":"@root","classes":["hotkey"]}]]}'></div>`)
+  click(document.body)
+  expect(state().queue).toHaveLength(1)
+  realConnect(root)
+  await flush()
+
+  expect(root.classList.contains("hotkey")).toBe(true)
+  expect(root.classList.contains("outside")).toBe(false)
 })
 
 test("a dotted custom event name is an event name, not a key filter", async () => {
@@ -236,9 +421,9 @@ test("listens for trigger types of roots added after start (MutationObserver)", 
 
 // The one module every page loads eagerly. 1,024 B before dormant roots (issue
 // #274) added the second root selector and the wake.
-test("early.min.js gzips to under 1,100 bytes", () => {
+test("early.min.js gzips to under 1,300 bytes", () => {
   const built = readFileSync(join(import.meta.dir, "../../app/javascript/phlex/reactive/early.min.js"))
-  expect(gzipSync(built, { level: 9 }).length).toBeLessThan(1100)
+  expect(gzipSync(built, { level: 9 }).length).toBeLessThan(1300)
 })
 
 // --- reactive_controller.js: connect() marks, announces and drains ------------
@@ -324,6 +509,17 @@ function realConnect(root) {
 }
 
 const liveEvent = (el, type) => ({ type, target: el, currentTarget: el, params: { action: "load" }, preventDefault() {} })
+
+// Stimulus's window listener: currentTarget is the window, params come from
+// the element carrying the descriptor.
+const liveWindowEvent = (key) => ({
+  type: "keydown",
+  key,
+  target: document.body,
+  currentTarget: window,
+  params: { action: "toggle", window: true },
+  preventDefault() {},
+})
 
 test("after a :once replay, the still-armed Stimulus listener's one firing is swallowed", async () => {
   const root = await mount(`<div id="p" data-controller="reactive"><button data-action="click->reactive#dispatch:once" data-reactive-action-param="load">Go</button></div>`)

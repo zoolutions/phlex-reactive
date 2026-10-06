@@ -29,8 +29,16 @@
 // trigger is replayed like any other early event. A dormant root therefore
 // NEEDS this module — without it nothing ever wakes it.
 //
-// Limits: @window/@document bindings (window:/outside:) are not recorded; a
-// key filter is matched against Stimulus's DEFAULT key mappings only.
+// Window-bound triggers (window:, issue #303 — how a hotkey is bound) are
+// recorded too, by a capture listener on window: the keypress lands anywhere
+// on the page, so the scan keeps a registry of the elements carrying an
+// `@window` descriptor instead of walking up from the target. They are never
+// prevented (dispatch() does not prevent a window binding either) and live a
+// short TTL in the controller (a hotkey replayed seconds late is wrong).
+//
+// Limits: outside: triggers and @document bindings are not recorded (an
+// outside click before connect has nothing to close); a key filter is matched
+// against Stimulus's DEFAULT key mappings only.
 
 const KEY = Symbol.for("phlex-reactive.early")
 
@@ -42,14 +50,14 @@ const ROOT_SELECTOR = '[data-controller~="reactive"],[data-reactive-dormant~="re
 
 const state = (globalThis[KEY] ??= { queue: [], connected: new WeakSet() })
 
-// One Stimulus descriptor token → [{ token, type, filter, method }] for a
-// reactive trigger, else [] (flatMap-ready). `@window`/`@document` tokens
-// never match (no `@` before `->`). Like Stimulus, a dot suffix is a key
-// filter only on a key event (`keydown.enter`); otherwise it is part of the
-// event name (`panel.opened`).
+// One Stimulus descriptor token → [{ token, type, filter, win, method }] for a
+// reactive trigger, else [] (flatMap-ready). `win` marks an `@window` token;
+// `@document` never matches. Like Stimulus, a dot suffix is a key filter only
+// on a key event (`keydown.enter`); otherwise it is part of the event name
+// (`panel.opened`).
 function parseDescriptor(token) {
-  const match = /^(?:(key\w+)\.([\w+]+)|([^@>]+))->reactive#(dispatch|runOps)(?::!?\w+)*$/.exec(token)
-  return match ? [{ token, type: match[1] ?? match[3], filter: match[2], method: match[4] }] : []
+  const match = /^(?:(key\w+)\.([\w+]+)|([^@>]+))(@window)?->reactive#(dispatch|runOps)(?::!?\w+)*$/.exec(token)
+  return match ? [{ token, type: match[1] ?? match[3], filter: match[2], win: !!match[4], method: match[5] }] : []
 }
 
 // Stimulus's key-filter rule against its DEFAULT mappings (esc, space, the
@@ -68,33 +76,65 @@ function keyMatches(filter, event) {
 
 const descriptors = (el) => (el.dataset.action ?? "").split(/\s+/).flatMap(parseDescriptor)
 
+const matching = (el, event, win) =>
+  descriptors(el).filter((d) => d.win === win && d.type === event.type && keyMatches(d.filter, event))
+
+// Queue one firing for `el`'s root, unless that root has connected.
+function enqueue(event, el, descs, win) {
+  const root = el.closest(ROOT_SELECTOR)
+  if (!root || state.connected.has(root)) return
+  // dispatch() keeps the native flip of a checked: :keep checkbox/radio and
+  // never prevents a window binding; everything else is prevented now, as the
+  // controller would.
+  const keepsToggle =
+    /^(checkbox|radio)$/.test(el.type) && /"checked":"keep"/.test(el.dataset.reactiveOptimisticParam)
+  if (!win && (!keepsToggle || descs.some((d) => d.method === "runOps"))) event.preventDefault()
+  // Every firing is queued — a `:once` repeat included: the replay skips a
+  // descriptor already consumed (reactive_controller.js #replayEarly).
+  const { queue } = state
+  // Bounded: a root whose controller never registers must not grow it forever.
+  // `at` is the capture time — not event.timeStamp, which is when the event
+  // object was CREATED (an app may build one and dispatch it much later).
+  if (queue.push({ event, el, root, descs, win, at: performance.now() }) > 50) queue.shift()
+  // Wake a dormant root (issue #274) — synchronously, so by the time the
+  // event bubbles to an OUTER reactive root's Stimulus listener, `el` is
+  // already in this root's scope. Other controllers on the root are kept.
+  const { reactiveDormant, controller = "" } = root.dataset
+  if (reactiveDormant) {
+    root.dataset.controller = `${controller} ${reactiveDormant}`.trim()
+    delete root.dataset.reactiveDormant
+  }
+}
+
 function record(event) {
   for (let el = event.target; el?.closest; el = el.parentElement) {
     if (!event.bubbles && el !== event.target) break
-    const descs = descriptors(el).filter((d) => d.type === event.type && keyMatches(d.filter, event))
-    if (!descs.length) continue
-    const root = el.closest(ROOT_SELECTOR)
-    if (!root || state.connected.has(root)) continue
-    // dispatch() keeps the native flip of a checked: :keep checkbox/radio;
-    // everything else element-bound is prevented now, as the controller would.
-    const keepsToggle =
-      /^(checkbox|radio)$/.test(el.type) && /"checked":"keep"/.test(el.dataset.reactiveOptimisticParam)
-    if (!keepsToggle || descs.some((d) => d.method === "runOps")) event.preventDefault()
-    // Every firing is queued — a `:once` repeat included: the replay skips a
-    // descriptor already consumed (reactive_controller.js #replayEarly).
-    const { queue } = state
-    // Bounded: a root whose controller never registers must not grow it forever.
-    // `at` is the capture time — not event.timeStamp, which is when the event
-    // object was CREATED (an app may build one and dispatch it much later).
-    if (queue.push({ event, el, root, descs, at: performance.now() }) > 50) queue.shift()
-    // Wake a dormant root (issue #274) — synchronously, so by the time the
-    // event bubbles to an OUTER reactive root's Stimulus listener, `el` is
-    // already in this root's scope. Other controllers on the root are kept.
-    const { reactiveDormant, controller = "" } = root.dataset
-    if (reactiveDormant) {
-      root.dataset.controller = `${controller} ${reactiveDormant}`.trim()
-      delete root.dataset.reactiveDormant
+    const descs = matching(el, event, false)
+    if (descs.length) enqueue(event, el, descs, false)
+  }
+}
+
+// The elements carrying an `@window` reactive descriptor (issue #303), fed by
+// the scan; one that left the page is dropped when next seen.
+const windowBound = new Set()
+
+function recordWindow(event) {
+  for (const el of windowBound) {
+    if (!el.isConnected) {
+      windowBound.delete(el)
+      continue
     }
+    // Cheapest check first: once its root connects, Stimulus hears it.
+    if (state.connected.has(el.closest(ROOT_SELECTOR))) continue
+    // outside: is not recorded — on() flags it on the element, on_client in
+    // the binding record (one window record without it is enough to queue;
+    // the replay skips the outside ones).
+    const descs = matching(el, event, true).filter((d) =>
+      d.method === "runOps"
+        ? /"window":true(?!,"outside")/.test(el.dataset.reactiveOpsParam)
+        : el.dataset.reactiveOutsideParam !== "true",
+    )
+    if (descs.length) enqueue(event, el, descs, true)
   }
 }
 
@@ -107,7 +147,10 @@ export function startEarly(doc = document) {
   const scan = (node) => {
     if (node.nodeType !== 1) return
     for (const el of [node, ...node.querySelectorAll('[data-action*="reactive#"]')]) {
-      for (const { type } of descriptors(el)) doc.addEventListener(type, record, true)
+      for (const { type, win } of descriptors(el)) {
+        if (win) windowBound.add(el)
+        ;(win ? doc.defaultView : doc).addEventListener(type, win ? recordWindow : record, true)
+      }
     }
   }
   scan(doc.documentElement)

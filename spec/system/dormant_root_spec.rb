@@ -255,4 +255,44 @@ RSpec.describe "Dormant roots (issue #274 — mount the controller on first use)
       expect(page).to have_css("[data-testid='clicks']", exact_text: "1")
     end
   end
+
+  # Issue #303: a window-bound hotkey, pressed anywhere on the page, wakes the
+  # root and is replayed once — under both registrations (eager: the root
+  # connects while the keypress is still propagating to Stimulus's freshly
+  # bound window listener, which must not run it again).
+  context "with a window-bound hotkey" do
+    def expect_one_request_on_hotkey(load:, fetched_before:)
+      visit_dormant(load:)
+      sleep 0.3
+      expect(controller_fetches).to eq(fetched_before)
+      expect(page).to have_css("[data-testid='connects']", exact_text: "0")
+
+      find("body").send_keys("k")
+
+      expect(page).to have_css("[data-testid='clicks']", text: "1")
+      expect(page).to have_css("#dormant-panel[data-controller~='reactive']")
+      expect(controller_fetches).to eq(1)
+      expect_action_posts(1)
+      expect(page).to have_css("[data-testid='clicks']", exact_text: "1")
+    end
+
+    it "wakes the root and makes exactly one request (lazily loaded controller)" do
+      expect_one_request_on_hotkey(load: "auto", fetched_before: 0)
+    end
+
+    it "wakes the root and makes exactly one request (eagerly registered controller)" do
+      expect_one_request_on_hotkey(load: "eager", fetched_before: 1)
+    end
+
+    it "behaves like any trigger after the wake" do
+      visit_dormant
+      find("body").send_keys("k")
+      expect(page).to have_css("[data-testid='clicks']", text: "1")
+      wait_for_reactive
+
+      find("body").send_keys("k")
+      expect(page).to have_css("[data-testid='clicks']", text: "2")
+      expect_action_posts(2)
+    end
+  end
 end

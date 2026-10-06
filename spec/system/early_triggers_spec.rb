@@ -72,6 +72,58 @@ RSpec.describe "Early triggers (issue #273 — capture before connect, replay on
     expect(action_posts).to eq(1)
   end
 
+  # Issue #303: window-bound triggers — how a hotkey is bound.
+  context "with a window-bound hotkey" do
+    def press(key) = find("body").send_keys(key)
+
+    it "replays a hotkey pressed before connect, one request" do
+      visit_unconnected
+      press("k")
+      expect(action_posts).to eq(0)
+
+      load_controller
+
+      expect(page).to have_css("[data-testid='keys']", text: "1")
+      sleep 0.3
+      expect(action_posts).to eq(1)
+    end
+
+    it "replays an on_client hotkey pressed before connect, once" do
+      visit_unconnected
+      press("j")
+      expect(page).to have_no_css("[data-testid='hint']", visible: :visible)
+
+      load_controller
+
+      expect(page).to have_css("[data-testid='hint']", visible: :visible)
+      expect(action_posts).to eq(0)
+    end
+
+    it "drops a hotkey pressed more than 1.5 s before connect" do
+      visit_unconnected
+      press("k")
+      sleep 1.7
+
+      load_controller
+
+      sleep 0.3
+      expect(action_posts).to eq(0)
+      expect(page).to have_css("[data-testid='keys']", exact_text: "0")
+    end
+
+    it "behaves as before once connected: one request per press" do
+      visit_unconnected
+      load_controller
+
+      press("k")
+      expect(page).to have_css("[data-testid='keys']", text: "1")
+      press("k")
+      expect(page).to have_css("[data-testid='keys']", text: "2")
+      sleep 0.3
+      expect(action_posts).to eq(2)
+    end
+  end
+
   it "behaves as before once connected: one request per click, no replay" do
     visit_unconnected
     load_controller

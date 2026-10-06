@@ -775,7 +775,7 @@ module Views
                 code { 'preload: false' }
                 plain ' pin). The reactive controller can load that way too, as long as '
                 code { 'phlex/reactive/early' }
-                plain ' is imported eagerly (issue #273). It is under 1.1 KB gzipped (a test asserts '
+                plain ' is imported eagerly (issue #273). It is under 1.3 KB gzipped (a test asserts '
                 plain 'it) and has no Stimulus import. Until a root connects, it queues the trigger events '
                 plain 'that reach it and stops their native default where the controller would; the '
                 plain 'controller replays them when it connects. Without it, a click in the load window '
@@ -920,13 +920,12 @@ module Views
                   plain ') does not list a dormant root.'
                 end
                 li do
-                  plain 'Only element-bound '
                   code { 'on' }
                   plain ' / '
                   code { 'on_client' }
-                  plain ' triggers wake a root. A '
+                  plain ' triggers wake a root, a '
                   code { 'window:' }
-                  plain ' or '
+                  plain ' hotkey pressed anywhere on the page included (issue #303). An '
                   code { 'outside:' }
                   plain ' trigger, and the feature actions (list navigation, tags, nested rows), do not.'
                 end
@@ -946,7 +945,8 @@ module Views
                 li do
                   plain 'Waking costs '
                   code { 'early.js' }
-                  plain ' 53 bytes: 1,007 B → 1,060 B gzipped (bun, level 9), under a 1,100 B test budget.'
+                  plain ' 53 bytes: 1,007 B → 1,060 B gzipped (bun, level 9). Recording hotkeys (issue #303) '
+                  plain 'took it to 1,241 B, under a 1,300 B test budget.'
                 end
               end
             end
@@ -1200,7 +1200,7 @@ module Views
                                    '`phlex-reactive-env` development meta or while a latency delay is stored; ' \
                                    'at connect for a root in debug mode; otherwise the first time a verbose root ' \
                                    'has something to warn about. In production with none of these, never.']],
-                            [[:code, 'phlex/reactive/early'], '1.1 KB',
+                            [[:code, 'phlex/reactive/early'], '1.2 KB',
                              'On every page, if you import it.',
                              'The same.']
                           ])
@@ -1361,14 +1361,16 @@ module Views
                   plain 'where it has to (a draft-keeping root\'s action, a lazy shell\'s load).'
                 end
                 li do
-                  strong { 'A limit of both: ' }
+                  strong { 'Hotkeys, in both: ' }
                   code { 'phlex/reactive/early' }
-                  plain ' does not record '
+                  plain ' records a '
                   code { 'window:' }
-                  plain ' or '
+                  plain ' trigger (issue #303), which is how a hotkey is usually bound: a hotkey pressed '
+                  plain 'before the controller connects wakes a dormant root and is replayed, if the '
+                  plain 'controller connects within 1.5 s of the keypress. It is never prevented, so a '
+                  plain 'browser shortcut on the same key still fires. An '
                   code { 'outside:' }
-                  plain ' triggers, which is how a hotkey is usually bound. A hotkey pressed before the '
-                  plain 'controller connects is lost, and a dormant root cannot be woken by one.'
+                  plain ' trigger is not recorded.'
                 end
               end
             end
