@@ -23,6 +23,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A `hide:`/`show:` hint no longer flips a target that was already in that
+  state (#300).** A `busy:` or `optimistic:` `hide:` aimed at an
+  already-hidden element revealed it when the request settled (or failed), and
+  a `show:` on a visible one hid it. hide/show now undo only what the hint
+  changed, like the class ops.
 - **The browser suite no longer wedges under Falcon when two requests
   overlap (#303).** Transactional system tests pin one connection that the
   test and the server share, guarded by a lock keyed on
