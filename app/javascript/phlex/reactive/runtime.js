@@ -2947,6 +2947,15 @@ export default class extends Controller {
     this.#tokenCache = value
   }
 
+  // A token written into the DOM wins over the cached one (issue #301): an
+  // outside morph (a broadcast, a page refresh, a dormant morph-back) rewrites
+  // the attribute while this controller survives, and Stimulus calls this on
+  // that change and on a reconnect after it. Our own reply's morph writes the
+  // token #extractToken already cached, so dropping the cache changes nothing.
+  tokenValueChanged() {
+    this.#tokenCache = undefined
+  }
+
   // Read the next token for THIS controller — the one that re-renders THIS
   // element's id, never just the first token in the body (issue #46). On a
   // collection of REACTIVE rows the prepended/appended ROW carries its OWN
