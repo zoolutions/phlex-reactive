@@ -1389,15 +1389,17 @@ function earlyReplayEvent(event, el, win) {
 // per trigger element (a WeakMap: a replaced element starts fresh, like a live
 // `once`), and the armed listener's single firing is swallowed. A window-bound
 // descriptor's live call carries the window as currentTarget, not its
-// element, so it is tracked under the ROOT instead (issue #303) and flagged
-// `win`, which keeps it apart from the root's own element-bound descriptors.
+// element, so it is tracked under the ROOT instead (issue #303), flagged
+// `win` (apart from the root's own element-bound descriptors) and told apart
+// from its siblings by the params Stimulus reads off its element.
 const spentEarlyOnce = new WeakMap()
 
-function spendEarlyOnce(owner, { token, type, method, filter, win }) {
+function spendEarlyOnce(owner, { token, type, method, filter, win }, params) {
   let spent = spentEarlyOnce.get(owner)
   if (!spent) spentEarlyOnce.set(owner, (spent = new Map()))
-  if (spent.has(token)) return false
-  spent.set(token, { type, method, filter, win, armed: true })
+  const key = win ? `${token} ${params}` : token
+  if (spent.has(key)) return false
+  spent.set(key, { type, method, filter, win, params, armed: true })
   return true
 }
 
@@ -1415,11 +1417,16 @@ function spendEarlyOnce(owner, { token, type, method, filter, win }) {
 // mapping matches) still runs.
 function earlyOnceSwallows(event, method, keyMappings, root) {
   if (event?.[EARLY_KEY]) return false
-  const replayed = takeEarlyReplay(event, method)
   const win = isWindow(event?.currentTarget)
-  const spent = spentEarlyOnce.get(win ? root : event?.currentTarget)
+  // A window-bound replay is owned by its ROOT: another root's binding on the
+  // same window event is not it (issue #303).
+  const owner = win ? root : event?.currentTarget
+  const replayed = takeEarlyReplay(event, owner, win ? `@${method}` : method)
+  const spent = spentEarlyOnce.get(owner)
+  const params = win && JSON.stringify(event.params)
   for (const entry of spent?.values() ?? []) {
     if (!entry.armed || entry.method !== method || entry.type !== event.type || Boolean(entry.win) !== win) continue
+    if (win && entry.params !== params) continue
     if (entry.filter && !keyFilterMatches(entry.filter, event, keyMappings)) continue
     entry.armed = false
     return true
@@ -1444,8 +1451,8 @@ function markEarlyReplay(event, el, method) {
   counts[method] = (counts[method] ?? 0) + 1
 }
 
-function takeEarlyReplay(event, method) {
-  const counts = event && replayedEarly.get(event)?.get(event.currentTarget)
+function takeEarlyReplay(event, owner, method) {
+  const counts = event && replayedEarly.get(event)?.get(owner)
   if (!counts?.[method]) return false
   counts[method] -= 1
   return true
@@ -1963,20 +1970,20 @@ export default class extends Controller {
     const replay = earlyReplayEvent(event, el, win)
     const keyMappings = this.application?.schema?.keyMappings
     const tokens = (el.getAttribute("data-action") ?? "").split(/\s+/)
+    // A window-bound entry belongs to this root, not to `el` (issue #303).
+    const owner = win ? this.element : el
     for (const desc of descs) {
       if (!tokens.includes(desc.token)) continue
       if (desc.filter && !keyFilterMatches(desc.filter, event, keyMappings)) continue
       // (`:once` is read off the token: early.js keeps its records minimal.)
-      // A window-bound one is tracked under the root (spendEarlyOnce).
       if (/#\w+.*:once\b/.test(desc.token)) {
-        const owner = win ? this.element : el
-        if (!spendEarlyOnce(owner, desc)) continue
+        if (!spendEarlyOnce(owner, desc, win && JSON.stringify(replay.params))) continue
         this.#earlySpentOn.add(owner)
       }
       // The original may still be propagating (issue #274): its live arrival at
       // `el` — or at the window, for a window-bound entry — must not run this
       // binding again (earlyOnceSwallows).
-      markEarlyReplay(event, replay.currentTarget, desc.method)
+      markEarlyReplay(event, owner, win ? `@${desc.method}` : desc.method)
       if (desc.method === "runOps") this.runOps(replay)
       else this.dispatch(replay)
     }

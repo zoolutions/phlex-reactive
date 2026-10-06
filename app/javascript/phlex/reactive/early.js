@@ -119,6 +119,9 @@ function record(event) {
 const windowBound = new Set()
 
 function recordWindow(event) {
+  // Stimulus's window listener is a bubble-phase one: a non-bubbling event
+  // (focus, mouseenter) from inside the page never reaches it.
+  if (!event.bubbles && event.target !== event.currentTarget) return
   for (const el of windowBound) {
     if (!el.isConnected) {
       windowBound.delete(el)

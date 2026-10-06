@@ -289,14 +289,77 @@ test("a hotkey replayed while its original still propagates is not run again by 
   // The waking keypress connects the controller mid-propagation (an eagerly
   // registered controller), then reaches Stimulus's freshly bound window
   // listener — bubble phase on window, after everything else.
-  document.addEventListener("keydown", () => (controller ??= realConnect(root)))
-  window.addEventListener("keydown", (event) => {
+  const connectNow = () => (controller ??= realConnect(root))
+  const stimulusWindowListener = (event) => {
     event.params = { action: "toggle", window: true }
     controller.dispatch(event)
-  })
-  press(document.body, "k")
+  }
+  document.addEventListener("keydown", connectNow)
+  window.addEventListener("keydown", stimulusWindowListener)
+  try {
+    press(document.body, "k")
+  } finally {
+    document.removeEventListener("keydown", connectNow)
+    window.removeEventListener("keydown", stimulusWindowListener)
+  }
 
   expect(seen).toEqual(["toggle"])
+})
+
+test("a replay's mark belongs to its root: another root's live window binding on the same keypress still runs", async () => {
+  const page = await mount(`
+    <div>
+      <div id="a" data-controller="reactive"><span data-action="keydown.k@window->reactive#dispatch" data-reactive-action-param="a" data-reactive-window-param="true"></span></div>
+      <div id="b" data-controller="reactive"><span data-action="keydown.k@window->reactive#dispatch" data-reactive-action-param="b" data-reactive-window-param="true"></span></div>
+    </div>`)
+  const [a, b] = [page.querySelector("#a"), page.querySelector("#b")]
+  const seenA = countDispatches(a)
+  const seenB = countDispatches(b)
+  const controllerB = realConnect(b)
+  let controllerA
+  const connectA = () => (controllerA ??= realConnect(a))
+  // Stimulus's window listeners, B's bound first: B hears the keypress before A.
+  const listenB = (event) => controllerB.dispatch(Object.assign(event, { params: { action: "b", window: true } }))
+  const listenA = (event) => controllerA.dispatch(Object.assign(event, { params: { action: "a", window: true } }))
+  document.addEventListener("keydown", connectA)
+  window.addEventListener("keydown", listenB)
+  window.addEventListener("keydown", listenA)
+  try {
+    press(document.body, "k")
+  } finally {
+    document.removeEventListener("keydown", connectA)
+    window.removeEventListener("keydown", listenB)
+    window.removeEventListener("keydown", listenA)
+  }
+
+  expect(seenA).toEqual(["a"])
+  expect(seenB).toEqual(["b"])
+})
+
+test("two :once window bindings on separate elements of one root each replay, and each swallows its own live firing", async () => {
+  const root = await mount(`
+    <div id="p" data-controller="reactive">
+      <span data-action="keydown.k@window->reactive#dispatch:once" data-reactive-action-param="first" data-reactive-window-param="true"></span>
+      <span data-action="keydown.k@window->reactive#dispatch:once" data-reactive-action-param="second" data-reactive-window-param="true"></span>
+    </div>`)
+  const seen = countDispatches(root)
+  press(document.body, "k")
+  const controller = realConnect(root)
+  expect(seen.sort()).toEqual(["first", "second"])
+
+  // Stimulus's still-armed once listeners: one live call per binding.
+  controller.dispatch({ ...liveWindowEvent("k"), params: { action: "first", window: true } })
+  controller.dispatch({ ...liveWindowEvent("k"), params: { action: "second", window: true } })
+  expect(seen).toHaveLength(2)
+})
+
+test("a non-bubbling event from inside the page is not recorded (Stimulus's window listener never hears it)", async () => {
+  await mount(`<div id="p" data-controller="reactive"><input id="i" data-action="focus@window->reactive#dispatch"></div>`)
+  document.querySelector("#i").dispatchEvent(new window.Event("focus"))
+  expect(state().queue).toHaveLength(0)
+
+  window.dispatchEvent(new window.Event("focus"))
+  expect(state().queue).toHaveLength(1)
 })
 
 test("a spent :once hotkey swallows the still-armed window listener's firing; an element-bound call is not that binding", async () => {

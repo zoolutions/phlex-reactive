@@ -130,7 +130,8 @@ module Views
                     'it on connect. That includes a '
               code { 'window:' }
               plain ' hotkey pressed anywhere on the page: it is never prevented, and it is replayed ' \
-                    'only if the controller connects within 1.5 s of the keypress. Two limits: a ' \
+                    'only if the controller connects within 1.5 s of the keypress (or the early-event ' \
+                    'TTL, if that is shorter). Two limits: a ' \
                     'captured link or form trigger has its native behavior stopped while it waits, ' \
                     'so it does nothing if the controller never loads; and other controller actions ' \
                     '(nested rows, tags, list navigation, compute) and '

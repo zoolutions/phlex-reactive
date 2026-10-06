@@ -946,7 +946,7 @@ module Views
                   plain 'Waking costs '
                   code { 'early.js' }
                   plain ' 53 bytes: 1,007 B → 1,060 B gzipped (bun, level 9). Recording hotkeys (issue #303) '
-                  plain 'took it to 1,241 B, under a 1,300 B test budget.'
+                  plain 'took it to 1,256 B, under a 1,300 B test budget.'
                 end
               end
             end
@@ -1367,7 +1367,8 @@ module Views
                   code { 'window:' }
                   plain ' trigger (issue #303), which is how a hotkey is usually bound: a hotkey pressed '
                   plain 'before the controller connects wakes a dormant root and is replayed, if the '
-                  plain 'controller connects within 1.5 s of the keypress. It is never prevented, so a '
+                  plain 'controller connects within 1.5 s of the keypress (or the early-event TTL, if that is '
+                  plain 'shorter). It is never prevented, so a '
                   plain 'browser shortcut on the same key still fires. An '
                   code { 'outside:' }
                   plain ' trigger is not recorded.'
