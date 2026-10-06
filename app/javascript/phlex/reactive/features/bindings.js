@@ -72,12 +72,15 @@ export function connect(controller, core) {
       // Only a user edit pushes the header onto its group; a morph (whose
       // turbo:morph-element bubbles from the header too) derives it instead.
       if (event?.type === "input" || event?.type === "change") flipGroup(c, event.target)
+      // Whether this root has group bindings is read at connect and again on
+      // a morph (which may add one) — never per keystroke.
+      else c.groups = hasGroups(c)
       syncShow(c)
     }
     root.addEventListener?.("input", c.boundSyncShow)
     root.addEventListener?.("change", c.boundSyncShow)
     root.addEventListener?.("turbo:morph-element", c.boundSyncShow)
-    syncShow(c)
+    c.boundSyncShow()
     observeGroups(c)
   }
 
@@ -459,7 +462,7 @@ function syncShow(c) {
 
   // The group bindings (issue #319) and the cross-root pass (issue #164)
   // share the same owned-field memo, so a field driving several reads once.
-  syncGroups(c, fieldValue, owns, scope)
+  if (c.groups) syncGroups(c, fieldValue, owns, scope)
   syncShowTargets(c, fieldValue)
 }
 
@@ -635,6 +638,12 @@ function fieldResolver(c, owns) {
 // morph, and when boxes are added or removed (observeGroups).
 const GROUP_BINDING_SELECTOR = "[data-reactive-enable], [data-reactive-select-all], [data-reactive-count]"
 
+// Whether the root holds any group binding (owned or not — a stray nested
+// one only costs the walk, which still skips it).
+function hasGroups(c) {
+  return !!c.root.querySelector?.(GROUP_BINDING_SELECTOR)
+}
+
 // The owned checkboxes of a group (a nested root's boxes are its own, #15).
 function groupBoxes(c, name, owns, scope) {
   return [...c.root.querySelectorAll(namedSelector(name, scope))].filter((el) => el.type === "checkbox" && owns(el))
@@ -696,7 +705,7 @@ function observeGroups(c) {
   if (!c.root.querySelector?.(`${GROUP_BINDING_SELECTOR}, [data-reactive-show*=checked_]`)) return
   const boxIn = (node) => node.nodeType === 1 && (node.matches('input[type="checkbox"]') || !!node.querySelector('input[type="checkbox"]'))
   c.groupObserver = new MutationObserver((records) => {
-    if (records.some((r) => [...r.addedNodes, ...r.removedNodes].some(boxIn))) syncShow(c)
+    if (records.some((r) => [...r.addedNodes, ...r.removedNodes].some(boxIn))) c.boundSyncShow()
   })
   c.groupObserver.observe(c.root, { childList: true, subtree: true })
 }

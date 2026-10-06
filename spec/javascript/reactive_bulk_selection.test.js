@@ -264,6 +264,26 @@ test("the count write is change-guarded (an unchanged count leaves the text node
   expect($("#count").firstChild).toBe(node)
 })
 
+test("a show-only root never walks for group bindings on a keystroke", () => {
+  const show = JSON.stringify({ any: [[{ field: "mode", equals: "a" }]] }).replaceAll('"', "&quot;")
+  const { root, $ } = mount(
+    `<div data-controller="reactive"><input name="mode" value="a"><p id="p" data-reactive-show="${show}">x</p></div>`,
+  )
+  const seen = []
+  const original = root.querySelectorAll.bind(root)
+  root.querySelectorAll = (sel) => (seen.push(sel), original(sel))
+  $("[name=mode]").dispatchEvent(new window.Event("input", { bubbles: true }))
+  expect(seen.some((sel) => sel.includes("data-reactive-count"))).toBe(false)
+})
+
+test("a group binding a morph adds is picked up by the morph's re-sync", () => {
+  const { root, $ } = mount(LIST.replace('<span id="count" data-reactive-count="ids[]">0</span>', ""))
+  $("[name='ids[]']").checked = true
+  root.insertAdjacentHTML("beforeend", '<span id="late" data-reactive-count="ids[]">?</span>')
+  root.dispatchEvent(new window.Event("turbo:morph-element", { bubbles: true }))
+  expect($("#late").textContent).toBe("1")
+})
+
 test("a root without a group binding installs no MutationObserver", () => {
   let observed = 0
   globalThis.MutationObserver = class {

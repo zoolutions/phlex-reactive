@@ -365,7 +365,7 @@ module Views
                 sibling: the same conditions and first paint, but it flips the
                 element's own `disabled` (a button, a fieldset).
               - **Rows added later** by a Turbo stream `append` — or removed —
-                re-sync the header, the count and every binding: a root with a
+                re-sync the header, the count, `reactive_enable` and `reactive_show`: a root with a
                 group binding watches its subtree for added or removed checkboxes.
               - A nested reactive root's boxes are never counted or flipped by
                 the outer root (#15 ownership).

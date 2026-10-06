@@ -18,12 +18,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `{ checked: n }` / `{ checked: 1.. }` — the ticked count of a checkbox group,
   in every binding that takes conditions, evaluated for first paint from
   `reactive_values` (an Array of checked values, or a count). Rows appended or
-  removed by a stream re-sync the header, the count and the bindings; a
+  removed by a stream re-sync the header, the count and the show/enable bindings (`reactive_on_complete` re-evaluates on the next edit); a
   nested root's boxes are never counted or flipped. `js.submit(to,
   submitter: "#delete-submit")` submits through that submit control, so its
   `name=value` posts; anything that is not a submit control of the form warns
   and falls back to a plain submit. The client grows by about 0.7 KB gzip
-  (the default bundle 24,976 → 25,715 B).
+  (the default bundle 24,976 → 25,740 B).
 
 ### Performance
 

@@ -1547,7 +1547,7 @@ end
   triggers, but it flips the element's own `disabled`. An explicit `disabled:`
   wins.
 - **Rows added or removed later** (a Turbo stream `append`/`remove`, a morph)
-  re-sync the header, the count and every binding: a root with a group binding
+  re-sync the header, the count, `reactive_enable` and `reactive_show` (and its targets): a root with a group binding
   watches its subtree and re-syncs when a checkbox is added or removed.
 - **Ownership** is the usual rule (#15): a nested reactive root's boxes are
   never counted or flipped by the outer root.

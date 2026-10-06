@@ -22,7 +22,7 @@ RSpec.describe "Bulk selection (issue #319)", type: :system do
 
   before { visit "/bulk_selection" }
 
-  it "paints the enables disabled on the server, before any JavaScript runs" do
+  it "starts with the enables disabled (the server HTML is proven in selection_helpers_spec)" do
     expect(page).to have_css("[data-testid='delete'][disabled]")
     expect(page).to have_css("fieldset[data-testid='actions'][disabled]")
   end
