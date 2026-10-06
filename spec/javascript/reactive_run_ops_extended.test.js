@@ -30,6 +30,7 @@ let ReactiveController
 const REAL = {
   setTimeout: globalThis.setTimeout,
   requestAnimationFrame: globalThis.requestAnimationFrame,
+  cancelAnimationFrame: globalThis.cancelAnimationFrame,
   CustomEvent: globalThis.CustomEvent,
 }
 
@@ -45,6 +46,7 @@ beforeAll(async () => {
 afterEach(() => {
   globalThis.setTimeout = REAL.setTimeout
   globalThis.requestAnimationFrame = REAL.requestAnimationFrame
+  globalThis.cancelAnimationFrame = REAL.cancelAnimationFrame
   globalThis.CustomEvent = REAL.CustomEvent
 })
 
@@ -73,6 +75,9 @@ function makeEl({ owner = null } = {}) {
       return true
     },
     addEventListener: (name, cb, opts) => el.listeners.set(name, { cb, opts }),
+    removeEventListener: (name, cb) => {
+      if (el.listeners.get(name)?.cb === cb) el.listeners.delete(name)
+    },
     querySelectorAll: () => [],
   }
   el.classList = {
@@ -437,4 +442,112 @@ test("a non-animated element does NOT hang: the setTimeout fallback cleans up", 
   expect(menu.classes.has("t-fade")).toBe(true) // still mid-transition
   timeoutCb() // the fallback fires (animationend never came)
   expect(menu.classes.has("t-fade")).toBe(false)
+})
+
+// The settle bugs effects.js had (#296), in runTransition: animationend and
+// transitionend both BUBBLE, so a descendant's end event must not clean the
+// parent's transition classes up early, and settling drops BOTH listeners
+// (`once` would drop only the one that fired — or let a child's event consume it).
+function startTransition(op = "show") {
+  const root = makeRoot()
+  const menu = makeEl({ owner: root })
+  root.querySelectorAll = () => [menu]
+  const controller = buildController(root)
+  globalThis.requestAnimationFrame = (cb) => (cb(), 1)
+  fire(controller, { ops: [[op, { to: "#menu", transition: ["t-fade", "from", "to"] }]] })
+  return menu
+}
+
+test("a CSS transition settles on the element's own transitionend", () => {
+  const menu = startTransition()
+
+  const listener = menu.listeners.get("transitionend")
+  expect(listener).toBeDefined()
+  listener.cb({ target: menu })
+
+  expect(menu.classes.has("t-fade")).toBe(false)
+  expect(menu.classes.has("to")).toBe(false)
+})
+
+test("a descendant's bubbling transitionend/animationend does NOT settle the parent", () => {
+  const menu = startTransition()
+  const child = makeEl()
+
+  menu.listeners.get("transitionend").cb({ target: child })
+  menu.listeners.get("animationend").cb({ target: child })
+
+  // Still mid-transition, and still listening for its OWN end event.
+  expect(menu.classes.has("t-fade")).toBe(true)
+  expect(menu.classes.has("to")).toBe(true)
+  expect(menu.listeners.has("animationend")).toBe(true)
+  expect(menu.listeners.has("transitionend")).toBe(true)
+
+  menu.listeners.get("animationend").cb({ target: menu })
+  expect(menu.classes.has("t-fade")).toBe(false)
+})
+
+test("settling removes BOTH end listeners, whichever event fired", () => {
+  const menu = startTransition()
+  menu.listeners.get("animationend").cb({ target: menu })
+  expect(menu.listeners.has("animationend")).toBe(false)
+  expect(menu.listeners.has("transitionend")).toBe(false)
+
+  const other = startTransition("hide")
+  other.listeners.get("transitionend").cb({ target: other })
+  expect(other.listeners.has("animationend")).toBe(false)
+  expect(other.listeners.has("transitionend")).toBe(false)
+})
+
+test("the fallback timer settles and removes both listeners too", () => {
+  const root = makeRoot()
+  const menu = makeEl({ owner: root })
+  root.querySelectorAll = () => [menu]
+  const controller = buildController(root)
+  globalThis.requestAnimationFrame = (cb) => (cb(), 1)
+  let timeoutCb = null
+  globalThis.setTimeout = (cb) => {
+    timeoutCb = cb
+    return 1
+  }
+
+  fire(controller, { ops: [["hide", { to: "#menu", transition: ["t-fade", "from", "to"] }]] })
+  timeoutCb()
+
+  expect(menu.classes.has("t-fade")).toBe(false)
+  expect(menu.listeners.has("animationend")).toBe(false)
+  expect(menu.listeners.has("transitionend")).toBe(false)
+})
+
+// A hidden tab never runs rAF, but the 350 ms fallback is armed synchronously
+// (not behind the frame), so cleanup still happens. What must not happen is the
+// late frame — run when the tab wakes — re-adding `to` after cleanup, or `from`
+// staying behind: cleanup drops all three classes and cancels the pending frame.
+test("a never-firing rAF (hidden tab): the fallback cleans up all classes and cancels the frame", () => {
+  const root = makeRoot()
+  const menu = makeEl({ owner: root })
+  root.querySelectorAll = () => [menu]
+  const controller = buildController(root)
+  let rafCb = null
+  globalThis.requestAnimationFrame = (cb) => {
+    rafCb = cb
+    return 42
+  }
+  const canceled = []
+  globalThis.cancelAnimationFrame = (id) => canceled.push(id)
+  let timeoutCb = null
+  globalThis.setTimeout = (cb) => {
+    timeoutCb = cb
+    return 1
+  }
+
+  fire(controller, { ops: [["show", { to: "#menu", transition: ["t-fade", "from", "to"] }]] })
+  expect(menu.hidden).toBe(false)
+  timeoutCb() // the frame never came
+
+  expect([...menu.classes]).toEqual([])
+  expect(canceled).toEqual([42])
+
+  // Even if the browser runs the stale frame anyway, it must not re-add `to`.
+  rafCb()
+  expect([...menu.classes]).toEqual([])
 })

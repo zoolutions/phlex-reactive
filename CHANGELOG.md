@@ -1230,6 +1230,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A `transition:` on show/hide/toggle no longer ends when a child's
+  animation or transition does.** `runTransition` had the settle bugs #296
+  fixed in effects: a descendant's bubbling `animationend` consumed its
+  `{ once: true }` listener and stripped the `during`/`to` classes early, and
+  a CSS transition's own `transitionend` was never listened for. Only the
+  element's own end event (or the 350 ms fallback) settles it now, and
+  settling removes both listeners. In a hidden tab the fallback already
+  cleaned up (it never waited on a frame), but the late frame then re-added
+  `to` for good; cleanup now cancels that frame and clears `from` too.
+
 - **A custom-legs exit effect no longer waits for a background tab to become
   visible (#295).** The legs choreography awaited an animation frame before
   any timeout was armed, so in a hidden tab (no `requestAnimationFrame`) the
