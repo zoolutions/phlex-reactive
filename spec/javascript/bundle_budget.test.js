@@ -91,7 +91,8 @@ const SLACK = 250
 // feature; what remains is the features' own code, not how they are written
 // as modules. runTransition's settle fix (its own end event only, both
 // listeners dropped, transitionend, a late frame canceled) adds 37 B: 24,962 B.
-const BUNDLE_GZIP_CEILING = 24_962
+// Its run token and computed-duration fallback add 212 B: 25,174 B.
+const BUNDLE_GZIP_CEILING = 25_174
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -107,8 +108,9 @@ const TARGET_BUNDLE_GZIP = 22_700
 // bindings) adds 129 B: 12,817 B; its review fixes (the morph-installed
 // observer, show-target checked_* re-sync) add 14 B: 12,831 B. Issue #310
 // (feature internals only) leaves it unchanged. runTransition's settle fix
-// adds 51 B: 12,882 B.
-const CORE_GZIP_CEILING = 12_882
+// adds 51 B: 12,882 B. Its run token and computed-duration fallback add
+// 199 B: 13,081 B.
+const CORE_GZIP_CEILING = 13_081
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -131,8 +133,9 @@ const FEATURE_GZIP_CEILINGS = {
 // The backlog fixes (#292-#301, #295/#296) together use the 150 B of room and
 // 37 B more: 31,787 B. Issue #319 (bulk selection, in the core and bindings)
 // adds 781 B: 32,568 B. Issue #310 (the features' internals) recovers 541 B:
-// 32,027 B. runTransition's settle fix (in the core) adds 51 B: 32,078 B.
-const SPLIT_TOTAL_GZIP_CEILING = 32_078
+// 32,027 B. runTransition's settle fix (in the core) adds 51 B: 32,078 B;
+// its run token and computed-duration fallback add 199 B: 32,277 B.
+const SPLIT_TOTAL_GZIP_CEILING = 32_277
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

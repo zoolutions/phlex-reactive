@@ -503,8 +503,14 @@ function attrRefused(name) {
 // not behind the frame, so a hidden tab (no rAF) still cleans up; cleanup then
 // cancels the pending frame and clears `from` too, so a late frame can't leave
 // `to` (or `from`) stuck. A one-shot `done` guard runs cleanup exactly once.
+// One run per element: a new run first settles the live one (its classes,
+// timer, listeners and frame), so a superseded run's late wakeups can't strip
+// the new run's classes. The fallback follows the element's computed
+// durations (transitionFallbackMs), so a 600 ms transition isn't cut at 350.
+const transitionRuns = new WeakMap()
 function runTransition(el, transition, flip) {
   const [during, from, to] = transition
+  transitionRuns.get(el)?.()
   el.classList.add(during, from)
   flip()
   let done = false
@@ -517,16 +523,41 @@ function runTransition(el, transition, flip) {
   const cleanup = (event) => {
     if (done || (event && event.target !== el)) return
     done = true
+    transitionRuns.delete(el)
+    clearTimeout(timer)
     globalThis.cancelAnimationFrame?.(frame)
     el.removeEventListener("animationend", cleanup)
     el.removeEventListener("transitionend", cleanup)
     el.classList.remove(during, from, to)
   }
+  transitionRuns.set(el, cleanup)
   el.addEventListener("animationend", cleanup)
   el.addEventListener("transitionend", cleanup)
-  // ~10% over a common 300ms transition; also the ONLY path for a non-animated
-  // element (no end event fires there), so it must always be scheduled.
-  setTimeout(cleanup, 350)
+  // Also the ONLY path for a non-animated element (no end event fires there),
+  // so it must always be scheduled — and never behind the frame.
+  const timer = setTimeout(cleanup, transitionFallbackMs(el))
+}
+
+// The longest computed duration+delay pair over the transition and animation
+// lists (CSS repeats the shorter list), plus 50 ms; 350 ms when nothing is
+// declared (or there is no computed style), capped at 5 s so a bogus value
+// can't wedge the classes on. Read once `during` is on the element.
+function transitionFallbackMs(el) {
+  let longest = 0
+  try {
+    const style = getComputedStyle(el)
+    for (const kind of ["transition", "animation"]) {
+      const [durations, delays] = ["Duration", "Delay"].map((name) =>
+        String(style[kind + name])
+          .split(",")
+          .map((v) => parseFloat(v) * (/ms/.test(v) ? 1 : 1000) || 0),
+      )
+      for (let i = 0; i < durations.length || i < delays.length; i++) {
+        longest = Math.max(longest, durations[i % durations.length] + delays[i % delays.length])
+      }
+    }
+  } catch {}
+  return Math.min(Math.max(longest + 50, 350), 5000)
 }
 
 // Rich-text and contenteditable fields, as #collectFields reads them (minus

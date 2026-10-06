@@ -1235,10 +1235,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   fixed in effects: a descendant's bubbling `animationend` consumed its
   `{ once: true }` listener and stripped the `during`/`to` classes early, and
   a CSS transition's own `transitionend` was never listened for. Only the
-  element's own end event (or the 350 ms fallback) settles it now, and
-  settling removes both listeners. In a hidden tab the fallback already
-  cleaned up (it never waited on a frame), but the late frame then re-added
-  `to` for good; cleanup now cancels that frame and clears `from` too.
+  element's own end event (or the fallback) settles it now, and settling
+  removes both listeners. In a hidden tab the fallback already cleaned up (it
+  never waited on a frame), but the late frame then re-added `to` for good;
+  cleanup now cancels that frame and clears `from` too. Rapid show/hide on one
+  element no longer lets a superseded run's late cleanup strip the new run's
+  classes: a new run settles the live one first (its classes, timer,
+  listeners and frame). And the fallback is no longer a fixed 350 ms that cut
+  longer transitions short: it follows the element's computed
+  transition/animation durations plus delays (+50 ms), with 350 ms as the
+  floor and a 5 s cap.
 
 - **A custom-legs exit effect no longer waits for a background tab to become
   visible (#295).** The legs choreography awaited an animation frame before
