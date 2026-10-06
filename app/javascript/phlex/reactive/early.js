@@ -115,9 +115,9 @@ function record(event) {
 }
 
 // The elements carrying an `@window` reactive descriptor (issue #303), fed by
-// the scan. One that left the page is dropped by the next scan (a Turbo Drive
-// visit swaps the body, so the old page's triggers do not keep it alive) or
-// when next seen by the listener.
+// the scan. One that left the page is dropped once per mutation batch (a
+// Turbo Drive visit swaps the body, so the old page's triggers do not keep it
+// alive) or when next seen by the listener.
 const windowBound = new Set()
 export const __windowBoundForTest = windowBound
 
@@ -152,7 +152,6 @@ function recordWindow(event) {
 export function startEarly(doc = document) {
   const scan = (node) => {
     if (node.nodeType !== 1) return
-    for (const el of windowBound) if (!el.isConnected) windowBound.delete(el)
     for (const el of [node, ...node.querySelectorAll('[data-action*="reactive#"]')]) {
       for (const { type, win } of descriptors(el)) {
         if (win) windowBound.add(el)
@@ -160,8 +159,15 @@ export function startEarly(doc = document) {
       }
     }
   }
+  // Once per batch of markup, not per added node: drop the window-bound
+  // triggers that left the page (a Turbo Drive visit swaps the whole body).
+  const prune = () => {
+    for (const el of windowBound) if (!el.isConnected) windowBound.delete(el)
+  }
+  prune()
   scan(doc.documentElement)
   new MutationObserver((mutations) => {
+    prune()
     for (const m of mutations) m.type === "attributes" ? scan(m.target) : m.addedNodes.forEach(scan)
   }).observe(doc.documentElement, { childList: true, subtree: true, attributeFilter: ["data-action"] })
 }
