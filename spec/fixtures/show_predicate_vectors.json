@@ -279,6 +279,60 @@
       "groups": [[{ "field": "code", "len_lt": 6 }], [{ "field": "code", "len_gt": 6 }]],
       "values": { "code": "123456" },
       "expect": false
+    },
+    {
+      "name": "checked_gte 1 with two ticked (issue #319 checked count; an Array value is the group's CHECKED values)",
+      "groups": [[{ "field": "ids[]", "checked_gte": 1 }]],
+      "values": { "ids[]": ["3", "7"] },
+      "expect": true
+    },
+    {
+      "name": "checked_gte 1 with none ticked",
+      "groups": [[{ "field": "ids[]", "checked_gte": 1 }]],
+      "values": { "ids[]": [] },
+      "expect": false
+    },
+    {
+      "name": "checked_eq exact count",
+      "groups": [[{ "field": "ids[]", "checked_eq": 2 }]],
+      "values": { "ids[]": ["3", "7"] },
+      "expect": true
+    },
+    {
+      "name": "checked_gt strict at boundary",
+      "groups": [[{ "field": "ids[]", "checked_gt": 2 }]],
+      "values": { "ids[]": ["3", "7"] },
+      "expect": false
+    },
+    {
+      "name": "checked_lte at boundary",
+      "groups": [[{ "field": "ids[]", "checked_lte": 2 }]],
+      "values": { "ids[]": ["3", "7"] },
+      "expect": true
+    },
+    {
+      "name": "checked_lt below",
+      "groups": [[{ "field": "ids[]", "checked_lt": 2 }]],
+      "values": { "ids[]": ["3"] },
+      "expect": true
+    },
+    {
+      "name": "absent group counts as zero ticked (checked_eq 0 matches)",
+      "groups": [[{ "field": "ids[]", "checked_eq": 0 }]],
+      "values": {},
+      "expect": true
+    },
+    {
+      "name": "unless checked complement — some ticked matches the checked_gt 0 group",
+      "groups": [[{ "field": "ids[]", "checked_lt": 0 }], [{ "field": "ids[]", "checked_gt": 0 }]],
+      "values": { "ids[]": ["1"] },
+      "expect": true
+    },
+    {
+      "name": "checked count ANDs with a sibling field",
+      "groups": [[{ "field": "ids[]", "checked_gte": 1 }, { "field": "mode", "equals": "bulk" }]],
+      "values": { "ids[]": ["1"], "mode": "single" },
+      "expect": false
     }
   ]
 }

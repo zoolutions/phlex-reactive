@@ -61,11 +61,19 @@ export function connect(controller, core) {
   // element connected, fires no Stimulus lifecycle, and may preserve a
   // user-edited field value the server's hidden attrs don't reflect).
   if (showSyncEnabled(c)) {
-    c.boundSyncShow = () => syncShow(c)
+    // A select-all header's change flips its group first (issue #319); the
+    // change events it dispatches re-enter here and are skipped while it
+    // flips, so the pass after the loop runs once, not once per box.
+    c.boundSyncShow = (event) => {
+      if (c.flipping) return
+      if (event?.type === "change") flipGroup(c, event.target)
+      syncShow(c)
+    }
     root.addEventListener?.("input", c.boundSyncShow)
     root.addEventListener?.("change", c.boundSyncShow)
     root.addEventListener?.("turbo:morph-element", c.boundSyncShow)
     syncShow(c)
+    observeGroups(c)
   }
 
   // Completion bindings (issue #226) — ONLY when the root declares
@@ -154,6 +162,7 @@ export function disconnect(controller) {
     root.removeEventListener?.("change", c.boundSyncShow)
     root.removeEventListener?.("turbo:morph-element", c.boundSyncShow)
   }
+  c.groupObserver?.disconnect()
   if (c.boundSyncOnComplete) {
     root.removeEventListener?.("input", c.boundSyncOnComplete)
     root.removeEventListener?.("change", c.boundSyncOnComplete)
@@ -356,6 +365,7 @@ function showSyncEnabled(c) {
   // both selectors gate the sync.
   const nodes = c.root.querySelectorAll?.(SHOW_BINDING_SELECTOR) ?? []
   for (const el of nodes) if (c.core.owns(el)) return true
+  for (const el of c.root.querySelectorAll?.(GROUP_BINDING_SELECTOR) ?? []) if (c.core.owns(el)) return true
   return false
 }
 
@@ -390,13 +400,7 @@ function syncOnComplete(c, event) {
   const bindings = onCompleteBindings(c)
   if (!bindings.length) return
 
-  const owns = c.core.ownership()
-  const scope = c.root.getAttribute?.("data-reactive-scope") || null
-  const values = new Map()
-  const fieldValue = (name) => {
-    if (!values.has(name)) values.set(name, showFieldValue(c, name, owns, scope))
-    return values.get(name)
-  }
+  const fieldValue = fieldResolver(c, c.core.ownership())
   bindings.forEach((binding, i) => {
     const matches = anyOfAllsMatches(binding.any, fieldValue)
     if (matches === null) return
@@ -421,14 +425,10 @@ function syncShow(c) {
 
   const owns = c.core.ownership()
   const scope = c.root.getAttribute?.("data-reactive-scope") || null
-  const values = new Map()
   // A memoized resolver shared by every binding in this pass — a field driving
   // several bindings (and several DNF terms) reads exactly once. Scope-aware:
   // a bare field `director` resolves as `[name="scope[director]"]` (issue #180).
-  const fieldValue = (name) => {
-    if (!values.has(name)) values.set(name, showFieldValue(c, name, owns, scope))
-    return values.get(name)
-  }
+  const fieldValue = fieldResolver(c, owns)
   for (const el of c.root.querySelectorAll(SHOW_BINDING_SELECTOR)) {
     if (!owns(el)) continue // a nested root's binding is its own controller's job
 
@@ -452,8 +452,9 @@ function syncShow(c) {
     applyShowVisibility(c, el, match, owns, scope)
   }
 
-  // The cross-root pass (issue #164) shares the same owned-field memo, so a
-  // field driving both an owned binding and an outside target reads once.
+  // The group bindings (issue #319) and the cross-root pass (issue #164)
+  // share the same owned-field memo, so a field driving several reads once.
+  syncGroups(c, fieldValue, owns, scope)
   syncShowTargets(c, fieldValue)
 }
 
@@ -580,13 +581,9 @@ function parseShowTargets(c) {
 // when none is); anything else reports .value first-wins. Returns null when
 // no owned field carries the name — the caller then leaves visibility alone.
 function showFieldValue(c, name, owns, scope) {
-  // Scope (issue #180): a bare field `director` under `data-reactive-scope=
-  // "form"` resolves as `[name="form[director]"]`. A name already carrying a
-  // bracket (a raw wire name the author passed) is used verbatim.
-  const domName = scope && !name.includes("[") ? `${scope}[${name}]` : name
   let sawRadio = false
   let first = null
-  for (const el of c.root.querySelectorAll(`[name="${domName}"]`)) {
+  for (const el of c.root.querySelectorAll(namedSelector(name, scope))) {
     if (!owns(el)) continue
     if (el.type === "checkbox") return el.checked ? "true" : "false"
     if (el.type === "radio") {
@@ -598,6 +595,103 @@ function showFieldValue(c, name, owns, scope) {
   }
   if (first) return first.value ?? ""
   return sawRadio ? "" : null
+}
+
+// Scope (issue #180): a bare field `director` under `data-reactive-scope=
+// "form"` resolves as `[name="form[director]"]`. A name already carrying a
+// bracket (a raw wire name the author passed, like "ids[]") is used verbatim.
+function namedSelector(name, scope) {
+  return `[name="${scope && !name.includes("[") ? `${scope}[${name}]` : name}"]`
+}
+
+// The per-pass field resolver every DNF fold reads (show, enable, on-complete).
+// fieldValue(name) is the field's string value; fieldValue(name, true) is how
+// many owned boxes of that checkbox group are ticked (the checked_* terms,
+// issue #319). Memoized, so a field driving several bindings reads once.
+function fieldResolver(c, owns) {
+  const scope = c.root.getAttribute?.("data-reactive-scope") || null
+  const values = new Map()
+  return (name, count) => {
+    const key = count ? `#${name}` : name
+    if (!values.has(key)) {
+      values.set(key, count ? groupBoxes(c, name, owns, scope).filter((box) => box.checked).length : showFieldValue(c, name, owns, scope))
+    }
+    return values.get(key)
+  }
+}
+
+// --- Bulk selection (issue #319) ---------------------------------------------
+// A checkbox GROUP is the owned boxes sharing one name. Three bindings read it:
+// the select-all header (data-reactive-select-all), the ticked count
+// (data-reactive-count), and the checked_* terms any condition can use —
+// reactive_enable (data-reactive-enable) flips the element's own `disabled`
+// from one. They re-sync with the show pass: on every input/change, on a
+// morph, and when boxes are added or removed (observeGroups).
+const GROUP_BINDING_SELECTOR = "[data-reactive-enable], [data-reactive-select-all], [data-reactive-count]"
+
+// The owned checkboxes of a group (a nested root's boxes are its own, #15).
+function groupBoxes(c, name, owns, scope) {
+  return [...c.root.querySelectorAll(namedSelector(name, scope))].filter((el) => el.type === "checkbox" && owns(el))
+}
+
+// A header's change ticks or unticks every owned box of its group, and
+// dispatches `change` on each one it flips so computes, shows and on-complete
+// bindings see a real edit. The re-entrant change events are skipped by the
+// show listener while this runs (c.flipping); it syncs once afterwards.
+function flipGroup(c, header) {
+  const group = header?.getAttribute?.("data-reactive-select-all")
+  if (!group || !c.core.owns(header)) return
+  const scope = c.root.getAttribute?.("data-reactive-scope") || null
+  c.flipping = true
+  try {
+    for (const box of groupBoxes(c, group, c.core.ownership(), scope)) {
+      if (box === header || box.checked === header.checked) continue
+      box.checked = header.checked
+      box.dispatchEvent?.(new Event("change", { bubbles: true }))
+    }
+  } finally {
+    c.flipping = false
+  }
+}
+
+// One pass over the owned group bindings: enable from its conditions, the
+// count as text (change-guarded, like #mirrorText), and each header's
+// checked/indeterminate from its group (the header itself never counts).
+function syncGroups(c, fieldValue, owns, scope) {
+  for (const el of c.root.querySelectorAll(GROUP_BINDING_SELECTOR)) {
+    if (!owns(el)) continue
+    const enable = el.getAttribute("data-reactive-enable")
+    if (enable !== null) {
+      const match = showPayloadMatches(parseShowCompound(enable), fieldValue)
+      if (match !== null) el.disabled = !match
+    }
+    const counted = el.getAttribute("data-reactive-count")
+    if (counted) {
+      const text = String(fieldValue(counted, true))
+      if (el.textContent !== text) el.textContent = text
+    }
+    const group = el.getAttribute("data-reactive-select-all")
+    if (group) {
+      const boxes = groupBoxes(c, group, owns, scope).filter((box) => box !== el)
+      const ticked = boxes.filter((box) => box.checked).length
+      el.checked = ticked > 0 && ticked === boxes.length
+      el.indeterminate = ticked > 0 && ticked < boxes.length
+    }
+  }
+}
+
+// Boxes added or removed later — a stream append, a removal — fire no event,
+// so a root with a group binding (a header, a count, an enable, or a show
+// with a checked_* term) watches its subtree and re-syncs when a mutation adds or removes a
+// checkbox. Text writes (the count itself) never qualify, so it cannot loop.
+function observeGroups(c) {
+  if (typeof MutationObserver !== "function") return
+  if (!c.root.querySelector?.(`${GROUP_BINDING_SELECTOR}, [data-reactive-show*=checked_]`)) return
+  const boxIn = (node) => node.nodeType === 1 && (node.matches('input[type="checkbox"]') || !!node.querySelector('input[type="checkbox"]'))
+  c.groupObserver = new MutationObserver((records) => {
+    if (records.some((r) => [...r.addedNodes, ...r.removedNodes].some(boxIn))) syncShow(c)
+  })
+  c.groupObserver.observe(c.root, { childList: true, subtree: true })
 }
 
 // Whether this root declares an option filter (issue #163) — the connect()
@@ -1246,27 +1340,31 @@ const SHOW_NUMERIC_KEYS = ["gte", "gt", "lte", "lt"]
 // fixture's emoji vector proves it.
 const SHOW_LENGTH_KEYS = ["len_eq", "len_gte", "len_gt", "len_lte", "len_lt"]
 
-// Evaluate one length predicate. Length is a TOTAL function (blank/absent →
-// 0), so every field value is decidable — no fail-closed special case like the
-// numeric thresholds ({ length: 0 } legitimately matches a blank field). A
-// non-Integer LITERAL is a malformed binding — warn-skip (null), default-deny.
-function lengthPredicateMatches(key, literal, value) {
+// The checked-count keys (issue #319) — the client half of Ruby's
+// ShowConditions::CHECKED_KEYS: how many owned boxes of a group are ticked.
+const SHOW_CHECKED_KEYS = ["checked_eq", "checked_gte", "checked_gt", "checked_lte", "checked_lt"]
+
+// Evaluate one count predicate (len_* or checked_*). A count is a TOTAL
+// function (blank/absent → 0), so every field value is decidable — no
+// fail-closed special case like the numeric thresholds ({ length: 0 }
+// legitimately matches a blank field). A non-Integer LITERAL is a malformed
+// binding — warn-skip (null), default-deny.
+function countPredicateMatches(key, literal, count) {
   if (!Number.isInteger(literal)) {
     console.warn(`[phlex-reactive] reactive_show ${key}: needs an integer literal, got ${JSON.stringify(literal)} — skipped`)
     return null
   }
-  const length = [...String(value ?? "")].length
-  switch (key) {
-    case "len_eq":
-      return length === literal
-    case "len_gte":
-      return length >= literal
-    case "len_gt":
-      return length > literal
-    case "len_lte":
-      return length <= literal
-    case "len_lt":
-      return length < literal
+  switch (key.slice(key.indexOf("_") + 1)) {
+    case "eq":
+      return count === literal
+    case "gte":
+      return count >= literal
+    case "gt":
+      return count > literal
+    case "lte":
+      return count <= literal
+    case "lt":
+      return count < literal
     default:
       return null
   }
@@ -1327,7 +1425,7 @@ function showPredicateMatches(pred, value) {
   }
   // Length predicates (issue #226): codepoint count vs an Integer literal.
   for (const key of SHOW_LENGTH_KEYS) {
-    if (key in pred) return lengthPredicateMatches(key, pred[key], value)
+    if (key in pred) return countPredicateMatches(key, pred[key], [...String(value ?? "")].length)
   }
   return null
 }
@@ -1337,6 +1435,14 @@ function showPredicateMatches(pred, value) {
 // (default-deny): a broken AND term can't pass, a broken OR term can't reveal.
 function dnfTermMatches(term, fieldValue) {
   if (!term || typeof term !== "object" || typeof term.field !== "string") return false
+  // A checked_* term (issue #319) counts the group's ticked boxes: the
+  // resolver's count form, or — from collected fields (a conditional confirm)
+  // — the group's array of checked values (a lone box's true/false is 1/0).
+  const checked = SHOW_CHECKED_KEYS.find((key) => key in term)
+  if (checked) {
+    const n = fieldValue(term.field, true)
+    return countPredicateMatches(checked, term[checked], Array.isArray(n) ? n.length : Number(n) || 0) === true
+  }
   // An absent owned field reads as "" — identical to the server evaluator
   // (ShowConditions.match? treats a missing field as blank). This keeps the
   // Ruby first-paint and the client live-toggle in exact agreement (the shared
