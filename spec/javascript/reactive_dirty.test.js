@@ -295,6 +295,40 @@ test("the reset state of a select with no selected option skips a disabled first
   expect(status.getAttribute("data-reactive-dirty")).toBeNull()
 })
 
+test("the reset state skips a first option inside a disabled optgroup (issue #297)", () => {
+  const root = reactiveRoot()
+  const status = new FakeNode({
+    tag: "select",
+    name: "status",
+    options: [
+      { selected: false, defaultSelected: false, closest: (sel) => (sel === "optgroup" ? { disabled: true } : null) },
+      { selected: true, defaultSelected: false },
+    ],
+  })
+  root.append(status)
+  const controller = buildController(root)
+
+  controller.trackDirty({ target: status })
+  expect(status.getAttribute("data-reactive-dirty")).toBeNull()
+})
+
+test("an option outside any optgroup can be the reset state", () => {
+  const root = reactiveRoot()
+  const status = new FakeNode({
+    tag: "select",
+    name: "status",
+    options: [
+      { selected: true, defaultSelected: false, closest: () => null },
+      { selected: false, defaultSelected: false, closest: () => null },
+    ],
+  })
+  root.append(status)
+  const controller = buildController(root)
+
+  controller.trackDirty({ target: status })
+  expect(status.getAttribute("data-reactive-dirty")).toBeNull()
+})
+
 test("a multiple select with nothing selected by default stays clean until an option is picked", () => {
   const root = reactiveRoot()
   const tags = new FakeNode({

@@ -145,12 +145,11 @@ function fieldDirty(field) {
     // select resets to its last defaultSelected option or, with none, to its
     // first enabled one — the browser selects it while its defaultSelected stays
     // false, so a pristine form must not read as dirty (issue #297). A multiple
-    // (or size > 1) select resets to exactly its defaultSelected options.
-    // Known gap: `o.disabled` is the option's own flag, so a first option inside
-    // a disabled <optgroup> (which the browser skips) is still taken as reset.
+    // (or size > 1) select resets to exactly its defaultSelected options. An
+    // option inside a disabled <optgroup> is disabled too (the browser skips it).
     const options = Array.from(field.options ?? [])
     const single = !field.multiple && !(field.size > 1)
-    const reset = options.filter((o) => o.defaultSelected).pop() ?? options.find((o) => !o.disabled)
+    const reset = options.filter((o) => o.defaultSelected).pop() ?? options.find((o) => !o.closest?.("optgroup")?.disabled && !o.disabled)
     return options.some((o) => o.selected !== (single ? o === reset : o.defaultSelected))
   }
   return field.value !== field.defaultValue
