@@ -23,6 +23,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A JSON-mode nested row serializes what a real submit would carry
+  (#299).** The row object behind `reactive_nested_list(as: :json)` and the
+  per-row confirm `%{field}` interpolation now takes only the checked radio
+  of a group (it took the last in DOM order), skips a nested reactive root's
+  controls, and skips disabled controls (so `reactive_show(disable: true)`
+  keeps a hidden field out of the JSON). A radio group with nothing checked,
+  like a disabled control, now leaves its key out; a confirm `%{field}` for
+  such a key stays literal.
+
 - **The browser suite no longer wedges under Falcon when two requests
   overlap (#303).** Transactional system tests pin one connection that the
   test and the server share, guarded by a lock keyed on
