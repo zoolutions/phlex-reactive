@@ -90,11 +90,13 @@ function applyHint(c, hint, trigger, honorChecked) {
       hint.toggle_class.forEach((c) => el.classList.toggle(c))
       undo.push(() => hint.toggle_class.forEach((c) => el.classList.toggle(c)))
     }
-    if (hint.hide) {
+    // hide/show: a delta too (issue #300) — a target already in the hinted
+    // state was not our change, so the undo must not force the opposite.
+    if (hint.hide && !el.hidden) {
       el.hidden = true
       undo.push(() => (el.hidden = false))
     }
-    if (hint.show) {
+    if (hint.show && el.hidden) {
       el.hidden = false
       undo.push(() => (el.hidden = true))
     }
