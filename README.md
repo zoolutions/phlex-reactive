@@ -678,10 +678,12 @@ Use in controllers: `render turbo_stream: Counter.replace(counter)`.
 | `busy_on(:save)` | Mark any element so it carries `data-reactive-busy` **only while `save` is in flight** — a spinner styled with pure CSS, zero Ruby. See [Loading states](#declarative-loading-states-loading--disable_with). |
 | `on(:action, once: true)` | Fire at most once, then unbind (Stimulus's native `:once`). |
 | `on_client(:click, js.toggle("#menu"))` | **Client-only** trigger: applies declared DOM ops with ZERO round trip — no token, no POST, ever. Takes the same `window:`/`once:`/`outside:` modifiers. See [Client-only ops](#client-only-ops-on_client--js--zero-round-trips). |
-| `js` | The immutable op builder behind `on_client`: `show`/`hide`/`toggle` (the `hidden` attribute, with an optional `transition:` and `expanded:`), `add_class`/`remove_class`/`toggle_class`, `set_attr`/`remove_attr`/`toggle_attr` (allowlisted names; `toggle_attr` also flips between two values), `focus`/`focus_first`, `text` (set `textContent` — XSS-safe), `dispatch`, `submit` (requestSubmit the target's own form), `paste_into` (read the clipboard into a field, gesture-gated), and `persist_state`/`persist_clear` (the `reactive_persist` draft) — chainable. |
+| `js` | The immutable op builder behind `on_client`: `show`/`hide`/`toggle` (the `hidden` attribute, with an optional `transition:` and `expanded:`), `add_class`/`remove_class`/`toggle_class`, `set_attr`/`remove_attr`/`toggle_attr` (allowlisted names; `toggle_attr` also flips between two values), `focus`/`focus_first`, `text` (set `textContent` — XSS-safe), `dispatch`, `submit` (requestSubmit the target's own form, optionally through a `submitter:`), `paste_into` (read the clipboard into a field, gesture-gated), and `persist_state`/`persist_clear` (the `reactive_persist` draft) — chainable. |
 | `reactive_field(:param, **attrs)` | The attribute hash that binds a control to an action param (no magic `name:`) — spread onto any control: `input(**reactive_field(:value, value: @record.name))`, `select(**reactive_field(:status)) { … }`. |
 | `reactive_text(:name, initial)` | Mirror a compute output (or a declared input) into a **text node** — a live preview heading, a character counter, `"Hello, {name}"` — via `textContent` (XSS-safe). The text sibling of `reactive_field`; carries no `name`, so it's never POSTed. See [Client-side computes](#client-side-computes-reactive_compute--reactive_text). |
 | `reactive_show(if:/if_any:/unless:)` | **Value-conditional visibility** (the `x-show`/`data-show` case): spread onto the element to show/hide — it toggles `hidden` from the fields' **current values**, client-only, zero round trip. One conditions language: a **Hash is an AND**, an **Array is membership**, a **Range is a threshold**, `if_any:` is OR-of-AND, `unless:` negates. `reactive_values` computes first paint; `disable:` disables a hidden section's controls. See [Value-conditional visibility](#value-conditional-visibility-reactive_show). |
+| `reactive_enable(if:/if_any:/unless:)` | The sibling of `reactive_show` that flips the element's **own `disabled`** (a button, a fieldset) instead of `hidden` — same conditions, same `reactive_values` first paint. `button(**reactive_enable(if: { "ids[]" => { checked: 1.. } }))`. See [Bulk selection](#bulk-selection-reactive_select_all-reactive_count-reactive_enable). |
+| `reactive_select_all("ids[]")` / `reactive_count("ids[]")` | A checkbox **group**'s header box (ticks/unticks every owned box; shows checked / indeterminate / unchecked) and its ticked count as text — re-synced on every change and when rows are appended or removed. See [Bulk selection](#bulk-selection-reactive_select_all-reactive_count-reactive_enable). |
 | `reactive_show_targets(:field, "#id" => value)` | **Cross-root visibility**: the component that owns the field declares which **outside**, id-allowlisted elements it governs (a nav tab, a panel in another pane) — the visibility parallel of `mirror:`. Spread on the **root** via `mix(reactive_root, …)`, **once per root** — several fields go in one call via the hash form. The value uses the same `where`-style vocabulary (`"advanced"`, `%w[a b]`, `10..`); a `"#id"` **key** takes a full conditions Hash for a **multi-field** predicate (`"#warn" => { if: { type: "trade", price: ..0 } }`). Id selectors only (raise at render + client warn-skip); toggles `hidden` only. See [Value-conditional visibility](#value-conditional-visibility-reactive_show). |
 | `reactive_persist(key:, ttl: 7.days)` | **Client-only drafts**: spread on the **root** (once) and the generic controller keeps a `localStorage` draft of every **owned** control — debounced write on `input`, immediate on `change`, flushed on disconnect, restored into **blank** controls on the next connect (`restore: :always` lets the draft win), cleared by a successful Turbo submit / `ttl` / `js.persist_clear`. Never hidden/file/password; `reactive_persist_skip` opts a control out; `fields:` narrows. See [Client-only drafts](#client-only-drafts-reactive_persist). |
 | `js.persist_state(step: 2)` / `js.persist_clear` | The draft ops (actor-only): merge a flat state bag into the draft (restored as `data-reactive-persist-state` + the `reactive:persist-restored` event) / forget the draft. |
@@ -1216,7 +1218,15 @@ button(**on_client(:click, js
   from `on_client` / `reply.js` / a reducer's `$ops`, refused in
   `broadcast_to(js:)` (a broadcast would force-submit every subscriber's form).
   Binding a submit op to the `submit` event itself raises at render — it would
-  re-fire itself forever.
+  re-fire itself forever. **`submitter:`** (a CSS selector, resolved with the
+  op's own scoping) submits *through* that control —
+  `form.requestSubmit(submitter)` — so the request carries its `name=value`:
+  `js.submit("#bulk", submitter: "#delete-submit")` posts `action=delete`. It
+  composes with `on_client(…, confirm:)` (a cancelled confirm submits nothing).
+  A submitter that is not a submit control of that form warns and falls back to
+  a plain `requestSubmit()`. Note that a selector target resolves *inside* the
+  root, so when the form **is** the reactive root, use the default target:
+  `js.submit(submitter: "#delete-submit")`.
 - **`paste_into(to)`** reads the clipboard into a field on a **user gesture**
   (issue #228): `navigator.clipboard.readText()`, then the field gets the text
   through the **normal `input` pipeline** — `.value` is set, a bubbling `input`
@@ -1400,7 +1410,10 @@ end
   length** — exact (`{ length: 6 }`) or an Integer Range (`{ length: 6.. }`,
   `{ length: 4..8 }`). Length counts **codepoints** on both sides (Ruby
   `String#length`, client `[...value].length`), so multibyte input agrees; a
-  blank field has length 0. `unless:` **negates** and composes with `if:`.
+  blank field has length 0. **`{ checked: … }` counts the ticked boxes of a
+  checkbox group** — `{ "ids[]" => { checked: 1.. } }` (see
+  [Bulk selection](#bulk-selection-reactive_select_all-reactive_count-reactive_enable)).
+  `unless:` **negates** and composes with `if:`.
   Never an expression — every term is a declared literal, so there is no eval
   surface. A blank/non-numeric value fails a numeric term **closed** (hidden).
 - **OR-of-AND** — `if_any:` takes an array of AND-hashes (`if_any: [{ director:
@@ -1479,6 +1492,70 @@ The fold is identical to an in-root `reactive_show` (each term reads its own
 field; a missing owned field reads as blank — fail-closed). Every referenced
 field must be owned by the declaring root; a target whose fields are all
 unowned is left alone, like the single-field skip.
+
+### Bulk selection (`reactive_select_all`, `reactive_count`, `reactive_enable`)
+
+A list with a checkbox per row, a "select all" header, a "Delete (2)" count and
+actions that stay disabled until something is ticked — with no per-list
+JavaScript controller:
+
+```ruby
+class PostsTable < Phlex::HTML
+  include Phlex::Reactive::ClientBindings
+
+  def initialize(posts:) = @posts = posts
+
+  # First paint: nothing ticked (an Array of checked values, or a count).
+  def reactive_values = { "ids[]" => [] }
+
+  def view_template
+    div(**reactive_root) do
+      form(id: "bulk", action: "/posts/bulk", method: "post") do
+        input(type: "checkbox", **reactive_select_all("ids[]"))     # header
+        @posts.each do |post|
+          label { input(type: "checkbox", name: "ids[]", value: post.id); plain post.title }
+        end
+
+        span(**reactive_count("ids[]")) { "0" }                     # ticked count
+        fieldset(**reactive_enable(if: { "ids[]" => { checked: 1.. } })) { bulk_fields }
+        button(type: "button",
+               **mix(reactive_enable(if: { "ids[]" => { checked: 1.. } }),
+                     on_client(:click, js.submit("#bulk", submitter: "#delete-submit"),
+                               confirm: "Delete the selected posts?"))) { "Delete" }
+        button(type: "submit", name: "bulk_action", value: "delete", hidden: true, id: "delete-submit")
+      end
+    end
+  end
+end
+```
+
+- **`reactive_select_all(group)`** — the header box. Its edit ticks or unticks
+  every **owned** box named `group` and dispatches `change` on each one it
+  flips, so computes, shows and completions re-run. Its own state follows the
+  group: **checked** when all are ticked, **indeterminate** when some are,
+  unchecked when none are. Give the header no `name` (it would post).
+- **`reactive_count(group)`** — writes the ticked count via `textContent`
+  (change-guarded). Seed the first paint in its block.
+- **`{ checked: n }` / `{ checked: 1.. }`** — a term in the shared conditions
+  language: how many owned boxes of the group are ticked, with the same Integer
+  and Range shapes as `length:`. It works in `reactive_show`, `reactive_enable`,
+  `reactive_on_complete`, `reactive_show_targets` and a conditional `confirm:`,
+  and it is evaluated on the server for first paint from `reactive_values` (an
+  Array of the checked values is counted; an Integer is the count).
+- **`reactive_enable(if:/if_any:/unless:)`** — `reactive_show`'s sibling: the
+  same conditions, the same first paint (`disabled:`) and the same re-evaluation
+  triggers, but it flips the element's own `disabled`. An explicit `disabled:`
+  wins.
+- **Rows added or removed later** (a Turbo stream `append`/`remove`, a morph)
+  re-sync the header, the count and every binding: a root with a group binding
+  watches its subtree and re-syncs when a checkbox is added or removed.
+- **Ownership** is the usual rule (#15): a nested reactive root's boxes are
+  never counted or flipped by the outer root.
+- The group is a field name resolved like any `reactive_show` field: a bare
+  name takes `reactive_scope`, a bracketed one (`"ids[]"`) is used verbatim.
+- **`js.submit(to, submitter:)`** submits the form through the hidden submit
+  button, so the POST carries `bulk_action=delete` (see the
+  [op vocabulary](#client-only-ops-on_client--js--zero-round-trips)).
 
 ### Client-only drafts (`reactive_persist`)
 
