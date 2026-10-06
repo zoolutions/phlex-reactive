@@ -23,6 +23,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A pushed deferred render stays pending until it arrives (#292).** The
+  client settled a `via="stream"` defer on any turbo-stream to its target, so
+  an unrelated update of that element before the job's broadcast released the
+  guard (and the activity count) early. Only the job's removal of
+  `reactive-defer-src-<target>` settles it now.
+
 - **The browser suite no longer wedges under Falcon when two requests
   overlap (#303).** Transactional system tests pin one connection that the
   test and the server share, guarded by a lock keyed on

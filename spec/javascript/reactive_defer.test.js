@@ -405,8 +405,8 @@ test("stream lane: a newer stream directive removes the older source element (un
 test("stream lane: the arriving broadcast settles the pendingDefers entry (no detached-node leak)", () => {
   // Regression for the re-review finding: the stream-lane Map entry used to
   // hold a strong ref to the source element and was never removed on arrival,
-  // leaking a detached node per target. Now: no srcEl ref, and a
-  // turbo:before-stream-render against the target (the job's replace) settles
+  // leaking a detached node per target. Now: no srcEl ref, and the job's
+  // removal of the source element (every job broadcast ends with it) settles
   // the entry.
   const { actions } = stubTurbo()
   const el = makeTargetEl("slow-totals")
@@ -419,13 +419,35 @@ test("stream lane: the arriving broadcast settles the pendingDefers entry (no de
   )
   expect(getPendingDeferVia("slow-totals")).toBe("stream")
 
-  // The job's broadcast: a turbo-stream that replaces #slow-totals fires
-  // turbo:before-stream-render with a stream element whose target is the id.
-  const streamEl = { getAttribute: (n) => (n === "target" ? "slow-totals" : null) }
-  listeners["turbo:before-stream-render"]?.({ target: streamEl })
+  listeners["turbo:before-stream-render"]?.(streamRender("reactive-defer-src-slow-totals", "remove"))
 
   expect(getPendingDeferVia("slow-totals")).toBeUndefined()
 })
+
+test("stream lane: an unrelated stream to the target does NOT settle the entry (#292)", () => {
+  // An `update` of #slow-totals from elsewhere (another broadcast, an action
+  // reply) between the enqueue and the job's broadcast is not the delivery:
+  // only the removal of reactive-defer-src-<target> is.
+  const { actions } = stubTurbo()
+  const el = makeTargetEl("slow-totals")
+  const { listeners } = stubDocument({ byId: { "slow-totals": el } })
+  globalThis.customElements = { get: () => class {} }
+  registerReactiveDefer()
+
+  actions["reactive:defer"].call(
+    directiveEl({ target: "slow-totals", via: "stream", token: null, src: "/pgbus/streams/one" }),
+  )
+  listeners["turbo:before-stream-render"]?.(streamRender("slow-totals", "update"))
+  expect(getPendingDeferVia("slow-totals")).toBe("stream")
+
+  listeners["turbo:before-stream-render"]?.(streamRender("reactive-defer-src-slow-totals", "remove"))
+  expect(getPendingDeferVia("slow-totals")).toBeUndefined()
+})
+
+// The turbo:before-stream-render event Turbo dispatches on a <turbo-stream>.
+function streamRender(target, action) {
+  return { target: { getAttribute: (n) => ({ target, action })[n] ?? null } }
+}
 
 test("lazy mount: connect() probes data-reactive-defer-token on the root and enters the fetch path", async () => {
   const { rendered } = stubTurbo()
