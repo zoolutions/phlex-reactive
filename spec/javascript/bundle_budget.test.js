@@ -73,8 +73,10 @@ const SLACK = 250
 // fix in flight, not for a feature. Issue #295 (a legs effect's frame wait
 // raced against the settle fallback) needs 25 B of it: 25,001 B, one past.
 // Issue #296 (effectSettled ignores a descendant's end event and drops both
-// listeners) adds 13 B: 25,014 B.
-const BUNDLE_GZIP_CEILING = 25_014
+// listeners) adds 13 B: 25,014 B. The #295 frame wait clearing its fallback
+// timer when the frame wins (and canceling the frame when it loses) adds 21 B:
+// 25,035 B.
+const BUNDLE_GZIP_CEILING = 25_035
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors

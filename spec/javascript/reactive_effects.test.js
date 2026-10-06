@@ -23,12 +23,18 @@ let window
 // time with drainTimers. The settle fallback and dismiss scheduling both ride
 // setTimeout, so tests never really wait.
 const realSetTimeout = globalThis.setTimeout
+const realClearTimeout = globalThis.clearTimeout
 let pending = []
+let nextTimerId = 0
 function installFakeTimers() {
   pending = []
   globalThis.setTimeout = (fn, ms) => {
-    pending.push({ fn, ms })
-    return pending.length
+    const id = ++nextTimerId
+    pending.push({ fn, ms, id })
+    return id
+  }
+  globalThis.clearTimeout = (id) => {
+    pending = pending.filter((t) => t.id !== id)
   }
 }
 function drainTimers(uptoMs) {
@@ -78,6 +84,8 @@ beforeEach(async () => {
 
 afterEach(() => {
   globalThis.setTimeout = realSetTimeout
+  globalThis.clearTimeout = realClearTimeout
+  delete globalThis.cancelAnimationFrame
   console.warn = realWarn
 })
 
@@ -380,6 +388,29 @@ test("legs: the frame wait's fallback never beats a pending frame in a visible t
   await new Promise((resolve) => realSetTimeout(resolve, 0))
   expect(el.classList.contains("fx-from")).toBe(true)
   expect(el.classList.contains("fx-to")).toBe(false)
+})
+
+test("legs: a frame that runs clears the frame wait's fallback timer (#295)", async () => {
+  addTarget("row", { "data-test-duration": "0.2s" })
+  const legs = JSON.stringify(["fx-during", "fx-from", "fx-to"])
+  const detail = fire(makeStream("replace", "row", { effect: legs }), async () => {})
+
+  await detail.render(detail.newStream) // the suite's rAF runs synchronously
+  await new Promise((resolve) => realSetTimeout(resolve, 0))
+  expect(pending.some((t) => t.ms === 1000)).toBe(false) // only the 250ms settle timer remains
+})
+
+test("legs: a fallback that wins cancels the frame still pending (#295)", async () => {
+  addTarget("row", { "data-test-duration": "0.2s" })
+  globalThis.requestAnimationFrame = () => 42 // a hidden tab: rAF never fires
+  const canceled = []
+  globalThis.cancelAnimationFrame = (id) => canceled.push(id)
+  const legs = JSON.stringify(["fx-during", "fx-from", "fx-to"])
+  const detail = fire(makeStream("replace", "row", { effect: legs }), async () => {})
+
+  await detail.render(detail.newStream)
+  drainTimers(1000) // the frame wait's fallback
+  expect(canceled).toEqual([42])
 })
 
 test("update: a descendant's bubbling transitionend doesn't settle the container's effect (#296)", async () => {

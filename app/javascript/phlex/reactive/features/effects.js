@@ -345,11 +345,18 @@ function effectSettled(el, durationMs) {
 // never runs rAF, and an exit must not hold its removal (and every stream
 // behind it) until the tab is visible again. The fallback is the full settle
 // ceiling, never a short timer — one could beat rAF in a visible tab and swap
-// from→to before the `from` leg paints.
+// from→to before the `from` leg paints. Whichever wins cancels the other, so a
+// visible tab leaves no stray 1s timer behind.
 function effectNextFrame() {
   return new Promise((resolve) => {
-    const raf = typeof requestAnimationFrame === "function"
-    if (raf) requestAnimationFrame(resolve)
-    setTimeout(resolve, raf ? EFFECT_SETTLE_FALLBACK_MS : 16)
+    if (typeof requestAnimationFrame !== "function") return setTimeout(resolve, 16)
+    const timer = setTimeout(() => {
+      globalThis.cancelAnimationFrame?.(frame)
+      resolve()
+    }, EFFECT_SETTLE_FALLBACK_MS)
+    const frame = requestAnimationFrame(() => {
+      clearTimeout(timer)
+      resolve()
+    })
   })
 }
