@@ -51,6 +51,11 @@ end
   (`CAPYBARA_SERVER=falcon`). CI runs both in a matrix; `rake spec:system_servers`
   runs both locally. A reactive round trip must pass under sync (Puma) AND async
   (Falcon). No webrick — it isn't a real server.
+- Every system example in the gem's suite runs under a watchdog
+  (`spec/system/support/example_timeout.rb`, issue #320): 90 s by default, `it "…", timeout: 120` per example,
+  `SYSTEM_EXAMPLE_TIMEOUT=…` for the run, `0` to disable (debugger). A timed-out
+  example fails naming its bound ("is the server wedged?") and ends the run. The
+  `docs/` app's system suite does not load it; CI's `timeout-minutes` bounds that job.
 
 ## pgbus in tests
 

@@ -82,6 +82,9 @@ jobs:
   site:
     runs-on: ubuntu-26.04
     name: Demo site (${{ matrix.server }})
+    # Issue #320: a wedged server must release the runner in minutes, not at
+    # GitHub's 6 h default. A green cell takes ~1.5 min.
+    timeout-minutes: 15
     # The docs/ Rails app is a separate app that dogfoods the gem via
     # `path: ".."`. Run its request + system suites under BOTH real servers,
     # plus its RuboCop, so the showcase can't rot. `rake lint` is used (not bare
@@ -151,6 +154,11 @@ jobs:
   system:
     runs-on: ubuntu-26.04
     name: System (${{ matrix.server }} / ${{ matrix.transport }})
+    # Issue #320: a wedged dummy server once held these cells 3.5 h until they
+    # were cancelled. The per-example watchdog (spec/system/support/
+    # example_timeout.rb) fails the run first; this is the backstop. The
+    # slowest green cell takes ~4 min (plus a Playwright install on a cache miss).
+    timeout-minutes: 20
     # Run the browser suite across TWO real servers × TWO transports (issue #187):
     #   server:    puma (sync, thread-pool) | falcon (async, fiber-per-request)
     #   transport: cable (Action Cable, SQLite) | pgbus (Postgres SSE)

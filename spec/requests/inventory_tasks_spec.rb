@@ -74,6 +74,13 @@ RSpec.describe "phlex_reactive inventory rake tasks" do
         expect(row(output, "PublicCounterComponent", "increment")).to end_with("skipped (class)\n")
       end
 
+      # Issue #302: a subclass inherits the mixin (and the bare skip) instead of
+      # including it — it must still reach the inventory.
+      it "lists a subclass's inherited and own actions as skipped (class)" do
+        expect(row(output, "InheritedSkipComponent", "increment")).to end_with("skipped (class)\n")
+        expect(row(output, "InheritedSkipComponent", "reset")).to end_with("skipped (class)\n")
+      end
+
       it "prints unverified for an action with neither" do
         expect(row(output, "AuthorizedTodoComponent", "rename_unguarded")).to end_with("unverified\n")
       end
@@ -153,6 +160,12 @@ RSpec.describe "phlex_reactive inventory rake tasks" do
       expect(output).to include("CounterComponent")
       # The detail prints the method definition source extracted with Prism.
       expect(output).to include("def increment")
+    end
+
+    it "finds a subclass of a reactive component (issue #302)" do
+      output = capture_stdout { rake["phlex_reactive:find"].invoke("InheritedSkipComponent") }
+      expect(output).to include("InheritedSkipComponent")
+      expect(output).to include("def reset")
     end
 
     it "reports no match for an unknown query" do

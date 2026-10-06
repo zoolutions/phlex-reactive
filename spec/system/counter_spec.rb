@@ -76,6 +76,32 @@ RSpec.describe "Counter (state-backed reactive component)", type: :system do
     expect(page.evaluate_script("window.__noReload")).to eq("alive")
   end
 
+  # Issue #301: a morph from OUTSIDE the controller's reply (a broadcast, a page
+  # refresh) keeps the root and its controller, so the token it brings must win
+  # over the one the controller cached from its own last (update) reply.
+  it "signs the next action with the token an outside morph brought" do
+    visit "/counter"
+    find("[data-testid='bump-update']").click
+    expect(page).to have_css("[data-testid='count']", text: "1")
+    page.execute_script("window.__counterRoot = document.getElementById('counter')")
+
+    page.execute_script(<<~JS)
+      fetch("/counter?count=5").then((r) => r.text()).then((html) => {
+        const el = new DOMParser().parseFromString(html, "text/html").getElementById("counter")
+        window.Turbo.renderStreamMessage(
+          '<turbo-stream action="replace" method="morph" target="counter"><template>' +
+            el.outerHTML + "</template></turbo-stream>"
+        )
+      })
+    JS
+    expect(page).to have_css("[data-testid='count']", text: "5")
+    # Morphed in place: the same root (and its controller) is still connected.
+    expect(page.evaluate_script("window.__counterRoot.isConnected")).to be(true)
+
+    find("[data-testid='inc']").click
+    expect(page).to have_css("[data-testid='count']", exact_text: "6")
+  end
+
   it "Response.redirect drives a Turbo.visit to the new URL" do
     visit "/counter"
     expect(page).to have_css("[data-testid='go-home']")

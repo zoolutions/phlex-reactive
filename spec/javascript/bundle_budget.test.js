@@ -74,7 +74,9 @@ const SLACK = 250
 // adds 44 B: 25,020 B, and the ratchet moves by the 20 B it needs. Issue
 // #298 (one unsaved-changes prompt per visit) adds 17 B: 25,037 B. Skipping
 // a disabled <optgroup>'s options in the reset state (#297) adds 11 B: 25,048 B.
-const BUNDLE_GZIP_CEILING = 25_048
+// Merged on top of #300, #292/#294 and #301 (which used the 24 B of slack):
+// 25,067 B.
+const BUNDLE_GZIP_CEILING = 25_067
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
