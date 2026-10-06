@@ -1,0 +1,109 @@
+spec/dummy/public/vendor/compute.min.js.map
+  ai_agent 5,7
+spec/phlex/reactive/inspector_spec.rb
+  s_d02db4353d49da::t_e73511796c8f2d 55-76,245-246
+lib/phlex/reactive/streamable.rb
+  s_d02db4353d49da::t_e73511796c8f2d 78,324-333
+app/javascript/phlex/reactive/features/form.min.js.map
+  ai_agent 5,7-8
+.github/workflows/main.yml
+  s_d02db4353d49da::t_e73511796c8f2d 85-87,157-161
+docs/app/views/docs/pages/installation.rb
+  s_d02db4353d49da::t_e73511796c8f2d 23,282-317
+spec/dummy/config/routes.rb
+  s_d02db4353d49da::t_e73511796c8f2d 105-107
+spec/dummy/public/vendor/features/form.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/features/hints.min.js.map
+  ai_agent 5,7-8
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,3
+spec/phlex/reactive/mcp_spec.rb
+  s_d02db4353d49da::t_e73511796c8f2d 122-130
+spec/system/example_timeout_spec.rb
+  s_d02db4353d49da::t_e73511796c8f2d 1-65
+app/javascript/phlex/reactive/features/defer.min.js.map
+  ai_agent 5,7-8
+lib/phlex/reactive/doctor.rb
+  s_d02db4353d49da::t_e73511796c8f2d 19-20,81
+spec/javascript/reactive_busy.test.js
+  s_d02db4353d49da::t_e73511796c8f2d 254-291
+spec/system/dormant_root_spec.rb
+  s_d02db4353d49da::t_e73511796c8f2d 204-207
+app/javascript/phlex/reactive/features/hints.js
+  s_d02db4353d49da::t_e73511796c8f2d 93-95,99
+spec/javascript/reactive_dirty.test.js
+  s_d02db4353d49da::t_e73511796c8f2d 9,254-375,558-616
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,3
+spec/system/counter_spec.rb
+  s_d02db4353d49da::t_e73511796c8f2d 79-104
+app/javascript/phlex/reactive/core.min.js.map
+  ai_agent 5,8-9
+CHANGELOG.md
+  s_d02db4353d49da::t_e73511796c8f2d 35-78,106-117
+app/javascript/phlex/reactive/features/defer.min.js
+  ai_agent 1,3
+spec/system/support/playwright_setup.rb
+  s_d02db4353d49da::t_e73511796c8f2d 7-13,19-21
+spec/dummy/app/controllers/demos_controller.rb
+  s_d02db4353d49da::t_e73511796c8f2d 14-15,611-615
+app/javascript/phlex/reactive/runtime.js
+  s_d02db4353d49da::t_e73511796c8f2d 2950-2961
+spec/dummy/app/components/inherited_skip_component.rb
+  s_d02db4353d49da::t_e73511796c8f2d 1-14
+spec/phlex/reactive/doctor/fiber_isolation_spec.rb
+  s_d02db4353d49da::t_e73511796c8f2d 1-115
+spec/system/support/example_timeout.rb
+  s_d02db4353d49da::t_e73511796c8f2d 1-93
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 5,7-8,12,16-17
+docs/app/views/docs/pages/tooling.rb
+  s_d02db4353d49da::t_e73511796c8f2d 82-90
+spec/requests/inventory_tasks_spec.rb
+  s_d02db4353d49da::t_e73511796c8f2d 77-83,165-168
+spec/javascript/reactive_extract_token.test.js
+  s_d02db4353d49da::t_e73511796c8f2d 294-320
+app/javascript/phlex/reactive/features/form.min.js
+  ai_agent 1,3
+spec/dummy/public/vendor/core.js
+  ai_agent 1,3
+spec/dummy/public/vendor/features/hints.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/features/defer.js
+  s_d02db4353d49da::t_e73511796c8f2d 101-106,113-117,120-123,301,512-515,522
+app/javascript/phlex/reactive/features/hints.min.js
+  ai_agent 1,3
+spec/dummy/public/vendor/features/defer.js
+  ai_agent 1,3
+.claude/rules/testing.md
+  s_d02db4353d49da::t_e73511796c8f2d 54-58
+spec/phlex/reactive/streamable_registry_spec.rb
+  s_d02db4353d49da::t_e73511796c8f2d 1-33
+app/javascript/phlex/reactive/features/form.js
+  s_d02db4353d49da::t_e73511796c8f2d 17-19,103,143-153,183-186,188-189
+lib/phlex/reactive/doctor/fiber_isolation.rb
+  s_d02db4353d49da::t_e73511796c8f2d 1-86
+spec/javascript/reactive_defer.test.js
+  s_d02db4353d49da::t_e73511796c8f2d 408-409,422,427-451,512,517-548,566
+spec/dummy/public/vendor/reactive_controller.min.js.map
+  ai_agent 5,7-9,12,16-17
+app/javascript/phlex/reactive/core.min.js
+  ai_agent 1,3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "6d499667e90c173d6a94ff534cd5215fdead14aa",
+  "prompts": {},
+  "sessions": {
+    "s_d02db4353d49da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5775b781-4946-4755-bdd4-dcdc0ac0b0ea",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
