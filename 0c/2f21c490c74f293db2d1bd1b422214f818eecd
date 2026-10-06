@@ -1,0 +1,29 @@
+CHANGELOG.md
+  s_b4f052d694d82f::t_169b7d7d1b9d9e 26-39
+docs/app/views/docs/pages/testing.rb
+  s_b4f052d694d82f::t_9e625a4f467b88 315-333
+spec/system/falcon_fiber_isolation_spec.rb
+  s_b4f052d694d82f::t_4b0f1c064336ce 36,38
+  s_b4f052d694d82f::t_4515b3a91abb14 37,48-49
+  s_b4f052d694d82f::t_dea3ad7b7d816c 25-32,39-44,53
+  s_b4f052d694d82f::t_ae7d585ff0ae07 35
+  s_b4f052d694d82f::t_168ec458e23d1f 1-24,33-34,45-47,50-52,54-61
+spec/dummy/config/application.rb
+  s_b4f052d694d82f::t_2e2df9cd773f3a 36-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "0c2f21c490c74f293db2d1bd1b422214f818eecd",
+  "prompts": {},
+  "sessions": {
+    "s_b4f052d694d82f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a4f9e839-a934-4e75-9b79-590503d3a110",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
