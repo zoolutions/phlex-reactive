@@ -1,0 +1,21 @@
+spec/javascript/support/lockfile_guard.js
+  s_d02db4353d49da::t_2193c5471fe626 18-19
+spec/javascript/reactive_early.test.js
+  s_d02db4353d49da::t_277b72344560bf 117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "1220792aa742ef402a75351a884a4074b216aa7b",
+  "prompts": {},
+  "sessions": {
+    "s_d02db4353d49da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5775b781-4946-4755-bdd4-dcdc0ac0b0ea",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
