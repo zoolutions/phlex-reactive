@@ -134,10 +134,11 @@ function emitZeroTargetWarn(label, to, scope, hint) {
   console.warn(`[phlex-reactive] ${label} matched zero targets for selector "${to}" (${scope})${hint}`)
 }
 
-// The stream-path diagnoser (reactive:js). No ownership filter exists here, so
-// the only trap is the target-root scope: the selector matches document-wide
-// but the op was scoped to the stream's target root.
-function diagnoseStreamZeroTargets(name, args, root) {
+// The stream-path diagnoser (reactive:js): no root, or the stream's target
+// root. No ownership filter exists here, so the only trap is the target-root
+// scope: the selector matches document-wide but the op was scoped to the
+// stream's target root.
+export function diagnoseStream(name, args, root) {
   const to = args.to
   if (typeof to !== "string" || to === "" || to === "@root") return
   let hint = ""
@@ -148,23 +149,7 @@ function diagnoseStreamZeroTargets(name, args, root) {
   emitZeroTargetWarn(`client op "${name}"`, to, root ? `scoped to #${root.id || "?"}` : "document-scoped", hint)
 }
 
-// The runtime's call-ins. `c` is a controller's context: its root and id.
-function ctx(controller) {
-  return { root: controller.element }
-}
-
-export function diagnose(controller, label, args) {
-  diagnoseZeroTargets(ctx(controller), label, args)
-}
-
-export function noBinding(controller, event) {
-  warnNoBinding(ctx(controller), event)
-}
-
-// The stream path (reactive:js): no root, or the stream's target root.
-export function diagnoseStream(name, args, root) {
-  diagnoseStreamZeroTargets(name, args, root)
-}
+// The runtime's call-ins below take the controller; each reads its root.
 
 export function missingRoot(targetId) {
   if (!zeroTargetAlreadyWarned(`missing-root|#${targetId}`)) {
@@ -172,52 +157,44 @@ export function missingRoot(targetId) {
   }
 }
 
-// --- The debug trace (issue #108) -----------------------------------------------
-export function recordBody(debug, body, freshToken) {
-  debugRecordBody(null, debug, body, freshToken)
-}
-
-export function trace(controller, info) {
-  logDispatch(ctx(controller), info)
-}
-
 // Issue #237: called when a selector-form target resolved to ZERO elements on
 // this root. Gated + deduped (module helpers); builds the trap-specific hint:
 // the root-self selector (root-scoped resolution never includes the root),
 // the nested-reactive-root ownership filter, or plain out-of-scope. All DOM
 // probes run only here — after a zero-match with the gate on.
-function diagnoseZeroTargets(c, label, args) {
+export function diagnose(controller, label, args) {
+  const root = controller.element
   const to = args.to
   if (typeof to !== "string" || to === "" || to === "@root") return
   let hint = ""
   if (!args.global) {
-    if (c.root?.matches?.(to)) {
+    if (root?.matches?.(to)) {
       hint = " — the selector matches this component's own root, which root-scoped resolution never includes; use to: :root"
-    } else if (countMatches(c.root, to) > 0) {
+    } else if (countMatches(root, to) > 0) {
       hint = " — it matches only inside a nested reactive root (excluded by ownership scoping); use global: true"
     } else {
       const n = countMatches(globalThis.document, to)
       if (n > 0) hint = ` — it matches ${n} element(s) outside this scope; use global: true`
     }
   }
-  emitZeroTargetWarn(label, to, `scoped to #${c.root?.id || "?"}`, hint)
+  emitZeroTargetWarn(label, to, `scoped to #${root?.id || "?"}`, hint)
 }
 
 // Issue #271: runOps fired but no record matched the event — a hand-edited
 // attr or a descriptor the matcher doesn't know. Verbose gate only, deduped.
-function warnNoBinding(c, event) {
-  const key = `no-binding|${event.type}|${c.root?.id || "?"}`
-  if (zeroTargetAlreadyWarned(key)) return
-  console.warn(
-    `[phlex-reactive] runOps on #${c.root?.id || "?"} found no on_client binding matching a "${event.type}" event — nothing ran`,
-  )
+export function noBinding(controller, event) {
+  const id = controller.element?.id || "?"
+  if (zeroTargetAlreadyWarned(`no-binding|${event.type}|${id}`)) return
+  console.warn(`[phlex-reactive] runOps on #${id} found no on_client binding matching a "${event.type}" event — nothing ran`)
 }
+
+// --- The debug trace (issue #108) -----------------------------------------------
 
 // Parse a turbo-stream response's action + target pairs for the debug trace,
 // from the body text #perform ALREADY read (never a re-fetch). NAMES only — the
 // <template> contents (rendered HTML, the fresh token) are deliberately not
 // touched. A non-turbo-stream / empty body yields [] (nothing to report).
-function debugStreams(_c, body) {
+function debugStreams(body) {
   if (!body) return []
   const streams = []
   const re = /<turbo-stream\b([^>]*)>/g
@@ -237,12 +214,13 @@ function debugStreams(_c, body) {
 // caller passes the info it already holds so nothing is recomputed or re-fetched:
 //   { action, paramNames, fieldNames, encoding, status, streams, tokenRefreshed, ms }
 // `console.groupCollapsed` keeps the console tidy (one collapsed line per action).
-function logDispatch(c, info) {
+export function trace(controller, info) {
   const { action, status, ms } = info
   // The client can't name the component CLASS (it's inside the signed, opaque
   // token — never decoded here), but the root's id is the stable client-side
   // handle (e.g. #todo_42), so the header reads `reactive #todo_42 rename → …`.
-  const who = c.root?.id ? `#${c.root.id} ` : ""
+  const id = controller.element?.id
+  const who = id ? `#${id} ` : ""
   const header = `reactive ${who}${action} → ${status ?? "—"} (${Math.round(ms)}ms)`
   /* eslint-disable no-console */
   console.groupCollapsed(header)
@@ -258,7 +236,7 @@ function logDispatch(c, info) {
 // trace — the stream action/target pairs and whether a token refresh arrived
 // (a boolean; the token VALUE is intentionally not stored). Shared by the
 // success and the non-OK-turbo-stream branches so both log the same shape.
-function debugRecordBody(_c, debug, body, freshToken) {
-  debug.streams = debugStreams(_c, body)
+export function recordBody(debug, body, freshToken) {
+  debug.streams = debugStreams(body)
   debug.tokenRefreshed = freshToken != null
 }
