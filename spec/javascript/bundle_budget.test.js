@@ -80,8 +80,16 @@ const SLACK = 250
 // #295/#296 (effects settle: hidden-tab legs exit, descendant end events)
 // add 46 B: 25,137 B. Issue #319 (bulk selection: the checked: term,
 // reactive_enable/select_all/count with their MutationObserver, and
-// js.submit's submitter:, review fixes included) adds 796 B: 25,933 B. Issue
-// #310 claws bytes back.
+// js.submit's submitter:, review fixes included) adds 796 B: 25,933 B.
+//
+// Issue #310 rewrote the features' per-root records as closures (form,
+// bindings, persist, defer), shortened compute's, dropped the per-call
+// context records and wrapper exports (hints, devtools, bindings), and laid
+// the features out in the bundle so gzip's 32 KB window reaches the runtime
+// code they repeat (the import order in runtime.js): 1,008 B recovered,
+// 24,925 B. That leaves the target 2,225 B away, about 800 B of it #319's
+// feature; what remains is the features' own code, not how they are written
+// as modules.
 const BUNDLE_GZIP_CEILING = 24_925
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
@@ -95,19 +103,22 @@ const TARGET_BUNDLE_GZIP = 22_700
 // TARGET_CORE_GZIP, 10,240 B. The honest moves left the core 2,143 B over it, so the ratchet below is the real size rounded up to the next 250 B, and the target is printed in the report; the PR body's Budget outcome section has the gap and the remaining options.
 // Issue #303 (replaying window-bound hotkeys, shared runtime code) adds 210 B: 12,688 B.
 // Issue #319 (the submit op's submitter:, the bindings marker for the group
-// bindings) adds 129 B: 12,817 B.
+// bindings) adds 129 B: 12,817 B. Issue #310 (feature internals only) leaves
+// it unchanged at 12,831 B.
 const CORE_GZIP_CEILING = 12_850
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
-  // fixes to 6,015 B.
-  "features/bindings": 6_050,
-  "features/defer": 3_000,
-  "features/compute": 2_250,
+  // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
+  // wrappers) to 5,859 B. Issue #310 lowered every ceiling below to its
+  // module's real size, rounded up to the next 50 B.
+  "features/bindings": 5_900,
+  "features/defer": 2_850,
+  "features/compute": 2_050,
   "features/hints": 1_000,
   "features/effects": 1_750,
-  "features/persist": 3_250,
-  "features/form": 1_250,
-  "features/devtools": 1_750,
+  "features/persist": 3_150,
+  "features/form": 1_050,
+  "features/devtools": 1_600,
 }
 // Phase 5: 12,383 B core + 5,360 + 2,846 + 2,084 + 1,024 + 1,693 + 3,210 + 1,015 + 1,589 B of
 // features = 31,204 B. Issue #305 (the default entry's static path) costs the
@@ -116,7 +127,8 @@ const FEATURE_GZIP_CEILINGS = {
 // 31,385 B. Issue #303 (window-bound hotkeys, in the core) adds 215 B: 31,600 B.
 // The backlog fixes (#292-#301, #295/#296) together use the 150 B of room and
 // 37 B more: 31,787 B. Issue #319 (bulk selection, in the core and bindings)
-// adds 781 B: 32,568 B.
+// adds 781 B: 32,568 B. Issue #310 (the features' internals) recovers 541 B:
+// 32,027 B.
 const SPLIT_TOTAL_GZIP_CEILING = 32_027
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
@@ -184,7 +196,8 @@ test("the split core does not grow past its ratchet", () => {
 
 test("the split core is smaller than the default bundle by at least what moved out", () => {
   // The point of the split: a page that uses no feature downloads less.
-  // (12,203 B since issue #305 took the loader out of the bundle.)
+  // (12,203 B since issue #305 took the loader out of the bundle; 12,094 B
+  // since #310 made the features smaller inside it.)
   expect(sizeOf(BUNDLE).gzip - sizeOf("core").gzip).toBeGreaterThan(12_000)
 })
 

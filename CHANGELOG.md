@@ -8,6 +8,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Performance
 
+- **The default client is 1,008 B smaller gzipped (#310).**
+  `reactive_controller.min.js` goes from 25,933 B to 24,925 B. The feature
+  modules keep their per-root state in closures instead of records whose
+  property names the minifier cannot rename (form, bindings, persist, defer;
+  compute's record gets short names), and hints, devtools and bindings drop
+  their per-call context records and wrapper exports. The features are also
+  laid out in the bundle so gzip's 32 KB window reaches the runtime code they
+  repeat (about 450 B of the total). The split client total goes from
+  32,568 B to 32,027 B; the core is unchanged. Behaviour is unchanged. The
+  22,700 B target is not met: 2,225 B remain, about 800 B of them from bulk
+  selection (#319), which landed after the target was set.
 - **A cacheable lazy shell is less than half the size (#306).** A
   `reactive_lazy(on:, cache:)` shell with `reactive_cache_viewer` and
   `reactive_cache_version` gzips to about 290 B (was about 580–670 B). The
