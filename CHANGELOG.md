@@ -29,6 +29,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   removal, and every stream behind it, stalled. The frame wait now races the
   1 s settle fallback.
 
+- **An effect no longer ends when a child's animation or transition does
+  (#296).** `animationend`/`transitionend` bubble, so a descendant finishing
+  first cleared the container's effect class (and released an exit's removal)
+  early; settling also left the other end listener attached. Only the
+  element's own end event settles it now, and settling removes both listeners.
+
 - **The browser suite no longer wedges under Falcon when two requests
   overlap (#303).** Transactional system tests pin one connection that the
   test and the server share, guarded by a lock keyed on

@@ -324,16 +324,19 @@ function effectDurationMs(el) {
 // Resolve on animationend/transitionend — whichever fires first — with a
 // timeout slightly past the computed duration, so a canceled animation (a
 // display:none ancestor, an interrupted transition) can't hang an exit.
+// Only the element's OWN end event counts — both bubble, and a descendant's
+// would settle the effect early (issue #296) — and settling removes both
+// listeners (`once` would only drop the one that fired).
 function effectSettled(el, durationMs) {
   return new Promise((resolve) => {
-    let done = false
-    const settle = () => {
-      if (done) return
-      done = true
+    const settle = (event) => {
+      if (event && event.target !== el) return
+      el.removeEventListener?.("animationend", settle)
+      el.removeEventListener?.("transitionend", settle)
       resolve()
     }
-    el.addEventListener?.("animationend", settle, { once: true })
-    el.addEventListener?.("transitionend", settle, { once: true })
+    el.addEventListener?.("animationend", settle)
+    el.addEventListener?.("transitionend", settle)
     setTimeout(settle, Math.min(durationMs + 50, EFFECT_SETTLE_FALLBACK_MS))
   })
 }

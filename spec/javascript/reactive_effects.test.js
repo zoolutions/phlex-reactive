@@ -381,3 +381,43 @@ test("legs: the frame wait's fallback never beats a pending frame in a visible t
   expect(el.classList.contains("fx-from")).toBe(true)
   expect(el.classList.contains("fx-to")).toBe(false)
 })
+
+test("update: a descendant's bubbling transitionend doesn't settle the container's effect (#296)", async () => {
+  const el = addTarget("card", { "data-reactive-effect-update": "highlight", "data-test-duration": "0.4s" })
+  const child = document.createElement("span")
+  el.appendChild(child)
+  const detail = fire(makeStream("replace", "card"), async () => {})
+  await detail.render(detail.newStream)
+  expect(el.classList.contains("reactive-fx--highlight-update")).toBe(true)
+
+  child.dispatchEvent(new window.Event("transitionend", { bubbles: true }))
+  await Promise.resolve()
+  expect(el.classList.contains("reactive-fx--highlight-update")).toBe(true) // the child's, not ours
+
+  el.dispatchEvent(new window.Event("animationend"))
+  await Promise.resolve()
+  expect(el.classList.contains("reactive-fx--highlight-update")).toBe(false)
+})
+
+test("a settled effect leaves neither end listener behind (#296)", async () => {
+  const el = addTarget("card", { "data-reactive-effect-update": "highlight", "data-test-duration": "0.4s" })
+  const live = new Set()
+  const add = el.addEventListener.bind(el)
+  const remove = el.removeEventListener.bind(el)
+  el.addEventListener = (type, fn, opts) => {
+    live.add(`${type}`)
+    add(type, fn, opts)
+  }
+  el.removeEventListener = (type, fn, opts) => {
+    live.delete(`${type}`)
+    remove(type, fn, opts)
+  }
+  const detail = fire(makeStream("replace", "card"), async () => {})
+  await detail.render(detail.newStream)
+  expect(live.size).toBe(2)
+
+  el.dispatchEvent(new window.Event("animationend"))
+  await Promise.resolve()
+  expect(el.classList.contains("reactive-fx--highlight-update")).toBe(false)
+  expect([...live]).toEqual([])
+})

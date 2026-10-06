@@ -72,7 +72,9 @@ const SLACK = 250
 // ratchet below sits 24 B above the real size (inside SLACK): room for a
 // fix in flight, not for a feature. Issue #295 (a legs effect's frame wait
 // raced against the settle fallback) needs 25 B of it: 25,001 B, one past.
-const BUNDLE_GZIP_CEILING = 25_001
+// Issue #296 (effectSettled ignores a descendant's end event and drops both
+// listeners) adds 13 B: 25,014 B.
+const BUNDLE_GZIP_CEILING = 25_014
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
