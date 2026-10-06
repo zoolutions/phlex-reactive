@@ -405,8 +405,8 @@ test("stream lane: a newer stream directive removes the older source element (un
 test("stream lane: the arriving broadcast settles the pendingDefers entry (no detached-node leak)", () => {
   // Regression for the re-review finding: the stream-lane Map entry used to
   // hold a strong ref to the source element and was never removed on arrival,
-  // leaking a detached node per target. Now: no srcEl ref, and a
-  // turbo:before-stream-render against the target (the job's replace) settles
+  // leaking a detached node per target. Now: no srcEl ref, and the job's
+  // removal of the source element (every job broadcast ends with it) settles
   // the entry.
   const { actions } = stubTurbo()
   const el = makeTargetEl("slow-totals")
@@ -419,13 +419,35 @@ test("stream lane: the arriving broadcast settles the pendingDefers entry (no de
   )
   expect(getPendingDeferVia("slow-totals")).toBe("stream")
 
-  // The job's broadcast: a turbo-stream that replaces #slow-totals fires
-  // turbo:before-stream-render with a stream element whose target is the id.
-  const streamEl = { getAttribute: (n) => (n === "target" ? "slow-totals" : null) }
-  listeners["turbo:before-stream-render"]?.({ target: streamEl })
+  listeners["turbo:before-stream-render"]?.(streamRender("reactive-defer-src-slow-totals", "remove"))
 
   expect(getPendingDeferVia("slow-totals")).toBeUndefined()
 })
+
+test("stream lane: an unrelated stream to the target does NOT settle the entry (#292)", () => {
+  // An `update` of #slow-totals from elsewhere (another broadcast, an action
+  // reply) between the enqueue and the job's broadcast is not the delivery:
+  // only the removal of reactive-defer-src-<target> is.
+  const { actions } = stubTurbo()
+  const el = makeTargetEl("slow-totals")
+  const { listeners } = stubDocument({ byId: { "slow-totals": el } })
+  globalThis.customElements = { get: () => class {} }
+  registerReactiveDefer()
+
+  actions["reactive:defer"].call(
+    directiveEl({ target: "slow-totals", via: "stream", token: null, src: "/pgbus/streams/one" }),
+  )
+  listeners["turbo:before-stream-render"]?.(streamRender("slow-totals", "update"))
+  expect(getPendingDeferVia("slow-totals")).toBe("stream")
+
+  listeners["turbo:before-stream-render"]?.(streamRender("reactive-defer-src-slow-totals", "remove"))
+  expect(getPendingDeferVia("slow-totals")).toBeUndefined()
+})
+
+// The turbo:before-stream-render event Turbo dispatches on a <turbo-stream>.
+function streamRender(target, action) {
+  return { target: { getAttribute: (n) => ({ target, action })[n] ?? null } }
+}
 
 test("lazy mount: connect() probes data-reactive-defer-token on the root and enters the fetch path", async () => {
   const { rendered } = stubTurbo()
@@ -487,9 +509,41 @@ test("lazy mount: a turbo:morph-element re-showing the shell RE-FIRES the fetch 
   // A Turbo morph re-shows the shell (token + pending marker present again).
   root.attrs["data-reactive-defer-token"] = "lazy-token-2"
   root.attrs["data-reactive-defer-pending"] = "true"
-  listeners["turbo:morph-element"]?.()
+  listeners["turbo:morph-element"]?.({ target: root })
   expect(calls.length).toBe(2) // re-fired on morph
   expect(JSON.parse(calls[1].options.body)).toEqual({ token: "lazy-token-2" })
+})
+
+test("lazy mount: a bubbling turbo:morph-element from a DESCENDANT does not re-probe the shell (#294)", async () => {
+  // turbo:morph-element bubbles: a morphed skeleton child (or a nested root)
+  // reaches the shell's listener too. Re-probing on it would supersede — abort
+  // and re-issue — the shell's in-flight fetch on every descendant morph.
+  stubTurbo()
+  const mod = await import("../../app/javascript/phlex/reactive/reactive_controller.js")
+  const Controller = mod.default
+
+  const root = makeTargetEl("lazy-stats")
+  root.attrs["data-reactive-defer-token"] = "lazy-token"
+  root.attrs["data-reactive-defer-pending"] = "true"
+  const listeners = {}
+  root.addEventListener = (name, fn) => (listeners[name] = fn)
+  root.removeEventListener = () => {}
+  root.querySelectorAll = () => []
+  stubDocument({ byId: { "lazy-stats": root } })
+  const calls = stubFetch() // never resolved: the fetch stays in flight
+
+  const controller = new Controller()
+  controller.element = root
+  controller.connect()
+  expect(calls.length).toBe(1)
+
+  listeners["turbo:morph-element"]?.({ target: makeTargetEl("skeleton-row") })
+  expect(calls.length).toBe(1)
+  expect(calls[0].options.signal.aborted).toBe(false)
+
+  // A morph of the root itself still re-probes.
+  listeners["turbo:morph-element"]?.({ target: root })
+  expect(calls.length).toBe(2)
 })
 
 test("lazy mount: a re-probe of a RESOLVED root (no pending marker) is a no-op", async () => {
@@ -509,7 +563,7 @@ test("lazy mount: a re-probe of a RESOLVED root (no pending marker) is a no-op",
   const controller = new Controller()
   controller.element = root
   controller.connect()
-  listeners["turbo:morph-element"]?.()
+  listeners["turbo:morph-element"]?.({ target: root })
   expect(calls.length).toBe(0)
 })
 

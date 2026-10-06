@@ -324,23 +324,39 @@ function effectDurationMs(el) {
 // Resolve on animationend/transitionend — whichever fires first — with a
 // timeout slightly past the computed duration, so a canceled animation (a
 // display:none ancestor, an interrupted transition) can't hang an exit.
+// Only the element's OWN end event counts — both bubble, and a descendant's
+// would settle the effect early (issue #296) — and settling removes both
+// listeners (`once` would only drop the one that fired).
 function effectSettled(el, durationMs) {
   return new Promise((resolve) => {
-    let done = false
-    const settle = () => {
-      if (done) return
-      done = true
+    const settle = (event) => {
+      if (event && event.target !== el) return
+      el.removeEventListener?.("animationend", settle)
+      el.removeEventListener?.("transitionend", settle)
       resolve()
     }
-    el.addEventListener?.("animationend", settle, { once: true })
-    el.addEventListener?.("transitionend", settle, { once: true })
+    el.addEventListener?.("animationend", settle)
+    el.addEventListener?.("transitionend", settle)
     setTimeout(settle, Math.min(durationMs + 50, EFFECT_SETTLE_FALLBACK_MS))
   })
 }
 
+// One frame, raced against the settle fallback (issue #295): a background tab
+// never runs rAF, and an exit must not hold its removal (and every stream
+// behind it) until the tab is visible again. The fallback is the full settle
+// ceiling, never a short timer — one could beat rAF in a visible tab and swap
+// from→to before the `from` leg paints. Whichever wins cancels the other, so a
+// visible tab leaves no stray 1s timer behind.
 function effectNextFrame() {
   return new Promise((resolve) => {
-    if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => resolve())
-    else setTimeout(resolve, 16)
+    if (typeof requestAnimationFrame !== "function") return setTimeout(resolve, 16)
+    const timer = setTimeout(() => {
+      globalThis.cancelAnimationFrame?.(frame)
+      resolve()
+    }, EFFECT_SETTLE_FALLBACK_MS)
+    const frame = requestAnimationFrame(() => {
+      clearTimeout(timer)
+      resolve()
+    })
   })
 }

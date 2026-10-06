@@ -106,6 +106,9 @@ Rails.application.routes.draw do
   # Nav probe: where a NON-intercepted form submit would land. Accept POST (and
   # GET) so a native submit produces an observable navigation, not a 404.
   match "nav_probe" => "demos#nav_probe", :via => %i[get post]
+  # Issue #320: a request the server sits on for ?seconds= (bounded) — the
+  # stand-in for a wedged server in the system-example timeout proof.
+  get "stall" => "demos#stall"
 
   # The phlex-reactive engine appends POST /reactive/actions itself.
 end

@@ -14,6 +14,9 @@
 
 // controller -> what connect() wired, for disconnect() to remove exactly that.
 const wired = new WeakMap()
+// The turbo:before-visit events a warn_unsaved root already prompted for: one
+// prompt per visit, however many dirty roots guard the page (issue #298).
+const askedVisits = new WeakSet()
 
 export function connect(controller, core) {
   const root = controller.element
@@ -97,7 +100,7 @@ function dirtyTrackingEnabled(root, core) {
 // connect (baseline seed), and after a turbo:morph-element re-render (fresh
 // default* attrs). dirty = current ≠ the DOM's own default:
 //   checkbox/radio → checked  !== defaultChecked
-//   select         → some option.selected !== option.defaultSelected
+//   select         → some option.selected !== its reset state (issue #297)
 //   else           → value    !== defaultValue
 // A full pass (not per-target) is REQUIRED: a radio group's previously-checked
 // radio flips to checked=false with NO input event, so per-target toggling
@@ -137,9 +140,17 @@ function fieldDirty(field) {
     return field.checked !== field.defaultChecked
   }
   if (field.tag === "select" || field.options) {
-    // Any option whose selected state diverges from its defaultSelected. Guard
-    // for a stub/absent options list (degrade to clean).
-    return Array.from(field.options ?? []).some((o) => o.selected !== o.defaultSelected)
+    // Any option whose selected state diverges from the select's RESET state.
+    // Guard for a stub/absent options list (degrade to clean). A one-row single
+    // select resets to its last defaultSelected option or, with none, to its
+    // first enabled one — the browser selects it while its defaultSelected stays
+    // false, so a pristine form must not read as dirty (issue #297). A multiple
+    // (or size > 1) select resets to exactly its defaultSelected options. An
+    // option inside a disabled <optgroup> is disabled too (the browser skips it).
+    const options = Array.from(field.options ?? [])
+    const single = !field.multiple && !(field.size > 1)
+    const reset = options.filter((o) => o.defaultSelected).pop() ?? options.find((o) => !o.closest?.("optgroup")?.disabled && !o.disabled)
+    return options.some((o) => o.selected !== (single ? o === reset : o.defaultSelected))
   }
   return field.value !== field.defaultValue
 }
@@ -169,8 +180,13 @@ function armUnsavedGuard(root, state) {
     event.returnValue = "You have unsaved changes."
     return event.returnValue
   }
+  // Every warn_unsaved root arms its own turbo:before-visit handler, and one
+  // visit is one event dispatched to all of them: the first DIRTY root asks,
+  // and the rest see the event already asked (issue #298). A clean root never
+  // claims the event, so any dirty root on the page can still veto the visit.
   state.beforeVisit = (event) => {
-    if (dirtyCount(root) === 0) return
+    if (dirtyCount(root) === 0 || askedVisits.has(event)) return
+    askedVisits.add(event)
     const ok = typeof window.confirm === "function" ? window.confirm("You have unsaved changes. Leave anyway?") : true
     if (!ok) event.preventDefault?.()
   }

@@ -23,12 +23,18 @@ let window
 // time with drainTimers. The settle fallback and dismiss scheduling both ride
 // setTimeout, so tests never really wait.
 const realSetTimeout = globalThis.setTimeout
+const realClearTimeout = globalThis.clearTimeout
 let pending = []
+let nextTimerId = 0
 function installFakeTimers() {
   pending = []
   globalThis.setTimeout = (fn, ms) => {
-    pending.push({ fn, ms })
-    return pending.length
+    const id = ++nextTimerId
+    pending.push({ fn, ms, id })
+    return id
+  }
+  globalThis.clearTimeout = (id) => {
+    pending = pending.filter((t) => t.id !== id)
   }
 }
 function drainTimers(uptoMs) {
@@ -78,6 +84,8 @@ beforeEach(async () => {
 
 afterEach(() => {
   globalThis.setTimeout = realSetTimeout
+  globalThis.clearTimeout = realClearTimeout
+  delete globalThis.cancelAnimationFrame
   console.warn = realWarn
 })
 
@@ -348,4 +356,99 @@ test("registerReactiveEffects is idempotent (one listener)", () => {
   addTarget("row", { "data-reactive-effect-exit": "fade", "data-test-duration": "0.2s" })
   const detail = fire(makeStream("remove", "row"), async () => {})
   expect(detail.render.__reactiveEffectsWrapped).toBe(true)
+})
+
+test("legs exit in a background tab: a frame that never comes can't hold the removal (#295)", async () => {
+  addTarget("row", { "data-test-duration": "0.2s" })
+  globalThis.requestAnimationFrame = () => 0 // a hidden tab: rAF never fires
+  const tick = () => new Promise((resolve) => realSetTimeout(resolve, 0))
+  let removed = false
+  const legs = JSON.stringify(["fx-during", "fx-from", "fx-to"])
+  const detail = fire(makeStream("remove", "row", { effect: legs }), async () => {
+    removed = true
+  })
+
+  const done = detail.render(detail.newStream)
+  drainTimers(1000) // the frame wait's fallback
+  await tick()
+  drainTimers(1000) // the settle fallback
+  await tick()
+  expect(removed).toBe(true) // asserted before awaiting, so RED fails fast instead of hanging
+  await done
+})
+
+test("legs: the frame wait's fallback never beats a pending frame in a visible tab (#295)", async () => {
+  const el = addTarget("row", { "data-test-duration": "0.2s" })
+  globalThis.requestAnimationFrame = () => 0 // a frame is pending, not yet run
+  const legs = JSON.stringify(["fx-during", "fx-from", "fx-to"])
+  const detail = fire(makeStream("remove", "row", { effect: legs }), async () => {})
+
+  detail.render(detail.newStream)
+  drainTimers(999) // a short fallback would swap from→to before `from` paints
+  await new Promise((resolve) => realSetTimeout(resolve, 0))
+  expect(el.classList.contains("fx-from")).toBe(true)
+  expect(el.classList.contains("fx-to")).toBe(false)
+})
+
+test("legs: a frame that runs clears the frame wait's fallback timer (#295)", async () => {
+  addTarget("row", { "data-test-duration": "0.2s" })
+  const legs = JSON.stringify(["fx-during", "fx-from", "fx-to"])
+  const detail = fire(makeStream("replace", "row", { effect: legs }), async () => {})
+
+  await detail.render(detail.newStream) // the suite's rAF runs synchronously
+  await new Promise((resolve) => realSetTimeout(resolve, 0))
+  expect(pending.some((t) => t.ms === 1000)).toBe(false) // only the 250ms settle timer remains
+})
+
+test("legs: a fallback that wins cancels the frame still pending (#295)", async () => {
+  addTarget("row", { "data-test-duration": "0.2s" })
+  globalThis.requestAnimationFrame = () => 42 // a hidden tab: rAF never fires
+  const canceled = []
+  globalThis.cancelAnimationFrame = (id) => canceled.push(id)
+  const legs = JSON.stringify(["fx-during", "fx-from", "fx-to"])
+  const detail = fire(makeStream("replace", "row", { effect: legs }), async () => {})
+
+  await detail.render(detail.newStream)
+  drainTimers(1000) // the frame wait's fallback
+  expect(canceled).toEqual([42])
+})
+
+test("update: a descendant's bubbling transitionend doesn't settle the container's effect (#296)", async () => {
+  const el = addTarget("card", { "data-reactive-effect-update": "highlight", "data-test-duration": "0.4s" })
+  const child = document.createElement("span")
+  el.appendChild(child)
+  const detail = fire(makeStream("replace", "card"), async () => {})
+  await detail.render(detail.newStream)
+  expect(el.classList.contains("reactive-fx--highlight-update")).toBe(true)
+
+  child.dispatchEvent(new window.Event("transitionend", { bubbles: true }))
+  await Promise.resolve()
+  expect(el.classList.contains("reactive-fx--highlight-update")).toBe(true) // the child's, not ours
+
+  el.dispatchEvent(new window.Event("animationend"))
+  await Promise.resolve()
+  expect(el.classList.contains("reactive-fx--highlight-update")).toBe(false)
+})
+
+test("a settled effect leaves neither end listener behind (#296)", async () => {
+  const el = addTarget("card", { "data-reactive-effect-update": "highlight", "data-test-duration": "0.4s" })
+  const live = new Set()
+  const add = el.addEventListener.bind(el)
+  const remove = el.removeEventListener.bind(el)
+  el.addEventListener = (type, fn, opts) => {
+    live.add(`${type}`)
+    add(type, fn, opts)
+  }
+  el.removeEventListener = (type, fn, opts) => {
+    live.delete(`${type}`)
+    remove(type, fn, opts)
+  }
+  const detail = fire(makeStream("replace", "card"), async () => {})
+  await detail.render(detail.newStream)
+  expect(live.size).toBe(2)
+
+  el.dispatchEvent(new window.Event("animationend"))
+  await Promise.resolve()
+  expect(el.classList.contains("reactive-fx--highlight-update")).toBe(false)
+  expect([...live]).toEqual([])
 })

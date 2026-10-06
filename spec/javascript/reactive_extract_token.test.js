@@ -291,3 +291,30 @@ test("escapeRegExp escapes regex metacharacters", () => {
   expect(escapeRegExp("x+y*z")).toBe("x\\+y\\*z")
   expect(escapeRegExp("plain")).toBe("plain")
 })
+
+// Issue #301: a morph from OUTSIDE the controller's own reply (a broadcast, a
+// page refresh, a dormant morph-back) rewrites data-reactive-token-value in
+// place — the element and its controller survive — so the token cached from the
+// last reply must yield to the one the morph brought. Stimulus calls
+// tokenValueChanged on that attribute change (and on a reconnect after one);
+// Stimulus is mocked here, so this drives that callback contract by hand.
+test("a token the morph brought wins over the one cached from the last reply (issue #301)", async () => {
+  const root = fakeRoot("counter")
+  const controller = buildController(root, "TOKEN-INITIAL")
+  stubEnv()
+
+  const body =
+    `<turbo-stream action="replace" method="morph" target="counter">` +
+    `<template><div id="counter" data-controller="reactive" data-reactive-token-value="REPLY-FRESH">1</div></template>` +
+    `</turbo-stream>`
+  const captured = []
+  stubFetchReturning(body, captured)
+  await controller.dispatch({ params: { action: "bump", params: "{}" }, preventDefault: () => {} })
+  expect(captured[0].token).toBe("TOKEN-INITIAL")
+
+  controller.tokenValue = "MORPHED-IN"
+  controller.tokenValueChanged("MORPHED-IN", "REPLY-FRESH")
+
+  await controller.dispatch({ params: { action: "bump", params: "{}" }, preventDefault: () => {} })
+  expect(captured[1].token).toBe("MORPHED-IN")
+})
