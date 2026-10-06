@@ -1,0 +1,9 @@
+spec/javascript/bundle_budget.test.js
+  ai_agent 106-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "10c4d8824af42ba5710443966f88362807714e89",
+  "prompts": {}
+}
