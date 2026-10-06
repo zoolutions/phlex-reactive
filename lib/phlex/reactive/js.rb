@@ -196,9 +196,24 @@ module Phlex
       # "submit") interception. ACTOR-ONLY like focus: allowed from on_client /
       # reply.js / a reducer's $ops, refused in broadcast_to(js:) — a broadcast
       # submit would force-submit every subscriber's form.
+      #
+      # submitter: (issue #319) — a CSS selector for the submit control to
+      # submit THROUGH (form.requestSubmit(submitter)), so the request carries
+      # its name=value — the bulk-action "Delete" that posts action=delete. It
+      # resolves with the op's own scoping; one that isn't a submit control of
+      # that form warns in the browser and falls back to a plain submit.
+      #   js.submit("#bulk", submitter: "#delete-submit")
 
-      def submit(to = :root, global: false)
-        append("submit", target_args(to, global:))
+      def submit(to = :root, global: false, submitter: nil)
+        args = target_args(to, global:)
+        return append("submit", args) if submitter.nil?
+
+        unless submitter.is_a?(String) && !submitter.empty?
+          raise ArgumentError,
+            "js.submit submitter: must be a CSS selector string naming a submit control, got #{submitter.inspect}"
+        end
+
+        append("submit", args.merge("submitter" => submitter).freeze)
       end
 
       # --- Clipboard-source paste (issue #228) ---

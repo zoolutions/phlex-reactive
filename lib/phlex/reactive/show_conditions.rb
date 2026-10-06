@@ -20,6 +20,9 @@ module Phlex
     #   { length: 6 }                -> len_eq 6 (issue #226 — the value's
     #   { length: 6.. } / (4..8)        CODEPOINT count; Integer Ranges reuse
     #                                   the threshold vocabulary as len_*)
+    #   { checked: 1.. } / { checked: 0 } -> checked_* (issue #319 — how many
+    #                                   owned boxes of a checkbox GROUP are
+    #                                   ticked; same Integer/Range shapes)
     # Under unless: each term is NEGATED (De Morgan):
     #   scalar -> not; Array -> ∉ (AND of nots); Range -> the complement
     #   predicate (¬gte→lt, ¬lte→gt, ¬lt→gte), and a BOUNDED range complements
@@ -37,6 +40,14 @@ module Phlex
       # (String#length here, [...value].length there) so multibyte values agree
       # — the shared fixture's emoji vector proves it.
       LENGTH_KEYS = %w[len_eq len_gte len_gt len_lte len_lt].freeze
+
+      # The checked-count wire keys (issue #319) — the client mirrors them in
+      # SHOW_CHECKED_KEYS. They count the TICKED boxes of a checkbox group (an
+      # Array value counts its entries; an Integer is the count itself).
+      CHECKED_KEYS = %w[checked_eq checked_gte checked_gt checked_lte checked_lt].freeze
+
+      # A Hash value's one key -> its wire-key prefix.
+      COUNT_PREFIXES = { "length" => "len", "checked" => "checked" }.freeze
 
       module_function
 
@@ -136,7 +147,7 @@ module Phlex
         case value
         when Range then range_terms(name, value)
         when Array then [membership_term(name, value)]
-        when Hash then length_terms(name, value)
+        when Hash then count_terms(name, value)
         else [{ "field" => name, "equals" => equals_literal(value) }]
         end
       end
@@ -180,90 +191,95 @@ module Phlex
         end
       end
 
-      # --- the length predicate (issue #226) ----------------------------------
+      # --- the count predicates: length: (#226) and checked: (#319) ---------
 
-      # A Hash value names a STRUCTURAL predicate — today only length:. Exact
-      # Integer -> one len_eq term; an Integer Range -> len_gte/len_lte/len_lt
-      # terms exactly like range_terms. Length is a total function over the
-      # value's codepoints (blank/absent -> 0), so { length: 0 } legitimately
-      # matches a blank field.
-      def length_terms(name, hash)
-        value = length_value!(name, hash)
+      # A Hash value names a STRUCTURAL predicate over a COUNT — length: (the
+      # value's codepoints) or checked: (the ticked boxes of a checkbox group).
+      # Exact Integer -> one *_eq term; an Integer Range -> *_gte/*_lte/*_lt
+      # terms exactly like range_terms. A count is total (blank/absent -> 0),
+      # so { length: 0 } / { checked: 0 } legitimately match a blank field.
+      def count_terms(name, hash)
+        kind, value = count_value!(name, hash)
+        prefix = COUNT_PREFIXES.fetch(kind)
         case value
         when Integer
-          validate_length_literal!(name, value)
-          [{ "field" => name, "len_eq" => value }]
-        when Range then length_range_terms(name, value)
-        else raise_length_kind(name, value)
+          validate_count_literal!(name, kind, value)
+          [{ "field" => name, "#{prefix}_eq" => value }]
+        when Range then count_range_terms(name, kind, value)
+        else raise_count_kind(name, kind, value)
         end
       end
 
-      def length_range_terms(name, range)
+      def count_range_terms(name, kind, range)
+        prefix = COUNT_PREFIXES.fetch(kind)
         first = range.begin
         last = range.end
-        raise_length_kind(name, range) if first.nil? && last.nil?
-        [first, last].compact.each { validate_length_literal!(name, it) }
+        raise_count_kind(name, kind, range) if first.nil? && last.nil?
+        [first, last].compact.each { validate_count_literal!(name, kind, it) }
 
         terms = []
-        terms << { "field" => name, "len_gte" => first } unless first.nil?
+        terms << { "field" => name, "#{prefix}_gte" => first } unless first.nil?
         if last
-          terms << { "field" => name, (range.exclude_end? ? "len_lt" : "len_lte") => last }
+          terms << { "field" => name, "#{prefix}_#{range.exclude_end? ? "lt" : "lte"}" => last }
         end
         terms
       end
 
-      # The complement of a length predicate, under unless:. Exact length
-      # negates to the outside disjunction (len < n OR len > n) — two
+      # The complement of a count predicate, under unless:. An exact count
+      # negates to the outside disjunction (n < x OR n > x) — two
       # alternatives, like a bounded numeric range; ranges complement each leg
-      # (not-gte -> lt, not-lte -> gt, not-lt -> gte). Length is total, so
+      # (not-gte -> lt, not-lte -> gt, not-lt -> gte). A count is total, so
       # unlike the numeric complements there is no blank/NaN fail-closed
       # asymmetry — the complement is exact.
-      def length_complement(name, hash)
-        value = length_value!(name, hash)
+      def count_complement(name, hash)
+        kind, value = count_value!(name, hash)
+        prefix = COUNT_PREFIXES.fetch(kind)
         case value
         when Integer
-          validate_length_literal!(name, value)
-          [[{ "field" => name, "len_lt" => value }], [{ "field" => name, "len_gt" => value }]]
+          validate_count_literal!(name, kind, value)
+          [[{ "field" => name, "#{prefix}_lt" => value }], [{ "field" => name, "#{prefix}_gt" => value }]]
         when Range
           first = value.begin
           last = value.end
-          raise_length_kind(name, value) if first.nil? && last.nil?
-          [first, last].compact.each { validate_length_literal!(name, it) }
+          raise_count_kind(name, kind, value) if first.nil? && last.nil?
+          [first, last].compact.each { validate_count_literal!(name, kind, it) }
 
-          low = first.nil? ? nil : [{ "field" => name, "len_lt" => first }]
+          low = first.nil? ? nil : [{ "field" => name, "#{prefix}_lt" => first }]
           high =
             if last.nil? then nil
-            elsif value.exclude_end? then [{ "field" => name, "len_gte" => last }]
-            else [{ "field" => name, "len_gt" => last }]
+            elsif value.exclude_end? then [{ "field" => name, "#{prefix}_gte" => last }]
+            else [{ "field" => name, "#{prefix}_gt" => last }]
             end
           [low, high].compact
-        else raise_length_kind(name, value)
+        else raise_count_kind(name, kind, value)
         end
       end
 
-      # The one Hash key must be length: — anything else is a typo'd predicate
-      # that must fail at render, never silently in the browser.
-      def length_value!(name, hash)
-        unless hash.size == 1 && hash.keys.first.to_s == "length"
+      # The one Hash key must be length: or checked: — anything else is a
+      # typo'd predicate that must fail at render, never silently in the
+      # browser. Returns [kind, value].
+      def count_value!(name, hash)
+        kind = hash.keys.first.to_s if hash.size == 1
+        unless COUNT_PREFIXES.key?(kind)
           raise ArgumentError,
-            "reactive_show: #{name.inspect} Hash value supports only length: " \
+            "reactive_show: #{name.inspect} Hash value supports only length: or checked: " \
             "(got #{hash.keys.inspect})"
         end
 
-        hash.values.first
+        [kind, hash.values.first]
       end
 
-      def validate_length_literal!(name, value)
+      def validate_count_literal!(name, kind, value)
         return if value.is_a?(Integer) && value >= 0
 
         raise ArgumentError,
-          "reactive_show: #{name.inspect} length: takes a non-negative Integer " \
-          "(a codepoint count), got #{value.inspect}"
+          "reactive_show: #{name.inspect} #{kind}: takes a non-negative Integer " \
+          "(a #{kind == "length" ? "codepoint" : "ticked-box"} count), got #{value.inspect}"
       end
 
-      def raise_length_kind(name, value)
+      def raise_count_kind(name, kind, value)
         raise ArgumentError,
-          "reactive_show: #{name.inspect} length: takes a non-negative Integer " \
+          "reactive_show: #{name.inspect} #{kind}: takes a non-negative Integer " \
           "or an Integer Range, got #{value.inspect}"
       end
 
@@ -278,7 +294,7 @@ module Phlex
         name = field.to_s
         case value
         when Range then range_complement(name, value)
-        when Hash then length_complement(name, value)
+        when Hash then count_complement(name, value)
         when Array
           list = value.map(&:to_s)
           raise ArgumentError, "reactive_show: #{name.inspect} Array needs at least one value" if list.empty?
@@ -320,26 +336,38 @@ module Phlex
         if term.key?("equals") then value == term["equals"]
         elsif term.key?("not") then value != term["not"]
         elsif term.key?("in") then term["in"].include?(value)
-        elsif (key = LENGTH_KEYS.find { term.key?(it) }) then length_term_matches?(key, term[key], value)
+        elsif (key = LENGTH_KEYS.find { term.key?(it) }) then count_matches?(key, term[key], value.to_s.length)
+        elsif (key = CHECKED_KEYS.find { term.key?(it) }) then count_matches?(key, term[key], checked_count(value))
         else numeric_term_matches?(term, value)
         end
       end
 
-      # len_* — compare the value's CODEPOINT count (String#length) against the
-      # Integer literal. Length is total (blank/absent -> 0), so every value is
-      # decidable; a malformed non-Integer literal (a hand-built term) is
-      # fail-closed, mirroring the client's warn-skip.
-      def length_term_matches?(key, literal, value)
+      # len_* / checked_* — compare a count (the value's CODEPOINTS via
+      # String#length, or the group's ticked boxes) against the Integer literal.
+      # A count is total (blank/absent -> 0), so every value is decidable; a
+      # malformed non-Integer literal (a hand-built term) is fail-closed,
+      # mirroring the client's warn-skip.
+      def count_matches?(key, literal, count)
         return false unless literal.is_a?(Integer)
 
-        length = value.to_s.length
-        case key
-        when "len_eq" then length == literal
-        when "len_gte" then length >= literal
-        when "len_gt" then length > literal
-        when "len_lte" then length <= literal
-        when "len_lt" then length < literal
+        case key.delete_prefix("len_").delete_prefix("checked_")
+        when "eq" then count == literal
+        when "gte" then count >= literal
+        when "gt" then count > literal
+        when "lte" then count <= literal
+        when "lt" then count < literal
         end
+      end
+
+      # How many boxes of a group are ticked, from the first-paint value: an
+      # Array (the checked values) counts its entries, an Integer (or its
+      # string) is the count, a lone checkbox's "true"/"false" is 1/0, and a
+      # blank/absent group is 0 — the client counts the owned ticked boxes.
+      def checked_count(value)
+        return value.size if value.is_a?(Array)
+        return 1 if value.to_s == "true"
+
+        Integer(value.to_s, exception: false) || 0
       end
 
       # gte/gt/lte/lt — coerce the field value to a number; a blank/non-numeric

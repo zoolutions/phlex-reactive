@@ -12,6 +12,7 @@ module Phlex
       # no signing (those live in DSL and Identity).
       module Helpers
         extend ActiveSupport::Concern
+        include Selection
 
         # The acting client's SSE connection id during the current action (nil
         # outside an action, or when the client isn't subscribed to a stream).
@@ -1594,14 +1595,22 @@ module Phlex
         def apply_first_paint_hidden(attrs, groups, values_override)
           return attrs if attrs.key?(:hidden)
 
+          visible = first_paint_match(groups, values_override)
+          visible.nil? ? attrs : attrs.merge(hidden: !visible)
+        end
+
+        # The server-side evaluation of a binding's conditions for first paint
+        # (reactive_show's hidden:, reactive_enable's disabled:): true/false
+        # when reactive_values (merged under values:) covers EVERY referenced
+        # field, else nil — the client seeds it at connect.
+        def first_paint_match(groups, values_override)
           provided = show_values(values_override)
-          return attrs if provided.nil?
+          return nil if provided.nil?
 
           referenced = Phlex::Reactive::ShowConditions.fields(groups)
-          return attrs unless referenced.all? { provided.key?(it) }
+          return nil unless referenced.all? { provided.key?(it) }
 
-          visible = Phlex::Reactive::ShowConditions.match?(groups, provided)
-          attrs.merge(hidden: !visible)
+          Phlex::Reactive::ShowConditions.match?(groups, provided)
         end
 
         # The { field => current-string-value } map the first-paint evaluator
@@ -1617,7 +1626,9 @@ module Phlex
           merged = {}
           merged.merge!(base) if base
           merged.merge!(values_override) if values_override
-          merged.to_h { |name, value| [name.to_s, show_value_string(value)] }
+          # An Array (a checkbox group's checked values, issue #319) stays an
+          # Array so a checked: term can count it.
+          merged.to_h { |name, value| [name.to_s, value.is_a?(Array) ? value.map(&:to_s) : show_value_string(value)] }
         end
 
         # Stringify a reactive_values entry the way the client's #showFieldValue
