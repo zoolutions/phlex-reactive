@@ -1,0 +1,13 @@
+app/javascript/phlex/reactive/core.min.js.map
+  ai_agent 5,8
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 5,16
+spec/dummy/public/vendor/reactive_controller.min.js.map
+  ai_agent 5,16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "551fa0b0e0f0c5d042f3cff6db5f046983272235",
+  "prompts": {}
+}
