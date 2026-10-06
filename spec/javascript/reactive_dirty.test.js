@@ -6,7 +6,7 @@
 // runs #scanDirty(), a FULL PASS over every field this reactive root owns:
 //
 //   checkbox/radio → checked  !== defaultChecked
-//   select         → some option.selected !== option.defaultSelected
+//   select         → some option.selected !== its reset state (issue #297)
 //   else           → value    !== defaultValue
 //
 // A full pass (not a per-target toggle) is REQUIRED for radio groups: when a new
@@ -315,6 +315,28 @@ test("a multiple select with nothing selected by default stays clean until an op
   tags.options[0].selected = true
   controller.trackDirty({ target: tags })
   expect(tags.getAttribute("data-reactive-dirty")).toBe("true")
+})
+
+test("a size > 1 select resets to no selection, so nothing selected is clean (issue #297)", () => {
+  const root = reactiveRoot()
+  const list = new FakeNode({
+    tag: "select",
+    name: "list",
+    options: [
+      { selected: false, defaultSelected: false },
+      { selected: false, defaultSelected: false },
+    ],
+  })
+  list.size = 4
+  root.append(list)
+  const controller = buildController(root)
+
+  controller.trackDirty({ target: list })
+  expect(list.getAttribute("data-reactive-dirty")).toBeNull()
+
+  list.options[0].selected = true
+  controller.trackDirty({ target: list })
+  expect(list.getAttribute("data-reactive-dirty")).toBe("true")
 })
 
 test("radio group: selecting a new radio marks the deselected default radio dirty too (full pass)", () => {

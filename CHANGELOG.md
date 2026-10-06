@@ -23,6 +23,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A single `<select>` with no `selected` option no longer reads as dirty
+  (#297).** The browser selects its first enabled option while that option's
+  `defaultSelected` stays false; dirty tracking now compares a one-row single
+  select against its reset state (the last `selected` option, else the first
+  enabled one).
+- **Two dirty `warn_unsaved` roots prompt once per Turbo visit (#298).** The
+  first dirty root to see a `turbo:before-visit` asks; the others skip that
+  event, and any dirty root's decline still vetoes the visit.
 - **The browser suite no longer wedges under Falcon when two requests
   overlap (#303).** Transactional system tests pin one connection that the
   test and the server share, guarded by a lock keyed on

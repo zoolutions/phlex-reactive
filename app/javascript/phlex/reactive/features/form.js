@@ -100,7 +100,7 @@ function dirtyTrackingEnabled(root, core) {
 // connect (baseline seed), and after a turbo:morph-element re-render (fresh
 // default* attrs). dirty = current ≠ the DOM's own default:
 //   checkbox/radio → checked  !== defaultChecked
-//   select         → some option.selected !== option.defaultSelected
+//   select         → some option.selected !== its reset state (issue #297)
 //   else           → value    !== defaultValue
 // A full pass (not per-target) is REQUIRED: a radio group's previously-checked
 // radio flips to checked=false with NO input event, so per-target toggling
@@ -146,6 +146,8 @@ function fieldDirty(field) {
     // first enabled one — the browser selects it while its defaultSelected stays
     // false, so a pristine form must not read as dirty (issue #297). A multiple
     // (or size > 1) select resets to exactly its defaultSelected options.
+    // Known gap: `o.disabled` is the option's own flag, so a first option inside
+    // a disabled <optgroup> (which the browser skips) is still taken as reset.
     const options = Array.from(field.options ?? [])
     const single = !field.multiple && !(field.size > 1)
     const reset = options.filter((o) => o.defaultSelected).pop() ?? options.find((o) => !o.disabled)
