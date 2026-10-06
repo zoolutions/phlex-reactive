@@ -78,6 +78,12 @@ class FakeNode {
   }
   matches(selector) {
     if (selector === "*") return true
+    // A browser's :disabled: the control's own flag, or a <fieldset disabled>
+    // ancestor (which native submission also excludes).
+    if (selector === ":disabled") {
+      for (let n = this; n; n = n.parentNode) if (n.disabled && (n === this || n.tag === "fieldset")) return true
+      return false
+    }
     if (selector === '[data-controller~="reactive"]') {
       const c = this.attrs["data-controller"]
       return !!c && c.split(/\s+/).includes("reactive")
@@ -394,6 +400,27 @@ test("a disabled control in a row is excluded from the JSON (#299)", () => {
   const hidden = new FakeNode({ tag: "input", name: "order[todos_attributes][0][note]", value: "x" })
   hidden.disabled = true
   row.append(hidden)
+
+  resync(controller, row)
+
+  expect(JSON.parse(field.value)[0]).not.toHaveProperty("note")
+})
+
+test("a radio group with nothing checked leaves its key out of the JSON (#299)", () => {
+  const { row, field, controller } = addedRow()
+  row.append(radio("small", false), radio("large", false))
+
+  resync(controller, row)
+
+  expect(JSON.parse(field.value)[0]).not.toHaveProperty("size")
+})
+
+test("a control disabled by a <fieldset disabled> ancestor is excluded from the JSON (#299)", () => {
+  const { row, field, controller } = addedRow()
+  const fieldset = new FakeNode({ tag: "fieldset" })
+  fieldset.disabled = true
+  fieldset.append(new FakeNode({ tag: "input", name: "order[todos_attributes][0][note]", value: "x" }))
+  row.append(fieldset)
 
   resync(controller, row)
 
