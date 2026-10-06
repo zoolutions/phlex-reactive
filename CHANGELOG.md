@@ -23,6 +23,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A lazy shell connects the feature a morph asks for (#312).** A Turbo morph
+  that kept a `reactive_lazy` shell connected (a `cache:` one, or a plain one)
+  but turned it into a root needing persist, form, bindings or compute never
+  connected that feature, or imported it on the opt-in core: the root's own
+  morph listener was installed only on a root with an identity token, which a
+  shell does not carry.
+
 - **A refused fragment URL supersedes the in-flight lazy load (#293).** A morph
   that re-showed a lazy shell with a URL the client refuses left the earlier
   load running, and its late arrival painted over the refused shell.

@@ -474,6 +474,46 @@ describe("form: edits made before the module arrived", () => {
     }
   })
 
+  // Issue #312: a tokenless `cache:` shell (#306) morphed, still connected,
+  // into a draft-keeping root imports the draft module then and restores.
+  test("a tokenless cache: shell morphed into a draft-keeping root imports the module and restores", async () => {
+    const persistModule = await import(`${SOURCE}/features/persist.js`)
+    const persist = slowFeature("persist", persistModule)
+    mod.registerReactiveFeature("defer", await import(`${SOURCE}/features/defer.js`))
+    const store = new Map([["phlex-reactive:persist:panel", JSON.stringify({ v: 1, savedAt: Date.now(), fields: { name: "Grace" } })]])
+    globalThis.localStorage = {
+      getItem: (key) => store.get(key) ?? null,
+      setItem: (key, value) => store.set(key, String(value)),
+      removeItem: (key) => store.delete(key),
+    }
+    const root = addTarget("panel", {
+      "data-controller": "reactive",
+      "data-reactive-lazy-on": "panel:opened",
+      "data-reactive-defer-src": "/reactive/fragment/abc?v=1",
+    })
+    const controller = new ReactiveController()
+    controller.element = root
+
+    try {
+      controller.connect()
+      expect(persist.loads()).toBe(0)
+
+      root.removeAttribute("data-reactive-lazy-on")
+      root.removeAttribute("data-reactive-defer-src")
+      root.setAttribute("data-reactive-persist", JSON.stringify({ key: "panel", ttl: 3600 }))
+      root.innerHTML = `<input type="text" name="name">`
+      root.dispatchEvent(new window.Event("turbo:morph-element", { bubbles: true }))
+      expect(persist.loads()).toBe(1)
+      persist.arrive()
+      await controller.featuresReady
+
+      expect(root.querySelector("input").value).toBe("Grace")
+    } finally {
+      controller.disconnect()
+      delete globalThis.localStorage
+    }
+  })
+
   test("a root with neither marker never asks for the module", () => {
     const form = slowFeature("form", formModule)
     const root = addTarget("plain")
