@@ -1,0 +1,65 @@
+spec/dummy/public/vendor/core.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/core.min.js.map
+  ai_agent 5,8-9
+spec/fixtures/show_predicate_vectors.json
+  s_d02db4353d49da::t_69e44a1ff701ac 282-335
+app/javascript/phlex/reactive/features/bindings.js
+  s_d02db4353d49da::t_c5fc7eafc0ed40 64-71,76
+  s_d02db4353d49da::t_e4d660b1da77d7 368
+  s_d02db4353d49da::t_c14f3478e7c180 689
+  s_d02db4353d49da::t_34cc0ee821ab56 165
+  s_d02db4353d49da::t_f464a5a633c192 403
+  s_d02db4353d49da::t_672d99b2bb28ec 1428
+  s_d02db4353d49da::t_a1f13e076a21f2 1343-1352,1357-1367
+  s_d02db4353d49da::t_fca1662d0ae4c4 1438-1445
+  s_d02db4353d49da::t_5b82936c178eb8 431
+  s_d02db4353d49da::t_9f521d7e052725 455-457
+  s_d02db4353d49da::t_bed8b73216dea1 684-685
+  s_d02db4353d49da::t_6c1af0aae2275c 586,600-683,686-688,690-694
+spec/dummy/public/vendor/features/bindings.js
+  ai_agent 1,3
+spec/javascript/bundle_budget.test.js
+  s_d02db4353d49da::t_34144d32ffc8b8 107-108
+  s_d02db4353d49da::t_907d3c2276abcd 73-76
+  s_d02db4353d49da::t_a3d1e15e41db1d 88-90,92-93
+app/javascript/phlex/reactive/features/bindings.min.js.map
+  ai_agent 5,7-8
+spec/javascript/reactive_submit_op.test.js
+  s_d02db4353d49da::t_c740b84fbd0413 172-288
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 5,9,16-17
+app/javascript/phlex/reactive/features/bindings.min.js
+  ai_agent 1,3
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/core.min.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,3
+spec/javascript/reactive_bulk_selection.test.js
+  s_d02db4353d49da::t_ca19d7b76646c9 1-246
+spec/javascript/reactive_show_dnf.test.js
+  s_d02db4353d49da::t_263fdbe82c8fd2 278-287
+app/javascript/phlex/reactive/runtime.js
+  s_d02db4353d49da::t_c7196f0e39d38a 1062-1064
+  s_d02db4353d49da::t_59b29aab516702 603
+  s_d02db4353d49da::t_b254fb7c9706d3 1052-1053
+  s_d02db4353d49da::t_f83e22088e4b87 592-602,604-608
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "52673e43f844add81b37b726aa7f975bd0e19077",
+  "prompts": {},
+  "sessions": {
+    "s_d02db4353d49da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5775b781-4946-4755-bdd4-dcdc0ac0b0ea",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
