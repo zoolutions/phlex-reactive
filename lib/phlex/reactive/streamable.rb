@@ -75,7 +75,7 @@ module Phlex
         broadcast_remove_to_each: "broadcast_to(each: keys, remove: model)"
       }.freeze
 
-      # Every class that includes Streamable, so the engine can flush their
+      # Every class that includes Streamable or subclasses one, so the engine can flush their
       # memoized view contexts on a Rails code reload (dev) in one pass. A
       # WeakMap used as a set (the class is the key) so a class reloaded by
       # Zeitwerk in dev is GC'd normally — a strong Array would pin every

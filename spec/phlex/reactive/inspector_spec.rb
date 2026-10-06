@@ -242,8 +242,8 @@ RSpec.describe Phlex::Reactive::Inspector do
   # authorization_state is :detected (a call was found), :skipped (declared with
   # skip_verify_authorized) or :none; authorization_skip says which form.
   describe "authorization state (detected / skipped / none)" do
-    # component_info directly: these subclasses are built anonymous and only
-    # then stubbed to a constant, so call the info builder on them by hand.
+    # component_info directly: it reads one class's authorization state without
+    # going through the whole-registry scan.
     def action_for(klass, name)
       described_class.send(:component_info, klass).actions.find { it.name == name }
     end
