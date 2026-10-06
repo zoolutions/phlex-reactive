@@ -1,0 +1,21 @@
+spec/javascript/reactive_event_modifiers.test.js
+  s_d02db4353d49da::t_a18c03e75aabb1 20-23,26
+  s_d02db4353d49da::t_ff2e8f09ced05a 39-59
+  s_d02db4353d49da::t_016db03d8d9a47 166,168,172,174-175,181,184,188
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ad800f8f8febf45a1ade38dc8f8165b52eb85e51",
+  "prompts": {},
+  "sessions": {
+    "s_d02db4353d49da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5775b781-4946-4755-bdd4-dcdc0ac0b0ea",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
