@@ -348,7 +348,7 @@ module Views
 
               - **`reactive_select_all(group)`** — the header box. Its edit ticks
                 or unticks every **owned** box of the group and dispatches
-                `change` on each one it flips (computes, shows and completions
+                `input` + `change` on each one it flips (computes, shows and completions
                 re-run). Its own state follows the group: checked when all are
                 ticked, **indeterminate** when some are, unchecked when none are.
                 Give it no `name`.

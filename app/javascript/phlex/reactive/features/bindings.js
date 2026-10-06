@@ -69,7 +69,9 @@ export function connect(controller, core) {
     // after the loop runs once, not once per box.
     c.boundSyncShow = (event) => {
       if (c.flipping) return
-      flipGroup(c, event?.target)
+      // Only a user edit pushes the header onto its group; a morph (whose
+      // turbo:morph-element bubbles from the header too) derives it instead.
+      if (event?.type === "input" || event?.type === "change") flipGroup(c, event.target)
       syncShow(c)
     }
     root.addEventListener?.("input", c.boundSyncShow)
@@ -639,7 +641,7 @@ function groupBoxes(c, name, owns, scope) {
 }
 
 // A header's edit ticks or unticks every owned box of its group, and
-// dispatches `change` on each one it flips so computes, shows and on-complete
+// dispatches `input` + `change` on each one it flips so computes, shows and on-complete
 // bindings see a real edit. The re-entrant change events are skipped by the
 // show listener while this runs (c.flipping); it syncs once afterwards.
 function flipGroup(c, header) {
@@ -651,7 +653,8 @@ function flipGroup(c, header) {
     for (const box of groupBoxes(c, group, c.core.ownership(), scope)) {
       if (box === header || box.checked === header.checked) continue
       box.checked = header.checked
-      box.dispatchEvent?.(new Event("change", { bubbles: true }))
+      // input then change, as a click does: computes listen on input.
+      for (const type of ["input", "change"]) box.dispatchEvent?.(new Event(type, { bubbles: true }))
     }
   } finally {
     c.flipping = false

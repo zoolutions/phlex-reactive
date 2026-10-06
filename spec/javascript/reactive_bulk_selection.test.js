@@ -119,6 +119,28 @@ test("the header follows the group: none → unchecked, some → indeterminate, 
   expect([all.checked, all.indeterminate]).toEqual([false, false])
 })
 
+test("a morph that touches the header derives it from the group — it never pushes it onto the rows", () => {
+  const { $, $$ } = mount(LIST)
+  const boxes = $$('[name="ids[]"]')
+  tick(boxes[0], true)
+  tick(boxes[1], true)
+
+  const header = $("#all")
+  header.checked = false // the server-rendered header after the morph
+  header.dispatchEvent(new window.Event("turbo:morph-element", { bubbles: true }))
+
+  expect(boxes.map((b) => b.checked)).toEqual([true, true, false])
+  expect([header.checked, header.indeterminate]).toEqual([false, true])
+})
+
+test("a flipped box also dispatches input, so input-bound computes re-run", () => {
+  const { root, $ } = mount(LIST)
+  const inputs = []
+  root.addEventListener("input", (e) => e.target.name === "ids[]" && inputs.push(e.target.value))
+  tick($("#all"), true)
+  expect(inputs).toEqual(["1", "2", "3"])
+})
+
 test("the header is seeded at connect from server-rendered checked boxes", () => {
   const { $ } = mount(LIST.replace('value="2"', 'value="2" checked'))
   expect($("#all").indeterminate).toBe(true)

@@ -29,7 +29,10 @@ class BulkSelectionComponent < ApplicationComponent
           plain " Select all"
         end
         ul(id: "rows") { POSTS.each { |id, title| row(id, title) } }
-        p { plain "Selected: "; span(**reactive_count("ids[]", data: { testid: "count" })) { "0" } }
+        p do
+          plain "Selected: "
+          span(**reactive_count("ids[]", data: { testid: "count" })) { "0" }
+        end
         fieldset(**reactive_enable(if: { "ids[]" => { checked: 1.. } }, data: { testid: "actions" })) do
           input(type: "text", name: "note", data: { testid: "note" })
         end

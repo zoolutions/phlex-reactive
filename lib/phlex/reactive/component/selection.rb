@@ -42,7 +42,7 @@ module Phlex
         end
 
         # The header box of a checkbox group. Its `change` ticks or unticks
-        # every owned box of the group (dispatching `change` on each one it
+        # every owned box of the group (dispatching `input` + `change` on each one it
         # flips, so computes, shows and counts re-run); its own checked /
         # indeterminate state follows the group. Give the header NO `name` —
         # it would post, and count as a member.
