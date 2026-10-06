@@ -1,0 +1,29 @@
+CHANGELOG.md
+  s_d02db4353d49da::t_e3cf61fc6243a8 26-33
+app/javascript/phlex/reactive/features/form.js
+  s_d02db4353d49da::t_3c4eb983737b1c 103
+  s_d02db4353d49da::t_5c723076c2dc23 149-150
+spec/javascript/reactive_dirty.test.js
+  s_d02db4353d49da::t_8675fb6059f82d 320-339
+  s_d02db4353d49da::t_40ec094d51edeb 9
+app/javascript/phlex/reactive/features/form.min.js.map
+  ai_agent 5,7
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 8,16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "fb85d9adbe22840d2bda769c0cbc816754dfd704",
+  "prompts": {},
+  "sessions": {
+    "s_d02db4353d49da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5775b781-4946-4755-bdd4-dcdc0ac0b0ea",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
