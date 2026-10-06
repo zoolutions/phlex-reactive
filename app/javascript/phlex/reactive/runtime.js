@@ -813,7 +813,8 @@ function bindingMatches(record, event, keyMappings) {
 // fresh, and a byte-identical sibling trigger has its own. A window-bound
 // binding's currentTarget is the window, so there the element's ops attr joins
 // the key (a re-rendered window-bound once trigger with the same markup stays
-// spent — a known limit).
+// spent — a known limit; spentEarlyOnce below has the same one for a replayed
+// `:once` hotkey).
 const spentOnceBindings = new WeakMap()
 function onceBindingSpent(controller, event, record) {
   if (!record.once) return false
@@ -1392,6 +1393,14 @@ function earlyReplayEvent(event, el, win) {
 // element, so it is tracked under the ROOT instead (issue #303), flagged
 // `win` (apart from the root's own element-bound descriptors) and told apart
 // from its siblings by the params Stimulus reads off its element.
+//
+// Known limit of the root-keyed entry (the same class as onceBindingSpent's
+// window-bound limit above): a reply that MORPHS the root but swaps the
+// trigger element gives Stimulus a fresh `once` listener for the new element
+// while this entry stays armed, so the next live press is swallowed here and
+// that fresh listener is consumed — the hotkey is dead until the root
+// disconnects. Keep a `:once` hotkey's trigger element stable across replies,
+// or bind the hotkey without `once:`.
 const spentEarlyOnce = new WeakMap()
 
 function spendEarlyOnce(owner, { token, type, method, filter, win }, params) {

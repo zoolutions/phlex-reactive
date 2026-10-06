@@ -67,9 +67,10 @@ const SLACK = 250
 // the ratchet itself when met. What the flag cannot recover is how the
 // features are WRITTEN as modules — per-root state records where the
 // controller had private fields, exported wrappers, the `core` handle — not
-// the boundary between them and the runtime. The ratchet below sits 138 B
-// above the real size (just inside SLACK): room for a fix in flight, not for
-// a feature. Issue #303 (replaying window-bound hotkeys) adds 214 B: 24,976 B.
+// the boundary between them and the runtime. Issue #303 (replaying
+// window-bound hotkeys) adds 214 B on that 24,762 B baseline: 24,976 B. The
+// ratchet below sits 24 B above the real size (inside SLACK): room for a
+// fix in flight, not for a feature.
 const BUNDLE_GZIP_CEILING = 25_000
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;

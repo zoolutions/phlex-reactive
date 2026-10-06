@@ -156,7 +156,12 @@ Good to know:
   the keypress is never prevented (a browser shortcut on the same key keeps
   working, as it does once connected), and it is replayed only if the
   controller connects within 1.5 s of the keypress (or the TTL above, if
-  shorter) — later, the user has moved on.
+  shorter) — later, the user has moved on. Two roots sharing a hotkey both
+  hear it, as they do once connected: one press wakes both and each makes its
+  request. A `once: true` hotkey replayed before connect stays spent for the
+  root until it disconnects — keep its trigger element stable across replies
+  (a reply that morphs the root but swaps that element leaves the hotkey
+  dead until the next disconnect), or bind the hotkey without `once:`.
 - Not captured, so still lost before connect: `outside:` triggers (an outside
   click before connect has nothing to close, and recording it would wake a
   dormant dropdown on every click); key filters beyond Stimulus's default key

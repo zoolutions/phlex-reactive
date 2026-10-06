@@ -247,6 +247,17 @@ test("a window-bound trigger that left the page is not recorded", async () => {
   expect(state().queue).toHaveLength(0)
 })
 
+test("a window-bound trigger from a previous page is dropped from the registry when new markup arrives", async () => {
+  const { __windowBoundForTest: registry } = await import("../../app/javascript/phlex/reactive/early.js")
+  const root = await mount(HOTKEY)
+  const old = root.querySelector("#h")
+  expect(registry.has(old)).toBe(true)
+
+  // A Turbo Drive visit: the old body is replaced wholesale, no window event in between.
+  await mount(`<div id="next" data-controller="reactive"><span data-action="click->reactive#dispatch"></span></div>`)
+  expect(registry.has(old)).toBe(false)
+})
+
 test("picks up window-bound triggers added after start", async () => {
   await mount(`<div id="p" data-controller="reactive"></div>`)
   document.querySelector("#p").innerHTML = `<span data-action="keydown.esc@window->reactive#dispatch"></span>`

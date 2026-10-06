@@ -45,8 +45,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   once connected either), and it is replayed only if the controller connects
   within 1.5 s of the keypress, or the early-event TTL if that is shorter.
   `outside:` triggers and non-bubbling events from inside the page are not
-  recorded (Stimulus's window listener never hears the latter). `early.min.js`
-  grows from 1,060 B to 1,256 B gzipped; its test budget moves from 1,100 to
+  recorded (Stimulus's window listener never hears the latter). Two roots
+  sharing a hotkey both hear it, as they do once connected. `early.min.js`
+  grows from 1,060 B to 1,284 B gzipped; its test budget moves from 1,100 to
   1,300 B. The replay side adds about 210 B gzipped to both the default bundle
   and the opt-in core.
 - **`phlex_reactive:doctor` finds the early import anywhere and checks every import map (#307).** The dormant-roots check now scans every app JS entry and inline module scripts in `app/views` and `app/components` (naming the file), and a new advisory line per import map lacking the `phlex/reactive/early` pin; set `Phlex::Reactive.importmaps = -> { { "landing" => map } }` for maps outside `Rails.application.importmap`.

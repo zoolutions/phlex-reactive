@@ -946,7 +946,7 @@ module Views
                   plain 'Waking costs '
                   code { 'early.js' }
                   plain ' 53 bytes: 1,007 B → 1,060 B gzipped (bun, level 9). Recording hotkeys (issue #303) '
-                  plain 'took it to 1,256 B, under a 1,300 B test budget.'
+                  plain 'took it to 1,284 B, under a 1,300 B test budget.'
                 end
               end
             end

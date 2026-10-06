@@ -12,6 +12,7 @@ Rails.application.routes.draw do
   get "early_triggers" => "demos#early_triggers" # issue #273: lazily loaded controller
   get "dormant" => "demos#dormant" # issue #274: a dormant root, controller loaded on first use
   get "hinted" => "demos#hinted" # issue #275: a hinted trigger under the lazy layout, dormant on request
+  get "hotkey_pair" => "demos#hotkey_pair" # issue #303: two roots sharing a window-bound hotkey
   get "dormant_lazy" => "demos#dormant_lazy"
   get "dormant_cached" => "demos#dormant_cached" # issues #274 + #276 + #277
   get "dormant_stream" => "demos#dormant_stream"

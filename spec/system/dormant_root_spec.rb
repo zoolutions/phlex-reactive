@@ -295,4 +295,91 @@ RSpec.describe "Dormant roots (issue #274 — mount the controller on first use)
       expect_action_posts(2)
     end
   end
+
+  # Two roots sharing one hotkey (issue #303): each hears a press exactly once,
+  # and a root's replay never swallows its sibling's live firing — under both
+  # registrations, with both roots dormant and with one already awake.
+  context "with two roots sharing a window-bound hotkey" do
+    def visit_pair(dormant:, load:)
+      visit "/hotkey_pair?dormant=#{dormant}&load=#{load}"
+      expect(page).to have_css("[data-testid='root-second'][data-reactive-dormant='reactive']")
+      expect(page.evaluate_script("window.__earlyReady === true")).to be(true)
+      # An awake first root connects on load under either registration.
+      expect(page).to have_css("[data-testid='connects']", exact_text: dormant == "second" ? "1" : "0")
+    end
+
+    def expect_keys(first, second)
+      expect(page).to have_css("[data-testid='keys-first']", exact_text: first.to_s)
+      expect(page).to have_css("[data-testid='keys-second']", exact_text: second.to_s)
+    end
+
+    # One press before connect: each root exactly once, no swallow of the
+    # sibling's firing; a later press is normal for both.
+    def expect_each_root_once(dormant:, load:)
+      visit_pair(dormant:, load:)
+
+      find("body").send_keys("k")
+
+      expect_keys(1, 1)
+      expect(page).to have_css("[data-testid='root-first'][data-controller~='reactive']")
+      expect(page).to have_css("[data-testid='root-second'][data-controller~='reactive']")
+      expect(controller_fetches).to eq(1)
+      expect_action_posts(2)
+      expect_keys(1, 1)
+
+      find("body").send_keys("k")
+      expect_keys(2, 2)
+      expect_action_posts(4)
+    end
+
+    it "one press reaches each root once with both dormant (lazily loaded controller)" do
+      expect_each_root_once(dormant: "both", load: "auto")
+    end
+
+    it "one press reaches each root once with both dormant (eagerly registered controller)" do
+      expect_each_root_once(dormant: "both", load: "eager")
+    end
+
+    it "one press reaches the awake root live and the dormant one by replay (lazily loaded controller)" do
+      expect_each_root_once(dormant: "second", load: "auto")
+    end
+
+    it "one press reaches the awake root live and the dormant one by replay (eagerly registered controller)" do
+      expect_each_root_once(dormant: "second", load: "eager")
+    end
+
+    it "three presses before connect wake both roots once and replay in order" do
+      visit_pair(dormant: "both", load: "auto")
+      page.execute_script(<<~JS)
+        for (let i = 0; i < 3; i++) {
+          document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "k", bubbles: true, cancelable: true }))
+        }
+      JS
+
+      expect_keys(3, 3)
+      expect(controller_fetches).to eq(1)
+      expect_action_posts(6)
+    end
+
+    it "replays a :once hotkey once, and its still-armed listener does not fire it again" do
+      visit_pair(dormant: "both", load: "auto")
+      page.execute_script(<<~JS)
+        for (let i = 0; i < 2; i++) {
+          document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "o", bubbles: true, cancelable: true }))
+        }
+      JS
+
+      expect(page).to have_css("[data-testid='onces-first']", exact_text: "1")
+      expect_action_posts(1)
+
+      # The reply MORPHED the root, so Stimulus's own `once` listener for the
+      # replayed hotkey is still armed: its one firing must be swallowed, and
+      # the other hotkey on the same root must still work.
+      find("body").send_keys("o")
+      find("body").send_keys("k")
+      expect_keys(1, 1)
+      expect_action_posts(3)
+      expect(page).to have_css("[data-testid='onces-first']", exact_text: "1")
+    end
+  end
 end
