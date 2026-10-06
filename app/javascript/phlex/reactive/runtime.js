@@ -538,10 +538,11 @@ function runTransition(el, transition, flip) {
   const timer = setTimeout(cleanup, transitionFallbackMs(el))
 }
 
-// The longest computed duration+delay pair over the transition and animation
-// lists (CSS repeats the shorter list), plus 50 ms; 350 ms when nothing is
-// declared (or there is no computed style), capped at 5 s so a bogus value
-// can't wedge the classes on. Read once `during` is on the element.
+// The longest computed duration × iteration-count + delay over the transition
+// and animation lists (CSS repeats the shorter list; a transition runs once,
+// `infinite` hits the cap), plus 50 ms; 350 ms when nothing is declared (or
+// there is no computed style), capped at 5 s so a bogus value can't wedge the
+// classes on. Read once `during` is on the element.
 function transitionFallbackMs(el) {
   let longest = 0
   try {
@@ -552,8 +553,12 @@ function transitionFallbackMs(el) {
           .split(",")
           .map((v) => parseFloat(v) * (/ms/.test(v) ? 1 : 1000) || 0),
       )
-      for (let i = 0; i < durations.length || i < delays.length; i++) {
-        longest = Math.max(longest, durations[i % durations.length] + delays[i % delays.length])
+      const counts = String(style[kind + "IterationCount"])
+        .split(",")
+        .map((v) => (/inf/.test(v) ? Infinity : parseFloat(v) >= 0 ? parseFloat(v) : 1))
+      for (let i = 0; i < durations.length || i < delays.length || i < counts.length; i++) {
+        const runs = durations[i % durations.length] * counts[i % counts.length] || 0
+        longest = Math.max(longest, runs + delays[i % delays.length])
       }
     }
   } catch {}

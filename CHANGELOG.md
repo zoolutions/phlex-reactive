@@ -1243,8 +1243,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   classes: a new run settles the live one first (its classes, timer,
   listeners and frame). And the fallback is no longer a fixed 350 ms that cut
   longer transitions short: it follows the element's computed
-  transition/animation durations plus delays (+50 ms), with 350 ms as the
-  floor and a 5 s cap.
+  transition/animation durations (times an animation's iteration count) plus
+  delays (+50 ms), with 350 ms as the floor and a 5 s cap.
 
 - **A custom-legs exit effect no longer waits for a background tab to become
   visible (#295).** The legs choreography awaited an animation frame before

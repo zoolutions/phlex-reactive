@@ -708,3 +708,26 @@ test("no declared duration keeps the 350 ms floor; a bogus huge one is capped at
   run("show", ["t", "f", "to"])
   expect(clock.timers[2].ms).toBe(350)
 })
+
+test("a finite animation's fallback covers every iteration; infinite takes the 5 s cap", () => {
+  const clock = fakeClock()
+  const { run } = transitionHarness()
+
+  styleWith({ animationDuration: "0.3s", animationDelay: "100ms", animationIterationCount: "3" }) // 0.3s × 3 + 100ms = 1000 ms
+  run("show", ["t", "f", "to"])
+  expect(clock.timers[0].ms).toBeGreaterThanOrEqual(1000)
+  expect(clock.timers[0].ms).toBeLessThan(1200)
+
+  styleWith({ animationDuration: "0.2s, 0.5s", animationIterationCount: "2, 1" }) // max(400, 500) ms
+  run("hide", ["t", "f", "to"])
+  expect(clock.timers[1].ms).toBeGreaterThanOrEqual(500)
+  expect(clock.timers[1].ms).toBeLessThan(700)
+
+  styleWith({ animationDuration: "0.4s", animationIterationCount: "infinite" })
+  run("show", ["t", "f", "to"])
+  expect(clock.timers[2].ms).toBe(5000)
+
+  styleWith({ animationDuration: "0s", animationIterationCount: "infinite" }) // no animation runs: floor, not NaN
+  run("hide", ["t", "f", "to"])
+  expect(clock.timers[3].ms).toBe(350)
+})
