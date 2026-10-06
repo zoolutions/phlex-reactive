@@ -321,6 +321,16 @@ module Phlex
       end
 
       class_methods do
+        # A subclass inherits Streamable rather than including it, so `included`
+        # never fires for it (issue #302). Register it here so the inventory
+        # (rake tasks, MCP tools), the doctor and the reload reset see it too.
+        # Anonymous subclasses register as well; readers filter to
+        # constant-resolvable classes, and the WeakMap lets them be GC'd.
+        def inherited(subclass)
+          super
+          Phlex::Reactive::Streamable.register(subclass)
+        end
+
         # The keyword the positional model maps to in `initialize`. For a
         # record-backed component (Component#reactive_record), this is the SAME
         # keyword the action endpoint uses in `from_identity` — so one

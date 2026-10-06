@@ -23,6 +23,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Subclasses of a reactive component appear in the actions inventory
+  (#302).** A subclass inherits `Phlex::Reactive::Component` instead of
+  including it, so Streamable's `included` hook never registered it, and
+  `phlex_reactive:actions`, `phlex_reactive:find`, the MCP tools and the doctor
+  skipped it. Streamable now registers subclasses from an `inherited` hook. A
+  subclass with a constant name is listed with its inherited and own actions
+  and any inherited `skip_verify_authorized`; an anonymous subclass is still
+  left out. Subclasses also have their memoized view context reset on a Rails
+  code reload now.
+
 - **The browser suite no longer wedges under Falcon when two requests
   overlap (#303).** Transactional system tests pin one connection that the
   test and the server share, guarded by a lock keyed on
