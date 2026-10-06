@@ -446,6 +446,17 @@ class DemosController < ActionController::Base
     redirect_to "/persist_form?submitted=1"
   end
 
+  # Issue #319: the bulk-selection list. The POST echoes what the form sent —
+  # the submitter's bulk_action and the ticked ids — back through ?result=.
+  def bulk_selection
+    render_component BulkSelectionComponent.new(result: params[:result])
+  end
+
+  def bulk_selection_submit
+    result = "#{params[:bulk_action].presence || "none"}:#{Array(params[:ids]).join(",")}"
+    redirect_to "/bulk_selection?result=#{CGI.escape(result)}", status: :see_other
+  end
+
   # Issue #275: the draft code is a feature module the client imports on
   # demand. ?slow=<ms> pins that module to a delayed copy, so a spec can act
   # in the window between the controller connecting and the draft restoring;

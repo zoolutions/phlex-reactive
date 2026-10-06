@@ -78,6 +78,10 @@ Rails.application.routes.draw do
   get "persist_action" => "demos#persist_action"
   get "slow_feature/:name.js" => "demos#slow_feature", constraints: { name: /[a-z]+/ }
   post "persist_form" => "demos#persist_form_submit"
+  # Issue #319: bulk selection — select-all, a checked count, enable-by-condition,
+  # and a confirmed submit through a hidden submitter.
+  get "bulk_selection" => "demos#bulk_selection"
+  post "bulk_selection" => "demos#bulk_selection_submit"
   # Issue #241: reactive_persist over rich editors (real Trix + Lexxy + a bare
   # contenteditable); ?late=1 defers the editor definitions past connect.
   get "persist_editors" => "demos#persist_editors"
