@@ -1,0 +1,34 @@
+app/javascript/phlex/reactive/features/defer.min.js.map
+  ai_agent 5,7-8
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,3
+spec/dummy/public/vendor/features/defer.js
+  ai_agent 1,3
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/features/defer.js
+  s_d02db4353d49da::t_a23dba8df21513 101-106
+  s_d02db4353d49da::t_8bd46728b6669f 113-117,120-123
+app/javascript/phlex/reactive/features/defer.min.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 7,16-17
+spec/javascript/reactive_defer.test.js
+  s_d02db4353d49da::t_3b8b25c495ca22 408-409,422,427-450
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "19ef425ab90c74aca8da443ca21b54a314e49867",
+  "prompts": {},
+  "sessions": {
+    "s_d02db4353d49da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5775b781-4946-4755-bdd4-dcdc0ac0b0ea",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
