@@ -137,9 +137,16 @@ function fieldDirty(field) {
     return field.checked !== field.defaultChecked
   }
   if (field.tag === "select" || field.options) {
-    // Any option whose selected state diverges from its defaultSelected. Guard
-    // for a stub/absent options list (degrade to clean).
-    return Array.from(field.options ?? []).some((o) => o.selected !== o.defaultSelected)
+    // Any option whose selected state diverges from the select's RESET state.
+    // Guard for a stub/absent options list (degrade to clean). A one-row single
+    // select resets to its last defaultSelected option or, with none, to its
+    // first enabled one — the browser selects it while its defaultSelected stays
+    // false, so a pristine form must not read as dirty (issue #297). A multiple
+    // (or size > 1) select resets to exactly its defaultSelected options.
+    const options = Array.from(field.options ?? [])
+    const single = !field.multiple && !(field.size > 1)
+    const reset = options.filter((o) => o.defaultSelected).pop() ?? options.find((o) => !o.disabled)
+    return options.some((o) => o.selected !== (single ? o === reset : o.defaultSelected))
   }
   return field.value !== field.defaultValue
 }

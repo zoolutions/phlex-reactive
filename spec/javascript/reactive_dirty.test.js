@@ -251,6 +251,72 @@ test("a select back at its default selection is NOT dirty", () => {
   expect(root.getAttribute("data-reactive-dirty")).toBeNull()
 })
 
+// Issue #297: a single <select> with no `selected` option. The browser selects
+// the first (enabled) option, but its defaultSelected stays false — the select's
+// RESET state is that first option, so a pristine form must scan clean.
+test("a pristine single select with no selected option is NOT dirty (issue #297)", () => {
+  const root = reactiveRoot()
+  const status = new FakeNode({
+    tag: "select",
+    name: "status",
+    options: [
+      { selected: true, defaultSelected: false },
+      { selected: false, defaultSelected: false },
+    ],
+  })
+  root.append(status)
+  const controller = buildController(root)
+
+  controller.trackDirty({ target: status })
+  expect(status.getAttribute("data-reactive-dirty")).toBeNull()
+  expect(root.getAttribute("data-reactive-dirty")).toBeNull()
+
+  // Picking another option IS a change from that reset state.
+  status.options[0].selected = false
+  status.options[1].selected = true
+  controller.trackDirty({ target: status })
+  expect(status.getAttribute("data-reactive-dirty")).toBe("true")
+})
+
+test("the reset state of a select with no selected option skips a disabled first option (issue #297)", () => {
+  const root = reactiveRoot()
+  const status = new FakeNode({
+    tag: "select",
+    name: "status",
+    options: [
+      { selected: false, defaultSelected: false, disabled: true },
+      { selected: true, defaultSelected: false },
+    ],
+  })
+  root.append(status)
+  const controller = buildController(root)
+
+  controller.trackDirty({ target: status })
+  expect(status.getAttribute("data-reactive-dirty")).toBeNull()
+})
+
+test("a multiple select with nothing selected by default stays clean until an option is picked", () => {
+  const root = reactiveRoot()
+  const tags = new FakeNode({
+    tag: "select",
+    name: "tags",
+    options: [
+      { selected: false, defaultSelected: false },
+      { selected: false, defaultSelected: false },
+    ],
+  })
+  tags.multiple = true
+  root.append(tags)
+  const controller = buildController(root)
+
+  controller.trackDirty({ target: tags })
+  expect(tags.getAttribute("data-reactive-dirty")).toBeNull()
+
+  tags.options[0].selected = true
+  controller.trackDirty({ target: tags })
+  expect(tags.getAttribute("data-reactive-dirty")).toBe("true")
+})
+
 test("radio group: selecting a new radio marks the deselected default radio dirty too (full pass)", () => {
   // The decisive full-pass case. The default was radio A (defaultChecked). The
   // user picks radio B. B fires the input event; A gets NO event but flipped to
