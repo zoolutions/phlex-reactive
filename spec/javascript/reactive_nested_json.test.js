@@ -348,3 +348,54 @@ test("fill-then-add + JSON mode: focus stays on the sources, not the new row", (
   expect(rowTitle.focused).toBe(0)
   expect(titleSrc.focused).toBe(1)
 })
+
+// Issue #299 — nestedRowObject serializes what a real form submit would carry:
+// only the CHECKED radio of a group, never a nested reactive root's controls,
+// never a disabled control (the reactive_show(disable: true) submit-exclusion).
+function addedRow() {
+  const { root, list, field, add } = jsonWidget()
+  const controller = buildController(root)
+  clickAdd(controller, add)
+  const row = list.children[0]
+  fill(row, "title", "t")
+  return { row, field, controller }
+}
+function radio(value, checked) {
+  const el = new FakeNode({ tag: "input", type: "radio", name: "order[todos_attributes][0][size]", value })
+  el.checked = checked
+  return el
+}
+function resync(controller, row) {
+  controller.syncNestedJson({ target: row.querySelectorAll("input")[0] })
+}
+
+test("only the CHECKED radio of a group is serialized, not the last in DOM order (#299)", () => {
+  const { row, field, controller } = addedRow()
+  row.append(radio("small", true), radio("large", false))
+
+  resync(controller, row)
+
+  expect(JSON.parse(field.value)[0].size).toBe("small")
+})
+
+test("a nested reactive root's controls inside a row do not leak into the JSON (#299)", () => {
+  const { row, field, controller } = addedRow()
+  const inner = new FakeNode({ tag: "div", id: "inner", controller: "reactive" })
+  inner.append(new FakeNode({ tag: "input", name: "inner[secret]", value: "leak" }))
+  row.append(inner)
+
+  resync(controller, row)
+
+  expect(JSON.parse(field.value)[0]).not.toHaveProperty("secret")
+})
+
+test("a disabled control in a row is excluded from the JSON (#299)", () => {
+  const { row, field, controller } = addedRow()
+  const hidden = new FakeNode({ tag: "input", name: "order[todos_attributes][0][note]", value: "x" })
+  hidden.disabled = true
+  row.append(hidden)
+
+  resync(controller, row)
+
+  expect(JSON.parse(field.value)[0]).not.toHaveProperty("note")
+})
