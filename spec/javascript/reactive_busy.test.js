@@ -251,6 +251,44 @@ test("supports remove_class, toggle_class, hide and show", async () => {
   expect(trigger.hidden).toBe(false)
 })
 
+// Issue #300: hide/show undo only what THIS hint changed — a target that was
+// already in the hinted state keeps it on settle.
+test("hide: on an already-hidden to: target leaves it hidden on settle", async () => {
+  const panel = makeEl()
+  panel.closest = () => root
+  panel.hidden = true
+  const { controller } = buildController([{}], { rootMatches: { "#already-hidden": [panel] } })
+
+  const { promise } = fireDispatch(controller, makeEl(), { hide: true, to: "#already-hidden" })
+  expect(panel.hidden).toBe(true)
+  await promise
+  expect(panel.hidden).toBe(true)
+})
+
+test("show: on an already-visible to: target leaves it visible on settle", async () => {
+  const panel = makeEl()
+  panel.closest = () => root
+  panel.hidden = false
+  const { controller } = buildController([{}], { rootMatches: { "#already-shown": [panel] } })
+
+  const { promise } = fireDispatch(controller, makeEl(), { show: true, to: "#already-shown" })
+  expect(panel.hidden).toBe(false)
+  await promise
+  expect(panel.hidden).toBe(false)
+})
+
+test("show: on a hidden target re-hides it on settle", async () => {
+  const panel = makeEl()
+  panel.closest = () => root
+  panel.hidden = true
+  const { controller } = buildController([{}], { rootMatches: { ".spinner": [panel] } })
+
+  const { promise } = fireDispatch(controller, makeEl(), { show: true, to: ".spinner" })
+  expect(panel.hidden).toBe(false)
+  await promise
+  expect(panel.hidden).toBe(true)
+})
+
 test("a to: selector applies the class ops to owned matches, not the trigger", async () => {
   const spinner = makeEl()
   spinner.closest = () => root
