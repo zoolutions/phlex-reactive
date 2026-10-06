@@ -19,24 +19,18 @@
 import { computeReducer } from "phlex/reactive/compute"
 
 // controller -> its context: the root, the core handle, and what used to be
-// the controller's own fields for this feature.
+// the controller's own fields for this feature. Short field names: the
+// minifier never renames a property (issue #310).
+//   ours     the `input` events recompute dispatched for its OWN output
+//            writes (issue #183), so re-entering from one skips the reducer
+//            (and ONLY one of ours)
+//   opsSig   the reducer's last $ops chain (issue #226), the rising-edge latch
+//   seed     the connect-time seed, when the root opts in
 const contexts = new WeakMap()
 
 function ctx(controller, core) {
   let c = contexts.get(controller)
-  if (!c) {
-    c = {
-      controller,
-      root: controller.element,
-      core,
-      // Issue #183: the `input` events recompute dispatched for its OWN output
-      // writes, so re-entering from one skips the reducer (and ONLY one of ours).
-      computeSelfDispatched: new WeakSet(),
-      // The reducer's last $ops chain (issue #226), the rising-edge latch.
-      computeOpsSignature: null,
-    }
-    contexts.set(controller, c)
-  }
+  if (!c) contexts.set(controller, (c = { root: controller.element, core, ours: new WeakSet(), opsSig: null }))
   return c
 }
 
@@ -62,8 +56,8 @@ export function connect(controller, core, _morphed, pending) {
   // compute.js CONVERGENCE REQUIREMENT).
   const seeds = computeSeedEnabled(c)
   if (seeds) {
-    c.boundSeedCompute = () => recompute(c)
-    c.root.addEventListener?.("turbo:morph-element", c.boundSeedCompute)
+    c.seed = () => recompute(c)
+    c.root.addEventListener?.("turbo:morph-element", c.seed)
   }
   // The one pass a root that waited for this module owes: its seed, or the
   // recompute an edit in the window asked for.
@@ -74,13 +68,13 @@ export function disconnect(controller) {
   const c = contexts.get(controller)
   if (!c) return
   contexts.delete(controller)
-  if (c.boundSeedCompute) c.root.removeEventListener?.("turbo:morph-element", c.boundSeedCompute)
+  if (c.seed) c.root.removeEventListener?.("turbo:morph-element", c.seed)
 }
 
 // Re-run the seed (for a feature that changed field values after connect:
 // the draft restore).
 export function seed(controller) {
-  contexts.get(controller)?.boundSeedCompute?.()
+  contexts.get(controller)?.seed?.()
 }
 
 // The Stimulus action (input->reactive#recompute); the controller's method of
@@ -218,8 +212,8 @@ function guardMirrorSelector(selector) {
 // (hand-written reducer ergonomics).
 function applyComputeOps(c, list, eventDriven) {
   const signature = list === null ? null : JSON.stringify(list)
-  const fire = signature !== null && signature !== c.computeOpsSignature && eventDriven
-  c.computeOpsSignature = signature
+  const fire = signature !== null && signature !== c.opsSig && eventDriven
+  c.opsSig = signature
   if (!fire) return
   c.core.applyOps(list, "@root")
 }
@@ -269,14 +263,14 @@ function parseComputeInputs(c) {
 function changedComputeField(c, event, inputs, scope) {
   const target = event?.target
   if (!target?.name || typeof target.closest !== "function") return null
-  const bare = unscopeName(c, target.name, scope)
+  const bare = unscopeName(target.name, scope)
   if (!inputs.includes(bare)) return null
   return c.core.owns(target) ? bare : null
 }
 
 // Strip a leading `scope[…]` wrapper off a DOM field name, returning the bare
 // inner name; a name that isn't wrapped in this scope passes through unchanged.
-function unscopeName(c, name, scope) {
+function unscopeName(name, scope) {
   if (!scope) return name
   const prefix = `${scope}[`
   return name.startsWith(prefix) && name.endsWith("]") ? name.slice(prefix.length, -1) : name
@@ -380,7 +374,7 @@ function recompute(c, event) {
   // a real user edit) is never swallowed. The event still bubbled and fired every
   // OTHER listener (dirty tracking, show bindings, sibling roots) before reaching
   // here; we simply don't recompute a second time from our own write.
-  if (event && c.computeSelfDispatched.has(event)) return
+  if (event && c.ours.has(event)) return
 
   // Inputs may be a JSON ARRAY of names (array form — every input coerced
   // through Number, the shipped behavior) or a JSON OBJECT of name→type (hash
@@ -536,7 +530,7 @@ function recompute(c, event) {
   // SETTLED values, never a half-written DOM.
   for (const field of changedFields) {
     const inputEvent = new Event("input", { bubbles: true })
-    c.computeSelfDispatched.add(inputEvent)
+    c.ours.add(inputEvent)
     field.dispatchEvent(inputEvent)
   }
 

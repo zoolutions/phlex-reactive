@@ -474,14 +474,17 @@ function deferTimeoutMs() {
 
 export const LAZY_MATERIALIZE_ACTION = "__materialize"
 
-// controller -> this connection's lazy state:
+// controller -> this connection's { load, off }: its materialize and its
+// teardown, closures over the connection's lazy state (locals of connect(),
+// not a record's fields — the minifier renames a local, never a property,
+// issue #310):
 //   wasShell  whether the root was a trigger shell when last looked at
 //             (connect, then every morph) — a morph that turns REAL content
 //             back into a shell re-materializes; one that leaves a shell a
 //             shell only re-arms it.
 //   inFlight  the ONE dedupe point every materialize passes (the Stimulus
 //             binding, the observer, the re-armed listener, a morph-back).
-//   observer, eventName, onEvent, onProbe, onMorph  held for teardown.
+//   observer, eventName, onProbe, onMorph  held for teardown.
 const wired = new WeakMap()
 
 // Which reactive_lazy(on:) shell this root currently is — read live, because
@@ -499,8 +502,109 @@ function shellKind(el) {
 export function connect(controller, core, morphed) {
   registerSettleOnRender()
   const el = controller.element
-  const state = { core, wasShell: false, inFlight: false, observer: null, eventName: null }
-  wired.set(controller, state)
+  let wasShell = false
+  let inFlight = false
+  let observer = null
+  let eventName = null
+  let onProbe
+  let onMorph
+  // Every trigger goes through the exported materialize, so one that fires
+  // after disconnect (a queued microtask) finds nothing wired and does nothing.
+  const onEvent = () => materialize(controller)
+
+  // Arm the shell's trigger. A :visible shell gets (at most one) observer. An
+  // event shell's FIRST event rides its Stimulus `once` binding, so on connect
+  // there is nothing to add; after a morph (`rearm`) that binding may be spent
+  // — Stimulus only re-binds when the descriptor attribute itself changed — so
+  // this listens for the event itself. Both can fire for one event; materialize
+  // dedupes. Either trigger is consumed when a request starts (like `once`):
+  // one morph buys one attempt.
+  const arm = (rearm) => {
+    if (shellKind(el) === "visible") {
+      if (!observer) observeVisible()
+    } else if (rearm) {
+      const name = el.getAttribute("data-reactive-lazy-on")
+      if (eventName === name) return
+      disarm()
+      el.addEventListener?.(name, onEvent)
+      eventName = name
+    }
+  }
+
+  const disarm = () => {
+    observer?.disconnect()
+    observer = null
+    if (eventName) el.removeEventListener?.(eventName, onEvent)
+    eventName = null
+  }
+
+  // reactive_lazy(on: :visible) (issue #276): materialize the first time the
+  // shell intersects the viewport (grown or shrunk by the rendered
+  // rootMargin). Without IntersectionObserver (very old engines) materialize
+  // right away: the content still loads, just not lazily.
+  const observeVisible = () => {
+    if (typeof IntersectionObserver === "undefined") return queueMicrotask(onEvent)
+    const rootMargin = el.getAttribute("data-reactive-lazy-visible") || "0px"
+    observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) onEvent()
+      },
+      { rootMargin },
+    )
+    observer.observe(el)
+  }
+
+  // turbo:morph-element OF the root: the morph is server truth arriving on a
+  // CONNECTED element. Four outcomes:
+  //   * now real content            → nothing to load; drop any armed trigger.
+  //   * a load is in flight         → leave it; its reply replaces the shell.
+  //   * was real, now a shell       → it was loaded and the morph wiped it, so
+  //                                   re-materialize now (for an event shell
+  //                                   the event — a panel opening — already
+  //                                   happened and won't fire again).
+  //   * was a shell, still a shell  → never triggered, or a failed load: re-arm
+  //                                   it (this is a failed load's retry path).
+  const afterMorph = () => {
+    const shell = shellKind(el) !== null
+    const was = wasShell
+    wasShell = shell
+    if (!shell) return disarm()
+    if (inFlight) return
+    // The morphed-in shell's token is the page's current identity; a token
+    // cached from an earlier reply would materialize stale state.
+    core.forgetToken()
+    if (!was) return onEvent()
+    arm(true)
+  }
+
+  wired.set(controller, {
+    // See materialize() below.
+    load() {
+      if (inFlight) return
+      const source = fragmentSource(el)
+      // A URL refused with no fallback has already failed the shell: never POST.
+      if (!source && el.getAttribute("data-reactive-defer-src") != null) return
+      // The GET skips the action pipeline, so raise its veto here: an app's
+      // reactive:before-dispatch listener controls a materialize either way.
+      if (source && materializeVetoed(el, core)) return
+      const run = source ? startFetchDefer(el.id, source) : core.proceed(el, LAZY_MATERIALIZE_ACTION, "{}")
+      if (!run) return // vetoed by reactive:before-dispatch (or the root has no id)
+      inFlight = true
+      // Consume the armed trigger (observer or re-armed listener): a failed load
+      // is retried by the NEXT morph, not by every later event.
+      disarm()
+      const done = () => {
+        inFlight = false
+      }
+      run.then(done, done)
+      return run
+    },
+    off() {
+      if (onProbe) el.removeEventListener?.("turbo:morph-element", onProbe)
+      if (onMorph) el.removeEventListener?.("turbo:morph-element", onMorph)
+      disarm()
+    },
+  })
 
   // Lazy initial mount (issue #165): a reactive_lazy shell carries its defer
   // token as a ROOT attribute — enter the SAME module-level fetch path a
@@ -519,8 +623,8 @@ export function connect(controller, core, morphed) {
   const fetches = el.getAttribute?.("data-reactive-defer-token") || el.getAttribute?.("data-reactive-defer-src")
   if (fetches && shellKind(el) === null) {
     probe(el)
-    state.onProbe = (event) => event.target === el && probe(el)
-    el.addEventListener?.("turbo:morph-element", state.onProbe)
+    onProbe = (event) => event.target === el && probe(el)
+    el.addEventListener?.("turbo:morph-element", onProbe)
   }
 
   // reactive_lazy(on:) shells (issue #276) carry NO defer token, so the probe
@@ -535,79 +639,21 @@ export function connect(controller, core, morphed) {
   // morph can turn real content into a FETCH-ON-CONNECT shell (plain
   // reactive_lazy, or cache: without on:): probe it too, unless this root
   // connected as such a shell and already re-probes on every morph.
-  state.onMorph = (event) => {
+  onMorph = (event) => {
     if (event.target !== el) return
-    if (!state.onProbe) probe(el)
-    afterMorph(controller, state)
+    if (!onProbe) probe(el)
+    afterMorph()
   }
-  el.addEventListener?.("turbo:morph-element", state.onMorph)
-  if (morphed) return afterMorph(controller, state)
-  state.wasShell = shellKind(el) !== null
-  if (state.wasShell) armTrigger(controller, state, false)
+  el.addEventListener?.("turbo:morph-element", onMorph)
+  if (morphed) return afterMorph()
+  wasShell = shellKind(el) !== null
+  if (wasShell) arm(false)
 }
 
 export function disconnect(controller) {
-  const state = wired.get(controller)
-  if (!state) return
+  const wiring = wired.get(controller)
   wired.delete(controller)
-  const el = controller.element
-  if (state.onProbe) el.removeEventListener?.("turbo:morph-element", state.onProbe)
-  if (state.onMorph) el.removeEventListener?.("turbo:morph-element", state.onMorph)
-  disarmTrigger(controller, state)
-}
-
-// Arm the shell's trigger. A :visible shell gets (at most one) observer. An
-// event shell's FIRST event rides its Stimulus `once` binding, so on connect
-// there is nothing to add; after a morph (`rearm`) that binding may be spent
-// — Stimulus only re-binds when the descriptor attribute itself changed — so
-// this listens for the event itself. Both can fire for one event; materialize
-// dedupes. Either trigger is consumed when a request starts (like `once`):
-// one morph buys one attempt.
-function armTrigger(controller, state, rearm) {
-  if (shellKind(controller.element) === "visible") {
-    if (!state.observer) observeVisible(controller, state)
-  } else if (rearm) {
-    listenForEvent(controller, state)
-  }
-}
-
-function disarmTrigger(controller, state) {
-  state.observer?.disconnect()
-  state.observer = null
-  if (state.eventName) controller.element.removeEventListener?.(state.eventName, state.onEvent)
-  state.eventName = null
-}
-
-function listenForEvent(controller, state) {
-  const name = controller.element.getAttribute("data-reactive-lazy-on")
-  if (state.eventName === name) return
-  disarmTrigger(controller, state)
-  state.onEvent ??= () => materialize(controller)
-  controller.element.addEventListener?.(name, state.onEvent)
-  state.eventName = name
-}
-
-// turbo:morph-element OF the root: the morph is server truth arriving on a
-// CONNECTED element. Four outcomes:
-//   * now real content            → nothing to load; drop any armed trigger.
-//   * a load is in flight         → leave it; its reply replaces the shell.
-//   * was real, now a shell       → it was loaded and the morph wiped it, so
-//                                   re-materialize now (for an event shell
-//                                   the event — a panel opening — already
-//                                   happened and won't fire again).
-//   * was a shell, still a shell  → never triggered, or a failed load: re-arm
-//                                   it (this is a failed load's retry path).
-function afterMorph(controller, state) {
-  const shell = shellKind(controller.element) !== null
-  const wasShell = state.wasShell
-  state.wasShell = shell
-  if (!shell) return disarmTrigger(controller, state)
-  if (state.inFlight) return
-  // The morphed-in shell's token is the page's current identity; a token
-  // cached from an earlier reply would materialize stale state.
-  state.core.forgetToken()
-  if (!wasShell) return materialize(controller)
-  armTrigger(controller, state, true)
+  wiring?.off()
 }
 
 // THE materialize entry point: the shell's Stimulus binding (the core's
@@ -623,47 +669,12 @@ function afterMorph(controller, state) {
 // retry()) instead of the action POST, so the browser's cache can answer —
 // on the first trigger of a later page view, and on every morph-back.
 export function materialize(controller) {
-  const state = wired.get(controller)
-  if (!state || state.inFlight) return
-  const el = controller.element
-  const source = fragmentSource(el)
-  // A URL refused with no fallback has already failed the shell: never POST.
-  if (!source && el.getAttribute("data-reactive-defer-src") != null) return
-  // The GET skips the action pipeline, so raise its veto here: an app's
-  // reactive:before-dispatch listener controls a materialize either way.
-  if (source && materializeVetoed(el, state.core)) return
-  const run = source ? startFetchDefer(el.id, source) : state.core.proceed(el, LAZY_MATERIALIZE_ACTION, "{}")
-  if (!run) return // vetoed by reactive:before-dispatch (or the root has no id)
-  state.inFlight = true
-  // Consume the armed trigger (observer or re-armed listener): a failed load
-  // is retried by the NEXT morph, not by every later event.
-  disarmTrigger(controller, state)
-  const done = () => {
-    state.inFlight = false
-  }
-  run.then(done, done)
-  return run
+  return wired.get(controller)?.load()
 }
 
 function materializeVetoed(el, core) {
   return core.emit("reactive:before-dispatch", { action: LAZY_MATERIALIZE_ACTION, params: {}, element: el }, { cancelable: true })
     .defaultPrevented
-}
-
-// reactive_lazy(on: :visible) (issue #276): materialize the first time the
-// shell intersects the viewport (grown or shrunk by the rendered
-// rootMargin). Without IntersectionObserver (very old engines) materialize
-// right away: the content still loads, just not lazily.
-function observeVisible(controller, state) {
-  if (typeof IntersectionObserver === "undefined") return queueMicrotask(() => materialize(controller))
-  const rootMargin = controller.element.getAttribute("data-reactive-lazy-visible") || "0px"
-  state.observer = new IntersectionObserver(
-    (entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) materialize(controller)
-    },
-    { rootMargin },
-  )
-  state.observer.observe(controller.element)
 }
 
 // Lazy initial mount probe (issue #165): fetch the real content when THIS

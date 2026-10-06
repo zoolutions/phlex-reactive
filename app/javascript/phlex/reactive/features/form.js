@@ -12,7 +12,7 @@
 // This module never imports the core: it reaches a controller through the
 // `core` handle (core.owns — is this control this root's own, issue #15).
 
-// controller -> what connect() wired, for disconnect() to remove exactly that.
+// controller -> the removals of what connect() added, for disconnect() to run.
 const wired = new WeakMap()
 // The turbo:before-visit events a warn_unsaved root already prompted for: one
 // prompt per visit, however many dirty roots guard the page (issue #298).
@@ -20,8 +20,14 @@ const askedVisits = new WeakSet()
 
 export function connect(controller, core) {
   const root = controller.element
-  const state = {}
-  wired.set(controller, state)
+  const offs = []
+  wired.set(controller, offs)
+  // Add a listener and keep its removal. Closures, not a record of named
+  // handlers: the minifier renames a local, never a property (issue #310).
+  const listen = (target, type, handler) => {
+    target.addEventListener?.(type, handler)
+    offs.push(() => target.removeEventListener?.(type, handler))
+  }
 
   // Dirty tracking (issue #103) — ONLY when this root opts in (track_dirty: or a
   // reactive_field(dirty:)), so a component that never uses it pays nothing (no
@@ -34,16 +40,16 @@ export function connect(controller, core) {
   // valid hook — it fires when streams are handed to Turbo, BEFORE the DOM
   // mutation). Both listeners are torn down in disconnect().
   if (dirtyTrackingEnabled(root, core)) {
-    state.scanDirty = () => scan(controller, core)
-    root.addEventListener?.("turbo:morph-element", state.scanDirty)
-    scan(controller, core)
+    const rescan = () => scan(controller, core)
+    listen(root, "turbo:morph-element", rescan)
+    rescan()
 
     // warn_unsaved: arm a navigate-away guard gated on a LIVE dirty-count read
     // (never a cached snapshot — the count is re-derived from the DOM each time).
     // beforeunload covers a real browser unload; turbo:before-visit covers a
     // Turbo in-app navigation (it does NOT fire on restoration visits — the
     // documented gap). Registered on window only when the marker is present.
-    if (root.getAttribute?.("data-reactive-warn-unsaved") === "true") armUnsavedGuard(root, state)
+    if (root.getAttribute?.("data-reactive-warn-unsaved") === "true") armUnsavedGuard(root, listen)
   }
 
   // Clipboard-trigger availability gate (issue #228) — ONLY when this root
@@ -58,25 +64,17 @@ export function connect(controller, core) {
   // that already tracks dirtiness stays ungated (hidden) until a full replace
   // re-connects the controller.
   if (clipboardGateEnabled(root, core)) {
-    state.syncClipboard = () => syncClipboardTriggers(root, core)
-    root.addEventListener?.("turbo:morph-element", state.syncClipboard)
-    syncClipboardTriggers(root, core)
+    const sync = () => syncClipboardTriggers(root, core)
+    listen(root, "turbo:morph-element", sync)
+    sync()
   }
 }
 
 // Remove the listeners on disconnect (Turbo morph/navigation) so a morph
 // re-scan or a navigate-away guard never runs against a detached root.
 export function disconnect(controller) {
-  const state = wired.get(controller)
-  if (!state) return
+  for (const off of wired.get(controller) ?? []) off()
   wired.delete(controller)
-  const root = controller.element
-  if (state.scanDirty) root.removeEventListener?.("turbo:morph-element", state.scanDirty)
-  if (state.syncClipboard) root.removeEventListener?.("turbo:morph-element", state.syncClipboard)
-  if (typeof window !== "undefined" && typeof window.removeEventListener === "function") {
-    if (state.beforeUnload) window.removeEventListener("beforeunload", state.beforeUnload)
-    if (state.beforeVisit) window.removeEventListener("turbo:before-visit", state.beforeVisit)
-  }
 }
 
 // Whether this root opts into dirty tracking (issue #103): track_dirty: puts the
@@ -166,12 +164,12 @@ function dirtyCount(root) {
 // Arm the navigate-away guard (warn_unsaved: true, issue #103). beforeunload
 // blocks a real browser unload; turbo:before-visit blocks a Turbo in-app
 // navigation (it does NOT fire on restoration visits — the documented gap).
-// Both read the LIVE dirty count, so a clean form never blocks. Handlers are
-// stored so disconnect() removes exactly them.
-function armUnsavedGuard(root, state) {
+// Both read the LIVE dirty count, so a clean form never blocks. Added through
+// connect()'s `listen`, so disconnect() removes exactly them.
+function armUnsavedGuard(root, listen) {
   if (typeof window === "undefined" || typeof window.addEventListener !== "function") return
 
-  state.beforeUnload = (event) => {
+  listen(window, "beforeunload", (event) => {
     if (dirtyCount(root) === 0) return undefined
     // The spec dance: preventDefault + a truthy returnValue triggers the native
     // "leave site?" prompt. The string is legacy (modern browsers show their own
@@ -179,20 +177,17 @@ function armUnsavedGuard(root, state) {
     event.preventDefault()
     event.returnValue = "You have unsaved changes."
     return event.returnValue
-  }
+  })
   // Every warn_unsaved root arms its own turbo:before-visit handler, and one
   // visit is one event dispatched to all of them: the first DIRTY root asks,
   // and the rest see the event already asked (issue #298). A clean root never
   // claims the event, so any dirty root on the page can still veto the visit.
-  state.beforeVisit = (event) => {
+  listen(window, "turbo:before-visit", (event) => {
     if (dirtyCount(root) === 0 || askedVisits.has(event)) return
     askedVisits.add(event)
     const ok = typeof window.confirm === "function" ? window.confirm("You have unsaved changes. Leave anyway?") : true
     if (!ok) event.preventDefault?.()
-  }
-
-  window.addEventListener("beforeunload", state.beforeUnload)
-  window.addEventListener("turbo:before-visit", state.beforeVisit)
+  })
 }
 
 // Whether this root owns a clipboard-marked paste trigger (issue #228). The

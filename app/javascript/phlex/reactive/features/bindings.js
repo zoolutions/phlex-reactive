@@ -25,31 +25,39 @@
 import { confirmPredicate } from "phlex/reactive/confirm_predicate"
 
 // controller -> its context: the root, the core handle, and what used to be
-// the controller's own fields for these features.
+// the controller's own fields for these features. Every field it does not
+// set here starts undefined (falsy); a property name is one thing the
+// minifier never renames, so the record carries no more of them than it
+// must (issue #310).
 const contexts = new WeakMap()
 
 function ctx(controller, core) {
   let c = contexts.get(controller)
-  if (!c) {
-    c = {
-      controller,
-      root: controller.element,
-      core,
-      tagsWarnedTemplate: false,
-      nestedIndex: 0,
-      nestedWarned: false,
-      onCompleteRaw: undefined,
-      onCompleteParsed: undefined,
-      onCompleteStates: undefined,
-    }
-    contexts.set(controller, c)
-  }
+  if (!c) contexts.set(controller, (c = { root: controller.element, core, nestedIndex: 0 }))
   return c
+}
+
+// Add a delegated listener on the root for each of the space-separated
+// `types`, and keep its removal for disconnect().
+function listen(c, types, handler) {
+  for (const type of types.split(" ")) {
+    c.root.addEventListener?.(type, handler)
+    c.offs.push(() => c.root.removeEventListener?.(type, handler))
+  }
+}
+
+// What connect() wires is one seed per binding: it runs now, again on
+// turbo:morph-element, and again from reseed().
+function seed(c, run) {
+  listen(c, "turbo:morph-element", run)
+  c.seeds.push(run)
+  run()
 }
 
 export function connect(controller, core) {
   const c = ctx(controller, core)
-  const root = c.root
+  c.offs = []
+  c.seeds = []
 
   // Show bindings (issue #161) — ONLY when this root owns one, so a component
   // without any pays a single probe (the dirty-tracking gate precedent). ONE
@@ -67,7 +75,7 @@ export function connect(controller, core) {
     // the `change` that follows flips nothing). The change events it
     // dispatches re-enter here and are skipped while it flips, so the pass
     // after the loop runs once, not once per box.
-    c.boundSyncShow = (event) => {
+    c.show = (event) => {
       if (c.flipping) return
       // Only a user edit pushes the header onto its group; a morph (whose
       // turbo:morph-element bubbles from the header too) derives it instead.
@@ -81,10 +89,8 @@ export function connect(controller, core) {
       }
       syncShow(c)
     }
-    root.addEventListener?.("input", c.boundSyncShow)
-    root.addEventListener?.("change", c.boundSyncShow)
-    root.addEventListener?.("turbo:morph-element", c.boundSyncShow)
-    c.boundSyncShow()
+    listen(c, "input change", c.show)
+    seed(c, c.show)
   }
 
   // Completion bindings (issue #226) — ONLY when the root declares
@@ -99,15 +105,14 @@ export function connect(controller, core) {
   // compute-NORMALIZED values (and a compute output write dispatches a real
   // input event that re-evaluates anyway).
   if (onCompleteEnabled(c)) {
-    c.boundSyncOnComplete = (event) => syncOnComplete(c, event)
-    c.boundArmOnComplete = () => {
-      syncOnComplete(c, null)
-      observeGroups(c)
-    }
-    root.addEventListener?.("input", c.boundSyncOnComplete)
-    root.addEventListener?.("change", c.boundSyncOnComplete)
-    root.addEventListener?.("turbo:morph-element", c.boundArmOnComplete)
-    c.boundArmOnComplete()
+    listen(c, "input change", (event) => syncOnComplete(c, event))
+    seed(
+      c,
+      (c.arm = () => {
+        syncOnComplete(c, null)
+        observeGroups(c)
+      }),
+    )
   }
 
   // Option filtering (issue #163) — ONLY when the root declares the binding
@@ -121,13 +126,8 @@ export function connect(controller, core) {
   // Stimulus lifecycle, and may preserve the user's typed query while the
   // server re-rendered every option visible).
   if (filterEnabled(c)) {
-    c.boundSyncFilter = (event) => {
-      if (event?.type === "input" && !filterInputEvent(c, event)) return
-      syncFilter(c)
-    }
-    root.addEventListener?.("input", c.boundSyncFilter)
-    root.addEventListener?.("turbo:morph-element", c.boundSyncFilter)
-    syncFilter(c)
+    listen(c, "input", (event) => filterInputEvent(c, event) && syncFilter(c))
+    seed(c, () => syncFilter(c))
   }
 
   // Tag-chip input (issue #203) — ONLY when the root names the hidden value
@@ -139,11 +139,7 @@ export function connect(controller, core) {
   // the chips DOM kept the pre-morph projection). Registered AFTER the
   // filter's listeners so a morph re-filters first and the tags pass then
   // re-marks selected options on the fresh visibility state.
-  if (tagsEnabled(c)) {
-    c.boundSyncTags = () => syncTags(c)
-    root.addEventListener?.("turbo:morph-element", c.boundSyncTags)
-    syncTags(c)
-  }
+  if (tagsEnabled(c)) seed(c, () => syncTags(c))
 
   // JSON-mode nested rows (issue #208) — ONLY when the root owns a list with
   // `as: :json`, so a form without one pays a single probe (the show/filter/
@@ -155,12 +151,8 @@ export function connect(controller, core) {
   // element connected, fires no Stimulus lifecycle, and may have rewritten
   // the rows to server truth while the hidden field kept its pre-morph value).
   if (nestedJsonEnabled(c)) {
-    c.boundSyncNestedJson = (event) => syncNestedJson(c, event)
-    c.boundSeedNestedJson = () => syncAllNestedJson(c)
-    root.addEventListener?.("input", c.boundSyncNestedJson)
-    root.addEventListener?.("change", c.boundSyncNestedJson)
-    root.addEventListener?.("turbo:morph-element", c.boundSeedNestedJson)
-    syncAllNestedJson(c)
+    listen(c, "input change", (event) => syncNestedJson(c, event))
+    seed(c, () => syncAllNestedJson(c))
   }
 }
 
@@ -170,71 +162,32 @@ export function disconnect(controller) {
   const c = contexts.get(controller)
   if (!c) return
   contexts.delete(controller)
-  const root = c.root
-  if (c.boundSyncShow) {
-    root.removeEventListener?.("input", c.boundSyncShow)
-    root.removeEventListener?.("change", c.boundSyncShow)
-    root.removeEventListener?.("turbo:morph-element", c.boundSyncShow)
-  }
+  for (const off of c.offs ?? []) off()
   c.groupObserver?.disconnect()
-  if (c.boundSyncOnComplete) {
-    root.removeEventListener?.("input", c.boundSyncOnComplete)
-    root.removeEventListener?.("change", c.boundSyncOnComplete)
-    root.removeEventListener?.("turbo:morph-element", c.boundArmOnComplete)
-  }
-  if (c.boundSyncFilter) {
-    root.removeEventListener?.("input", c.boundSyncFilter)
-    root.removeEventListener?.("turbo:morph-element", c.boundSyncFilter)
-  }
-  if (c.boundSyncTags) root.removeEventListener?.("turbo:morph-element", c.boundSyncTags)
-  if (c.boundSyncNestedJson) {
-    root.removeEventListener?.("input", c.boundSyncNestedJson)
-    root.removeEventListener?.("change", c.boundSyncNestedJson)
-    root.removeEventListener?.("turbo:morph-element", c.boundSeedNestedJson)
-  }
 }
 
 // Re-run the seeds that read field values, in connect() order — for a
 // feature that changed those values after connect() ran (the draft restore).
 // Each is the same re-sync a morph runs; on-complete re-ARMS without firing.
 export function reseed(controller) {
-  const c = contexts.get(controller)
-  if (!c) return
-  c.boundSyncShow?.()
-  c.boundArmOnComplete?.()
-  c.boundSyncFilter?.()
-  c.boundSyncTags?.()
-  c.boundSeedNestedJson?.()
+  for (const run of contexts.get(controller)?.seeds ?? []) run()
+}
+
+// A value this module wrote is announced the way a user's edit is: a bubbling
+// `input` (the set-value + dispatch contract, issue #183), so dirty tracking,
+// reactive_show and compute all see it.
+function fireInput(el) {
+  if (typeof el.dispatchEvent === "function") el.dispatchEvent(new Event("input", { bubbles: true }))
 }
 
 // The Stimulus actions this module answers (the controller's own methods of
-// the same names hand the event here).
-function publicTagsAdd(controller, core, event) {
-  return tagsAdd(ctx(controller, core), event)
-}
-function publicTagsPick(controller, core, event) {
-  return tagsPick(ctx(controller, core), event)
-}
-function publicTagsRemove(controller, core, event) {
-  return tagsRemove(ctx(controller, core), event)
-}
-function publicNestedAdd(controller, core, event) {
-  return nestedAdd(ctx(controller, core), event)
-}
-function publicNestedRemove(controller, core, event) {
-  return nestedRemove(ctx(controller, core), event)
-}
+// the same names hand the event here). tagsAdd, tagsPick, tagsRemove,
+// nestedAdd and nestedRemove take the controller themselves; the JSON sync is
+// also the root's own listener, so it keeps its context form inside.
 function publicSyncNestedJson(controller, core, event) {
   return syncNestedJson(ctx(controller, core), event)
 }
-export {
-  publicTagsAdd as tagsAdd,
-  publicTagsPick as tagsPick,
-  publicTagsRemove as tagsRemove,
-  publicNestedAdd as nestedAdd,
-  publicNestedRemove as nestedRemove,
-  publicSyncNestedJson as syncNestedJson,
-}
+export { publicSyncNestedJson as syncNestedJson }
 
 // The runtime's call-in for a conditional confirm: the message when its
 // condition fires over this root's fields, else null.
@@ -452,7 +405,7 @@ function syncShow(c) {
     const payloadRaw = el.getAttribute("data-reactive-show")
     if (payloadRaw !== null) {
       const match = showPayloadMatches(parseShowCompound(payloadRaw), fieldValue)
-      if (match !== null) applyShowVisibility(c, el, match, owns, scope)
+      if (match !== null) applyShowVisibility(el, match, owns, scope)
       continue
     }
 
@@ -463,7 +416,7 @@ function syncShow(c) {
     if (value === null) continue // no owned field with that name — leave it be
     const match = showBindingMatches(el, value)
     if (match === null) continue // malformed predicate — warned + skipped
-    applyShowVisibility(c, el, match, owns, scope)
+    applyShowVisibility(el, match, owns, scope)
   }
 
   // The group bindings (issue #319) and the cross-root pass (issue #164)
@@ -477,7 +430,7 @@ function syncShow(c) {
 // (issue #180). Disabling a hidden section's controls stops them submitting —
 // the stale-value fix. A visible section re-enables them. Controls a nested
 // reactive root owns are left alone (#15 ownership).
-function applyShowVisibility(c, el, match, owns, scope) {
+function applyShowVisibility(el, match, owns, scope) {
   el.hidden = !match
   if (el.getAttribute("data-reactive-show-disable") !== "true") return
   if (typeof el.querySelectorAll !== "function") return
@@ -507,7 +460,7 @@ function syncShowTargets(c, fieldValue) {
   const map = parseShowTargets(c)
   for (const [name, targets] of Object.entries(map)) {
     if (name.startsWith("#")) {
-      applyConditionsTarget(c, name, targets, fieldValue)
+      applyConditionsTarget(name, targets, fieldValue)
       continue
     }
     if (!targets || typeof targets !== "object" || Array.isArray(targets)) continue
@@ -550,7 +503,7 @@ function syncShowTargets(c, fieldValue) {
 // single-field skip generalized (this root has nothing to evaluate with). A
 // malformed payload warn-skips its one target while siblings still apply;
 // the selector guard is the same id-only allowlist as every cross-root arm.
-function applyConditionsTarget(c, selector, payload, fieldValue) {
+function applyConditionsTarget(selector, payload, fieldValue) {
   if (!guardShowTargetSelector(selector)) return
   const groups = payload && typeof payload === "object" && !Array.isArray(payload) ? payload.any : null
   const fields = dnfGroupFields(groups)
@@ -718,8 +671,8 @@ function observeGroups(c) {
   const boxIn = (node) => node.nodeType === 1 && (node.matches('input[type="checkbox"]') || !!node.querySelector('input[type="checkbox"]'))
   c.groupObserver = new MutationObserver((records) => {
     if (!records.some((r) => [...r.addedNodes, ...r.removedNodes].some(boxIn))) return
-    c.boundSyncShow?.()
-    c.boundArmOnComplete?.()
+    c.show?.()
+    c.arm?.()
   })
   c.groupObserver.observe(c.root, { childList: true, subtree: true })
 }
@@ -829,7 +782,7 @@ function tagsField(c) {
 // trim, drop blanks, dedupe case-insensitively KEEPING the first casing (the
 // server may have stored a ragged value — the projection normalizes without
 // rewriting the field, so we never fight server truth).
-function tagsRead(c, field) {
+function tagsRead(field) {
   const seen = new Set()
   const tags = []
   for (const part of String(field.value ?? "").split(",")) {
@@ -848,7 +801,7 @@ function tagsAddValues(c, values) {
   const field = tagsField(c)
   if (!field) return false
 
-  const tags = tagsRead(c, field)
+  const tags = tagsRead(field)
   const seen = new Set(tags.map((tag) => tag.toLowerCase()))
   let added = false
   for (const value of values) {
@@ -867,9 +820,7 @@ function tagsAddValues(c, values) {
 // reactive_show, and compute all see the change), then re-project.
 function tagsWrite(c, field, tags) {
   field.value = tags.join(",")
-  if (typeof field.dispatchEvent === "function") {
-    field.dispatchEvent(new Event("input", { bubbles: true }))
-  }
+  fireInput(field)
   syncTags(c)
 }
 
@@ -890,7 +841,7 @@ function tagsQueryInput(c) {
 function syncTags(c) {
   const field = tagsField(c)
   if (!field) return
-  const tags = tagsRead(c, field)
+  const tags = tagsRead(field)
   const owns = c.core.ownership()
   tagsRenderChips(c, tags, owns)
   tagsMarkOptions(c, tags, owns)
@@ -971,7 +922,7 @@ function nextNestedIndex(c) {
 // Swap every NEW_ROW in the clone's name/id/for for the fresh index, so the
 // row posts as its own `…_attributes[<index>][field]` group and labels keep
 // pointing at their (renumbered) inputs.
-function renumberNestedRow(c, row, index) {
+function renumberNestedRow(row, index) {
   const nodes = [row, ...(row.querySelectorAll?.("*") ?? [])]
   for (const el of nodes) {
     for (const attr of ["name", "id", "for"]) {
@@ -1018,12 +969,12 @@ function seedNestedRow(c, row, fromJson, clear) {
   for (const [key, selector] of Object.entries(map)) {
     const source = [...(c.root.querySelectorAll?.(selector) ?? [])].find(owns)
     if (!source) continue
-    const target = rowFields.find((field) => nestedJsonKey(c, field.getAttribute?.("name")) === key)
+    const target = rowFields.find((field) => nestedJsonKey(field.getAttribute?.("name")) === key)
     if (!target) continue
-    seedNestedField(c, target, source)
+    seedNestedField(target, source)
     sources.push(source)
   }
-  if (clear) for (const source of sources) clearNestedSource(c, source)
+  if (clear) for (const source of sources) clearNestedSource(source)
   return sources[0] ?? null
 }
 
@@ -1032,25 +983,21 @@ function seedNestedRow(c, row, fromJson, clear) {
 // checkbox copies the checked state; every other target takes the source's
 // submit-shaped value (#nestedFieldValue), so a checkbox source feeding a
 // text field lands "on"/"" exactly as a submit would.
-function seedNestedField(c, target, source) {
+function seedNestedField(target, source) {
   if (target.type === "checkbox") {
-    target.checked = source.type === "checkbox" ? !!source.checked : nestedFieldValue(c, source) !== ""
+    target.checked = source.type === "checkbox" ? !!source.checked : nestedFieldValue(source) !== ""
   } else {
-    target.value = nestedFieldValue(c, source)
+    target.value = nestedFieldValue(source)
   }
-  if (typeof target.dispatchEvent === "function") {
-    target.dispatchEvent(new Event("input", { bubbles: true }))
-  }
+  fireInput(target)
 }
 
 // Reset a source control after a fill-then-add (issue #208), dispatching a
 // bubbling `input` so dirty tracking / reactive_show / compute see the reset.
-function clearNestedSource(c, source) {
+function clearNestedSource(source) {
   if (source.type === "checkbox") source.checked = false
   else source.value = ""
-  if (typeof source.dispatchEvent === "function") {
-    source.dispatchEvent(new Event("input", { bubbles: true }))
-  }
+  fireInput(source)
 }
 
 // Resolve %{field} placeholders in a confirm message from a row's field map
@@ -1058,7 +1005,7 @@ function clearNestedSource(c, source) {
 // (a visible, debuggable placeholder — never an empty hole or a throw). A
 // message with no placeholders returns unchanged, so this is inert for every
 // server-rendered (already-interpolated) confirm string.
-function interpolateConfirm(c, message, fields) {
+function interpolateConfirm(message, fields) {
   if (!message.includes("%{")) return message
   return message.replace(/%\{(\w+)\}/g, (whole, key) =>
     Object.prototype.hasOwnProperty.call(fields, key) ? fields[key] : whole,
@@ -1074,9 +1021,7 @@ function removeNestedRow(c, row) {
   const destroy = [...(row.querySelectorAll?.('input[name$="[_destroy]"]') ?? [])][0]
   if (destroy) {
     destroy.value = "1"
-    if (typeof destroy.dispatchEvent === "function") {
-      destroy.dispatchEvent(new Event("input", { bubbles: true }))
-    }
+    fireInput(destroy)
     row.hidden = true
   } else {
     row.parentNode?.removeChild?.(row)
@@ -1120,9 +1065,9 @@ function nestedRowObject(c, row) {
   const owns = c.core.ownership()
   for (const el of [...(row.querySelectorAll?.("input, select, textarea") ?? [])]) {
     if (el.matches(":disabled") || (el.type === "radio" && !el.checked) || !owns(el)) continue
-    const key = nestedJsonKey(c, el.getAttribute?.("name"))
+    const key = nestedJsonKey(el.getAttribute?.("name"))
     if (key === null || key === "_destroy") continue
-    obj[key] = nestedFieldValue(c, el)
+    obj[key] = nestedFieldValue(el)
   }
   return obj
 }
@@ -1130,7 +1075,7 @@ function nestedRowObject(c, row) {
 // The trailing bracket segment of a field name (the inferred JSON key), or
 // the bare name when it carries no brackets. null for a nameless control
 // (a bare button, an unnamed helper input) — skipped by the caller.
-function nestedJsonKey(c, name) {
+function nestedJsonKey(name) {
   if (!name) return null
   const match = name.match(/\[([^\][]+)\]$/)
   return match ? match[1] : name
@@ -1140,7 +1085,7 @@ function nestedJsonKey(c, name) {
 // wouldn't post at all), a checked one its value (default "on"); everything
 // else its .value. Keeps the JSON shape close to what a real form submit
 // would carry for the same control.
-function nestedFieldValue(c, el) {
+function nestedFieldValue(el) {
   if (el.type === "checkbox") return el.checked ? (el.value || "on") : ""
   return el.value ?? ""
 }
@@ -1168,9 +1113,7 @@ function syncNestedJsonList(c, assoc) {
   const next = JSON.stringify(rows)
   if (field.value === next) return
   field.value = next
-  if (typeof field.dispatchEvent === "function") {
-    field.dispatchEvent(new Event("input", { bubbles: true }))
-  }
+  fireInput(field)
 }
 
 // Tag-chip input (issue #203) — the composed combobox/tags primitive. The
@@ -1193,7 +1136,8 @@ function syncNestedJsonList(c, assoc) {
 // comma-joined, so a comma can never be part of one tag). The input clears
 // only when something was actually added — a duplicate keeps the typed text
 // for correction.
-function tagsAdd(c, event) {
+export function tagsAdd(controller, core, event) {
+  const c = ctx(controller, core)
   if (!tagsEnabled(c)) return
   if (event?.defaultPrevented) return
   if (c.core.listnavOptions(event).some((el) => el.hasAttribute?.("data-reactive-highlighted"))) return
@@ -1212,7 +1156,8 @@ function tagsAdd(c, event) {
 // reactive_tags_option, never free text). After a successful add, reset the
 // query so the next tag starts from the full list: clear the filter input,
 // re-narrow, and hand focus back for continued typing.
-function tagsPick(c, event) {
+export function tagsPick(controller, core, event) {
+  const c = ctx(controller, core)
   if (!tagsEnabled(c)) return
   event?.preventDefault?.()
 
@@ -1231,7 +1176,8 @@ function tagsPick(c, event) {
 // Click on a chip's remove button: drop its tag (case-insensitive match, the
 // dedupe convention) from the hidden value. The re-projection removes the
 // chip and resurfaces the option. Removing an absent tag is a no-op.
-function tagsRemove(c, event) {
+export function tagsRemove(controller, core, event) {
+  const c = ctx(controller, core)
   if (!tagsEnabled(c)) return
   event?.preventDefault?.()
 
@@ -1241,7 +1187,7 @@ function tagsRemove(c, event) {
   const field = tagsField(c)
   if (!field) return
 
-  const tags = tagsRead(c, field)
+  const tags = tagsRead(field)
   const next = tags.filter((t) => t.toLowerCase() !== tag.toLowerCase())
   if (next.length === tags.length) return
   tagsWrite(c, field, next)
@@ -1258,7 +1204,8 @@ function tagsRemove(c, event) {
 // [data-reactive-nested-list="assoc"] container, and focuses the new row's
 // first field. Several collections can share one root — everything is keyed
 // by the association name the trigger carries.
-function nestedAdd(c, event) {
+export function nestedAdd(controller, core, event) {
+  const c = ctx(controller, core)
   event?.preventDefault?.()
   const trigger = event?.currentTarget ?? event?.target
   const assoc = trigger?.getAttribute?.("data-reactive-association-param")
@@ -1275,7 +1222,7 @@ function nestedAdd(c, event) {
   }
 
   const row = proto.cloneNode(true)
-  renumberNestedRow(c, row, nextNestedIndex(c))
+  renumberNestedRow(row, nextNestedIndex(c))
   list.appendChild(row)
 
   // Fill-then-add (issue #208 Scenario A): seed the cloned row from named
@@ -1306,7 +1253,8 @@ function nestedAdd(c, event) {
 // input via nested_field_name) is marked "1" and hidden instead — Rails
 // destroys it on save. The mark dispatches a real bubbling `input` (the
 // set-value + dispatch contract, issue #183) so dirty tracking/compute see it.
-function nestedRemove(c, event) {
+export function nestedRemove(controller, core, event) {
+  const c = ctx(controller, core)
   event?.preventDefault?.()
   const trigger = event?.currentTarget ?? event?.target
   const row = trigger?.closest?.("[data-reactive-nested-row]")
@@ -1335,7 +1283,7 @@ function nestedRemove(c, event) {
   // rendered rows already interpolate server-side, so their finished strings
   // carry no %{}; this is a no-op for them.
   const fields = nestedRowObject(c, row)
-  const message = interpolateConfirm(c, rawMessage, fields)
+  const message = interpolateConfirm(rawMessage, fields)
 
   // Gate through the overridable confirmResolver (issues #52/#55/#178) — a
   // themed dialog set with setConfirmResolver covers this trigger too. Pass the

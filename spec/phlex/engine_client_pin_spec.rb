@@ -200,11 +200,12 @@ RSpec.describe Phlex::Reactive::Engine do
     it "matches the features the runtime imports statically for the default entry (issue #305)" do
       # Built with __SPLIT__ false, the default entry reaches each feature
       # through these imports, not the table: one missing here is a feature
-      # the default client does not have.
+      # the default client does not have. Their ORDER is the bundle's layout
+      # for gzip (issue #310), not the connect order, so only the set is held.
       source = File.read(File.join(root, "app/javascript/phlex/reactive/runtime.js"))
       imported = source.scan(%r{^import \* as \w+ from "phlex/reactive/features/([\w-]+)"$}).flatten
 
-      expect(imported).to eq(described_class::CLIENT_FEATURES)
+      expect(imported).to match_array(described_class::CLIENT_FEATURES)
     end
 
     it "is pinned in each of the dummy app's hand-written import maps" do

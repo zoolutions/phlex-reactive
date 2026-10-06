@@ -1096,12 +1096,12 @@ module Views
               ul do
                 li do
                   code { 'reactive_controller' }
-                  plain ' (the default client: the runtime and every feature module in one file): 375 KB '
+                  plain ' (the default client: the runtime and every feature module in one file): 399 KB '
                   plain 'of source → '
-                  strong { '87 KB' }
-                  plain ' minified (−77%). Gzipped, the source would be 114 KB; the minified file is '
-                  strong { '26.1 KB' }
-                  plain ' (−77%).'
+                  strong { '82 KB' }
+                  plain ' minified (−79%). Gzipped, the source would be 125 KB; the minified file is '
+                  strong { '24.9 KB' }
+                  plain ' (−80%).'
                 end
                 li do
                   code { 'confirm.js' }
@@ -1158,13 +1158,13 @@ module Views
             end
             DocsUI::Table(['Module', 'Gzipped', 'Default client', 'Split client'],
                           [
-                            [[:code, 'phlex/reactive/reactive_controller'], '26.1 KB',
+                            [[:code, 'phlex/reactive/reactive_controller'], '24.9 KB',
                              'When your controllers load (or at the first trigger, for a page whose only roots are dormant).',
                              'Never.'],
-                            [[:code, 'phlex/reactive/core'], '12.4 KB',
+                            [[:code, 'phlex/reactive/core'], '12.8 KB',
                              'Never: it is inside the one file.',
                              'When your controllers load (or at the first trigger, for a page whose only roots are dormant).'],
-                            [[:code, 'phlex/reactive/features/persist'], '3.2 KB',
+                            [[:code, 'phlex/reactive/features/persist'], '3.1 KB',
                              'Inside the one file.',
                              [:md, 'When the first root that declares `reactive_persist` connects, or a `persist_state` / ' \
                                    '`persist_clear` op runs.']],
@@ -1180,7 +1180,7 @@ module Views
                              'Inside the one file.',
                              [:md, 'When the first root that declares an effect connects, or when the first stream ' \
                                    'that needs it arrives: one with an effect, or with a `dismiss_after:` flash.']],
-                            [[:code, 'phlex/reactive/features/bindings'], '5.4 KB',
+                            [[:code, 'phlex/reactive/features/bindings'], '5.9 KB',
                              'Inside the one file.',
                              [:md, 'When the first root with a `reactive_show` / show targets / ' \
                                    '`reactive_on_complete` / `reactive_filter` / `reactive_tags` / nested-rows ' \
@@ -1200,17 +1200,27 @@ module Views
                                    '`phlex-reactive-env` development meta or while a latency delay is stored; ' \
                                    'at connect for a root in debug mode; otherwise the first time a verbose root ' \
                                    'has something to warn about. In production with none of these, never.']],
-                            [[:code, 'phlex/reactive/early'], '1.2 KB',
+                            [[:code, 'phlex/reactive/early'], '1.3 KB',
                              'On every page, if you import it.',
                              'The same.']
                           ])
             DocsUI::Prose() do
               p do
-                plain 'A page that uses none of these features downloads 13.7 KB less with the split '
-                plain 'client. A page that uses every one of them downloads 5.1 KB more, in nine requests '
+                plain 'A page that uses none of these features downloads 12.1 KB less with the split '
+                plain 'client. A page that uses every one of them downloads 7.1 KB more, in nine requests '
                 plain 'instead of one. This is the whole split: everything that can leave the core has. '
                 plain 'The maintainer\'s target for the core was 10,240 B; the honest moves leave it at '
-                plain '12,383 B, which the budget test holds as its ratchet (and prints the target against).'
+                plain '12,831 B, which the budget test holds as its ratchet (and prints the target against).'
+              end
+              p do
+                plain 'The default file is laid out for gzip (issue #310). Gzip only matches text within '
+                plain '32 KB, and the bundler places the features ahead of the runtime in import order, so '
+                plain 'the order is the one that puts the features repeating the runtime closest to it: '
+                plain 'about 450 B less than the connect order. With the features\' per-root records '
+                plain 'rewritten as closures (a property name is the one thing a minifier never renames), '
+                plain 'the default file went from 25,933 B to 24,925 B. The target is 22,700 B (the file '
+                plain 'before the split, plus a loader\'s worth); the features added since, bulk selection '
+                plain 'alone about 800 B, keep it out of reach without changing behaviour.'
               end
               p do
                 plain 'Two things are not feature modules, in either client. The offline hook ('
