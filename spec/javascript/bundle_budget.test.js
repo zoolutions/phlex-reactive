@@ -71,8 +71,9 @@ const SLACK = 250
 // window-bound hotkeys) adds 214 B on that 24,762 B baseline: 24,976 B. The
 // ratchet below sits 24 B above the real size (inside SLACK): room for a
 // fix in flight, not for a feature. Issue #297 (a select's reset state)
-// adds 44 B: 25,020 B, and the ratchet moves by the 20 B it needs.
-const BUNDLE_GZIP_CEILING = 25_020
+// adds 44 B: 25,020 B, and the ratchet moves by the 20 B it needs. Issue
+// #298 (one unsaved-changes prompt per visit) adds 17 B: 25,037 B.
+const BUNDLE_GZIP_CEILING = 25_037
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors

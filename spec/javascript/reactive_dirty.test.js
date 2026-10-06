@@ -499,6 +499,67 @@ test("warn_unsaved: turbo:before-visit is vetoed while dirty and allowed when cl
   expect(dirtyPrevented).toBe(true)
 })
 
+// Issue #298: two warn_unsaved roots on one page each arm a turbo:before-visit
+// guard. One visit must prompt ONCE, and any dirty root can veto it. Every
+// registered listener receives the SAME event object (one dispatch).
+function twoGuardedRoots({ dirty: [firstDirty, secondDirty], answer }) {
+  const winListeners = {}
+  const asked = []
+  const win = {
+    addEventListener: (name, fn) => ((winListeners[name] ??= []).push(fn)),
+    removeEventListener: (name, fn) => (winListeners[name] = (winListeners[name] ?? []).filter((f) => f !== fn)),
+    confirm: (message) => (asked.push(message), answer),
+  }
+  const controllers = [firstDirty, secondDirty].map((dirty, i) => {
+    const root = dirtyRoot()
+    root.id = `form-${i}`
+    root.setAttribute("data-reactive-warn-unsaved", "true")
+    root.append(new FakeNode({ tag: "input", type: "text", name: "title", value: dirty ? "changed" : "orig", defaultValue: "orig" }))
+    const controller = buildController(root)
+    globalThis.window = win
+    controller.connect()
+    return controller
+  })
+  const visit = () => {
+    const event = { defaultPrevented: false, preventDefault: () => (event.defaultPrevented = true) }
+    for (const fn of winListeners["turbo:before-visit"] ?? []) fn(event)
+    return event
+  }
+  return { asked, visit, controllers, winListeners }
+}
+
+test("two dirty warn_unsaved roots prompt ONCE for one visit, and a decline vetoes it (issue #298)", () => {
+  const { asked, visit } = twoGuardedRoots({ dirty: [true, true], answer: false })
+
+  expect(visit().defaultPrevented).toBe(true)
+  expect(asked.length).toBe(1)
+})
+
+test("two dirty warn_unsaved roots: accepting the one prompt lets the visit through (issue #298)", () => {
+  const { asked, visit } = twoGuardedRoots({ dirty: [true, true], answer: true })
+
+  expect(visit().defaultPrevented).toBe(false)
+  expect(asked.length).toBe(1)
+})
+
+test("a clean root does not stop a dirty sibling from vetoing the visit (issue #298)", () => {
+  const { asked, visit } = twoGuardedRoots({ dirty: [false, true], answer: false })
+
+  expect(visit().defaultPrevented).toBe(true)
+  expect(asked.length).toBe(1)
+})
+
+test("each visit asks again; disconnecting both roots removes every guard (issue #298)", () => {
+  const { asked, visit, controllers, winListeners } = twoGuardedRoots({ dirty: [true, true], answer: false })
+
+  visit()
+  visit()
+  expect(asked.length).toBe(2)
+
+  for (const controller of controllers) controller.disconnect()
+  expect(winListeners["turbo:before-visit"]).toEqual([])
+})
+
 test("no warn_unsaved marker → no navigate-away guard registered", () => {
   const winListeners = {}
   const win = {

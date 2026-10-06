@@ -14,6 +14,9 @@
 
 // controller -> what connect() wired, for disconnect() to remove exactly that.
 const wired = new WeakMap()
+// The turbo:before-visit events a warn_unsaved root already prompted for: one
+// prompt per visit, however many dirty roots guard the page (issue #298).
+const askedVisits = new WeakSet()
 
 export function connect(controller, core) {
   const root = controller.element
@@ -176,8 +179,13 @@ function armUnsavedGuard(root, state) {
     event.returnValue = "You have unsaved changes."
     return event.returnValue
   }
+  // Every warn_unsaved root arms its own turbo:before-visit handler, and one
+  // visit is one event dispatched to all of them: the first DIRTY root asks,
+  // and the rest see the event already asked (issue #298). A clean root never
+  // claims the event, so any dirty root on the page can still veto the visit.
   state.beforeVisit = (event) => {
-    if (dirtyCount(root) === 0) return
+    if (dirtyCount(root) === 0 || askedVisits.has(event)) return
+    askedVisits.add(event)
     const ok = typeof window.confirm === "function" ? window.confirm("You have unsaved changes. Leave anyway?") : true
     if (!ok) event.preventDefault?.()
   }
