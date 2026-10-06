@@ -15,7 +15,8 @@ const pinned = /"happy-dom": \["happy-dom@([^"]+)"/.exec(lock)?.[1]
 const manifest = createRequire(import.meta.path).resolve("happy-dom/package.json")
 const installed = JSON.parse(readFileSync(manifest, "utf8")).version
 
-if (pinned && installed !== pinned) {
+if (!pinned) throw new Error("lockfile_guard: no happy-dom entry found in bun.lock; update the guard's pattern.")
+if (installed !== pinned) {
   throw new Error(
     `happy-dom ${installed} is installed (${manifest}) but bun.lock pins ${pinned}. ` +
       `Run \`bun install\` in the checkout that owns that node_modules.`,

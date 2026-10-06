@@ -114,6 +114,7 @@ test("records a click on an on() trigger inside a root that has not connected", 
 // alive while its target lives, so early.js holding no reference is correct.
 test("still records a trigger whose markup arrives after a garbage collection", async () => {
   Bun.gc(true)
+  // focusin: a type no earlier test installs, so only the observer's scan can add its listener.
   const root = await mount(`
     <div id="gc" data-controller="reactive">
       <button data-action="focusin->reactive#dispatch">Go</button>
