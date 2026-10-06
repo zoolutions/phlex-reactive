@@ -20,6 +20,7 @@ module Views
           jsbundling
           bun
           requirements
+          falcon
           configuration
           verify
         end
@@ -273,6 +274,47 @@ module Views
                   a(href: doc_path('transport-pgbus')) { 'Transport: pgbus' }
                   plain ' to wire it up.'
                 end
+              end
+            end
+          end
+        end
+
+        def falcon
+          DocsUI::Section('Running under Falcon') do
+            DocsUI::Prose() do
+              p do
+                plain 'Falcon serves each request as a fiber on one thread. Rails keys its per-request ' \
+                      'state on '
+                code { 'config.active_support.isolation_level' }
+                plain ', which defaults to '
+                code { ':thread' }
+                plain ', so under Falcon every thread-keyed value is shared by the requests that thread ' \
+                      'serves: '
+                code { 'ActiveSupport::CurrentAttributes' }
+                plain ', '
+                code { 'IsolatedExecutionState' }
+                plain ', thread variables ('
+                code { 'Thread#thread_variable_get' }
+                plain '), and the lock on the connection transactional tests pin (two overlapping ' \
+                      'requests wedge the server). Set it to '
+                code { ':fiber' }
+                plain ' for an app served by Falcon:'
+              end
+            end
+            DocsUI::Code(<<~RUBY, lexer: :ruby, filename: 'config/application.rb')
+              config.active_support.isolation_level = :fiber
+            RUBY
+            DocsUI::Prose() do
+              p do
+                plain 'phlex-reactive keeps its own request state in fiber-local storage, so the gem ' \
+                      'works either way; this setting protects the app around it. Puma serves a thread ' \
+                      'per request and needs nothing. '
+                code { 'bin/rails phlex_reactive:doctor' }
+                plain ' fails when Falcon serves the app under '
+                code { ':thread' }
+                plain ', and is advisory when Falcon is bundled beside another server and is not the ' \
+                      'only server loaded: it sees every server in the bundle, but a rake task loads only ' \
+                      'the ones the Gemfile auto-requires, so it cannot tell which one runs.'
               end
             end
           end

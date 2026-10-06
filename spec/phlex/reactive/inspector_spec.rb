@@ -52,6 +52,28 @@ RSpec.describe Phlex::Reactive::Inspector do
       expect(described_class.components.map(&:name)).not_to include("Phantom::StateWidget")
     end
 
+    # Issue #302: a subclass inherits the mixin instead of including it.
+    context "with a subclass of a reactive component" do
+      it "lists a constant-backed subclass with its inherited and own actions" do
+        info = components.find { it.name == "InheritedSkipComponent" }
+        expect(info).not_to be_nil
+        expect(info.actions.map(&:name)).to include(:increment, :reset)
+        expect(info.actions.map(&:authorization_skip)).to all(eq(:class))
+      end
+
+      it "lists a subclass defined after the inventory was first read" do
+        described_class.components
+        klass = stub_const("Phlex::Reactive::InspectorSpec::LateSubclass", Class.new(PublicCounterComponent))
+
+        expect(described_class.components.map(&:klass)).to include(klass)
+      end
+
+      it "excludes an anonymous subclass" do
+        anon = Class.new(PublicCounterComponent)
+        expect(described_class.components.map(&:klass)).not_to include(anon)
+      end
+    end
+
     describe "a ComponentInfo" do
       subject(:info) { described_class.components.find { it.name == "CounterComponent" } }
 
@@ -220,8 +242,8 @@ RSpec.describe Phlex::Reactive::Inspector do
   # authorization_state is :detected (a call was found), :skipped (declared with
   # skip_verify_authorized) or :none; authorization_skip says which form.
   describe "authorization state (detected / skipped / none)" do
-    # component_info directly: an anonymous-then-stubbed subclass is not in the
-    # Streamable registry, so .components would not list it.
+    # component_info directly: it reads one class's authorization state without
+    # going through the whole-registry scan.
     def action_for(klass, name)
       described_class.send(:component_info, klass).actions.find { it.name == name }
     end

@@ -79,6 +79,15 @@ module Views
               checked by default, and
               `Phlex::Reactive.importmaps = -> { { "landing" => landing_map } }`
               adds the maps you keep elsewhere.
+
+              It fails when Falcon serves the app and
+              `config.active_support.isolation_level` is still `:thread`: Falcon
+              runs each request as a fiber on one thread, so thread-keyed state is
+              shared between requests (the fix is `:fiber`, see
+              [Running under Falcon](/docs/installation#running-under-falcon)).
+              It reads the bundle without loading a server; when Falcon is bundled
+              beside another server and is not the only server loaded, it cannot
+              tell which one serves the app, and the line is advisory.
             MD
           end
         end

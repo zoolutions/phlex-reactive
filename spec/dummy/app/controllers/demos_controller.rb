@@ -608,6 +608,13 @@ class DemosController < ActionController::Base
     render html: "<div data-testid='nav-probe'>NAVIGATED</div>".html_safe, layout: true
   end
 
+  # Issue #320: answer only after ?seconds= (capped, no DB) so the timeout
+  # proof sees a server that "never" answers without wedging it for later specs.
+  def stall
+    sleep(params[:seconds].to_i.clamp(0, 15))
+    render plain: "stalled"
+  end
+
   private
 
   # Render a Phlex component as the layout's body. `render component, layout:`
