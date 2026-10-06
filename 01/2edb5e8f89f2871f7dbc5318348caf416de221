@@ -1,0 +1,30 @@
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 8-9
+app/javascript/phlex/reactive/features/persist.min.js.map
+  ai_agent 5,7-8
+app/javascript/phlex/reactive/features/persist.min.js
+  ai_agent 1,3
+spec/dummy/public/vendor/reactive_controller.min.js.map
+  ai_agent 8-9
+app/javascript/phlex/reactive/features/persist.js
+  s_d02db4353d49da::t_b1788783fcfe82 499-501,529-567,571-580,584
+  s_d02db4353d49da::t_2e8c10b5b7d84b 635,637,639
+spec/dummy/public/vendor/features/persist.js
+  ai_agent 1,3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "012edb5e8f89f2871f7dbc5318348caf416de221",
+  "prompts": {},
+  "sessions": {
+    "s_d02db4353d49da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5775b781-4946-4755-bdd4-dcdc0ac0b0ea",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}

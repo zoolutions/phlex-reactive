@@ -1,0 +1,27 @@
+spec/javascript/bundle_budget.test.js
+  s_d02db4353d49da::t_708b6b04f5131b 117
+  ai_agent 132
+  s_d02db4353d49da::t_cb43a79bcb7a7e 93
+  s_d02db4353d49da::t_134f963a6409b5 83-92,106-107,111-116,119-121,130-131,199-200
+CHANGELOG.md
+  s_d02db4353d49da::t_90825c8fd95234 11-21
+docs/app/views/docs/pages/performance.rb
+  s_d02db4353d49da::t_779a5c961a8eaf 1099,1101-1104
+  s_d02db4353d49da::t_4f215657ebeaaa 1161,1164,1167,1183,1203,1209-1210,1213-1223
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "92cc64ee21629df32df31d4628ba13ce8b40c13c",
+  "prompts": {},
+  "sessions": {
+    "s_d02db4353d49da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5775b781-4946-4755-bdd4-dcdc0ac0b0ea",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}

@@ -1,0 +1,34 @@
+app/javascript/phlex/reactive/features/bindings.js
+  s_d02db4353d49da::t_537564945adfcc 28-31,36,40-56,59-60
+  s_d02db4353d49da::t_5e649bcdafe8b7 78,92-93,109-115,674-675
+  s_d02db4353d49da::t_e9cc51eb52c32b 108,129-130,142,154-155,165,173,184-186,190
+  s_d02db4353d49da::t_70090f93e805af 176-180,182,823,992,1000,1024,1116
+  s_d02db4353d49da::t_da55b0e56975c9 408,419,433,463,506,785,804,844,925,972,974,977,986,988,990,997,1008,1068,1070,1078,1088,1190,1225,1286
+  s_d02db4353d49da::t_234bd22578512a 1139-1140,1159-1160,1179-1180,1207-1208,1256-1257
+app/javascript/phlex/reactive/features/bindings.min.js
+  ai_agent 1,3
+spec/dummy/public/vendor/features/bindings.js
+  ai_agent 1,3
+spec/dummy/public/vendor/reactive_controller.min.js.map
+  ai_agent 8-9
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 8-9
+app/javascript/phlex/reactive/features/bindings.min.js.map
+  ai_agent 5,7-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "dcbf3f15a25c6a240c547dabe1c6a1f5ae93892c",
+  "prompts": {},
+  "sessions": {
+    "s_d02db4353d49da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5775b781-4946-4755-bdd4-dcdc0ac0b0ea",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
