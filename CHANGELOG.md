@@ -23,6 +23,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A custom-legs exit effect no longer waits for a background tab to become
+  visible (#295).** The legs choreography awaited an animation frame before
+  any timeout was armed, so in a hidden tab (no `requestAnimationFrame`) the
+  removal, and every stream behind it, stalled. The frame wait now races the
+  1 s settle fallback.
+
+- **An effect no longer ends when a child's animation or transition does
+  (#296).** `animationend`/`transitionend` bubble, so a descendant finishing
+  first cleared the container's effect class (and released an exit's removal)
+  early; settling also left the other end listener attached. Only the
+  element's own end event settles it now, and settling removes both listeners.
+
 - **A JSON-mode nested row serializes what a real submit would carry
   (#299).** The row object behind `reactive_nested_list(as: :json)` and the
   per-row confirm `%{field}` interpolation now takes only the checked radio

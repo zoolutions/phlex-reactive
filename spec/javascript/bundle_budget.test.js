@@ -76,8 +76,10 @@ const SLACK = 250
 // a disabled <optgroup>'s options in the reset state (#297) adds 11 B: 25,048 B.
 // Merged on top of #300, #292/#294 and #301 (which used the 24 B of slack):
 // 25,067 B. Issue #299 (a nested row serialized like a real submit, incl. a
-// <fieldset disabled> ancestor via :disabled) adds 24 B: 25,091 B.
-const BUNDLE_GZIP_CEILING = 25_091
+// <fieldset disabled> ancestor via :disabled) adds 24 B: 25,091 B. Issues
+// #295/#296 (effects settle: hidden-tab legs exit, descendant end events)
+// add 46 B: 25,137 B.
+const BUNDLE_GZIP_CEILING = 25_137
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -105,7 +107,9 @@ const FEATURE_GZIP_CEILINGS = {
 // core 84 B: 12,467 + 18,821 = 31,288 B. Issue #306 (a cache: shell's refused
 // URL falls back to a GET; no __materialize POST without a token) adds 97 B:
 // 31,385 B. Issue #303 (window-bound hotkeys, in the core) adds 215 B: 31,600 B.
-const SPLIT_TOTAL_GZIP_CEILING = 31_750
+// The backlog fixes (#292-#301, #295/#296) together use the 150 B of room and
+// 37 B more: 31,787 B.
+const SPLIT_TOTAL_GZIP_CEILING = 31_787
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 
