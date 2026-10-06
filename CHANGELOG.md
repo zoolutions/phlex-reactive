@@ -23,6 +23,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A single `<select>` with no `selected` option no longer reads as dirty
+  (#297).** The browser selects its first enabled option while that option's
+  `defaultSelected` stays false; dirty tracking now compares a one-row single
+  select against its reset state (the last `selected` option, else the first
+  enabled one — an option inside a disabled `<optgroup>` is not enabled).
+- **Two dirty `warn_unsaved` roots prompt once per Turbo visit (#298).** The
+  first dirty root to see a `turbo:before-visit` asks; the others skip that
+  event, and any dirty root's decline still vetoes the visit.
+
 - **A token an outside morph brings wins over the cached one (#301).** After a
   morph or update reply the controller kept the token it cached from that
   reply, so a later broadcast, page refresh or dormant morph-back that morphed
