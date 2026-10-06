@@ -1,0 +1,28 @@
+CHANGELOG.md
+  s_d02db4353d49da::t_a8f5d37c9c1883 1236-1245
+spec/javascript/bundle_budget.test.js
+  s_d02db4353d49da::t_4228857f727064 109-111
+  s_d02db4353d49da::t_0d0a6521a326b1 92-94
+  s_d02db4353d49da::t_e59596dbde5867 134-135
+app/javascript/phlex/reactive/runtime.js
+  s_d02db4353d49da::t_bfd44327e5edf7 497-505,510-512,517-518,520-523,525-526,528
+spec/javascript/reactive_run_ops_extended.test.js
+  s_d02db4353d49da::t_aa6d9e8ef411d6 33,49,78-80
+  s_d02db4353d49da::t_8ae04842338410 446-553
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "97902808996d927365e1969ec0d1c240fa6fd92d",
+  "prompts": {},
+  "sessions": {
+    "s_d02db4353d49da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5775b781-4946-4755-bdd4-dcdc0ac0b0ea",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
