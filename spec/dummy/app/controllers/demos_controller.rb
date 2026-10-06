@@ -41,6 +41,18 @@ class DemosController < ActionController::Base
     render html: "#{html}#{visit}".html_safe, layout: "lazy_controller"
   end
 
+  # Issue #303: two roots sharing a window-bound hotkey. ?dormant=both (the
+  # default) renders both dormant; ?dormant=second leaves the first awake.
+  def hotkey_pair
+    @reactive_load = params[:load].presence_in(%w[auto eager]) || "auto"
+    first_dormant = params[:dormant] != "second"
+    html = [
+      render_to_string(HotkeyPairComponent.new(name: "first", dormant: first_dormant), layout: false),
+      render_to_string(HotkeyPairComponent.new(name: "second"), layout: false)
+    ].join
+    render html: html.html_safe, layout: "lazy_controller"
+  end
+
   # Issue #274 + #276: a dormant reactive_lazy(on:) event shell as the page's
   # only reactive root — no client until the panel opens, then one request.
   def dormant_lazy

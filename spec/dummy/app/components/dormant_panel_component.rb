@@ -44,6 +44,8 @@ class DormantPanelComponent < ApplicationComponent
   def view_template
     div(**mix({ data: { controller: "probe" } }, reactive_root, on(:load, event: "panel:opened", once: true))) do
       button(**mix(on(:bump), data: { testid: "bump" })) { "Bump" }
+      # Issue #303: a window-bound hotkey wakes the root too.
+      span(**on(:bump, event: "keydown.k", window: true))
       span(data: { testid: "clicks" }) { @clicks.to_s }
       span(data: { testid: "loads" }) { @loads.to_s }
     end

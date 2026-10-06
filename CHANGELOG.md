@@ -23,6 +23,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The browser suite no longer wedges under Falcon when two requests
+  overlap (#303).** Transactional system tests pin one connection that the
+  test and the server share, guarded by a lock keyed on
+  `ActiveSupport::IsolatedExecutionState` — a thread-keyed `ThreadMonitor`
+  under the default `:thread` isolation. Falcon serves each request as a fiber
+  on one thread, so the first page that made two action requests overlap (the
+  two-roots hotkey fixture) let both fibers into the pinned connection's
+  critical section: a `ThreadError` in `ConnectionPool#checkout`, after which
+  every later request blocked and CI sat on the step until the 6-hour kill.
+  The dummy app now sets `config.active_support.isolation_level = :fiber` when
+  it serves under Falcon, as Rails documents for fiber-per-request servers; a
+  spec reproduces the overlap without a browser. Apps that run Falcon need the
+  same setting (the testing page says so).
+
 - **A lazy shell connects the feature a morph asks for (#312).** A Turbo morph
   that kept a `reactive_lazy` shell connected (a `cache:` one, or a plain one)
   but turned it into a root needing persist, form, bindings or compute never
@@ -36,6 +50,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **A hotkey pressed before the controller connects is no longer lost (#303).**
+  `phlex/reactive/early` now records `window:` triggers — how a hotkey is
+  usually bound (`on(:toggle, event: "keydown.k", window: true)`,
+  `on_client("keydown.k", …, window: true)`) — by a capture listener on
+  `window`, and the controller replays them on connect. Such a keypress also
+  wakes a dormant root. It is never prevented (a window binding is not prevented
+  once connected either), and it is replayed only if the controller connects
+  within 1.5 s of the keypress, or the early-event TTL if that is shorter.
+  `outside:` triggers and non-bubbling events from inside the page are not
+  recorded (Stimulus's window listener never hears the latter). Two roots
+  sharing a hotkey both hear it, as they do once connected. `early.min.js`
+  grows from 1,060 B to 1,296 B gzipped; its test budget moves from 1,100 to
+  1,300 B. The replay side adds about 210 B gzipped to both the default bundle
+  and the opt-in core.
 - **`phlex_reactive:doctor` finds the early import anywhere and checks every import map (#307).** The dormant-roots check now scans every app JS entry and inline module scripts in `app/views` and `app/components` (naming the file), and a new advisory line per import map lacking the `phlex/reactive/early` pin; set `Phlex::Reactive.importmaps = -> { { "landing" => map } }` for maps outside `Rails.application.importmap`.
 - **`reactive_lazy(cache:)` — privately cacheable lazy renders (#277).**
   `reactive_lazy cache: { max_age: 10.minutes }` (combinable with `on:` and

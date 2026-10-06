@@ -118,7 +118,7 @@ instead, import `phlex/reactive/early` eagerly (the engine pins it with
 import "phlex/reactive/early"
 ```
 
-It gzips to under 1.1 KB and has no Stimulus import. An element-bound trigger (`on(...)` or
+It gzips to under 1.3 KB and has no Stimulus import. A trigger (`on(...)` or
 `on_client(...)`) that fires before the controller connects — a click while a
 lazily loaded controller is still downloading, a custom event dispatched as soon
 as the page is interactive — is queued, its native default is stopped exactly
@@ -148,12 +148,24 @@ Good to know:
   native behavior stopped and nothing else happens. If the controller never
   loads, or the entry is dropped (older than the TTL, its element gone, more
   than 50 queued), that click or submit does nothing.
-- Not captured, so still lost before connect: `window:`/`outside:` triggers
-  (they listen on `window`) — which is how a **hotkey** is usually bound
-  (`on_client(:keydown, …, window: true)`): a hotkey pressed before the
-  controller connects does nothing, and a dormant root cannot be woken by
-  one; key filters beyond Stimulus's default key names;
-  and every other controller action — only `on(...)` (`reactive#dispatch`) and
+- `window:` triggers — how a **hotkey** is usually bound
+  (`on(:toggle, event: "keydown.k", window: true)` or
+  `on_client("keydown.k", …, window: true)`) — are captured too: a hotkey
+  pressed anywhere on the page before the controller connects is replayed,
+  and it wakes a dormant root. Two differences from element-bound triggers:
+  the keypress is never prevented (a browser shortcut on the same key keeps
+  working, as it does once connected), and it is replayed only if the
+  controller connects within 1.5 s of the keypress (or the TTL above, if
+  shorter) — later, the user has moved on. Two roots sharing a hotkey both
+  hear it, as they do once connected: one press wakes both and each handles
+  it. A `once: true` hotkey replayed before connect stays spent for the
+  root until it disconnects — keep its trigger element stable across replies
+  (a reply that morphs the root but swaps that element leaves the hotkey
+  dead until the next disconnect), or bind the hotkey without `once:`.
+- Not captured, so still lost before connect: `outside:` triggers (an outside
+  click before connect has nothing to close, and recording it would wake a
+  dormant dropdown on every click); key filters beyond Stimulus's default key
+  names; and every other controller action — only `on(...)` (`reactive#dispatch`) and
   `on_client(...)` (`reactive#runOps`) are replayed, not the built-in
   `nestedAdd`/`nestedRemove`, `tagsAdd`/`tagsPick`, `listnav*` or `recompute`
   bindings.
@@ -180,8 +192,9 @@ div(**reactive_root(dormant: true)) { … } # or one render at a time
 
 A dormant root renders `data-reactive-dormant="reactive"` in place of the
 controller attribute, so nothing mounts and a lazily loaded controller is not
-fetched. The first element-bound `on(...)`/`on_client(...)` trigger that reaches
-it (not a `window:` or `outside:` one) wakes it:
+fetched. The first `on(...)`/`on_client(...)` trigger that reaches it — a
+`window:` hotkey pressed anywhere on the page included, an `outside:` one
+not — wakes it:
 `phlex/reactive/early` moves the identifier into `data-controller`, Stimulus
 loads and connects the controller, and the trigger is replayed once.
 
@@ -285,7 +298,7 @@ imports one the first time a root on the page needs it:
 | `phlex/reactive/features/compute` (`reactive_compute`, `reactive_text`) | 2.1 KB | inside the one file | fetched when a root carries a compute binding |
 | `phlex/reactive/features/hints` (`optimistic:`, `busy:`) | 1.0 KB | inside the one file | fetched when a root holds a trigger that declares a hint |
 | `phlex/reactive/features/devtools` (the latency simulator, the zero-target warnings, the debug trace) | 1.6 KB | inside the one file | fetched with the core on a page that carries `<meta name="phlex-reactive-env" content="development">` or while a delay is stored for the tab; at connect for a root in debug mode; otherwise the first time a verbose root has something to warn about. In production with none of these, never |
-| `phlex/reactive/early` | 1.1 KB | on every page, if you import it | the same |
+| `phlex/reactive/early` | 1.2 KB | on every page, if you import it | the same |
 
 That is the whole split: everything that can leave the core has. What
 remains in it — the request pipeline, the signed token, field collection,

@@ -50,7 +50,8 @@ const SPLIT = buildScript.match(/const SPLIT = "([^"]+)"/)[1]
 const MODULES = [BUNDLE, SPLIT, ...ENTRIES]
 const FEATURES = ENTRIES.filter((name) => name.startsWith("features/"))
 
-const EARLY_GZIP_BUDGET = 1100
+// Raised from 1,100 for window-bound (hotkey) capture, issue #303.
+const EARLY_GZIP_BUDGET = 1300
 // How far a ceiling may sit above the real size: the rounding it is set with.
 const SLACK = 250
 
@@ -66,10 +67,11 @@ const SLACK = 250
 // the ratchet itself when met. What the flag cannot recover is how the
 // features are WRITTEN as modules — per-root state records where the
 // controller had private fields, exported wrappers, the `core` handle — not
-// the boundary between them and the runtime. The ratchet below sits 138 B
-// above the real size (just inside SLACK): room for a fix in flight, not for
-// a feature.
-const BUNDLE_GZIP_CEILING = 24_900
+// the boundary between them and the runtime. Issue #303 (replaying
+// window-bound hotkeys) adds 214 B on that 24,762 B baseline: 24,976 B. The
+// ratchet below sits 24 B above the real size (inside SLACK): room for a
+// fix in flight, not for a feature.
+const BUNDLE_GZIP_CEILING = 25_000
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -80,7 +82,8 @@ const TARGET_BUNDLE_GZIP = 22_700
 //
 // BUDGET OUTCOME (issue #275): the maintainer's target for the core is
 // TARGET_CORE_GZIP, 10,240 B. The honest moves left the core 2,143 B over it, so the ratchet below is the real size rounded up to the next 250 B, and the target is printed in the report; the PR body's Budget outcome section has the gap and the remaining options.
-const CORE_GZIP_CEILING = 12_500
+// Issue #303 (replaying window-bound hotkeys, shared runtime code) adds 210 B: 12,688 B.
+const CORE_GZIP_CEILING = 12_750
 const FEATURE_GZIP_CEILINGS = {
   "features/bindings": 5_500,
   "features/defer": 3_000,
@@ -95,8 +98,8 @@ const FEATURE_GZIP_CEILINGS = {
 // features = 31,204 B. Issue #305 (the default entry's static path) costs the
 // core 84 B: 12,467 + 18,821 = 31,288 B. Issue #306 (a cache: shell's refused
 // URL falls back to a GET; no __materialize POST without a token) adds 97 B:
-// 31,385 B.
-const SPLIT_TOTAL_GZIP_CEILING = 31_500
+// 31,385 B. Issue #303 (window-bound hotkeys, in the core) adds 215 B: 31,600 B.
+const SPLIT_TOTAL_GZIP_CEILING = 31_750
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

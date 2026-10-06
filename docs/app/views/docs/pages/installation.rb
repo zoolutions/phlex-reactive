@@ -121,18 +121,20 @@ module Views
                     "registration (above) guarantees it's bound before any interaction. To load it " \
                     'lazily instead, add '
               code { 'import "phlex/reactive/early"' }
-              plain ' to your entry point: that module (under 1.1 KB gzipped, pinned and preloaded by ' \
+              plain ' to your entry point: that module (under 1.3 KB gzipped, pinned and preloaded by ' \
                     'the engine) queues an '
               code { 'on(...)' }
               plain ' or '
               code { 'on_client(...)' }
               plain ' trigger that fires before the controller connects, and the controller replays ' \
-                    'it on connect. Two limits: a captured link or form trigger has its native ' \
-                    'behavior stopped while it waits, so it does nothing if the controller never ' \
-                    'loads; and other controller actions (nested rows, tags, list navigation, ' \
-                    'compute) and '
+                    'it on connect. That includes a '
               code { 'window:' }
-              plain '/'
+              plain ' hotkey pressed anywhere on the page: it is never prevented, and it is replayed ' \
+                    'only if the controller connects within 1.5 s of the keypress (or the early-event ' \
+                    'TTL, if that is shorter). Two limits: a ' \
+                    'captured link or form trigger has its native behavior stopped while it waits, ' \
+                    'so it does nothing if the controller never loads; and other controller actions ' \
+                    '(nested rows, tags, list navigation, compute) and '
               code { 'outside:' }
               plain ' triggers are not captured.'
             end

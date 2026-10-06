@@ -788,9 +788,10 @@ function parseBindingRecords(raw) {
 
 // Does this record's descriptor match the firing event? The window check
 // matters for an element carrying both `click` and `click@window`: one inside
-// click reaches both listeners, and only currentTarget tells them apart. The
-// `window != null` guard keeps a window-less harness from classifying every
-// undefined currentTarget as window-bound. Only a LEGACY record (no `on` by
+// click reaches both listeners, and only currentTarget tells them apart. It is
+// recognised structurally (isWindow), so an undefined currentTarget is never
+// window-bound and a replay built for another document's window still counts
+// (issue #303). Only a LEGACY record (no `on` by
 // construction) matches everything; any other record without a descriptor is
 // malformed and never matches (default-deny). `keyMappings === null` skips the
 // key filter (the caller's single-candidate shortcut).
@@ -800,9 +801,7 @@ function bindingMatches(record, event, keyMappings) {
   if (typeof on !== "string" || on === "") return false
   const dot = on.indexOf(".")
   if (event.type !== (dot < 0 ? on : on.slice(0, dot))) return false
-  const win = globalThis.window
-  const windowBound = win != null && event.currentTarget === win
-  if (Boolean(record.window) !== windowBound) return false
+  if (Boolean(record.window) !== isWindow(event.currentTarget)) return false
   return dot < 0 || keyMappings === null || keyFilterMatches(on.slice(dot + 1), event, keyMappings)
 }
 
@@ -814,7 +813,8 @@ function bindingMatches(record, event, keyMappings) {
 // fresh, and a byte-identical sibling trigger has its own. A window-bound
 // binding's currentTarget is the window, so there the element's ops attr joins
 // the key (a re-rendered window-bound once trigger with the same markup stays
-// spent — a known limit).
+// spent — a known limit; spentEarlyOnce below has the same one for a replayed
+// `:once` hotkey).
 const spentOnceBindings = new WeakMap()
 function onceBindingSpent(controller, event, record) {
   if (!record.once) return false
@@ -1311,6 +1311,15 @@ if (!__SPLIT__) {
 // load first, and an app that never imports early gets an empty queue.
 const EARLY_KEY = Symbol.for("phlex-reactive.early")
 const DEFAULT_EARLY_TTL_MS = 10000
+// A window-bound trigger (a hotkey, issue #303) is replayed only this soon
+// after the keypress: later, the user has moved on. A shorter configured TTL
+// still wins.
+const WINDOW_EARLY_TTL_MS = 1500
+
+// Is this event's currentTarget a Window (a Stimulus `@window` listener)? The
+// page's window, or any Window recognised structurally (another document's,
+// which a replay built from its trigger element's document carries).
+const isWindow = (target) => target != null && (target === globalThis.window || target.window === target)
 
 function earlyState() {
   globalThis[EARLY_KEY] ??= { queue: [], connected: new WeakSet() }
@@ -1347,14 +1356,15 @@ function stimulusParams(el) {
 // listener on the trigger (a lazily connected sibling controller that already
 // handled the original click would toggle twice). The original's default was
 // already prevented (or deliberately kept) by early.js, so preventDefault here
-// is a no-op.
-function earlyReplayEvent(event, el) {
+// is a no-op. A window-bound entry (issue #303) is replayed as Stimulus's
+// window listener sees it: currentTarget is the window, params come from `el`.
+function earlyReplayEvent(event, el, win) {
   return {
     [EARLY_KEY]: true,
     type: event.type,
     detail: event.detail,
     target: event.target,
-    currentTarget: el,
+    currentTarget: win ? el.ownerDocument.defaultView : el,
     params: stimulusParams(el),
     key: event.key,
     code: event.code,
@@ -1378,14 +1388,27 @@ function earlyReplayEvent(event, el) {
 // markup is left alone — rewriting data-action would let a morph, which writes
 // the server's attribute back, re-arm it — so the spent descriptor is tracked
 // per trigger element (a WeakMap: a replaced element starts fresh, like a live
-// `once`), and the armed listener's single firing is swallowed.
+// `once`), and the armed listener's single firing is swallowed. A window-bound
+// descriptor's live call carries the window as currentTarget, not its
+// element, so it is tracked under the ROOT instead (issue #303), flagged
+// `win` (apart from the root's own element-bound descriptors) and told apart
+// from its siblings by the params Stimulus reads off its element.
+//
+// Known limit of the root-keyed entry (the same class as onceBindingSpent's
+// window-bound limit above): a reply that MORPHS the root but swaps the
+// trigger element gives Stimulus a fresh `once` listener for the new element
+// while this entry stays armed, so the next live press is swallowed here and
+// that fresh listener is consumed — the hotkey is dead until the root
+// disconnects. Keep a `:once` hotkey's trigger element stable across replies,
+// or bind the hotkey without `once:`.
 const spentEarlyOnce = new WeakMap()
 
-function spendEarlyOnce(el, { token, type, method, filter }) {
-  let spent = spentEarlyOnce.get(el)
-  if (!spent) spentEarlyOnce.set(el, (spent = new Map()))
-  if (spent.has(token)) return false
-  spent.set(token, { type, method, filter, armed: true })
+function spendEarlyOnce(owner, { token, type, method, filter, win }, params) {
+  let spent = spentEarlyOnce.get(owner)
+  if (!spent) spentEarlyOnce.set(owner, (spent = new Map()))
+  const key = win ? `${token} ${params}` : token
+  if (spent.has(key)) return false
+  spent.set(key, { type, method, filter, win, params, armed: true })
   return true
 }
 
@@ -1401,12 +1424,18 @@ function spendEarlyOnce(el, { token, type, method, filter }) {
 // Only as many live calls as the replay RAN for that element and method are
 // dropped — a binding the replay skipped (a key filter only the app's own
 // mapping matches) still runs.
-function earlyOnceSwallows(event, method, keyMappings) {
+function earlyOnceSwallows(event, method, keyMappings, root) {
   if (event?.[EARLY_KEY]) return false
-  const replayed = takeEarlyReplay(event, method)
-  const spent = spentEarlyOnce.get(event?.currentTarget)
+  const win = isWindow(event?.currentTarget)
+  // A window-bound replay is owned by its ROOT: another root's binding on the
+  // same window event is not it (issue #303).
+  const owner = win ? root : event?.currentTarget
+  const replayed = takeEarlyReplay(event, owner, win ? `@${method}` : method)
+  const spent = spentEarlyOnce.get(owner)
+  const params = win && JSON.stringify(event.params)
   for (const entry of spent?.values() ?? []) {
-    if (!entry.armed || entry.method !== method || entry.type !== event.type) continue
+    if (!entry.armed || entry.method !== method || entry.type !== event.type || Boolean(entry.win) !== win) continue
+    if (win && entry.params !== params) continue
     if (entry.filter && !keyFilterMatches(entry.filter, event, keyMappings)) continue
     entry.armed = false
     return true
@@ -1431,8 +1460,8 @@ function markEarlyReplay(event, el, method) {
   counts[method] = (counts[method] ?? 0) + 1
 }
 
-function takeEarlyReplay(event, method) {
-  const counts = event && replayedEarly.get(event)?.get(event.currentTarget)
+function takeEarlyReplay(event, owner, method) {
+  const counts = event && replayedEarly.get(event)?.get(owner)
   if (!counts?.[method]) return false
   counts[method] -= 1
   return true
@@ -1912,18 +1941,22 @@ export default class extends Controller {
     // Two module instances of early.js (a bundled copy beside the pinned one)
     // each queue the same event: replay an (event, element) pair once. (One
     // event OBJECT dispatched twice on one element before connect also counts
-    // once — indistinguishable here.)
+    // once — indistinguishable here.) An element bound to both `click` and
+    // `click@window` is heard by both listeners live, so its window-bound
+    // entry (issue #303) is a separate pair.
     const replayed = new Map()
     for (const entry of mine) {
-      const seen = replayed.get(entry.event) ?? new Set()
-      replayed.set(entry.event, seen)
+      const pair = replayed.get(entry.event) ?? [new Set(), new Set()]
+      replayed.set(entry.event, pair)
+      const seen = pair[+!!entry.win]
       if (seen.has(entry.el)) continue
       seen.add(entry.el)
+      const limit = entry.win ? Math.min(WINDOW_EARLY_TTL_MS, ttl) : ttl
       const reason =
         entry.root !== this.element
           ? "its root left the page before a controller connected"
-          : performance.now() - entry.at > ttl
-            ? `it is older than the ${ttl} ms early-event TTL`
+          : performance.now() - entry.at > limit
+            ? `it is older than the ${limit} ms ${entry.win ? "window-trigger" : "early-event"} TTL`
             : entry.el.isConnected && this.element.contains(entry.el)
               ? null
               : "its element left the root before the controller connected"
@@ -1942,21 +1975,24 @@ export default class extends Controller {
   // have removed it), its key filter must match under the app's own key
   // mappings (early.js knows only Stimulus's defaults), and a :once one runs a single time however often it
   // was queued (spendEarlyOnce).
-  #replayEarly({ event, el, descs }) {
-    const replay = earlyReplayEvent(event, el)
+  #replayEarly({ event, el, descs, win }) {
+    const replay = earlyReplayEvent(event, el, win)
     const keyMappings = this.application?.schema?.keyMappings
     const tokens = (el.getAttribute("data-action") ?? "").split(/\s+/)
+    // A window-bound entry belongs to this root, not to `el` (issue #303).
+    const owner = win ? this.element : el
     for (const desc of descs) {
       if (!tokens.includes(desc.token)) continue
       if (desc.filter && !keyFilterMatches(desc.filter, event, keyMappings)) continue
       // (`:once` is read off the token: early.js keeps its records minimal.)
       if (/#\w+.*:once\b/.test(desc.token)) {
-        if (!spendEarlyOnce(el, desc)) continue
-        this.#earlySpentOn.add(el)
+        if (!spendEarlyOnce(owner, desc, win && JSON.stringify(replay.params))) continue
+        this.#earlySpentOn.add(owner)
       }
       // The original may still be propagating (issue #274): its live arrival at
-      // `el` must not run this binding again (earlyOnceSwallows).
-      markEarlyReplay(event, el, desc.method)
+      // `el` — or at the window, for a window-bound entry — must not run this
+      // binding again (earlyOnceSwallows).
+      markEarlyReplay(event, owner, win ? `@${desc.method}` : desc.method)
       if (desc.method === "runOps") this.runOps(replay)
       else this.dispatch(replay)
     }
@@ -2000,7 +2036,7 @@ export default class extends Controller {
   // it always uses the freshest token.
   dispatch(event) {
     // A :once trigger already replayed on connect (issue #273) is spent.
-    if (earlyOnceSwallows(event, "dispatch", this.application?.schema?.keyMappings)) return
+    if (earlyOnceSwallows(event, "dispatch", this.application?.schema?.keyMappings, this.element)) return
     // `window` (renamed: never shadow the global) and `outside` are the event-
     // modifier params (issue #80). The client decides preventDefault behavior
     // from event.params — set by the Ruby on() — never by sniffing the
@@ -2159,7 +2195,7 @@ export default class extends Controller {
   // the component resets whatever they toggled (by design — a signed action
   // owns state that must survive re-renders).
   runOps(event) {
-    if (earlyOnceSwallows(event, "runOps", this.application?.schema?.keyMappings)) return
+    if (earlyOnceSwallows(event, "runOps", this.application?.schema?.keyMappings, this.element)) return
     if (bindingsAlreadyRan(event, this)) return
     const params = event.params ?? {}
     // The trigger element on_client was spread onto (issue #222 ctx: { el }),
@@ -2187,6 +2223,9 @@ export default class extends Controller {
       return
     }
     for (const record of matching) {
+      // An early replay never runs an outside: record (issue #303: an outside
+      // click before connect had nothing to close).
+      if (record.outside && event[EARLY_KEY]) continue
       if (onceBindingSpent(this, event, record)) continue
       this.#runBinding(record.legacy ? { ...params, ops: record.ops } : record, event, trigger)
     }
