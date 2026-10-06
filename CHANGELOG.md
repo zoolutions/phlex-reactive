@@ -60,6 +60,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`phlex_reactive:doctor` flags Falcon under `:thread` isolation (#321).**
+  Falcon serves each request as a fiber on one thread, so under Rails' default
+  `config.active_support.isolation_level = :thread` every piece of thread-keyed
+  state (`CurrentAttributes`, `IsolatedExecutionState`, thread variables, the
+  transactional-test connection lock) is shared between requests. A new
+  `fiber_isolation` check fails when Falcon serves the app and the level is
+  `:thread`, with the fix (`config.active_support.isolation_level = :fiber` in
+  `config/application.rb`); it passes under `:fiber` and for Puma or any other
+  server. The server is read from the bundle and the server constants already
+  loaded, never by requiring one; when Falcon is bundled beside another server
+  and is not the only server loaded, the line is advisory. The installation docs gain a
+  "Running under Falcon" section.
 - **A hotkey pressed before the controller connects is no longer lost (#303).**
   `phlex/reactive/early` now records `window:` triggers — how a hotkey is
   usually bound (`on(:toggle, event: "keydown.k", window: true)`,
