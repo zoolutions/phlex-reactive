@@ -60,7 +60,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `config/application.rb`); it passes under `:fiber` and for Puma or any other
   server. The server is read from the bundle and the server constants already
   loaded, never by requiring one; when Falcon is bundled beside another server
-  and Falcon itself is not the one loaded, the line is advisory. The installation docs gain a
+  and is not the only server loaded, the line is advisory. The installation docs gain a
   "Running under Falcon" section.
 - **A hotkey pressed before the controller connects is no longer lost (#303).**
   `phlex/reactive/early` now records `window:` triggers — how a hotkey is

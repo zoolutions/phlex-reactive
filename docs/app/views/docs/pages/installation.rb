@@ -312,8 +312,9 @@ module Views
                 code { 'bin/rails phlex_reactive:doctor' }
                 plain ' fails when Falcon serves the app under '
                 code { ':thread' }
-                plain ', and is advisory when Falcon is bundled beside another server and it cannot ' \
-                      'tell which one runs (a rake task only sees what the Gemfile auto-requires).'
+                plain ', and is advisory when Falcon is bundled beside another server and is not the ' \
+                      'only server loaded: it sees every server in the bundle, but a rake task loads only ' \
+                      'the ones the Gemfile auto-requires, so it cannot tell which one runs.'
               end
             end
           end
