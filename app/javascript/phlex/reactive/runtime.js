@@ -17,14 +17,24 @@ import { confirmResolver } from "phlex/reactive/confirm"
 // called directly. The opt-in entry (core) is built with `__SPLIT__` true:
 // those branches fold away, and its build resolves these five imports to an
 // empty module, so core.min.js imports no feature until a root needs one.
-import * as persistFeature from "phlex/reactive/features/persist"
-import * as deferFeature from "phlex/reactive/features/defer"
-import * as formFeature from "phlex/reactive/features/form"
+//
+// THE ORDER BELOW IS THE DEFAULT BUNDLE'S LAYOUT, not the connect order (that
+// is #connectFeaturesNow's, persist first). The bundler lays the features out
+// in import order, ahead of this file's own code, and gzip only matches text
+// within 32 KB: a feature that repeats what the runtime also says (defer's
+// fetch headers and meta reads, persist's editor selector, form's dirty
+// marker) compresses against it only when it sits close to the runtime. This
+// order was the smallest of a swap search over all of them (issue #310):
+// ~450 B gzipped less than the table order. None of the features runs
+// anything at import time, so the order changes bytes, never behaviour.
 import * as bindingsFeature from "phlex/reactive/features/bindings"
 import * as computeFeature from "phlex/reactive/features/compute"
+import * as persistFeature from "phlex/reactive/features/persist"
+import * as formFeature from "phlex/reactive/features/form"
 import * as effectsFeature from "phlex/reactive/features/effects"
-import * as hintsFeature from "phlex/reactive/features/hints"
 import * as devtoolsFeature from "phlex/reactive/features/devtools"
+import * as hintsFeature from "phlex/reactive/features/hints"
+import * as deferFeature from "phlex/reactive/features/defer"
 
 // phlex/reactive/runtime — the reactive controller WITHOUT its feature
 // modules (issue #275): the code both client entries share. It is not an
