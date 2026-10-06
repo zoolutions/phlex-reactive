@@ -988,9 +988,14 @@ function nestedJsonField(c, list) {
 // [3][title] → "title"; a bare `title` → "title"), the "infer from input
 // names" contract. The [_destroy] control is dropped (JSON has no destroy
 // marker). Later inputs with the same key win (last-wins, the DOM order).
+// Like a real submit (#299): an unchecked radio, a disabled control (its own
+// flag or a <fieldset disabled> ancestor: :disabled) and a nested reactive
+// root's control are skipped.
 function nestedRowObject(c, row) {
   const obj = {}
+  const owns = c.core.ownership()
   for (const el of [...(row.querySelectorAll?.("input, select, textarea") ?? [])]) {
+    if (el.matches(":disabled") || (el.type === "radio" && !el.checked) || !owns(el)) continue
     const key = nestedJsonKey(c, el.getAttribute?.("name"))
     if (key === null || key === "_destroy") continue
     obj[key] = nestedFieldValue(c, el)

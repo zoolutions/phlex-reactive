@@ -23,6 +23,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A JSON-mode nested row serializes what a real submit would carry
+  (#299).** The row object behind `reactive_nested_list(as: :json)` and the
+  per-row confirm `%{field}` interpolation now takes only the checked radio
+  of a group (it took the last in DOM order), skips a nested reactive root's
+  controls, and skips disabled controls (so `reactive_show(disable: true)`
+  keeps a hidden field out of the JSON). A radio group with nothing checked,
+  like a disabled control, now leaves its key out; a confirm `%{field}` for
+  such a key stays literal.
+
 - **A single `<select>` with no `selected` option no longer reads as dirty
   (#297).** The browser selects its first enabled option while that option's
   `defaultSelected` stays false; dirty tracking now compares a one-row single
