@@ -201,10 +201,10 @@ RSpec.describe "Dormant roots (issue #274 — mount the controller on first use)
       expect(page).to have_css("[data-testid='loads']", text: "0")
 
       3.times { open_panel }
-      # Exactly one more request. (Not asserting the count it renders: after a
-      # morph REPLY the controller keeps using its cached token rather than the
-      # one an outside morph brought, on any root — a separate, older matter.)
-      expect(page).to have_no_css("[data-testid='loads']", exact_text: "0")
+      # Exactly one more request, signed by the token the outside morph brought
+      # (issue #301): clicks 7 is state only that token carries.
+      expect(page).to have_css("[data-testid='loads']", exact_text: "1")
+      expect(page).to have_css("[data-testid='clicks']", exact_text: "7")
       expect_action_posts(2)
     end
 

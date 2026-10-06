@@ -98,33 +98,29 @@ export function streamAction(streamEl) {
 }
 
 // Settle a STREAM-lane pendingDefers entry when its arrival lands: the job's
-// broadcast is a turbo-stream that replaces the target (and removes the
-// source). A document-level turbo:before-stream-render hook drops the Map
-// entry for a stream target the moment a stream renders against it — so the
-// entry never outlives the delivery (the fetch lane settles inline; the
-// stream lane's arrival is a broadcast nothing here awaits, so it needs this
-// hook). Registered once; a no-op without document.
+// broadcast is a turbo-stream that replaces the target and then removes the
+// source. A document-level turbo:before-stream-render hook drops the Map
+// entry the moment that removal renders — so the entry never outlives the
+// delivery (the fetch lane settles inline; the stream lane's arrival is a
+// broadcast nothing here awaits, so it needs this hook). Registered once; a
+// no-op without document.
 function registerSettleOnRender() {
   if (deferStreamSettleRegistered || typeof document === "undefined" || !document.addEventListener) return
   deferStreamSettleRegistered = true
   document.addEventListener("turbo:before-stream-render", settleStreamDeferOnRender)
 }
 
-// Drop a stream-lane pendingDefers entry when a turbo-stream renders against
-// its target id (the job's replace) OR removes its source element. Keyed by the
-// stream's target so an unrelated stream never settles a defer. Pure Map
+// Drop a stream-lane pendingDefers entry when a turbo-stream targets its
+// source element, reactive-defer-src-<target>: only the job's broadcast does
+// (every payload, render or cleanup, ends with that removal). A stream to the
+// target ITSELF settles nothing (issue #292): an unrelated update of #<target>
+// between the enqueue and the job's broadcast is not the delivery. Pure Map
 // cleanup — the DOM apply is Turbo's; this only releases our bookkeeping.
 function settleStreamDeferOnRender(event) {
-  const streamEl = event.target
-  const target = streamEl?.getAttribute?.("target")
-  if (!target) return
-  // The arrival replaces #<target>; the source removal targets
-  // reactive-defer-src-<target>. Either signals the stream delivered.
-  const targetId = target.startsWith("reactive-defer-src-")
-    ? target.slice("reactive-defer-src-".length)
-    : target
-  const entry = pendingDefers.get(targetId)
-  if (entry?.via === "stream") deletePendingDefer(targetId)
+  const target = event.target?.getAttribute?.("target")
+  if (!target?.startsWith("reactive-defer-src-")) return
+  const targetId = target.slice("reactive-defer-src-".length)
+  if (pendingDefers.get(targetId)?.via === "stream") deletePendingDefer(targetId)
 }
 
 // The pull lane: mark the target pending and fetch the real render, in
@@ -302,7 +298,7 @@ function startStreamDefer(targetId, directive) {
   // disconnectedCallback closes the SSE), so holding srcEl here would pin the
   // detached node in this module-level Map forever (a leak). Supersession
   // re-finds the element by id instead. The entry is dropped on
-  // supersession or when the arriving broadcast replaces the target (a
+  // supersession or when the arriving broadcast removes the source (a
   // turbo:before-stream-render hook, below).
   setPendingDefer(targetId, { via: "stream" })
 }
@@ -513,16 +509,17 @@ export function connect(controller, core, morphed) {
   // re-connects) AND on turbo:morph-element: a Turbo page-refresh MORPH
   // re-shows the shell while keeping the element CONNECTED and firing no
   // Stimulus lifecycle, so a connect-only probe would leave the morphed-in
-  // shell shimmering forever. The supersession registry makes a duplicate
-  // probe a no-op (same target id), so re-probing is safe. The attribute
-  // stays on the shell precisely so a re-appearance re-fires.
+  // shell shimmering forever. turbo:morph-element BUBBLES, and a re-probe
+  // supersedes (aborts and re-issues) the fetch in flight, so only a morph of
+  // the root itself counts (issue #294). The attribute stays on the shell
+  // precisely so a re-appearance re-fires.
   // A `cache:` shell (issue #277) carries a fragment URL instead of the token
   // and takes the same path; an on: shell with a URL is NOT probed — it waits
   // for its trigger (its root has no pending marker).
   const fetches = el.getAttribute?.("data-reactive-defer-token") || el.getAttribute?.("data-reactive-defer-src")
   if (fetches && shellKind(el) === null) {
     probe(el)
-    state.onProbe = () => probe(el)
+    state.onProbe = (event) => event.target === el && probe(el)
     el.addEventListener?.("turbo:morph-element", state.onProbe)
   }
 

@@ -11,7 +11,8 @@ class DemosController < ActionController::Base
   skip_after_action :verify_same_origin_request, only: :slow_feature
 
   def counter
-    render_component CounterComponent.new(count: 0)
+    # ?count= renders the counter signed for another state (issue #301).
+    render_component CounterComponent.new(count: params.fetch(:count, 0).to_i)
   end
 
   # Issue #273: the lazily loaded controller layout (early.js eager, the
@@ -605,6 +606,13 @@ class DemosController < ActionController::Base
   # The page a non-intercepted form submit would navigate to (issue #11).
   def nav_probe
     render html: "<div data-testid='nav-probe'>NAVIGATED</div>".html_safe, layout: true
+  end
+
+  # Issue #320: answer only after ?seconds= (capped, no DB) so the timeout
+  # proof sees a server that "never" answers without wedging it for later specs.
+  def stall
+    sleep(params[:seconds].to_i.clamp(0, 15))
+    render plain: "stalled"
   end
 
   private

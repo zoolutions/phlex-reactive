@@ -35,6 +35,59 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   early; settling also left the other end listener attached. Only the
   element's own end event settles it now, and settling removes both listeners.
 
+- **A JSON-mode nested row serializes what a real submit would carry
+  (#299).** The row object behind `reactive_nested_list(as: :json)` and the
+  per-row confirm `%{field}` interpolation now takes only the checked radio
+  of a group (it took the last in DOM order), skips a nested reactive root's
+  controls, and skips disabled controls (so `reactive_show(disable: true)`
+  keeps a hidden field out of the JSON). A radio group with nothing checked,
+  like a disabled control, now leaves its key out; a confirm `%{field}` for
+  such a key stays literal.
+
+- **A single `<select>` with no `selected` option no longer reads as dirty
+  (#297).** The browser selects its first enabled option while that option's
+  `defaultSelected` stays false; dirty tracking now compares a one-row single
+  select against its reset state (the last `selected` option, else the first
+  enabled one — an option inside a disabled `<optgroup>` is not enabled).
+- **Two dirty `warn_unsaved` roots prompt once per Turbo visit (#298).** The
+  first dirty root to see a `turbo:before-visit` asks; the others skip that
+  event, and any dirty root's decline still vetoes the visit.
+
+- **A token an outside morph brings wins over the cached one (#301).** After a
+  morph or update reply the controller kept the token it cached from that
+  reply, so a later broadcast, page refresh or dormant morph-back that morphed
+  the root in place with markup signed for another state was ignored, and the
+  next action ran against the old state. The controller now drops its cached
+  token whenever `data-reactive-token-value` changes (Stimulus'
+  `tokenValueChanged`, which also fires on a reconnect after such a change).
+
+- **A pushed deferred render stays pending until it arrives (#292).** The
+  client settled a `via="stream"` defer on any turbo-stream to its target, so
+  an unrelated update of that element before the job's broadcast released the
+  guard (and the activity count) early. Only the job's removal of
+  `reactive-defer-src-<target>` settles it now.
+
+- **A morph inside a loading lazy shell no longer restarts its load (#294).**
+  `turbo:morph-element` bubbles, so a morph of any descendant re-probed a
+  `reactive_lazy` shell and aborted its in-flight fetch for a new one. Only a
+  morph of the shell's root re-probes now.
+
+- **A `hide:`/`show:` hint no longer flips a target that was already in that
+  state (#300).** A `busy:` or `optimistic:` `hide:` aimed at an
+  already-hidden element revealed it when the request settled (or failed), and
+  a `show:` on a visible one hid it. hide/show now undo only what the hint
+  changed, like the class ops.
+
+- **Subclasses of a reactive component appear in the actions inventory
+  (#302).** A subclass inherits `Phlex::Reactive::Component` instead of
+  including it, so Streamable's `included` hook never registered it, and
+  `phlex_reactive:actions`, `phlex_reactive:find`, the MCP tools and the doctor
+  skipped it. Streamable now registers subclasses from an `inherited` hook. A
+  subclass with a constant name is listed with its inherited and own actions
+  and any inherited `skip_verify_authorized`; an anonymous subclass is still
+  left out. Subclasses also have their memoized view context reset on a Rails
+  code reload now.
+
 - **The browser suite no longer wedges under Falcon when two requests
   overlap (#303).** Transactional system tests pin one connection that the
   test and the server share, guarded by a lock keyed on
@@ -62,6 +115,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`phlex_reactive:doctor` flags Falcon under `:thread` isolation (#321).**
+  Falcon serves each request as a fiber on one thread, so under Rails' default
+  `config.active_support.isolation_level = :thread` every piece of thread-keyed
+  state (`CurrentAttributes`, `IsolatedExecutionState`, thread variables, the
+  transactional-test connection lock) is shared between requests. A new
+  `fiber_isolation` check fails when Falcon serves the app and the level is
+  `:thread`, with the fix (`config.active_support.isolation_level = :fiber` in
+  `config/application.rb`); it passes under `:fiber` and for Puma or any other
+  server. The server is read from the bundle and the server constants already
+  loaded, never by requiring one; when Falcon is bundled beside another server
+  and is not the only server loaded, the line is advisory. The installation docs gain a
+  "Running under Falcon" section.
 - **A hotkey pressed before the controller connects is no longer lost (#303).**
   `phlex/reactive/early` now records `window:` triggers — how a hotkey is
   usually bound (`on(:toggle, event: "keydown.k", window: true)`,
