@@ -509,16 +509,17 @@ export function connect(controller, core, morphed) {
   // re-connects) AND on turbo:morph-element: a Turbo page-refresh MORPH
   // re-shows the shell while keeping the element CONNECTED and firing no
   // Stimulus lifecycle, so a connect-only probe would leave the morphed-in
-  // shell shimmering forever. The supersession registry makes a duplicate
-  // probe a no-op (same target id), so re-probing is safe. The attribute
-  // stays on the shell precisely so a re-appearance re-fires.
+  // shell shimmering forever. turbo:morph-element BUBBLES, and a re-probe
+  // supersedes (aborts and re-issues) the fetch in flight, so only a morph of
+  // the root itself counts (issue #294). The attribute stays on the shell
+  // precisely so a re-appearance re-fires.
   // A `cache:` shell (issue #277) carries a fragment URL instead of the token
   // and takes the same path; an on: shell with a URL is NOT probed — it waits
   // for its trigger (its root has no pending marker).
   const fetches = el.getAttribute?.("data-reactive-defer-token") || el.getAttribute?.("data-reactive-defer-src")
   if (fetches && shellKind(el) === null) {
     probe(el)
-    state.onProbe = () => probe(el)
+    state.onProbe = (event) => event.target === el && probe(el)
     el.addEventListener?.("turbo:morph-element", state.onProbe)
   }
 

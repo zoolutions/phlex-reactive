@@ -509,9 +509,41 @@ test("lazy mount: a turbo:morph-element re-showing the shell RE-FIRES the fetch 
   // A Turbo morph re-shows the shell (token + pending marker present again).
   root.attrs["data-reactive-defer-token"] = "lazy-token-2"
   root.attrs["data-reactive-defer-pending"] = "true"
-  listeners["turbo:morph-element"]?.()
+  listeners["turbo:morph-element"]?.({ target: root })
   expect(calls.length).toBe(2) // re-fired on morph
   expect(JSON.parse(calls[1].options.body)).toEqual({ token: "lazy-token-2" })
+})
+
+test("lazy mount: a bubbling turbo:morph-element from a DESCENDANT does not re-probe the shell (#294)", async () => {
+  // turbo:morph-element bubbles: a morphed skeleton child (or a nested root)
+  // reaches the shell's listener too. Re-probing on it would supersede — abort
+  // and re-issue — the shell's in-flight fetch on every descendant morph.
+  stubTurbo()
+  const mod = await import("../../app/javascript/phlex/reactive/reactive_controller.js")
+  const Controller = mod.default
+
+  const root = makeTargetEl("lazy-stats")
+  root.attrs["data-reactive-defer-token"] = "lazy-token"
+  root.attrs["data-reactive-defer-pending"] = "true"
+  const listeners = {}
+  root.addEventListener = (name, fn) => (listeners[name] = fn)
+  root.removeEventListener = () => {}
+  root.querySelectorAll = () => []
+  stubDocument({ byId: { "lazy-stats": root } })
+  const calls = stubFetch() // never resolved: the fetch stays in flight
+
+  const controller = new Controller()
+  controller.element = root
+  controller.connect()
+  expect(calls.length).toBe(1)
+
+  listeners["turbo:morph-element"]?.({ target: makeTargetEl("skeleton-row") })
+  expect(calls.length).toBe(1)
+  expect(calls[0].options.signal.aborted).toBe(false)
+
+  // A morph of the root itself still re-probes.
+  listeners["turbo:morph-element"]?.({ target: root })
+  expect(calls.length).toBe(2)
 })
 
 test("lazy mount: a re-probe of a RESOLVED root (no pending marker) is a no-op", async () => {
@@ -531,7 +563,7 @@ test("lazy mount: a re-probe of a RESOLVED root (no pending marker) is a no-op",
   const controller = new Controller()
   controller.element = root
   controller.connect()
-  listeners["turbo:morph-element"]?.()
+  listeners["turbo:morph-element"]?.({ target: root })
   expect(calls.length).toBe(0)
 })
 

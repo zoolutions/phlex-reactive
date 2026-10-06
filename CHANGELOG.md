@@ -29,6 +29,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   guard (and the activity count) early. Only the job's removal of
   `reactive-defer-src-<target>` settles it now.
 
+- **A morph inside a loading lazy shell no longer restarts its load (#294).**
+  `turbo:morph-element` bubbles, so a morph of any descendant re-probed a
+  `reactive_lazy` shell and aborted its in-flight fetch for a new one. Only a
+  morph of the shell's root re-probes now.
+
 - **The browser suite no longer wedges under Falcon when two requests
   overlap (#303).** Transactional system tests pin one connection that the
   test and the server share, guarded by a lock keyed on
