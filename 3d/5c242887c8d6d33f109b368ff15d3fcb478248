@@ -1,0 +1,27 @@
+docs/app/views/docs/pages/installation.rb
+  s_d02db4353d49da::t_fc4fe258e525b0 296-298,316
+CHANGELOG.md
+  s_d02db4353d49da::t_fc4fe258e525b0 56,63
+docs/app/views/docs/pages/tooling.rb
+  s_d02db4353d49da::t_fc4fe258e525b0 89-90
+spec/phlex/reactive/doctor/fiber_isolation_spec.rb
+  s_d02db4353d49da::t_d55a4dcd6f937a 8,61,63-73
+lib/phlex/reactive/doctor/fiber_isolation.rb
+  s_d02db4353d49da::t_fc4fe258e525b0 9,27-29,36-42,44,72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "3d5c242887c8d6d33f109b368ff15d3fcb478248",
+  "prompts": {},
+  "sessions": {
+    "s_d02db4353d49da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5775b781-4946-4755-bdd4-dcdc0ac0b0ea",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
