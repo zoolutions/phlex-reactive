@@ -6,7 +6,7 @@ module Phlex
       # Falcon serves each request as a fiber on one thread (issue #321). Under
       # Rails' default `config.active_support.isolation_level = :thread`, all
       # thread-keyed state — CurrentAttributes, IsolatedExecutionState, the lock
-      # on the connection transactional tests pin, anything in Thread.current —
+      # on the connection transactional tests pin, thread variables —
       # is shared by every request on that thread. phlex-reactive's own
       # request state is fiber-local and unaffected; the app around it is not.
       #
@@ -24,21 +24,24 @@ module Phlex
           "iodine" => "Iodine"
         }.freeze
 
-        FIBER_FIX = "Set it in config/application.rb:\n  " \
-                    "config.active_support.isolation_level = :fiber\n" \
-                    "Under :thread, thread-keyed state (CurrentAttributes, IsolatedExecutionState, " \
-                    "Thread.current) is shared by every request Falcon serves on that thread."
+        FIBER_FIX = "Under :thread, thread-keyed state (CurrentAttributes, IsolatedExecutionState, " \
+                    "thread variables) is shared by every request Falcon serves on a thread. " \
+                    "Set in config/application.rb:\n  config.active_support.isolation_level = :fiber"
 
         def self.included(base)
           base.extend(ClassMethods)
         end
 
         module ClassMethods
-          # The server gem serving the app: the only one loaded, else the only
-          # one bundled. nil when Falcon is present beside another server and
-          # neither is singled out; :none when no Falcon is anywhere.
+          # The server gem serving the app: Falcon when it is the only one
+          # loaded, else the only one bundled. A lone loaded non-Falcon server
+          # only counts when Falcon isn't bundled — the doctor runs as a rake
+          # task, where "loaded" is whatever Bundler.require pulled in (Rails'
+          # default `gem "puma"` beside `gem "falcon", require: false`). nil
+          # when Falcon is present beside another server and neither is
+          # singled out; :none when no Falcon is anywhere.
           def detect_server(bundled: bundled_servers, loaded: loaded_servers)
-            return loaded.first if loaded.one?
+            return loaded.first if loaded.one? && (loaded.first == "falcon" || bundled.exclude?("falcon"))
             return bundled.first if bundled.one?
 
             (bundled | loaded).include?("falcon") ? nil : :none
@@ -66,7 +69,7 @@ module Phlex
           elsif server.nil?
             Check.new(:unknown, "Falcon is in the bundle beside another server; could not tell which serves " \
                                 "the app (isolation_level is :#{isolation})", name: :fiber_isolation,
-              fix: "If Falcon serves it: #{FIBER_FIX}")
+              fix: "If Falcon serves the app: #{FIBER_FIX}")
           else
             Check.new(:ok, "#{server_label(server)}; :#{isolation} isolation is fine", name: :fiber_isolation)
           end

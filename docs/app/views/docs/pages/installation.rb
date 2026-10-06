@@ -293,9 +293,9 @@ module Views
                 code { 'ActiveSupport::CurrentAttributes' }
                 plain ', '
                 code { 'IsolatedExecutionState' }
-                plain ', anything kept in '
-                code { 'Thread.current' }
-                plain ', and the lock on the connection transactional tests pin (two overlapping ' \
+                plain ', thread variables ('
+                code { 'Thread#thread_variable_get' }
+                plain '), and the lock on the connection transactional tests pin (two overlapping ' \
                       'requests wedge the server). Set it to '
                 code { ':fiber' }
                 plain ' for an app served by Falcon:'
@@ -313,7 +313,7 @@ module Views
                 plain ' fails when Falcon serves the app under '
                 code { ':thread' }
                 plain ', and is advisory when Falcon is bundled beside another server and it cannot ' \
-                      'tell which one runs.'
+                      'tell which one runs (a rake task only sees what the Gemfile auto-requires).'
               end
             end
           end

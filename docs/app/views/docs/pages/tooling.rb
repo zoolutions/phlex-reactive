@@ -86,7 +86,8 @@ module Views
               shared between requests (the fix is `:fiber`, see
               [Running under Falcon](/docs/installation#running-under-falcon)).
               It reads the bundle without loading a server; when Falcon is bundled
-              beside another server and neither is loaded, the line is advisory.
+              beside another server and Falcon itself is not loaded, the line is
+              advisory.
             MD
           end
         end

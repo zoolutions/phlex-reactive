@@ -5,7 +5,7 @@ require "rails_helper"
 # Falcon serves each request as a fiber on one thread. Under Rails' default
 # `config.active_support.isolation_level = :thread`, every piece of thread-keyed
 # state (CurrentAttributes, IsolatedExecutionState, the transactional-test
-# connection lock, Thread.current) is shared by the requests on that thread
+# connection lock, thread variables) is shared by the requests on that thread
 # (issue #321). The doctor fails Falcon + :thread with the one-line fix, passes
 # Falcon + :fiber and any other server, and is advisory when it cannot tell
 # which server serves the app.
@@ -58,9 +58,19 @@ RSpec.describe Phlex::Reactive::Doctor do
       expect(described_class.detect_server(bundled: %w[puma], loaded: [])).to eq("puma")
     end
 
-    it "is the only server loaded when the bundle has several" do
+    it "is Falcon when it is the only server loaded, even with several bundled" do
       expect(described_class.detect_server(bundled: %w[falcon puma], loaded: %w[falcon])).to eq("falcon")
-      expect(described_class.detect_server(bundled: %w[falcon puma], loaded: %w[puma])).to eq("puma")
+    end
+
+    it "is the only server loaded when Falcon is not bundled" do
+      expect(described_class.detect_server(bundled: %w[puma unicorn], loaded: %w[puma])).to eq("puma")
+    end
+
+    # The doctor runs as a rake task, so "loaded" is only what Bundler.require
+    # pulled in: Rails' default `gem "puma"` beside `gem "falcon", require: false`
+    # loads Puma even when production runs `falcon serve`.
+    it "cannot tell (nil) when a non-Falcon server is loaded beside a bundled Falcon" do
+      expect(described_class.detect_server(bundled: %w[falcon puma], loaded: %w[puma])).to be_nil
     end
 
     it "cannot tell (nil) when Falcon is bundled beside another server and neither is singled out" do
