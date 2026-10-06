@@ -23,6 +23,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A pushed deferred render stays pending until it arrives (#292).** The
+  client settled a `via="stream"` defer on any turbo-stream to its target, so
+  an unrelated update of that element before the job's broadcast released the
+  guard (and the activity count) early. Only the job's removal of
+  `reactive-defer-src-<target>` settles it now.
+
+- **A morph inside a loading lazy shell no longer restarts its load (#294).**
+  `turbo:morph-element` bubbles, so a morph of any descendant re-probed a
+  `reactive_lazy` shell and aborted its in-flight fetch for a new one. Only a
+  morph of the shell's root re-probes now.
+
 - **A `hide:`/`show:` hint no longer flips a target that was already in that
   state (#300).** A `busy:` or `optimistic:` `hide:` aimed at an
   already-hidden element revealed it when the request settled (or failed), and
