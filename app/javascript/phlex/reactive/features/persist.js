@@ -496,8 +496,9 @@ function persistClearRoot(root) {
 
 // --- Per-root wiring -------------------------------------------------------
 
-// controller -> { payload, timer, onInput, onChange, onSubmitEnd } for the
-// connection this feature is wired to.
+// controller -> the closure that flushes and unwires the connection this
+// feature is wired to. Its timer and handlers are locals of connect(), not a
+// record's fields: the minifier renames a local, never a property (#310).
 const wired = new WeakMap()
 
 // Restore the draft into the owned controls, expose the state bag, announce,
@@ -525,22 +526,62 @@ export function connect(controller, core, _morphed, pending) {
     core.reseed()
   }
 
-  const state = { payload, timer: null }
-  state.onInput = () => scheduleWrite(root, state)
-  state.onChange = () => writeNow(root, state)
-  state.onSubmitEnd = (event) => submitEnd(root, state, event)
-  root.addEventListener?.("input", state.onInput)
-  root.addEventListener?.("change", state.onChange)
+  // ONE pending keystroke write per root (a snapshot is a full pass, so
+  // per-field timers would only multiply writes).
+  let timer = null
+  const cancel = () => {
+    if (timer !== null) {
+      clearTimeout(timer)
+      timer = null
+    }
+  }
+  // Snapshot every persistable owned control and write. Re-reads the current
+  // draft first so a state bag written by persist_state survives the write
+  // (the bag lives in storage, not on the connection — the op has none).
+  const writeNow = () => {
+    cancel()
+    const current = persistRead(root, payload)
+    persistWrite(root, payload, { fields: persistSnapshot(root, payload), state: current?.state ?? null })
+  }
+  // Trailing-edge debounce for keystrokes.
+  const onInput = () => {
+    const ms = Number(payload.debounce) || 0
+    if (ms <= 0) return writeNow()
+    if (timer !== null) clearTimeout(timer)
+    timer = setTimeout(() => {
+      timer = null
+      writeNow()
+    }, ms)
+  }
+  // A SUCCESSFUL Turbo form submission of the form that owns this root
+  // forgets the draft. tagName (not instanceof) so a cross-realm form counts.
+  const onSubmitEnd = (event) => {
+    if (!event?.detail?.success) return
+    const form = event.target
+    if (form?.tagName !== "FORM" || typeof form.contains !== "function") return
+    if (!form.contains(root)) return
+    // Drop a pending keystroke write too — the disconnect flush that follows
+    // Turbo's redirect visit would otherwise resurrect the just-cleared draft.
+    cancel()
+    persistRemove(root, payload)
+  }
   // Rich editors (#241): Lexical and Trix swallow the native `input` of
   // their contenteditable, so their own bubbling change events are the
   // keystroke signal — same trailing-edge debounce as `input`.
-  for (const event of PERSIST_EDITOR_CHANGE_EVENTS) root.addEventListener?.(event, state.onInput)
-  document.addEventListener?.("turbo:submit-end", state.onSubmitEnd)
-  wired.set(controller, state)
+  const inputs = ["input", ...PERSIST_EDITOR_CHANGE_EVENTS]
+  for (const event of inputs) root.addEventListener?.(event, onInput)
+  root.addEventListener?.("change", writeNow)
+  document.addEventListener?.("turbo:submit-end", onSubmitEnd)
+  wired.set(controller, () => {
+    if (timer !== null) writeNow()
+    for (const event of inputs) root.removeEventListener?.(event, onInput)
+    root.removeEventListener?.("change", writeNow)
+    document.removeEventListener?.("turbo:submit-end", onSubmitEnd)
+  })
 
   // An edit made while we were on our way had no listener to draft it: draft
   // it now, with everything the restore just filled in around it.
-  if (pending?.edited && !pending.submitted) writeNow(root, state)
+  if (pending?.edited && !pending.submitted) writeNow()
   for (const op of pending?.ops ?? []) op(true)
 }
 
@@ -591,57 +632,11 @@ function changedNames(root, payload) {
 
 // Flush a pending write while the fields are still readable (Turbo
 // disconnects before leaving the page — a fast visit otherwise loses the last
-// keystrokes), then drop every listener.
+// keystrokes), then drop every listener: the closure connect() stored does both.
 export function disconnect(controller) {
-  const root = controller.element
-  const state = wired.get(controller)
-  if (!state) return
+  const off = wired.get(controller)
   wired.delete(controller)
-  if (state.timer !== null) writeNow(root, state)
-  root.removeEventListener?.("input", state.onInput)
-  root.removeEventListener?.("change", state.onChange)
-  for (const event of PERSIST_EDITOR_CHANGE_EVENTS) root.removeEventListener?.(event, state.onInput)
-  document.removeEventListener?.("turbo:submit-end", state.onSubmitEnd)
-}
-
-// Trailing-edge debounce for keystrokes — ONE timer per root (a snapshot is
-// a full pass, so per-field timers would only multiply writes).
-function scheduleWrite(root, state) {
-  const ms = Number(state.payload.debounce) || 0
-  if (ms <= 0) return writeNow(root, state)
-  if (state.timer !== null) clearTimeout(state.timer)
-  state.timer = setTimeout(() => {
-    state.timer = null
-    writeNow(root, state)
-  }, ms)
-}
-
-// Snapshot every persistable owned control and write. Re-reads the current
-// draft first so a state bag written by persist_state survives the write
-// (the bag lives in storage, not on the connection — the op has none).
-function writeNow(root, state) {
-  if (state.timer !== null) {
-    clearTimeout(state.timer)
-    state.timer = null
-  }
-  const current = persistRead(root, state.payload)
-  persistWrite(root, state.payload, { fields: persistSnapshot(root, state.payload), state: current?.state ?? null })
-}
-
-// A SUCCESSFUL Turbo form submission of the form that owns this root
-// forgets the draft. tagName (not instanceof) so a cross-realm form counts.
-function submitEnd(root, state, event) {
-  if (!event?.detail?.success) return
-  const form = event.target
-  if (form?.tagName !== "FORM" || typeof form.contains !== "function") return
-  if (!form.contains(root)) return
-  // Drop a pending keystroke write too — the disconnect flush that follows
-  // Turbo's redirect visit would otherwise resurrect the just-cleared draft.
-  if (state.timer !== null) {
-    clearTimeout(state.timer)
-    state.timer = null
-  }
-  persistRemove(root, state.payload)
+  off?.()
 }
 
 // --- The persist_state / persist_clear client ops --------------------------
