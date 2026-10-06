@@ -349,3 +349,35 @@ test("registerReactiveEffects is idempotent (one listener)", () => {
   const detail = fire(makeStream("remove", "row"), async () => {})
   expect(detail.render.__reactiveEffectsWrapped).toBe(true)
 })
+
+test("legs exit in a background tab: a frame that never comes can't hold the removal (#295)", async () => {
+  addTarget("row", { "data-test-duration": "0.2s" })
+  globalThis.requestAnimationFrame = () => 0 // a hidden tab: rAF never fires
+  const tick = () => new Promise((resolve) => realSetTimeout(resolve, 0))
+  let removed = false
+  const legs = JSON.stringify(["fx-during", "fx-from", "fx-to"])
+  const detail = fire(makeStream("remove", "row", { effect: legs }), async () => {
+    removed = true
+  })
+
+  const done = detail.render(detail.newStream)
+  drainTimers(1000) // the frame wait's fallback
+  await tick()
+  drainTimers(1000) // the settle fallback
+  await tick()
+  expect(removed).toBe(true) // asserted before awaiting, so RED fails fast instead of hanging
+  await done
+})
+
+test("legs: the frame wait's fallback never beats a pending frame in a visible tab (#295)", async () => {
+  const el = addTarget("row", { "data-test-duration": "0.2s" })
+  globalThis.requestAnimationFrame = () => 0 // a frame is pending, not yet run
+  const legs = JSON.stringify(["fx-during", "fx-from", "fx-to"])
+  const detail = fire(makeStream("remove", "row", { effect: legs }), async () => {})
+
+  detail.render(detail.newStream)
+  drainTimers(999) // a short fallback would swap from→to before `from` paints
+  await new Promise((resolve) => realSetTimeout(resolve, 0))
+  expect(el.classList.contains("fx-from")).toBe(true)
+  expect(el.classList.contains("fx-to")).toBe(false)
+})

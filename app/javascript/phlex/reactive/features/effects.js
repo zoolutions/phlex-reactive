@@ -338,9 +338,15 @@ function effectSettled(el, durationMs) {
   })
 }
 
+// One frame, raced against the settle fallback (issue #295): a background tab
+// never runs rAF, and an exit must not hold its removal (and every stream
+// behind it) until the tab is visible again. The fallback is the full settle
+// ceiling, never a short timer — one could beat rAF in a visible tab and swap
+// from→to before the `from` leg paints.
 function effectNextFrame() {
   return new Promise((resolve) => {
-    if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => resolve())
-    else setTimeout(resolve, 16)
+    const raf = typeof requestAnimationFrame === "function"
+    if (raf) requestAnimationFrame(resolve)
+    setTimeout(resolve, raf ? EFFECT_SETTLE_FALLBACK_MS : 16)
   })
 }

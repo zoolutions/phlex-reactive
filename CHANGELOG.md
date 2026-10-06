@@ -23,6 +23,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A custom-legs exit effect no longer waits for a background tab to become
+  visible (#295).** The legs choreography awaited an animation frame before
+  any timeout was armed, so in a hidden tab (no `requestAnimationFrame`) the
+  removal, and every stream behind it, stalled. The frame wait now races the
+  1 s settle fallback.
+
 - **The browser suite no longer wedges under Falcon when two requests
   overlap (#303).** Transactional system tests pin one connection that the
   test and the server share, guarded by a lock keyed on
