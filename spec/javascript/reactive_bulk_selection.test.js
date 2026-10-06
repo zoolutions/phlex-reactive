@@ -70,8 +70,12 @@ const LIST = `
     <fieldset id="actions" data-reactive-enable="${ENABLE}"></fieldset>
   </form>`
 
+// What a browser does on a checkbox click: flip, then `input`, then `change`.
+// (The `input` re-sync runs BEFORE `change` — the header must not be reset to
+// its group's state in between.)
 function tick(box, checked) {
   box.checked = checked
+  box.dispatchEvent(new window.Event("input", { bubbles: true }))
   box.dispatchEvent(new window.Event("change", { bubbles: true }))
 }
 

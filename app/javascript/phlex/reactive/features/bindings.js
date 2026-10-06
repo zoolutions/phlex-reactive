@@ -61,12 +61,15 @@ export function connect(controller, core) {
   // element connected, fires no Stimulus lifecycle, and may preserve a
   // user-edited field value the server's hidden attrs don't reflect).
   if (showSyncEnabled(c)) {
-    // A select-all header's change flips its group first (issue #319); the
-    // change events it dispatches re-enter here and are skipped while it
-    // flips, so the pass after the loop runs once, not once per box.
+    // A select-all header's edit flips its group first (issue #319) — on
+    // `input`, which a click fires BEFORE `change`, or the pass below would
+    // reset the header to its group's state first (the flip is idempotent, so
+    // the `change` that follows flips nothing). The change events it
+    // dispatches re-enter here and are skipped while it flips, so the pass
+    // after the loop runs once, not once per box.
     c.boundSyncShow = (event) => {
       if (c.flipping) return
-      if (event?.type === "change") flipGroup(c, event.target)
+      flipGroup(c, event?.target)
       syncShow(c)
     }
     root.addEventListener?.("input", c.boundSyncShow)
@@ -634,7 +637,7 @@ function groupBoxes(c, name, owns, scope) {
   return [...c.root.querySelectorAll(namedSelector(name, scope))].filter((el) => el.type === "checkbox" && owns(el))
 }
 
-// A header's change ticks or unticks every owned box of its group, and
+// A header's edit ticks or unticks every owned box of its group, and
 // dispatches `change` on each one it flips so computes, shows and on-complete
 // bindings see a real edit. The re-entrant change events are skipped by the
 // show listener while this runs (c.flipping); it syncs once afterwards.
