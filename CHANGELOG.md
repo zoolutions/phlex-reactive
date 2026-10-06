@@ -28,6 +28,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   already-hidden element revealed it when the request settled (or failed), and
   a `show:` on a visible one hid it. hide/show now undo only what the hint
   changed, like the class ops.
+
+- **Subclasses of a reactive component appear in the actions inventory
+  (#302).** A subclass inherits `Phlex::Reactive::Component` instead of
+  including it, so Streamable's `included` hook never registered it, and
+  `phlex_reactive:actions`, `phlex_reactive:find`, the MCP tools and the doctor
+  skipped it. Streamable now registers subclasses from an `inherited` hook. A
+  subclass with a constant name is listed with its inherited and own actions
+  and any inherited `skip_verify_authorized`; an anonymous subclass is still
+  left out. Subclasses also have their memoized view context reset on a Rails
+  code reload now.
+
 - **The browser suite no longer wedges under Falcon when two requests
   overlap (#303).** Transactional system tests pin one connection that the
   test and the server share, guarded by a lock keyed on
@@ -55,6 +66,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`phlex_reactive:doctor` flags Falcon under `:thread` isolation (#321).**
+  Falcon serves each request as a fiber on one thread, so under Rails' default
+  `config.active_support.isolation_level = :thread` every piece of thread-keyed
+  state (`CurrentAttributes`, `IsolatedExecutionState`, thread variables, the
+  transactional-test connection lock) is shared between requests. A new
+  `fiber_isolation` check fails when Falcon serves the app and the level is
+  `:thread`, with the fix (`config.active_support.isolation_level = :fiber` in
+  `config/application.rb`); it passes under `:fiber` and for Puma or any other
+  server. The server is read from the bundle and the server constants already
+  loaded, never by requiring one; when Falcon is bundled beside another server
+  and is not the only server loaded, the line is advisory. The installation docs gain a
+  "Running under Falcon" section.
 - **A hotkey pressed before the controller connects is no longer lost (#303).**
   `phlex/reactive/early` now records `window:` triggers — how a hotkey is
   usually bound (`on(:toggle, event: "keydown.k", window: true)`,
