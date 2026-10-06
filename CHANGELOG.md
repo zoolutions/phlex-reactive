@@ -6,25 +6,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Added
-
-- **Bulk-selection lists without a per-list controller (#319).**
-  `reactive_select_all("ids[]")` makes a header box that ticks or unticks every
-  owned box of the group (dispatching `input` and `change` on each one it flips) and shows
-  checked / indeterminate / unchecked from the group. `reactive_count("ids[]")`
-  writes the ticked count. `reactive_enable(if:/if_any:/unless:)` is
-  `reactive_show`'s sibling that flips the element's own `disabled` (a button,
-  a fieldset), with the same server first paint. The conditions language gains
-  `{ checked: n }` / `{ checked: 1.. }` — the ticked count of a checkbox group,
-  in every binding that takes conditions, evaluated for first paint from
-  `reactive_values` (an Array of checked values, or a count). Rows appended or
-  removed by a stream re-sync the header, the count and the show/enable bindings (`reactive_on_complete` re-evaluates on the next edit); a
-  nested root's boxes are never counted or flipped. `js.submit(to,
-  submitter: "#delete-submit")` submits through that submit control, so its
-  `name=value` posts; anything that is not a submit control of the form warns
-  and falls back to a plain submit. The client grows by about 0.7 KB gzip
-  (the default bundle 24,976 → 25,740 B).
-
 ### Performance
 
 - **A cacheable lazy shell is less than half the size (#306).** A
@@ -68,6 +49,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   load running, and its late arrival painted over the refused shell.
 
 ### Added
+
+- **Bulk-selection lists without a per-list controller (#319).**
+  `reactive_select_all("ids[]")` makes a header box that ticks or unticks every
+  owned box of the group (dispatching `input` and `change` on each one it flips) and shows
+  checked / indeterminate / unchecked from the group. `reactive_count("ids[]")`
+  writes the ticked count. `reactive_enable(if:/if_any:/unless:)` is
+  `reactive_show`'s sibling that flips the element's own `disabled` (a button,
+  a fieldset), with the same server first paint. The conditions language gains
+  `{ checked: n }` / `{ checked: 1.. }` — the ticked count of a checkbox group,
+  in every binding that takes conditions, evaluated for first paint from
+  `reactive_values` (an Array of checked values, or a count). Rows appended or
+  removed by a stream re-sync the header, the count, the show/enable bindings
+  and show targets, and re-arm `reactive_on_complete` without firing it; a
+  header sets every box before dispatching, so a count condition sees the
+  final count; a nested root's boxes are never counted or flipped. `js.submit(to,
+  submitter: "#delete-submit")` submits through that submit control, so its
+  `name=value` posts; anything that is not a submit control of the form warns
+  and falls back to a plain submit. The client grows by about 0.8 KB gzip
+  (the default bundle 24,976 → 25,786 B).
 
 - **A hotkey pressed before the controller connects is no longer lost (#303).**
   `phlex/reactive/early` now records `window:` triggers — how a hotkey is

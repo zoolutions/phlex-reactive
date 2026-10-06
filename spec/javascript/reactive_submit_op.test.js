@@ -272,6 +272,7 @@ test("a cancelled confirm: submits nothing; an accepted one submits through the 
   const run = () => controller.runOps({ params: { ops, confirm: "Delete?" }, target: {}, preventDefault() {} })
   const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
 
+  const original = confirm.confirmResolver
   try {
     confirm.setConfirmResolver(() => Promise.resolve(false))
     run()
@@ -283,6 +284,6 @@ test("a cancelled confirm: submits nothing; an accepted one submits through the 
     await settle()
     expect(form.calls).toEqual([[button]])
   } finally {
-    confirm.setConfirmResolver((message) => Promise.resolve(globalThis.window?.confirm?.(message) ?? true))
+    confirm.setConfirmResolver(original)
   }
 })

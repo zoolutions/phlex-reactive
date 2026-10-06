@@ -73,15 +73,18 @@ export function connect(controller, core) {
       // turbo:morph-element bubbles from the header too) derives it instead.
       if (event?.type === "input" || event?.type === "change") flipGroup(c, event.target)
       // Whether this root has group bindings is read at connect and again on
-      // a morph (which may add one) — never per keystroke.
-      else c.groups = hasGroups(c)
+      // a morph (which may add one, and so need the observer) — never per
+      // keystroke.
+      else {
+        c.groups = hasGroups(c)
+        observeGroups(c)
+      }
       syncShow(c)
     }
     root.addEventListener?.("input", c.boundSyncShow)
     root.addEventListener?.("change", c.boundSyncShow)
     root.addEventListener?.("turbo:morph-element", c.boundSyncShow)
     c.boundSyncShow()
-    observeGroups(c)
   }
 
   // Completion bindings (issue #226) — ONLY when the root declares
@@ -97,11 +100,14 @@ export function connect(controller, core) {
   // input event that re-evaluates anyway).
   if (onCompleteEnabled(c)) {
     c.boundSyncOnComplete = (event) => syncOnComplete(c, event)
-    c.boundArmOnComplete = () => syncOnComplete(c, null)
+    c.boundArmOnComplete = () => {
+      syncOnComplete(c, null)
+      observeGroups(c)
+    }
     root.addEventListener?.("input", c.boundSyncOnComplete)
     root.addEventListener?.("change", c.boundSyncOnComplete)
     root.addEventListener?.("turbo:morph-element", c.boundArmOnComplete)
-    syncOnComplete(c, null)
+    c.boundArmOnComplete()
   }
 
   // Option filtering (issue #163) — ONLY when the root declares the binding
@@ -657,11 +663,13 @@ function flipGroup(c, header) {
   const group = header?.getAttribute?.("data-reactive-select-all")
   if (!group || !c.core.owns(header)) return
   const scope = c.root.getAttribute?.("data-reactive-scope") || null
+  const flipped = groupBoxes(c, group, c.core.ownership(), scope).filter((box) => box !== header && box.checked !== header.checked)
+  // Every box first, then the events: a listener (a checked-count
+  // on_complete) must see the group's final count, never a half-flipped one.
+  for (const box of flipped) box.checked = header.checked
   c.flipping = true
   try {
-    for (const box of groupBoxes(c, group, c.core.ownership(), scope)) {
-      if (box === header || box.checked === header.checked) continue
-      box.checked = header.checked
+    for (const box of flipped) {
       // input then change, as a click does: computes listen on input.
       for (const type of ["input", "change"]) box.dispatchEvent?.(new Event(type, { bubbles: true }))
     }
@@ -697,15 +705,21 @@ function syncGroups(c, fieldValue, owns, scope) {
 }
 
 // Boxes added or removed later — a stream append, a removal — fire no event,
-// so a root with a group binding (a header, a count, an enable, or a show
-// with a checked_* term) watches its subtree and re-syncs when a mutation adds or removes a
-// checkbox. Text writes (the count itself) never qualify, so it cannot loop.
+// so a root with a group binding (a header, a count, an enable, or a show,
+// show target or on_complete with a checked_* term) watches its subtree and
+// re-syncs when a mutation adds or removes a checkbox: the show pass, and the
+// on_complete latches re-armed without firing. Text writes (the count itself)
+// never qualify, so it cannot loop. Installed once — at connect, or by the
+// first morph that adds such a binding.
 function observeGroups(c) {
-  if (typeof MutationObserver !== "function") return
-  if (!c.root.querySelector?.(`${GROUP_BINDING_SELECTOR}, [data-reactive-show*=checked_]`)) return
+  if (c.groupObserver || typeof MutationObserver !== "function") return
+  const onRoot = (name) => c.root.getAttribute?.(`data-reactive-${name}`)?.includes("checked_")
+  if (!c.root.querySelector?.(`${GROUP_BINDING_SELECTOR}, [data-reactive-show*=checked_]`) && !onRoot("show-targets") && !onRoot("on-complete")) return
   const boxIn = (node) => node.nodeType === 1 && (node.matches('input[type="checkbox"]') || !!node.querySelector('input[type="checkbox"]'))
   c.groupObserver = new MutationObserver((records) => {
-    if (records.some((r) => [...r.addedNodes, ...r.removedNodes].some(boxIn))) c.boundSyncShow()
+    if (!records.some((r) => [...r.addedNodes, ...r.removedNodes].some(boxIn))) return
+    c.boundSyncShow?.()
+    c.boundArmOnComplete?.()
   })
   c.groupObserver.observe(c.root, { childList: true, subtree: true })
 }

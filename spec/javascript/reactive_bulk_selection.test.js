@@ -209,13 +209,18 @@ test("nested reactive roots' boxes are neither counted nor flipped by the outer 
   expect($("#count").textContent).toBe("0")
   expect($("#all").indeterminate).toBe(false)
 
-  tick($("#all"), false)
+  // Each header action runs against the nested box in the OPPOSITE state, so
+  // a flip that reached it would show.
+  nested.checked = false
   tick($("#all"), true)
   expect($$('#rows [name="ids[]"]').every((b) => b.checked)).toBe(true)
   expect($("#count").textContent).toBe("3")
-  nested.checked = false
-  tick($("#all"), false)
   expect(nested.checked).toBe(false)
+
+  nested.checked = true
+  tick($("#all"), false)
+  expect($$('#rows [name="ids[]"]').some((b) => b.checked)).toBe(false)
+  expect(nested.checked).toBe(true)
 })
 
 test("reactive_show takes a checked count too", () => {
@@ -282,6 +287,67 @@ test("a group binding a morph adds is picked up by the morph's re-sync", () => {
   root.insertAdjacentHTML("beforeend", '<span id="late" data-reactive-count="ids[]">?</span>')
   root.dispatchEvent(new window.Event("turbo:morph-element", { bubbles: true }))
   expect($("#late").textContent).toBe("1")
+})
+
+test("a group binding a morph adds also gets the observer: a later append re-syncs it", async () => {
+  const show = JSON.stringify({ any: [[{ field: "mode", equals: "a" }]] }).replaceAll('"', "&quot;")
+  const { root, $ } = mount(
+    `<form id="late-root" data-controller="reactive"><input name="mode" value="a"><p data-reactive-show="${show}">x</p>` +
+      `<ul id="rows"><li><input type="checkbox" name="ids[]" value="1" checked></li></ul></form>`,
+  )
+  root.insertAdjacentHTML("beforeend", '<span id="late" data-reactive-count="ids[]">?</span>')
+  root.dispatchEvent(new window.Event("turbo:morph-element", { bubbles: true }))
+  expect($("#late").textContent).toBe("1")
+
+  $("#rows").insertAdjacentHTML("beforeend", '<li><input type="checkbox" name="ids[]" value="2" checked></li>')
+  await flush()
+  expect($("#late").textContent).toBe("2")
+})
+
+test("a checked-count show target alone gets the observer: removing a ticked row re-hides it", async () => {
+  const targets = JSON.stringify({ "#some": { any: [[{ field: "ids[]", checked_gte: 1 }]] } }).replaceAll('"', "&quot;")
+  const { $ } = mount(
+    `<p id="some">some</p><form id="targets-root" data-controller="reactive" data-reactive-show-targets="${targets}">` +
+      `<ul id="rows"><li id="r1"><input type="checkbox" name="ids[]" value="1"></li>` +
+      `<li id="r2"><input type="checkbox" name="ids[]" value="2"></li></ul></form>`,
+  )
+  const some = document.getElementById("some")
+  tick($("#r1 input"), true)
+  expect(some.hidden).toBe(false)
+
+  $("#r1").remove()
+  await flush()
+  expect(some.hidden).toBe(true)
+})
+
+test("a removed ticked row re-arms a checked-count reactive_on_complete, so the next selection fires", async () => {
+  const onComplete = JSON.stringify([
+    { any: [[{ field: "ids[]", checked_gte: 2 }]], ops: [["add_class", { to: "@root", classes: ["many"] }]] },
+  ]).replaceAll('"', "&quot;")
+  const { root, $, $$ } = mount(
+    `<form id="complete-root" data-controller="reactive" data-reactive-on-complete="${onComplete}"><ul id="rows">` +
+      `<li id="r1"><input type="checkbox" name="ids[]" value="1"></li>` +
+      `<li id="r2"><input type="checkbox" name="ids[]" value="2"></li>` +
+      `<li id="r3"><input type="checkbox" name="ids[]" value="3"></li></ul></form>`,
+  )
+  tick($$("[name='ids[]']")[0], true)
+  tick($$("[name='ids[]']")[1], true)
+  expect(root.classList.contains("many")).toBe(true)
+  root.classList.remove("many")
+
+  $("#r1").remove()
+  await flush()
+  tick($("#r3 input"), true)
+  expect(root.classList.contains("many")).toBe(true)
+})
+
+test("the header sets every box before dispatching, so a checked-count on_complete sees the final count", () => {
+  const onComplete = JSON.stringify([
+    { any: [[{ field: "ids[]", checked_eq: 2 }]], ops: [["add_class", { to: "@root", classes: ["two"] }]] },
+  ]).replaceAll('"', "&quot;")
+  const { root, $ } = mount(LIST.replace('data-controller="reactive"', `data-controller="reactive" data-reactive-on-complete="${onComplete}"`))
+  tick($("#all"), true)
+  expect(root.classList.contains("two")).toBe(false)
 })
 
 test("a root without a group binding installs no MutationObserver", () => {

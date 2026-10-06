@@ -42,7 +42,11 @@ RSpec.describe Phlex::Reactive::Component::Selection do
 
     it "takes if_any: and unless: like reactive_show" do
       attrs = view.reactive_enable(if_any: [{ mode: "a" }, { mode: "b" }], unless: { locked: true })
-      expect(JSON.parse(attrs[:data][:reactive_enable])["any"].size).to eq(2)
+      expect(JSON.parse(attrs[:data][:reactive_enable]))
+        .to eq("any" => [
+          [{ "field" => "mode", "equals" => "a" }, { "field" => "locked", "not" => "true" }],
+          [{ "field" => "mode", "equals" => "b" }, { "field" => "locked", "not" => "true" }]
+        ])
     end
 
     it "paints disabled: true at first paint when reactive_values says nothing is ticked" do
