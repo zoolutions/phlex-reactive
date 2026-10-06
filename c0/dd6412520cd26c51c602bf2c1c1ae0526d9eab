@@ -1,0 +1,27 @@
+Rakefile
+  s_d02db4353d49da::t_bf85d30c0255bc 58
+spec/system/bulk_selection_spec.rb
+  s_d02db4353d49da::t_97845a21a2be57 1-109
+spec/dummy/app/components/bulk_selection_component.rb
+  s_d02db4353d49da::t_d631011156aa78 1-62
+spec/dummy/config/routes.rb
+  s_d02db4353d49da::t_f95384cdc88bf6 81-84
+spec/dummy/app/controllers/demos_controller.rb
+  s_d02db4353d49da::t_abb81f42611b41 449-459
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c0dd6412520cd26c51c602bf2c1c1ae0526d9eab",
+  "prompts": {},
+  "sessions": {
+    "s_d02db4353d49da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5775b781-4946-4755-bdd4-dcdc0ac0b0ea",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
