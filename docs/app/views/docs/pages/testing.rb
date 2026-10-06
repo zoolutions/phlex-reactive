@@ -312,6 +312,25 @@ module Views
                 code { 'exclude: reactive_connection_id' }
                 plain ' contract) end to end.'
               end
+              p do
+                strong { 'Falcon needs fiber isolation.' }
+                plain ' Falcon runs each request as a fiber on one thread, and Rails keys its ' \
+                      'per-request state — and the lock on the single connection transactional ' \
+                      'tests pin for the test and the server to share — on '
+                code { 'config.active_support.isolation_level' }
+                plain '. Under the default '
+                code { ':thread' }
+                plain ' two request fibers look like one owner, both enter that lock, and the first ' \
+                      'page that makes two requests overlap wedges the server (a '
+                code { 'ThreadError' }
+                plain ' in the connection pool, then every later request blocks). Set it to '
+                code { ':fiber' }
+                plain ' for an app served by Falcon — the dummy app does so when '
+                code { 'CAPYBARA_SERVER=falcon' }
+                plain '; the Puma cells keep '
+                code { ':thread' }
+                plain ', so both configurations stay proven.'
+              end
             end
             DocsUI::Code(<<~BASH, lexer: :shell)
               # both servers, Action Cable (the default local sweep)

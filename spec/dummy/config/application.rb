@@ -33,6 +33,17 @@ module Dummy
     config.hosts.clear
     config.active_job.queue_adapter = :test
 
+    # Falcon serves each request as a fiber on one thread. Rails keys its
+    # per-request state — and the lock on the connection transactional tests
+    # PIN for the test and the server to share — on this setting: under the
+    # default :thread, two request fibers look like one owner, both enter the
+    # pinned connection's critical section, and the suite wedges on the first
+    # page that makes two action requests overlap (ThreadError in
+    # ConnectionPool#checkout; spec/system/falcon_fiber_isolation_spec.rb).
+    # Fiber-per-request servers need :fiber, as Rails documents; the Puma cells
+    # keep the stock :thread so both configurations stay proven.
+    config.active_support.isolation_level = :fiber if ENV["CAPYBARA_SERVER"] == "falcon"
+
     # ActiveStorage: a local disk service rooted in tmp/ so the upload-action
     # fixture (issue #34 — file/multipart params) can persist an attachment.
     config.active_storage.service = :test_disk

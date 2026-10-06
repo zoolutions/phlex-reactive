@@ -23,6 +23,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The browser suite no longer wedges under Falcon when two requests
+  overlap (#303).** Transactional system tests pin one connection that the
+  test and the server share, guarded by a lock keyed on
+  `ActiveSupport::IsolatedExecutionState` — a thread-keyed `ThreadMonitor`
+  under the default `:thread` isolation. Falcon serves each request as a fiber
+  on one thread, so the first page that made two action requests overlap (the
+  two-roots hotkey fixture) let both fibers into the pinned connection's
+  critical section: a `ThreadError` in `ConnectionPool#checkout`, after which
+  every later request blocked and CI sat on the step until the 6-hour kill.
+  The dummy app now sets `config.active_support.isolation_level = :fiber` when
+  it serves under Falcon, as Rails documents for fiber-per-request servers; a
+  spec reproduces the overlap without a browser. Apps that run Falcon need the
+  same setting (the testing page says so).
+
 - **A lazy shell connects the feature a morph asks for (#312).** A Turbo morph
   that kept a `reactive_lazy` shell connected (a `cache:` one, or a plain one)
   but turned it into a root needing persist, form, bindings or compute never
