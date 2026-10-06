@@ -1,0 +1,19 @@
+app/javascript/phlex/reactive/runtime.js
+  s_b652aca9af6826::t_b6a366f903beeb 1463
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "25d6a8455cdf68e9fe4ce2d28e728e1ab8cd528c",
+  "prompts": {},
+  "sessions": {
+    "s_b652aca9af6826": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "00f98917-30a6-412a-80ef-52ee01685b36",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
