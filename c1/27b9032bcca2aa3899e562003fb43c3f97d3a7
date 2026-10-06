@@ -1,0 +1,33 @@
+spec/dummy/public/vendor/features/bindings.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/features/bindings.min.js
+  ai_agent 1,3
+spec/javascript/reactive_nested_json.test.js
+  s_d02db4353d49da::t_b87b8576100e06 351-401
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 9,16-17
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/features/bindings.js
+  s_d02db4353d49da::t_82834e9c496a39 991-992,995,997
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/features/bindings.min.js.map
+  ai_agent 5,7-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c127b9032bcca2aa3899e562003fb43c3f97d3a7",
+  "prompts": {},
+  "sessions": {
+    "s_d02db4353d49da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5775b781-4946-4755-bdd4-dcdc0ac0b0ea",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
