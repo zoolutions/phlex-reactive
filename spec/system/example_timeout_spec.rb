@@ -26,11 +26,22 @@ RSpec.describe "System example timeout (issue #320)", type: :system do
     end
   end
 
-  it "fails an example that outlives its metadata bound, naming the bound", timeout: 0.5 do
+  # 3 s, not less: the bound also covers the before hooks (fixtures, a first DB
+  # checkout on a pgbus cell), and firing there would end the whole run.
+  it "fails an example that outlives its metadata bound, naming the bound", timeout: 3 do
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-    expect { sleep 10 }.to raise_error(SystemExampleTimeout::Exceeded, /exceeded 0\.5s .*is the server wedged\?/)
-    expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to be < 3
+    expect { sleep 20 }.to raise_error(SystemExampleTimeout::Exceeded, /exceeded 3s .*is the server wedged\?/)
+    expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to be < 6
+  end
+
+  it "recognises a timeout wrapped with an earlier failure (body failed, teardown timed out)" do
+    wrapped = RSpec::Core::MultipleExceptionError.new(RuntimeError.new("body"), SystemExampleTimeout::Exceeded.new)
+
+    expect(SystemExampleTimeout.timed_out?(wrapped)).to be(true)
+    expect(SystemExampleTimeout.timed_out?(SystemExampleTimeout::Exceeded.new)).to be(true)
+    expect(SystemExampleTimeout.timed_out?(RuntimeError.new)).to be(false)
+    expect(SystemExampleTimeout.timed_out?(nil)).to be(false)
   end
 
   it "cuts off a visit whose request the server never answers within the bound" do

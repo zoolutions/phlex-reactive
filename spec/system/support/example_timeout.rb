@@ -66,6 +66,13 @@ module SystemExampleTimeout
     exit!(1)
   end
 
+  # The body may fail first (e.g. a Playwright TimeoutError) and the bound fire
+  # in teardown: RSpec then reports a MultipleExceptionError wrapping both.
+  def self.timed_out?(exception)
+    errors = exception.respond_to?(:all_exceptions) ? exception.all_exceptions : [exception]
+    errors.any?(Exceeded)
+  end
+
   def self.format_seconds(seconds) = seconds == seconds.to_i ? seconds.to_i.to_s : seconds.to_s
 end
 
@@ -76,7 +83,7 @@ RSpec.configure do
       example.run
     end
 
-    if example.exception.is_a?(SystemExampleTimeout::Exceeded)
+    if SystemExampleTimeout.timed_out?(example.exception)
       warn "\n[system timeout] #{example.location} timed out — skipping the rest of the run " \
            "(a wedged server would make every later example wait out its own bound)."
       RSpec.world.wants_to_quit = true
