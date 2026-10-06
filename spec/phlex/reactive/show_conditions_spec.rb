@@ -248,6 +248,75 @@ RSpec.describe Phlex::Reactive::ShowConditions do
     end
   end
 
+  # Issue #319: the checked: value form — counts the TICKED boxes of a checkbox
+  # group. The same Integer / Integer-Range shapes as length:, on checked_* keys.
+  describe ".normalize — the checked: value form (issue #319)" do
+    it "compiles { checked: N } to a checked_eq term" do
+      expect(normalize(if: { "ids[]" => { checked: 2 } }))
+        .to eq([[{ "field" => "ids[]", "checked_eq" => 2 }]])
+    end
+
+    it "compiles an endless checked range to checked_gte" do
+      expect(normalize(if: { "ids[]" => { checked: 1.. } }))
+        .to eq([[{ "field" => "ids[]", "checked_gte" => 1 }]])
+    end
+
+    it "compiles a bounded checked range to gte+lte terms in ONE group" do
+      expect(normalize(if: { "ids[]" => { checked: 1..3 } }))
+        .to eq([[{ "field" => "ids[]", "checked_gte" => 1 }, { "field" => "ids[]", "checked_lte" => 3 }]])
+    end
+
+    it "compiles a beginless exclusive checked range to checked_lt" do
+      expect(normalize(if: { "ids[]" => { checked: ...3 } }))
+        .to eq([[{ "field" => "ids[]", "checked_lt" => 3 }]])
+    end
+
+    it "negates { checked: N } under unless: to the checked_lt OR checked_gt disjunction" do
+      expect(normalize(unless: { "ids[]" => { checked: 0 } }))
+        .to eq([[{ "field" => "ids[]", "checked_lt" => 0 }], [{ "field" => "ids[]", "checked_gt" => 0 }]])
+    end
+
+    it "negates an endless checked range under unless: to the single complement" do
+      expect(normalize(unless: { "ids[]" => { checked: 1.. } }))
+        .to eq([[{ "field" => "ids[]", "checked_lt" => 1 }]])
+    end
+
+    it "negates a bounded checked range under unless: to the outside disjunction" do
+      expect(normalize(unless: { "ids[]" => { checked: 1...3 } }))
+        .to eq([[{ "field" => "ids[]", "checked_lt" => 1 }], [{ "field" => "ids[]", "checked_gte" => 3 }]])
+    end
+
+    it "rejects a non-Integer or negative checked literal" do
+      expect { normalize(if: { "ids[]" => { checked: "1" } }) }.to raise_error(ArgumentError, /checked/)
+      expect { normalize(if: { "ids[]" => { checked: -1 } }) }.to raise_error(ArgumentError, /checked/)
+      expect { normalize(if: { "ids[]" => { checked: 1.5.. } }) }.to raise_error(ArgumentError, /checked/)
+    end
+
+    it "rejects a Hash naming both length: and checked:" do
+      expect { normalize(if: { "ids[]" => { checked: 1, length: 2 } }) }
+        .to raise_error(ArgumentError, /length: or checked:/)
+    end
+
+    it "counts an Array value (the checked values reactive_values provides)" do
+      groups = normalize(if: { "ids[]" => { checked: 1.. } })
+      expect(match?(groups, { "ids[]" => %w[3 7] })).to be(true)
+      expect(match?(groups, { "ids[]" => [] })).to be(false)
+    end
+
+    it "counts an Integer value (a count reactive_values provides) and true/false" do
+      groups = normalize(if: { "ids[]" => { checked: 2 } })
+      expect(match?(groups, { "ids[]" => "2" })).to be(true)
+      expect(match?(groups, { "ids[]" => 2 })).to be(true)
+      expect(match?(normalize(if: { gift: { checked: 1 } }), { "gift" => "true" })).to be(true)
+      expect(match?(normalize(if: { gift: { checked: 0 } }), { "gift" => "false" })).to be(true)
+    end
+
+    it "treats an absent group as zero ticked" do
+      groups = normalize(if: { "ids[]" => { checked: 0 } })
+      expect(match?(groups, {})).to be(true)
+    end
+  end
+
   describe ".normalize — loud validation" do
     it "raises on an empty if: hash" do
       expect { normalize(if: {}) }.to raise_error(ArgumentError, /if: needs at least one field/)

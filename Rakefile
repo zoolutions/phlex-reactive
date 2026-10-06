@@ -55,6 +55,7 @@ namespace :spec do
     spec/system/order_compute_spec.rb
     spec/system/conditional_fieldset_spec.rb
     spec/system/conditional_confirm_spec.rb
+    spec/system/bulk_selection_spec.rb
     spec/system/tags_field_spec.rb
     spec/system/draft_order_spec.rb
     spec/system/draft_order_json_spec.rb

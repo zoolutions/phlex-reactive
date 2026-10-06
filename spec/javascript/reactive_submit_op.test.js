@@ -169,3 +169,121 @@ test("submit composes in a chain (siblings still apply, in order)", () => {
   expect(el.classes.has("busy")).toBe(true)
   expect(form.submitted).toBe(1)
 })
+
+// --- submitter: (issue #319) ---------------------------------------------------
+// js.submit(to, submitter: "#sel") resolves the submitter with the op's own
+// scoping and calls form.requestSubmit(submitter), so the request carries the
+// submitter's name=value. A submitter that is not a submit control of THAT form
+// warns and falls back to a plain requestSubmit() (requestSubmit(x) would throw).
+
+function makeSubmitForm() {
+  return {
+    tagName: "FORM",
+    calls: [],
+    closest: () => null,
+    requestSubmit(...args) {
+      this.calls.push(args)
+    },
+  }
+}
+
+function submitterRoot(form, nodes) {
+  const root = makeRoot()
+  form.closest = () => root
+  root.querySelectorAll = (sel) => (sel === "#bulk" ? [form] : (nodes[sel] ?? []))
+  return root
+}
+
+function submitControl(form, type = "submit", tagName = "BUTTON") {
+  return { tagName, type, form, closest: () => null }
+}
+
+test("submit with submitter: requestSubmits the form THROUGH that submit control", () => {
+  const form = makeSubmitForm()
+  const button = submitControl(form)
+  const root = submitterRoot(form, { "#delete-submit": [button] })
+  button.closest = () => root
+
+  const warns = captureWarnings(() =>
+    fire(buildController(root), [["submit", { to: "#bulk", submitter: "#delete-submit" }]]),
+  )
+
+  expect(form.calls).toEqual([[button]])
+  expect(warns).toEqual([])
+})
+
+test("an <input type=submit> submitter is accepted too", () => {
+  const form = makeSubmitForm()
+  const input = submitControl(form, "submit", "INPUT")
+  const root = submitterRoot(form, { "#go": [input] })
+  input.closest = () => root
+
+  fire(buildController(root), [["submit", { to: "#bulk", submitter: "#go" }]])
+
+  expect(form.calls).toEqual([[input]])
+})
+
+test("a submitter of ANOTHER form warns and falls back to a plain requestSubmit()", () => {
+  const form = makeSubmitForm()
+  const other = makeSubmitForm()
+  const button = submitControl(other)
+  const root = submitterRoot(form, { "#elsewhere": [button] })
+  button.closest = () => root
+
+  const warns = captureWarnings(() =>
+    fire(buildController(root), [["submit", { to: "#bulk", submitter: "#elsewhere" }]]),
+  )
+
+  expect(form.calls).toEqual([[]])
+  expect(other.calls).toEqual([])
+  expect(warns.some((w) => w.includes("submitter"))).toBe(true)
+})
+
+test("a submitter that is not a submit control warns and falls back", () => {
+  const form = makeSubmitForm()
+  const plain = submitControl(form, "button")
+  const root = submitterRoot(form, { "#plain": [plain] })
+  plain.closest = () => root
+
+  const warns = captureWarnings(() => fire(buildController(root), [["submit", { to: "#bulk", submitter: "#plain" }]]))
+
+  expect(form.calls).toEqual([[]])
+  expect(warns.some((w) => w.includes("submitter"))).toBe(true)
+})
+
+test("a submitter that resolves to nothing warns and falls back", () => {
+  const form = makeSubmitForm()
+  const root = submitterRoot(form, {})
+
+  const warns = captureWarnings(() => fire(buildController(root), [["submit", { to: "#bulk", submitter: "#missing" }]]))
+
+  expect(form.calls).toEqual([[]])
+  expect(warns.some((w) => w.includes("submitter"))).toBe(true)
+})
+
+test("a cancelled confirm: submits nothing; an accepted one submits through the submitter", async () => {
+  const confirm = await import("../../app/javascript/phlex/reactive/confirm.js")
+  const form = makeSubmitForm()
+  const button = submitControl(form)
+  const root = submitterRoot(form, { "#delete-submit": [button] })
+  button.closest = () => root
+  const controller = buildController(root)
+  const ops = [["submit", { to: "#bulk", submitter: "#delete-submit" }]]
+  const run = () => controller.runOps({ params: { ops, confirm: "Delete?" }, target: {}, preventDefault() {} })
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+  const original = confirm.confirmResolver
+  try {
+    confirm.setConfirmResolver(() => Promise.resolve(false))
+    run()
+    await settle()
+    expect(form.calls).toEqual([])
+
+    confirm.setConfirmResolver(() => Promise.resolve(true))
+    run()
+    await settle()
+    expect(form.calls).toEqual([[button]])
+  } finally {
+    confirm.setConfirmResolver(original)
+  }
+})

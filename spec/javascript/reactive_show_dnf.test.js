@@ -275,8 +275,16 @@ for (const vector of VECTORS) {
     const binding = dnf(vector.groups)
     root.append(binding)
     for (const [name, value] of Object.entries(vector.values)) {
-      // Every value is a plain string; a text input reports it verbatim, which
-      // matches how Ruby's match? reads the { field => string } map.
+      // An Array value is a checkbox GROUP's checked values (issue #319): one
+      // ticked box per entry, plus an unticked one that must not count — Ruby
+      // counts the Array's entries.
+      if (Array.isArray(value)) {
+        for (const v of value) root.append(new FakeNode({ tag: "input", type: "checkbox", name, value: v, checked: true }))
+        root.append(new FakeNode({ tag: "input", type: "checkbox", name, value: "x" }))
+        continue
+      }
+      // Every other value is a plain string; a text input reports it verbatim,
+      // which matches how Ruby's match? reads the { field => string } map.
       root.append(new FakeNode({ tag: "input", type: "text", name, value }))
     }
     buildController(root).connect()

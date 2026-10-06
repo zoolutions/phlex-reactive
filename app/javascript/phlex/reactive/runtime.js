@@ -589,7 +589,23 @@ const CLIENT_OPS = Object.freeze({
   // on(:action, event: "submit") interception or a native/Turbo form handles it
   // exactly like a user submit. No form → no-op. ACTOR-ONLY like focus: the
   // broadcast builder refuses it server-side (BROADCAST_REFUSED_OPS).
-  submit: (el) => submitFormFor(el)?.requestSubmit?.(),
+  // `submitter:` (issue #319) resolves with the op's own scoping (the
+  // `expanded:` precedent) and submits THROUGH it, so its name=value posts. It
+  // must be a submit control of that form — requestSubmit(x) throws otherwise —
+  // so anything else warns and falls back to a plain requestSubmit().
+  submit: (el, args, resolveTargets) => {
+    const form = submitFormFor(el)
+    if (!form) return
+    let submitter = null
+    if (args?.submitter != null && typeof resolveTargets === "function") {
+      submitter = resolveTargets({ ...args, to: args.submitter })[0] ?? null
+      if (!(submitter?.form === form && (submitter.type === "submit" || submitter.type === "image"))) {
+        console.warn(`[phlex-reactive] submitter ${args.submitter} is not a submit control of the form — ignored`)
+        submitter = null
+      }
+    }
+    submitter ? form.requestSubmit?.(submitter) : form.requestSubmit?.()
+  },
 
   // Clipboard-source paste (issue #228): on a user gesture, read
   // navigator.clipboard.readText() and feed the text into the target field
@@ -1033,7 +1049,8 @@ function formNeeded(root) {
 }
 
 // Show bindings and cross-root show targets, completion bindings, option
-// filtering, the tag-chip input and draft nested rows: a form's client-only
+// filtering, the bulk-selection group bindings (enable, select-all, count —
+// issue #319), the tag-chip input and draft nested rows: a form's client-only
 // bindings. The root declares one, or owns an element that does. (The probes
 // the connect-time gates ran before the split, unchanged.)
 function bindingsNeeded(root) {
@@ -1042,8 +1059,9 @@ function bindingsNeeded(root) {
       (marker) => root.getAttribute?.(`data-reactive-${marker}`) != null,
     ) ||
     (root.querySelectorAll?.("[data-reactive-show-field], [data-reactive-show]") ?? []).length > 0 ||
-    root.querySelector?.("[data-reactive-nested-json], [data-reactive-nested-list], [data-reactive-confirm-when-param]") !=
-      null
+    root.querySelector?.(
+      "[data-reactive-nested-json], [data-reactive-nested-list], [data-reactive-confirm-when-param], [data-reactive-enable], [data-reactive-select-all], [data-reactive-count]",
+    ) != null
   )
 }
 

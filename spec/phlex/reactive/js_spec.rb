@@ -208,6 +208,22 @@ RSpec.describe Phlex::Reactive::JS do
     it "rejects a target that is neither :root nor a CSS selector string" do
       expect { js.submit(:form) }.to raise_error(ArgumentError, /:root or a CSS selector/)
     end
+
+    # Issue #319: submit THROUGH a named submit control so its name=value posts.
+    it "carries submitter: as a selector the client resolves with the op's scoping" do
+      expect(JSON.parse(js.submit("#bulk", submitter: "#delete-submit").to_json))
+        .to eq([["submit", { "to" => "#bulk", "submitter" => "#delete-submit" }]])
+    end
+
+    it "omits submitter when not given (byte-stable wire)" do
+      expect(JSON.parse(js.submit("#bulk").to_json).dig(0, 1)).not_to have_key("submitter")
+    end
+
+    it "rejects a submitter that is not a CSS selector string (:root is never a submit control)" do
+      expect { js.submit(submitter: :root) }.to raise_error(ArgumentError, /submitter/)
+      expect { js.submit(submitter: "") }.to raise_error(ArgumentError, /submitter/)
+      expect { js.submit(submitter: :delete) }.to raise_error(ArgumentError, /submitter/)
+    end
   end
 
   # --- Issue #228: paste_into — clipboard-source trigger ---

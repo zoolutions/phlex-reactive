@@ -78,8 +78,11 @@ const SLACK = 250
 // 25,067 B. Issue #299 (a nested row serialized like a real submit, incl. a
 // <fieldset disabled> ancestor via :disabled) adds 24 B: 25,091 B. Issues
 // #295/#296 (effects settle: hidden-tab legs exit, descendant end events)
-// add 46 B: 25,137 B.
-const BUNDLE_GZIP_CEILING = 25_137
+// add 46 B: 25,137 B. Issue #319 (bulk selection: the checked: term,
+// reactive_enable/select_all/count with their MutationObserver, and
+// js.submit's submitter:, review fixes included) adds 796 B: 25,933 B. Issue
+// #310 claws bytes back.
+const BUNDLE_GZIP_CEILING = 25_933
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -91,9 +94,13 @@ const TARGET_BUNDLE_GZIP = 22_700
 // BUDGET OUTCOME (issue #275): the maintainer's target for the core is
 // TARGET_CORE_GZIP, 10,240 B. The honest moves left the core 2,143 B over it, so the ratchet below is the real size rounded up to the next 250 B, and the target is printed in the report; the PR body's Budget outcome section has the gap and the remaining options.
 // Issue #303 (replaying window-bound hotkeys, shared runtime code) adds 210 B: 12,688 B.
-const CORE_GZIP_CEILING = 12_750
+// Issue #319 (the submit op's submitter:, the bindings marker for the group
+// bindings) adds 129 B: 12,817 B.
+const CORE_GZIP_CEILING = 12_850
 const FEATURE_GZIP_CEILINGS = {
-  "features/bindings": 5_500,
+  // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
+  // fixes to 6,015 B.
+  "features/bindings": 6_050,
   "features/defer": 3_000,
   "features/compute": 2_250,
   "features/hints": 1_250,
@@ -108,8 +115,9 @@ const FEATURE_GZIP_CEILINGS = {
 // URL falls back to a GET; no __materialize POST without a token) adds 97 B:
 // 31,385 B. Issue #303 (window-bound hotkeys, in the core) adds 215 B: 31,600 B.
 // The backlog fixes (#292-#301, #295/#296) together use the 150 B of room and
-// 37 B more: 31,787 B.
-const SPLIT_TOTAL_GZIP_CEILING = 31_787
+// 37 B more: 31,787 B. Issue #319 (bulk selection, in the core and bindings)
+// adds 781 B: 32,568 B.
+const SPLIT_TOTAL_GZIP_CEILING = 32_568
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

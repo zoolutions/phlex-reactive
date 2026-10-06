@@ -21,6 +21,7 @@ module Views
           disclosure_menu
           ops
           value_conditional
+          bulk_selection
           client_drafts
           when_to_use
         end
@@ -141,6 +142,15 @@ module Views
               end
               ```
 
+              `submitter:` (#319) submits **through** a named submit control —
+              `form.requestSubmit(submitter)` — so the request carries its
+              `name=value`: `js.submit("#bulk", submitter: "#delete-submit")`
+              posts `bulk_action=delete`. The submitter resolves with the op's own
+              scoping; one that is not a submit control of that form warns and
+              falls back to a plain submit. (A selector target resolves *inside*
+              the root, so when the form **is** the root, keep the default
+              target: `js.submit(submitter: "#delete-submit")`.)
+
               Binding a submit op to the `submit` event itself raises at render —
               requestSubmit dispatches the very event the trigger would listen to.
               For "submit when a **text** value becomes complete", see the
@@ -195,8 +205,9 @@ module Views
 
               A **Hash is an AND**, an **Array is membership**, a **Range is a
               threshold**, `{ length: … }` compares the value's **codepoint
-              count** (#226), and `unless:` **negates** — the whole value
-              vocabulary:
+              count** (#226), `{ checked: … }` counts a checkbox group's ticked
+              boxes (#319, see the bulk-selection section below), and
+              `unless:` **negates** — the whole value vocabulary:
 
               ```ruby
               div(**reactive_show(unless: { mode: "off" }))            { "shipping details" }
@@ -303,6 +314,65 @@ module Views
               component: ConditionalFieldsetComponent.new,
               filename: 'app/components/conditional_fieldset_component.rb'
             )
+          end
+        end
+
+        def bulk_selection
+          DocsUI::Section('Bulk selection (reactive_select_all, reactive_count, reactive_enable)') do
+            md <<~MD
+              A list with a checkbox per row, a "select all" header, a
+              "Delete (2)" count, and actions that stay disabled until something
+              is ticked — the table every admin screen has — without a per-list
+              JavaScript controller (#319):
+
+              ```ruby
+              def reactive_values = { "ids[]" => [] }   # first paint: nothing ticked
+
+              def view_template
+                div(**reactive_root) do
+                  form(id: "bulk", action: "/posts/bulk", method: "post") do
+                    input(type: "checkbox", **reactive_select_all("ids[]"))   # header
+                    @posts.each { |post| input(type: "checkbox", name: "ids[]", value: post.id) }
+
+                    span(**reactive_count("ids[]")) { "0" }                   # ticked count
+                    fieldset(**reactive_enable(if: { "ids[]" => { checked: 1.. } })) { bulk_fields }
+                    button(type: "button",
+                           **mix(reactive_enable(if: { "ids[]" => { checked: 1.. } }),
+                                 on_client(:click, js.submit("#bulk", submitter: "#delete-submit"),
+                                           confirm: "Delete the selected posts?"))) { "Delete" }
+                    button(type: "submit", name: "bulk_action", value: "delete", hidden: true, id: "delete-submit")
+                  end
+                end
+              end
+              ```
+
+              - **`reactive_select_all(group)`** — the header box. Its edit ticks
+                or unticks every **owned** box of the group and dispatches
+                `input` + `change` on each one it flips (computes, shows and completions
+                re-run). Its own state follows the group: checked when all are
+                ticked, **indeterminate** when some are, unchecked when none are.
+                Give it no `name`.
+              - **`reactive_count(group)`** — the ticked count via `textContent`,
+                change-guarded. Seed first paint in its block.
+              - **`{ checked: n }` / `{ checked: 1.. }`** — a term in the shared
+                conditions language: how many owned boxes of the group are ticked,
+                with `length:`'s Integer and Range shapes. It works in
+                `reactive_show`, `reactive_enable`, `reactive_on_complete`,
+                `reactive_show_targets` and a conditional `confirm:`, and first
+                paint evaluates it from `reactive_values` (an Array of checked
+                values is counted; an Integer is the count).
+              - **`reactive_enable(if:/if_any:/unless:)`** — `reactive_show`'s
+                sibling: the same conditions and first paint, but it flips the
+                element's own `disabled` (a button, a fieldset).
+              - **Rows added later** by a Turbo stream `append` — or removed —
+                re-sync the header, the count, `reactive_enable` and `reactive_show`: a root with a
+                group binding watches its subtree for added or removed checkboxes.
+              - A nested reactive root's boxes are never counted or flipped by
+                the outer root (#15 ownership).
+              - The Delete button confirms, then submits **this** form through
+                the hidden submitter, so the POST carries `bulk_action=delete` and
+                the ticked `ids[]`. A cancelled confirm submits nothing.
+            MD
           end
         end
 
