@@ -2951,7 +2951,10 @@ export default class extends Controller {
   // outside morph (a broadcast, a page refresh, a dormant morph-back) rewrites
   // the attribute while this controller survives, and Stimulus calls this on
   // that change and on a reconnect after it. Our own reply's morph writes the
-  // token #extractToken already cached, so dropping the cache changes nothing.
+  // token #extractToken already cached, so dropping the cache changes nothing —
+  // unless a later reply was already extracted: then the attribute holds the
+  // older token until that reply's morph lands, the same frame (Turbo renders
+  // streams after nextRepaint), before any queued dispatch reads it.
   tokenValueChanged() {
     this.#tokenCache = undefined
   }
