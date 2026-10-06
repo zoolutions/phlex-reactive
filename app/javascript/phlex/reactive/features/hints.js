@@ -22,29 +22,12 @@
 // (issue #181), per element across every controller.
 const textDisableSnapshots = new WeakMap()
 
-// The context the moved code reads: a root, the core handle, the snapshots.
-function ctx(controller, core) {
-  return { root: controller.element, core, textDisableSnapshots }
-}
-
-// The optimistic hint, applied now; returns the undo ops a FAILURE replays
-// (null when there is nothing to undo).
-export function optimistic(controller, core, hint, trigger) {
-  return applyOptimistic(ctx(controller, core), hint, trigger)
-}
-
 // The busy hint, applied now; returns the undo ops SETTLE replays. A page
 // still rendered by the previous gem emits the old `loading` param, whose
 // `class:` key is remapped here (legacyLoadingHint).
-export function busy(controller, core, hint, trigger) {
-  const normalized = hint && typeof hint === "object" ? legacyLoadingHint(ctx(controller, core), hint) : hint
-  return normalized ? applyHint(ctx(controller, core), normalized, trigger, false) : []
-}
-
-// Debug only: the check the success path runs after the morph when an
-// optimistic hide: was declared (null otherwise).
-export function resurrection(controller, core, hint, trigger) {
-  return buildResurrectionCheck(ctx(controller, core), hint, trigger)
+export function busy(_controller, core, hint, trigger) {
+  const normalized = hint && typeof hint === "object" ? legacyLoadingHint(hint) : hint
+  return normalized ? applyHint(core, normalized, trigger, false) : []
 }
 
 // Apply the OPTIMISTIC hint (issue #98) NOW and return its `undo` closure — the
@@ -52,9 +35,10 @@ export function resurrection(controller, core, hint, trigger) {
 // fails; success leaves server truth or the deliberately-standing hint). It is
 // the same op vocabulary busy: uses (issue #181) via the one #applyHint engine;
 // the ONLY optimistic-specific op is checked: :keep (honorChecked = true).
-function applyOptimistic(c, optimistic, trigger) {
-  if (!optimistic) return null
-  const undo = applyHint(c, optimistic, trigger, true)
+// Returns null when there is nothing to undo.
+export function optimistic(_controller, core, hint, trigger) {
+  if (!hint) return null
+  const undo = applyHint(core, hint, trigger, true)
   return undo.length ? undo : null
 }
 
@@ -68,9 +52,9 @@ function applyOptimistic(c, optimistic, trigger) {
 // (the true pre-hint value survives an overlapping enqueue that would otherwise
 // capture the already-swapped label as the "original"). `honorChecked` gates
 // checked: :keep — an optimistic-only native-control revert.
-function applyHint(c, hint, trigger, honorChecked) {
+function applyHint(core, hint, trigger, honorChecked) {
   const undo = []
-  for (const el of hintTargets(c, hint, trigger)) {
+  for (const el of hintTargets(core, hint, trigger)) {
     if (hint.add_class) {
       // Undo only the classes this op ACTUALLY added — a class already present
       // was not our change, so reverting it would strip a class the element
@@ -106,7 +90,7 @@ function applyHint(c, hint, trigger, honorChecked) {
   // ops above — disable/text are inherently trigger affordances). Refcounted so
   // overlapping enqueues restore correctly.
   if (trigger && (hint.disable || hint.text != null)) {
-    undo.push(applyTextDisable(c, hint, trigger))
+    undo.push(applyTextDisable(hint, trigger))
   }
 
   // checked: :keep — the native flip already happened on the trigger; record
@@ -122,11 +106,11 @@ function applyHint(c, hint, trigger, honorChecked) {
 // The elements a hint's class/hide/show ops apply to: the `to:` selector
 // (resolved like an op target — "@root" is the root, a selector is scoped to
 // this root's owned matches) or, with no `to:`, the trigger itself.
-function hintTargets(c, hint, trigger) {
+function hintTargets(core, hint, trigger) {
   if (hint.to == null) return trigger ? [trigger] : []
-  const targets = c.core.opTargets({ to: hint.to })
+  const targets = core.opTargets({ to: hint.to })
   // Issue #237: a hint aimed at nothing is the same silent trap as an op.
-  if (targets.length === 0) c.core.diagnose("busy/optimistic hint", { to: hint.to })
+  if (targets.length === 0) core.diagnose("busy/optimistic hint", { to: hint.to })
   return targets
 }
 
@@ -137,12 +121,12 @@ function hintTargets(c, hint, trigger) {
 // trigger like `<button><svg/> Save</button>` has child nodes, and
 // textContent = "Saving…" would DESTROY the icon; innerHTML preserves the
 // markup structure and restores it byte-for-byte.
-function applyTextDisable(c, hint, trigger) {
-  const snap = c.textDisableSnapshots.get(trigger)
+function applyTextDisable(hint, trigger) {
+  const snap = textDisableSnapshots.get(trigger)
   if (snap) {
     snap.count++
   } else {
-    c.textDisableSnapshots.set(trigger, {
+    textDisableSnapshots.set(trigger, {
       count: 1,
       disabled: trigger.disabled,
       html: trigger.innerHTML,
@@ -154,7 +138,7 @@ function applyTextDisable(c, hint, trigger) {
   if (hint.disable) trigger.disabled = true
   if (hint.text != null) trigger.innerHTML = hint.text
 
-  return () => restoreTextDisable(c, trigger, hint)
+  return () => restoreTextDisable(trigger, hint)
 }
 
 // Restore the trigger's disabled/innerHTML from its snapshot when the LAST
@@ -164,11 +148,11 @@ function applyTextDisable(c, hint, trigger) {
 // server label — clobbering it with the old markup would fight server truth).
 // The comparison + restore both use innerHTML so a composite trigger (icon +
 // label) round-trips its full markup, not a flattened text run (issue #181).
-function restoreTextDisable(c, trigger, hint) {
-  const snap = c.textDisableSnapshots.get(trigger)
+function restoreTextDisable(trigger, hint) {
+  const snap = textDisableSnapshots.get(trigger)
   if (!snap) return
   if (--snap.count > 0) return // another enqueue for this trigger is still pending
-  c.textDisableSnapshots.delete(trigger)
+  textDisableSnapshots.delete(trigger)
 
   if (!trigger.isConnected) return // detached — nothing to restore
 
@@ -182,7 +166,7 @@ function restoreTextDisable(c, trigger, hint) {
 // pending affordance through the one #applyHint engine. Returns null for the
 // common (no legacy param) case so the fast path is untouched. Drop this shim
 // one minor after #181 ships (no page can still carry the old attr by then).
-function legacyLoadingHint(c, loading) {
+function legacyLoadingHint(loading) {
   if (!loading || typeof loading !== "object") return null
   const { class: cls, ...rest } = loading
   return cls == null ? loading : { ...rest, add_class: cls }
@@ -190,10 +174,11 @@ function legacyLoadingHint(c, loading) {
 
 // Snapshot the elements an optimistic hide: targeted (the trigger, or the `to:`
 // selector) so the success path can detect a resurrection. Returns null unless
-// a hide: hint is present — nothing else can be "resurrected".
-function buildResurrectionCheck(c, optimistic, target) {
-  if (!optimistic?.hide) return null
-  const hidden = hintTargets(c, optimistic, target)
+// a hide: hint is present — nothing else can be "resurrected". Debug only:
+// the success path runs the check after the morph.
+export function resurrection(_controller, core, hint, target) {
+  if (!hint?.hide) return null
+  const hidden = hintTargets(core, hint, target)
   if (!hidden.length) return null
   return () => {
     const back = hidden.filter((el) => el.isConnected && !el.hidden)
