@@ -103,8 +103,9 @@ const TARGET_BUNDLE_GZIP = 22_700
 // TARGET_CORE_GZIP, 10,240 B. The honest moves left the core 2,143 B over it, so the ratchet below is the real size rounded up to the next 250 B, and the target is printed in the report; the PR body's Budget outcome section has the gap and the remaining options.
 // Issue #303 (replaying window-bound hotkeys, shared runtime code) adds 210 B: 12,688 B.
 // Issue #319 (the submit op's submitter:, the bindings marker for the group
-// bindings) adds 129 B: 12,817 B. Issue #310 (feature internals only) leaves
-// it unchanged at 12,831 B.
+// bindings) adds 129 B: 12,817 B; its review fixes (the morph-installed
+// observer, show-target checked_* re-sync) add 14 B: 12,831 B. Issue #310
+// (feature internals only) leaves it unchanged.
 const CORE_GZIP_CEILING = 12_850
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
