@@ -82,7 +82,7 @@ const SLACK = 250
 // reactive_enable/select_all/count with their MutationObserver, and
 // js.submit's submitter:, review fixes included) adds 796 B: 25,933 B. Issue
 // #310 claws bytes back.
-const BUNDLE_GZIP_CEILING = 25_933
+const BUNDLE_GZIP_CEILING = 25_667
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -117,7 +117,7 @@ const FEATURE_GZIP_CEILINGS = {
 // The backlog fixes (#292-#301, #295/#296) together use the 150 B of room and
 // 37 B more: 31,787 B. Issue #319 (bulk selection, in the core and bindings)
 // adds 781 B: 32,568 B.
-const SPLIT_TOTAL_GZIP_CEILING = 32_568
+const SPLIT_TOTAL_GZIP_CEILING = 32_323
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 
