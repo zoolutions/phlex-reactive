@@ -6,124 +6,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Performance
-
-- **The default client is 1,008 B smaller gzipped (#310).**
-  `reactive_controller.min.js` goes from 25,933 B to 24,925 B. The feature
-  modules keep their per-root state in closures instead of records whose
-  property names the minifier cannot rename (form, bindings, persist, defer;
-  compute's record gets short names), and hints, devtools and bindings drop
-  their per-call context records and wrapper exports. The features are also
-  laid out in the bundle so gzip's 32 KB window reaches the runtime code they
-  repeat (about 450 B of the total). The split client total goes from
-  32,568 B to 32,027 B; the core is unchanged. Behaviour is unchanged. The
-  22,700 B target is not met: 2,225 B remain, about 800 B of them from bulk
-  selection (#319), which landed after the target was set.
-- **A cacheable lazy shell is less than half the size (#306).** A
-  `reactive_lazy(on:, cache:)` shell with `reactive_cache_viewer` and
-  `reactive_cache_version` gzips to about 290 B (was about 580–670 B). The
-  fragment id is the identity encoded once plus a 128-bit MAC (it was the
-  verifier's token wrapped in a second Base64); `u` is 22 base64url characters
-  and `v` 11. A `cache:` shell no longer carries the identity token: a fragment
-  URL the client refuses falls back to a GET of the same id under the fragment
-  path it knows (`cache: "no-store"`), not to the `__materialize` POST, and a
-  failed defer module is reported by its `reactive:error` (`kind: "feature"`)
-  without a POST. Ids minted before this change still verify; their old `u`
-  no longer matches, so such a URL renders but is `no-store`. The
-  deferred-rendering page now says when deferring pays off.
-
-### Fixed
-
-- **A custom-legs exit effect no longer waits for a background tab to become
-  visible (#295).** The legs choreography awaited an animation frame before
-  any timeout was armed, so in a hidden tab (no `requestAnimationFrame`) the
-  removal, and every stream behind it, stalled. The frame wait now races the
-  1 s settle fallback.
-
-- **An effect no longer ends when a child's animation or transition does
-  (#296).** `animationend`/`transitionend` bubble, so a descendant finishing
-  first cleared the container's effect class (and released an exit's removal)
-  early; settling also left the other end listener attached. Only the
-  element's own end event settles it now, and settling removes both listeners.
-
-- **A JSON-mode nested row serializes what a real submit would carry
-  (#299).** The row object behind `reactive_nested_list(as: :json)` and the
-  per-row confirm `%{field}` interpolation now takes only the checked radio
-  of a group (it took the last in DOM order), skips a nested reactive root's
-  controls, and skips disabled controls (so `reactive_show(disable: true)`
-  keeps a hidden field out of the JSON). A radio group with nothing checked,
-  like a disabled control, now leaves its key out; a confirm `%{field}` for
-  such a key stays literal.
-
-- **A single `<select>` with no `selected` option no longer reads as dirty
-  (#297).** The browser selects its first enabled option while that option's
-  `defaultSelected` stays false; dirty tracking now compares a one-row single
-  select against its reset state (the last `selected` option, else the first
-  enabled one — an option inside a disabled `<optgroup>` is not enabled).
-- **Two dirty `warn_unsaved` roots prompt once per Turbo visit (#298).** The
-  first dirty root to see a `turbo:before-visit` asks; the others skip that
-  event, and any dirty root's decline still vetoes the visit.
-
-- **A token an outside morph brings wins over the cached one (#301).** After a
-  morph or update reply the controller kept the token it cached from that
-  reply, so a later broadcast, page refresh or dormant morph-back that morphed
-  the root in place with markup signed for another state was ignored, and the
-  next action ran against the old state. The controller now drops its cached
-  token whenever `data-reactive-token-value` changes (Stimulus'
-  `tokenValueChanged`, which also fires on a reconnect after such a change).
-
-- **A pushed deferred render stays pending until it arrives (#292).** The
-  client settled a `via="stream"` defer on any turbo-stream to its target, so
-  an unrelated update of that element before the job's broadcast released the
-  guard (and the activity count) early. Only the job's removal of
-  `reactive-defer-src-<target>` settles it now.
-
-- **A morph inside a loading lazy shell no longer restarts its load (#294).**
-  `turbo:morph-element` bubbles, so a morph of any descendant re-probed a
-  `reactive_lazy` shell and aborted its in-flight fetch for a new one. Only a
-  morph of the shell's root re-probes now.
-
-- **A `hide:`/`show:` hint no longer flips a target that was already in that
-  state (#300).** A `busy:` or `optimistic:` `hide:` aimed at an
-  already-hidden element revealed it when the request settled (or failed), and
-  a `show:` on a visible one hid it. hide/show now undo only what the hint
-  changed, like the class ops.
-
-- **Subclasses of a reactive component appear in the actions inventory
-  (#302).** A subclass inherits `Phlex::Reactive::Component` instead of
-  including it, so Streamable's `included` hook never registered it, and
-  `phlex_reactive:actions`, `phlex_reactive:find`, the MCP tools and the doctor
-  skipped it. Streamable now registers subclasses from an `inherited` hook. A
-  subclass with a constant name is listed with its inherited and own actions
-  and any inherited `skip_verify_authorized`; an anonymous subclass is still
-  left out. Subclasses also have their memoized view context reset on a Rails
-  code reload now.
-
-- **The browser suite no longer wedges under Falcon when two requests
-  overlap (#303).** Transactional system tests pin one connection that the
-  test and the server share, guarded by a lock keyed on
-  `ActiveSupport::IsolatedExecutionState` — a thread-keyed `ThreadMonitor`
-  under the default `:thread` isolation. Falcon serves each request as a fiber
-  on one thread, so the first page that made two action requests overlap (the
-  two-roots hotkey fixture) let both fibers into the pinned connection's
-  critical section: a `ThreadError` in `ConnectionPool#checkout`, after which
-  every later request blocked and CI sat on the step until the 6-hour kill.
-  The dummy app now sets `config.active_support.isolation_level = :fiber` when
-  it serves under Falcon, as Rails documents for fiber-per-request servers; a
-  spec reproduces the overlap without a browser. Apps that run Falcon need the
-  same setting (the testing page says so).
-
-- **A lazy shell connects the feature a morph asks for (#312).** A Turbo morph
-  that kept a `reactive_lazy` shell connected (a `cache:` one, or a plain one)
-  but turned it into a root needing persist, form, bindings or compute never
-  connected that feature, or imported it on the opt-in core: the root's own
-  morph listener was installed only on a root with an identity token, which a
-  shell does not carry.
-
-- **A refused fragment URL supersedes the in-flight lazy load (#293).** A morph
-  that re-showed a lazy shell with a URL the client refuses left the earlier
-  load running, and its late arrival painted over the refused shell.
-
 ### Added
 
 - **Bulk-selection lists without a per-list controller (#319).**
@@ -733,7 +615,726 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     `StaleReferenceError` or read a transient blank — the matcher waits for the value
     to settle.
 
+- **Conditional confirm — warn only when the values look suspect (#179).**
+  `confirm:` now takes a Hash for soft-validation-before-submit, so the dialog fires
+  ONLY when the field values are wrong — instead of a hand-written submit handler that
+  inspects fields and calls `confirm()` itself. Two forms, both evaluated client-side
+  over the same collected fields `reactive_compute` reads:
+  - **Declarative** — `confirm: { when: { total: 0 }, message: "Total is 0 — continue?" }`.
+    `when:` reuses `reactive_show`'s conditions language verbatim: a scalar is equals,
+    a `Range` is a threshold (`qty: 100..`), an `Array` is membership. Zero JS. The
+    dialog fires when the condition MATCHES; a clean value submits silently.
+  - **Named predicate** — `confirm: { predicate: "end_before_start", message: "…" }` for
+    multi-field logic the single-field form can't express. Register a pure function at
+    boot (`setConfirmPredicate("end_before_start", ({ starts_at, ends_at }) => ends_at < starts_at)`),
+    the twin of `setComputeReducer`. An unregistered name warns and proceeds without a
+    dialog. Works on `on(...)` AND `on_client(...)`. The predicate is soft-validation UX,
+    **not authorization** — a user can bypass it and the action still hits the endpoint's
+    real authorize/default-deny; never let it stand in for a server-side check.
+
+- **`confirm:` on `on_client(...)` — themed confirmation for zero-round-trip client ops (#178).**
+  The client-op path gains the SAME overridable `confirmResolver` gate `on(:action, confirm:)`
+  has (#52/#55). A destructive-feeling client op (clear a draft, reset a form) gets the
+  app's themed dialog with one line and no round trip:
+  `button(**on_client(:click, js.text("#draft", ""), confirm: "Discard this draft?"))`.
+  The gate lives in the user-gesture path (`runOps`), never in the shared op applier — a
+  server-pushed `reactive:js` op stream must not prompt. `setConfirmResolver` now themes
+  both paths at once.
+
+- **CI transport verification matrix — the browser suite runs on Action Cable AND pgbus (#187).**
+  The system job is now `server × transport` (Puma/Falcon × cable/pgbus). The pgbus
+  cells add a plain `postgres:18` (pgbus vendors the PGMQ schema via its own
+  migrations — no extension image) and set `TRANSPORT=pgbus`, so the existing browser
+  suite proves the reactive round trip is transport-agnostic, and new `:pgbus`-tagged
+  specs prove real cross-tab broadcast delivery + actor-echo exclusion over live
+  Postgres SSE. `rake spec:system_matrix` runs the 2×2 locally (pgbus cells skip with
+  a note when Postgres isn't reachable); `rake pgbus:prepare_test_db` sets up the DB.
+  pgbus remains an optional, non-gemspec dependency — it is now a first-class *tested*
+  transport, not a required one.
+
+- **Compound & numeric `reactive_show` predicates — `all:`/`any:` and
+  `gte:`/`gt:`/`lte:`/`lt:` (#176).** Value-conditional visibility now spans
+  **more than one field** and **numeric thresholds**, staying inside the
+  eval-free "declared literal predicate" contract. `all:` / `any:` fold a list of
+  per-field terms (`{ field:, equals:/not:/in:/gte:/… }`) with one fixed
+  connective — AND vs OR over the same literal vocabulary, no expression surface;
+  one flat binding replaces wrapper-div nesting and is the only way to express OR.
+  `gte:`/`gt:`/`lte:`/`lt:` compare `Number(value)` against a literal number baked
+  into the binding (the RHS must be a real `Numeric` — a typo fails at render); a
+  non-numeric field value is `NaN` → hidden, the safe reveal-on-threshold default.
+  Numeric predicates work standalone, as a compound term, and inside a
+  `reactive_show_targets` map. Malformed terms fold **false** (fail-closed:
+  default-deny). The single-field `reactive_show(:field, equals:)` form is
+  unchanged; the additions are backwards compatible.
+
+- **Installable Claude debugging skill + `rails g phlex:reactive:claude` (#168).**
+  The gem ships a `phlex-reactive-debugging` skill (the doctor → inventory → find
+  → browser `report()` → MCP workflow + a failure table) under `lib/`, and the
+  new generator copies it into a host app's `.claude/skills/` and writes the MCP
+  server entry to `.mcp.json` — only when absent (it never rewrites an existing
+  `.mcp.json`; it prints the snippet instead). A new **Debugging & tooling** docs
+  page ties the four surfaces together; the security page documents
+  `verify_authorized`; the instrumentation table gains the `:unverified` outcome;
+  the README gains a Debugging & tooling section + the config rows.
+
+- **On-demand client inspector — `phlex/reactive/inspect` (#168).** A standalone
+  JS module (the `confirm.js`/`compute.js` precedent — **zero hot-path cost**, no
+  edit to `reactive_controller.js`, loaded only when imported) that scans the live
+  DOM and maps every reactive root + bound trigger back to the server
+  `Component#action` names. From the browser console:
+  `(await import("phlex/reactive/inspect")).report()` prints a `console.table` of
+  every reactive root — its `id`, decoded token payload (component class, gid,
+  state keys, token version — try/catch base64+JSON decode, degrading to
+  `{ opaque: true }` on a Marshal-serialized payload), status attrs, triggers
+  (action + event + params + debounce/throttle/confirm), client-only ops,
+  computes, the `name`d fields the dispatch would collect, and the
+  show/filter/text binding families. Triggers are scoped to the **nearest** root,
+  so nested roots aren't double-attributed. The server↔client mapping is
+  by-name: `scan()`'s `component` + trigger `action` strings are exactly the
+  identifiers `phlex_reactive:actions` and the MCP tools list. Pinned by the
+  engine (not preloaded); pure read, never mutates the page.
+
+- **Read-only diagnostic MCP server (#168).** `bin/rails phlex_reactive:mcp`
+  starts a stdio [MCP](https://modelcontextprotocol.io) server exposing five
+  read-only tools — `phlex_reactive_doctor`, `phlex_reactive_components`,
+  `phlex_reactive_actions` (optional `component:` filter), `phlex_reactive_find`
+  (fuzzy search + Prism method source), `phlex_reactive_config` (redacted) — so
+  Claude Code inside a host app can introspect the live reactive registry when
+  debugging. The `mcp` gem is **optional and lazy**: it is NOT a gemspec runtime
+  dependency; `Phlex::Reactive::MCP.load!` requires it on demand with a helpful
+  message when missing (the pgbus pattern), and the gem-dependent tool tree stays
+  out of the Zeitwerk autoloader — a host app without `mcp` boots and eager-loads
+  unaffected. Every tool is read-only and non-destructive (no arbitrary-query or
+  mutation tool) and reports names/paths/schemas only — never a token, secret, or
+  runtime state; `phlex_reactive_config` never emits the verifier or
+  `secret_key_base`. Consumer `.mcp.json`:
+  `{ "mcpServers": { "phlex-reactive": { "command": "bin/rails", "args": ["phlex_reactive:mcp"] } } }`.
+  Known constraint: stdio MCP needs a clean stdout — an initializer that `puts`
+  breaks the transport (same caveat as pgbus).
+
+- **verify_authorized runtime guard (#168).** New
+  `Phlex::Reactive::Authorization` (fiber-local tracking window, method
+  interception, the enforcement decision), `mark_authorized!` instance helper,
+  the `skip_verify_authorized` DSL (registry #6, inherits like the other five),
+  and `Phlex::Reactive.verify_authorized` / `authorization_methods` config
+  (`defined?`-guarded so an explicit override sticks). See the breaking note
+  above for the behavior and remedies.
+
+- **Action inventory — `Phlex::Reactive::Inspector` + rake tasks (#168).** A new
+  read-only introspection layer that answers "what reactive actions exist in this
+  app, where are they defined, and is each authorized?" without grepping.
+  `Phlex::Reactive::Inspector.components` discovers every constant-backed reactive
+  component from the loaded `Streamable` registry; `.find(query)` fuzzy-matches
+  one (exact > prefix > substring > subsequence, on both the demodulized and the
+  full name). Each action reports its declared param schema, `file:line`, the full
+  `def … end` source (extracted with **Prism**, degrading to `nil` on an
+  unreadable/unparseable file — never raising), and a **heuristic** authorization
+  status (a Prism scan for a configured authorization method or
+  `mark_authorized!` in the body — advisory only, since a helper may authorize
+  indirectly). Two shipped rake tasks surface it: `bin/rails
+  phlex_reactive:actions` (plain-text table, `FORMAT=json` for tooling) and
+  `bin/rails "phlex_reactive:find[query]"` (ranked matches; top match in detail
+  with each action's method source). Output is names/paths/schemas only — never
+  tokens, secrets, or runtime state (the instrumentation privacy contract
+  extended to tooling). `Doctor` now delegates its `constant_backed_component?`
+  filter to the Inspector so the endpoint-rebuild predicate lives in one place.
+
+- **Deferred reply segments — `reply.defer` (#165).** An expensive part of a
+  reply (a cross-aggregate rollup, a report) no longer stalls the actor's
+  interaction: `reply.streams(cheap).defer(SessionTotals.new(workout:))`
+  returns the cheap streams immediately and streams the real render to the
+  SAME actor when it finishes. Keep-content default (the stale value stays
+  visible, marked `data-reactive-defer-pending` + `aria-busy` for CSS
+  shimmer); `placeholder: true` / a component swaps a skeleton in;
+  `morph: true` morphs the arrival (the mode rides INSIDE the signed token).
+  Transactional (the directive rides the post-commit reply — a rollback or a
+  denied action leaks nothing), actor-scoped (peers keep `broadcast_*_to`),
+  superseding (a newer action for the same target aborts the in-flight
+  deferred render — no stale paint), and interactive on arrival (fresh action
+  token). Delivery is transport-adaptive (`Phlex::Reactive.defer_transport`,
+  default `:auto`): a parallel fetch to the new `POST /reactive/defer`
+  endpoint everywhere (purpose-scoped, short-TTL defer token —
+  `defer_token_ttl`, default 120s; `reply.defer` tokens are **actor-bound**
+  to the requesting session so a leaked one can't be redeemed elsewhere,
+  `reactive_lazy` shell tokens are unbound by necessity — they render
+  before a session exists — with the TTL + `authorize!` as their bound;
+  never interchangeable with action tokens),
+  or a **durable pgbus one-shot stream + `DeferredRenderJob`** when pgbus's
+  reactive Streams and ActiveJob are present (`defer_job_queue` config; the
+  durable since-id replay closes the broadcast-before-subscribe race, and the
+  broadcast tears down its own subscription). The push lane's one-shot queue is
+  reclaimed by pgbus's age-based orphan-stream sweep (**pgbus ≥ 0.9.10**; run
+  the Dispatcher with `streams_orphan_threshold` set); we never eager-drop it
+  (that would reopen the delivery race). The one-shot key is sized to the live
+  pgbus `queue_prefix` budget, so a non-default prefix can't overflow it; the
+  render job broadcasts a cleanup on ANY failure so the actor's pending state
+  always resolves. Every capability gap degrades to the fetch lane — the
+  Action-Cable-or-pgbus invariant holds. **Profile first:** an app-side N+1
+  looks exactly like framework lag; defer is for segments that are genuinely
+  expensive after the synchronous path is cheap.
+
+- **Lazy initial mount — `reactive_lazy` (#165).** The same machinery for the
+  FIRST render (Livewire `#[Lazy]`): the page ships the component's
+  placeholder shell (`deferred_placeholder`, or a built-in pending shell) with
+  the defer token on the root; the client fetches the real content on connect
+  AND after a Turbo page-refresh morph (so a lazy component survives a
+  `turbo:reload`). `reactive_lazy tag: :tr` (etc.) ships a shell element that
+  matches a `<tr>`/`<li>` root instead of an invalid `<div>`.
+  Reactive-machinery renders (an action's self-replace, broadcasts, the defer
+  endpoint/job) stay REAL, so actions never pay two round trips.
+
+- **pgbus capability gates.** `Phlex::Reactive.pgbus?` and `.pgbus_streams?`
+  (the documented broadcast-accepts-`:exclude` probe, now actually
+  implemented) plus `.defer_push_capable?` for the defer push lane.
+
+- **Client-side option filtering — `reactive_filter` (#163).** The other half
+  of #72's combobox: **preload the options, type to narrow — zero round
+  trips.** Spread `reactive_filter(input:, option:, group:, empty:)` onto the
+  root and the generic controller shows/hides each option on every keystroke by
+  a case-folded substring match against its `data-reactive-filter-text`
+  haystack (falling back to the option's own text) — no POST, no token, no
+  bespoke per-feature Stimulus controller. Optional `group:` collapses a header
+  whose every contained option is hidden; optional `empty:` reveals a
+  no-matches node at 0 visible. Selectors resolve within the root only (nested
+  reactive roots untouched), state seeds at connect and re-applies after a
+  morph, and blank selectors raise at render (a dead binding must fail loudly).
+  Composes with keyboard nav and per-row selection: a filtered-out option also
+  drops out of the Arrow-key path and loses its highlight, so Enter can never
+  pick an invisible row — selection itself stays a signed `on(:select)` action.
+- **Standalone combobox keyboard nav — `reactive_listnav` (#163).** The same
+  Arrow/Enter/Escape wiring `on(…, listnav:)` appends, without the dispatch
+  descriptor — for the preload-and-filter input that fires **no** action (an
+  `on()` trigger would POST per keystroke). Spread
+  `reactive_listnav("[role=option]")` onto the input; Enter still picks by
+  clicking the highlighted option's own signed trigger.
+- **Cross-root `reactive_show` targets — `reactive_show_targets` (#164).** A
+  field can now drive the visibility of declared elements **outside** its
+  reactive root — the nav tab, the panel in another tab pane, the sidebar note
+  a mode selector governs — the visibility parallel to the #159 cross-root
+  text mirror. The component that **owns** the field declares which outside
+  ids it governs, spread on the root:
+  `mix(reactive_root, reactive_show_targets(:mode, "#advanced-tab" =>
+  { equals: "advanced" }, "#basic-note" => { not: "advanced" }))`. Same
+  posture as `mirror:`: opt-in and declared, never implicit (a plain
+  `reactive_show` stays root-isolated, #15 untouched); targets are **single id
+  selectors only** — a class/compound selector raises at declare time AND is
+  warn-and-skipped by the client (two-sided default-deny); the predicate is
+  the same literal-only `reactive_show` vocabulary; the toggle is `hidden`
+  only. The field read stays **owned** — you can only drive outside visibility
+  from a field the declaring root owns. A target id not on the page is
+  silently skipped (an unrendered tab pane is normal); the cross-root pass
+  shares the owned-binding pass's field-read memo (one read per field per
+  sync). No map declared → one `getAttribute` and out. **One call per root**:
+  Phlex `mix` space-joins duplicate string data values, so a second call's
+  JSON would corrupt the attr (the client warns and ignores it) — several
+  fields go in one call via the hash form
+  (`reactive_show_targets(mode: { … }, kind: { … })`).
+- **Value-conditional visibility — `reactive_show` (#161).** The `x-show` /
+  `data-show` / `wire:show` case — show/hide an element from a form field's
+  **current value** — no longer needs a hand-written `change`-listener Stimulus
+  controller. Spread `reactive_show(:mode, not: "off")` onto the element to
+  show/hide (also `equals:` and `in: [...]`; `equals: true` reads a checkbox's
+  checked state, a radio group reads the checked radio's value) and the generic
+  controller toggles the `hidden` attribute on every `input`/`change` —
+  client-only, zero round trip, no token. The predicate is a **declared literal
+  match**, never an expression (no eval surface); exactly one predicate is
+  enforced loudly at render; a missing field or malformed wire attr is
+  warn-and-skipped (client-side default-deny). Visibility seeds at connect and
+  re-syncs after a `turbo:morph-element`; a `reactive_compute` output write
+  dispatches a real `input` event, so derived values drive visibility too.
+  Ownership follows the nested-root rules (#15). Roots without a binding pay
+  one connect-time probe — no new listeners, byte-identical wire.
+
+- **Cross-root text mirrors + the `text` client op (#159).** A derived value can
+  now be painted into a text node **outside** the computing component's reactive
+  root — the read-only recap in another tab pane that previously forced a
+  bespoke JS listener — with the library's default-deny posture intact:
+  - `reactive_compute ..., mirror: { sum_total: "#sum_total" }` declares
+    allowlisted cross-root text mirrors. Each compute pass paints every declared
+    name into its document-wide **id** target(s) via `textContent`
+    (change-guarded, never `innerHTML`, never blanks a name the pass produced no
+    value for). The value comes from the reducer result, a just-written output's
+    field, or a declared input's identity value — so it works with no reducer at
+    all. Non-id selectors raise at declare time AND are warn-and-skipped by the
+    client interpreter (two-sided default-deny). No `mirror:` → the wire is
+    byte-identical to before.
+  - `js.text(to, value, global: false)` — a new op that sets `textContent`
+    (stringified; `nil` clears), available to `on_client`, `reply.js`, and
+    `broadcast_js_to`. Strictly less powerful than `set_attr`; pair with
+    `global: true` for the cross-root paint.
+  - `global: true` is now honored on the `reactive:js` stream path: a single op
+    can opt out of the reply's target-root scope to document-wide resolution
+    (previously it was silently ignored when a `target` was set).
+
+### Changed
+
+- **The client ships as two entries: the default, one file with everything,
+  and an opt-in core that imports feature modules on demand (#275). The
+  default is unchanged: nothing to do when upgrading.**
+  - **`phlex/reactive/reactive_controller` — the default — is still one file
+    with the whole client in it.** Same specifier, same imports (Stimulus and
+    the three override seams), nothing fetched on demand, every feature
+    connected inside `connect()` as before. Existing importmap pins, bundler
+    aliases and vendored copies keep working as they are. It contains no
+    `import()` at all. It is 24,675 B gzipped, 2,403 B more than the 22,272 B
+    it was before the split. The split first left it at 26,132 B; #305 builds
+    it with `__SPLIT__` false, so the runtime imports every feature statically
+    and calls it directly — no feature table, no loader, no `withFeature` —
+    and recovers 1,457 B of that. What remains is how the features are written
+    as modules (per-root state records where the controller had private
+    fields, exported wrappers, the `core` handle), not the boundary between
+    them. The budget test holds a 24,900 B ratchet; getting back to the
+    22,700 B target (the pre-split size plus a loader's worth) is #310.
+  - **`phlex/reactive/core` — new, opt-in — is the controller without its
+    feature modules** (12,467 B gzipped). It imports a feature the first time
+    something on the page needs it, by a literal bare-specifier `import()`:
+    `phlex/reactive/features/persist` (3,210 B: `reactive_persist` drafts and
+    rich-text editors), `…/defer` (2,846 B: `reply.defer`, `reactive_lazy`,
+    `reactive_lazy(on:/cache:)`), `…/form` (1,015 B: dirty tracking,
+    `warn_unsaved`, the paste-trigger gate), `…/bindings` (5,360 B:
+    `reactive_show` and show targets, `reactive_on_complete`,
+    `reactive_filter`, `reactive_tags`, nested rows and their JSON mode, the
+    conditional `confirm:`), `…/compute` (2,084 B: `reactive_compute`,
+    `reactive_text`, the connect-time seed), `…/effects` (1,693 B:
+    `reactive_effects` and `dismiss_after`), `…/hints` (1,024 B: `optimistic:`
+    and `busy:`) and `…/devtools` (1,589 B: the latency simulator, the
+    zero-target warnings, the debug trace). The engine pins the core and every
+    feature (`preload: false`) and precompiles them. An app imports it INSTEAD
+    of `reactive_controller`, never both; loading both logs `the client was
+    loaded twice`. The README's "The split client" section is the opt-in
+    guide: what loads when, the trade-off, how to preload a feature, and the
+    one prefix alias a bundler needs.
+  - **The budget.** The epic's "core under 8 KB" became 10,240 B during the
+    work. The honest moves — every feature out, the test seams out of the
+    shipped build, the diagnostics into devtools, the conditional confirm and
+    its DNF fold into bindings, the compute seam import into compute — leave
+    the core at 12,383 B, 2,143 B over. The budget test holds the real size
+    (rounded up to 12,500 B) as the ratchet and prints the target; the PR for
+    the last phase lists what else could move and what each is worth. The
+    epic's criterion is amended to the shipped number.
+  - **Only with the split client:** the first root of a page load that needs
+    a feature waits for its import (later roots and Turbo visits do not).
+    While a draft-keeping root waits, nothing is drafted from the server's
+    blanks, what the user changes is drafted when the module arrives (also if
+    they leave the page first), a successful submit still forgets the draft,
+    `persist_state` / `persist_clear` wait for the restore, and an action
+    waits for the restore and posts the restored values — except when the
+    module is slower than the feature timeout, fails to load, or the root
+    leaves the page first. An `on:` event during a lazy shell's wait loads it
+    exactly once afterwards; a `reactive:defer` stream is kept and applied. A
+    stream that brings a page's first effect or dismissing flash — or swaps
+    in a root that needs a module — waits up to a second for the imports, and
+    the streams behind it keep their order; after that they render as they
+    are, and the effects module sweeps up the flashes it missed when it
+    arrives. A dirty-tracked form counts an edit made before its module
+    arrived, but `warn_unsaved` does not prompt for a navigation in that
+    window (preload `phlex/reactive/features/form` where that matters). A
+    form's bindings and a compute root show the server's rendering until
+    their module arrives, then seed from the fields as the user left them;
+    both hold the root's requests until then. A trigger with a hint has its
+    request wait for the hints module, then the hint applies and the request
+    goes out once; a failure after a late apply still reverts it. A
+    conditional `confirm:` asks once the bindings module can evaluate it.
+    `enableLatencySim` / `disableLatencySim` are exported by
+    `phlex/reactive/features/devtools` (the default client still exports them
+    itself). `reactive:error` gains `kind: "feature"`, whose detail carries
+    `feature`, `error` and a `phase` (one of `"load"`, `"timeout"`,
+    `"connect"`, `"detect"`); a feature that failed to load stays failed until
+    the page is reloaded.
+  - **`controller.featuresReady`** is a promise that resolves once the
+    features a root needs have connected. With the default client it is
+    always already resolved. It never rejects.
+  - A morph that adds a feature's marker to a connected, token-bearing root
+    connects the feature (and, on the split client, loads it first).
+  - The shipped builds no longer export the controller's `__…ForTest` seams
+    (they remain in the source the JS suite imports).
+  - `spec/javascript/bundle_budget.test.js` holds a ratchet on the default
+    file, the core, each feature and the split total (31,204 B).
+  - `rake bench:client` gains a `connect()` bench (2,000 roots), the one
+    place a feature module adds work to every root.
+  - Verified on Chromium (the browser suite, Puma and Falcon). Not run:
+    Firefox or WebKit; a real importmap-rails app with Propshaft digests on
+    the default entry (the docs site is one and its suite passes, but its
+    network requests were not inspected); the per-root `connect()` bench on
+    a quiet machine. A preloaded feature module (`preload: true`,
+    `modulepreload`) removes the network wait, not the window: it connects
+    in the task after `connect()`, and the first root's request gate applies
+    for that moment.
+
+- **`on_client` emits a binding record (#271).** `data-reactive-ops-param` now
+  holds `{"on":…,"ops":[…], "window"?, "outside"?, "confirm"?, "confirmWhen"?}`
+  instead of the bare `[[op, args]]` list, with every space written as
+  `\u0020`. `on_client` no longer writes the element-wide
+  `data-reactive-outside-param` / `-window-param` / `-confirm-param` /
+  `-confirm-when-param` (`on(...)` still does). A hand-built legacy
+  `[[op, args]]` attribute still runs, reading its flags from those params as
+  before. **Upgrade note:** apps served by the engine's importmap pin get the
+  matching client automatically; an app that bundles its own copy of
+  `reactive_controller.js` must rebuild from the shipped source, or its
+  `on_client` triggers go dead (the old client parses only arrays).
+
+- **Client build toolchain: bun 1.3.14 → 1.4.0.** `.bun-version`, the root `engines.bun`
+  floor, and the docs `packageManager` pin all move together. The shipped
+  `*.min.js` / `.map` artifacts (and their vendored twins under
+  `spec/dummy/public/vendor`) are rebuilt — the 1.4 minifier picks different
+  local identifier names and sorts export lists, so the bytes differ, but the
+  code is semantically identical (JS unit, request, and browser suites unchanged).
+
+- **BREAKING: small sharp knives — the last 0.11 API-clarity pass (#186).**
+  Four independent edges honed, one contract frozen:
+  - **`reactive_filter` speaks fields, not selectors.** `reactive_filter(:q)` names the
+    driving FIELD and compiles it to `[name="q"]` (scope-aware, like `reactive_field`
+    from #184); `option:` defaults to `[role=option]`. The old
+    `reactive_filter(input: "#search", …)` selector form raises a guided error. The
+    client wire is byte-identical (it still receives selectors) — this is a server-only
+    compile, no client change. `group:`/`empty:` stay opt-in (emit only when passed).
+  - **`transition:` takes named legs.** `js.toggle("#x", transition: { during:, from:, to: })`
+    replaces the positional `transition: [during, from, to]` array (which raises with the
+    caller's values slotted into the named form). Compiles to the same wire array — zero
+    client change.
+  - **BREAKING: one registry reader — the plural frozen hash IS the fetch-one.** The seven
+    singular getters (`reactive_action`, `reactive_action?`, `reactive_collection_def`,
+    `reactive_collection?`, `reactive_compute_def`, `reactive_compute?`, and the bare
+    `reactive_compute(:name)` GETTER form) are removed — each raises a guided error naming
+    the hash form (`reactive_actions[:name]`, `reactive_actions.key?(:name)`,
+    `reactive_computes[:name]`, `reactive_collections[:name]`). The resolved registries now
+    come back FROZEN — they are the memoized dispatch table, so mutation raises `FrozenError`
+    and can never corrupt default-deny. The `reactive_compute :name, inputs:, outputs:`
+    SETTER is unchanged.
+  - **`reply.append`/`reply.prepend` accept row kwargs (non-breaking).** Extra kwargs
+    (`reply.append(item, to: :items, autofocus: true)`) now thread through to the row
+    component's initializer (`ItemRow.new(item:, autofocus: true)`). Additive — no-kwarg
+    calls are unchanged.
+  - **`defer.phlex_reactive` joins the frozen instrumentation contract (non-breaking).**
+    The deferred-render endpoint's `ActiveSupport::Notifications` event now has a
+    request-spec contract test driving all five outcomes (`ok`/`no_content`/`invalid_token`/
+    `not_found`/`unauthorized`), freezing its `{ component:, outcome: }` payload shape (a
+    rename fails CI, like `action`/`render`/`broadcast`). Documented in the README
+    instrumentation table and the observability section of the performance docs page.
+
+- **BREAKING: one `broadcast_to` — verbs as kwargs, components as payloads (#185).**
+  The 11 `broadcast_*_to` / `broadcast_*_to_each` methods collapse into ONE
+  `broadcast_to` where the verb is a kwarg and its value is the payload:
+
+  ```ruby
+  # before                                          # after
+  Item.broadcast_replace_to(@list, :todos,          Item.broadcast_to(@list, :todos,
+    model: @todo, morph: true)                        replace: @todo, morph: true)
+  Row.broadcast_append_to(@list, target: t,         Row.broadcast_to(@list, append: item, target: t)
+    model: item)
+  Counter.broadcast_replace_to_each(keys,           Counter.broadcast_to(each: keys, replace: counter)
+    model: counter)
+  Badge.broadcast_js_to(user, :alerts, ops)         Badge.broadcast_to(user, :alerts, js: ops)
+  ```
+
+  A Hash payload is the component's init kwargs verbatim (`update: { room:, author: }`),
+  killing the old `**options` collision (a component with an init kwarg named
+  `target`/`morph`/`exclude` is broadcastable again). Payloads can be BUILT
+  components, and the new module-level `Phlex::Reactive.broadcast_to(@list, :todos,
+  update: TodoCount.new(...), target: "todos-count")` broadcasts a NON-Streamable
+  component (a count badge) — instrumented — without hand-rolling the raw channel +
+  render. Self-targeting verbs (`replace:`/`remove:`) require a Streamable payload
+  (its `#id` is the target); container verbs (`update:`/`append:`/`prepend:`) take any
+  component. Every removed method raises a guided error printing the `broadcast_to`
+  rewrite. `exclude:`/`visible_to:` still thread to pgbus through the capability-gated
+  thread-local path — unchanged (verified against pgbus 0.11.0).
+
+- **BREAKING: `to_stream_morph` is removed — morph is a kwarg (#185).**
+  Use `to_stream_replace(morph: true)` (byte-identical wire). `reply.morph` /
+  `reply.replace(morph: true)` are unchanged.
+
+- **BREAKING: forms & fields — scope everywhere, one dirty declaration, named schemas (#184).**
+  - **`reactive_scope` extends to `reactive_field` and the param unwrap:** a scoped
+    field emits `name="scope[field]"` and the endpoint peels one scope level, so the
+    schema stays flat. A schema nested under the scope key raises a guided
+    `ArgumentError` from BOTH the `action` macro and `reactive_scope` (either
+    declaration order).
+  - **One dirty declaration — `reactive_dirty`:** `reactive_dirty warn_unsaved: true`
+    (class-level) and `reactive_dirty only: %i[title]` replace
+    `reactive_root(track_dirty:, warn_unsaved:)` + `reactive_field(dirty:)`. The
+    removed kwargs raise guided errors; the emitted DOM is unchanged (zero client
+    change).
+  - **Named param schemas — `Phlex::Reactive.param_schema`:** register a reusable
+    schema in an initializer (`param_schema :todo, title: :string, …`) and resolve it
+    with `action :save, params: :todo`, or compose with `{ **param_schema(:todo), … }`.
+    Frozen after boot (the `param_type` precedent); an unknown name lists the
+    registered ones. `params:` still takes a Hash.
+  - **One binding helper:** `reactive_input` / `reactive_select` are removed — use
+    `input(**reactive_field(…))` / `select(**reactive_field(…)) { … }` /
+    `textarea(**reactive_field(…))`. The stubs raise the rewrite.
+
+- **BREAKING: `reactive_compute` is scope-aware, root-bound, and permit-shaped (#183).**
+  - **Bind + listen at the root:** `reactive_root(compute: :name)` emits the compute
+    descriptors AND the `input->reactive#recompute` delegation, so fields carry
+    ZERO per-field wiring. Conditional binding collapses to one expression
+    (`reactive_root(compute: (:split unless @order.persisted?))`; `nil` = no binding).
+    `reactive_compute_attrs(...)` raises a guided error naming the new form.
+  - **Scope-resolved names:** under `reactive_scope :order`, a bare compute input/
+    output `cash` resolves as `[name="order[cash]"]` client-side (the same
+    convention `reactive_show`/`reactive_field` use); a bracketed literal passes
+    through unscoped.
+  - **Permit-style inputs:** `inputs: [:qty, title: :string]` — bare symbols default
+    to `:number`, a trailing Hash types the exceptions. The old array form
+    (`%i[a b]`) and hash form (`{ a: :number }`) are degenerate cases (zero shim,
+    byte-identical wire).
+  - **Sinks declare themselves:** every reducer result key paints into any matching
+    sink — an owned field iff in `outputs:` (the allowlist), any owned
+    `reactive_text` node by presence, any declared `mirror:` id. An `outputs:` entry
+    that existed only to reach a text node is now redundant (old declarations keep
+    working). `reactive_text(:name)` with no explicit initial seeds its first paint
+    from `reactive_values` when covered.
+
+- **BREAKING: `reply` is the only door — the `Response` class verbs are removed (#182).**
+  `Phlex::Reactive::Response.replace(self)` / `.morph` / `.update` / `.remove` /
+  `.redirect` / `.with` / `.streams` (and the collection class methods) are removed
+  as public entry points — each raises a guided `ArgumentError` naming the
+  `reply.<verb>` rewrite. Actions return `reply.<verb>` (the subject-bound door added
+  earlier); the immutable `Response` value object and its instance chain
+  (`.flash`/`.stream`/`.also`/`.js`/`.defer`) are unchanged, so the endpoint reads it
+  exactly as before. One concept, one entry point.
+
+- **BREAKING: reactive-collection replies read as Ruby — `to:`/`from:` keywords (#182).**
+  The collection name moved from a leading Symbol to a keyword, and the `UNSET`
+  sentinel that overloaded `reply.remove` is gone (dispatch keys on `from:`'s
+  presence):
+
+  | Before (removed) | After |
+  |---|---|
+  | `reply.append(:items, item)` | `reply.append(item, to: :items)` |
+  | `reply.prepend(:items, item)` | `reply.prepend(item, to: :items)` |
+  | `reply.remove(:items, id)` | `reply.remove(id, from: :items)` |
+  | `reply.remove` (bare) | `reply.remove` — unchanged (removes self) |
+
+  A Symbol in the model position (the old shape) raises a guided rewrite.
+
+- **BREAKING: one flash contract — `flash_component` is a callable (#182).**
+  `Phlex::Reactive.flash_component` is now a lambda the app owns, so the gem no
+  longer guesses your component's kwargs (the old hardcoded `new(level:, content:)`
+  collided with real flash components):
+
+  ```ruby
+  # before: Phlex::Reactive.flash_component = MyFlash   (gem calls MyFlash.new(level:, content:))
+  # after:
+  Phlex::Reactive.flash_component = ->(level, content) { MyFlash.new(level:, message: content) }
+  ```
+
+  Assigning a Class raises a guided error printing the one-line lambda. The internal
+  flash builders (`flash_stream`/`flash_html`/`default_flash_html`) are now private.
+
+- **BREAKING: `also_update` / `also_replace` collapse into one `.also` (#182).**
+  The lying `html:` kwarg (it accepted components too) and the per-companion method
+  choice are gone:
+
+  ```ruby
+  # before
+  reply.replace.also_update("page_heading", html: @account.name)
+  reply.replace.also_replace(SummaryCard.new(account: @account), morph: true)
+  # after
+  reply.replace.also(page_heading: @account.name)                        # target => content
+  reply.replace.also(SummaryCard.new(account: @account), morph: true)    # a component at its own id
+  ```
+
+  String content is HTML-escaped, component content rendered — the escaping contract
+  is verbatim. `also_update`/`also_replace` raise guided rewrites.
+
+- **BREAKING: the `flash_builder` / `reset_flash_builder!` aliases are removed (#182).**
+  They were "permanent aliases" for `stream_builder` / `reset_stream_builder!` that
+  contradicted the clean-break rule. Each old name now raises a guided `NoMethodError`
+  naming the real method.
+
+- **BREAKING: ONE pending-state vocabulary — `busy:` replaces `loading:` / `disable_with:` (#181).**
+  A trigger's declarative pending affordance is now a single `on(…, busy:)` kwarg
+  that shares `optimistic:`'s key vocabulary and normalizer — the only difference
+  is the lifecycle (`busy:` reverts on **settle**, `optimistic:` on **failure**).
+  `busy:` takes a **String shorthand** (`busy: "Saving…"` ≡ `{ disable: true, text:
+  "Saving…" }`) or a **Hash** with the same keys as `optimistic:`
+  (`add_class:`/`remove_class:`/`toggle_class:`/`hide:`/`show:`/`disable:`/`text:`/`to:`).
+  The removed `loading:` (with its odd `class:` key), `disable_with:`, and the
+  `on(…, listnav:)` kwarg each raise a **guided `ArgumentError`** printing the exact
+  rewrite. Combobox keyboard nav is now the standalone `reactive_listnav` (composed
+  via `mix`), which defaults its option selector to `[role=option]`. Migration:
+
+  | Before (removed) | After |
+  |---|---|
+  | `on(:save, disable_with: "Saving…")` | `on(:save, busy: "Saving…")` |
+  | `on(:save, loading: { disable: true, class: "opacity-50", text: "Saving…" })` | `on(:save, busy: { disable: true, add_class: "opacity-50", text: "Saving…" })` |
+  | `on(:search, event: "input", listnav: "[role=option]")` | `mix(on(:search, event: "input"), reactive_listnav)` |
+
+  The wire attribute is renamed `data-reactive-loading-param` → `data-reactive-busy-param`;
+  the client keeps a **read shim** for the old attribute for one minor so an
+  in-flight page rendered by the previous gem across a deploy keeps its affordance.
+
+- **BREAKING: `reactive_show` speaks ONE conditions language — `if:`/`if_any:`/`unless:` (#180).**
+  The four accreted dialects (the positional-field predicate kwargs
+  `equals:`/`not:`/`in:`/`gte:`/`gt:`/`lte:`/`lt:`, the `all:`/`any:` term
+  arrays, and the `{ equals: … }` target predicate hashes) are **removed** and
+  replaced by a single Ruby-native language: a **Hash is an AND**, an **Array is
+  membership**, a **Range is a threshold**, `if_any:` is OR-of-AND (one level of
+  disjunction — the distributive-law killer), and `unless:` negates. Each removed
+  form raises a **guided `ArgumentError`** printing the exact rewrite. Migration:
+
+  | Before (removed) | After |
+  |---|---|
+  | `reactive_show(:mode, not: "off")` | `reactive_show(unless: { mode: "off" })` |
+  | `reactive_show(:gift, equals: true)` | `reactive_show(if: { gift: true })` |
+  | `reactive_show(:size, in: %w[l xl])` | `reactive_show(if: { size: %w[l xl] })` |
+  | `reactive_show(:qty, gte: 10)` | `reactive_show(if: { qty: 10.. })` |
+  | `reactive_show(:amt, gt: 5000)` | `reactive_show(unless: { amt: ..5000 })` |
+  | `reactive_show(all: [{ field: :a, equals: "x" }, …])` | `reactive_show(if: { a: "x", … })` |
+  | `reactive_show(any: [{ field: :a, equals: "x" }, …])` | `reactive_show(if_any: [{ a: "x" }, …])` |
+  | `reactive_show_targets(:m, "#id" => { equals: "x" })` | `reactive_show_targets(:m, "#id" => "x")` |
+
+  New alongside it: **`reactive_values`** computes each binding's first-paint
+  `hidden:` server-side (no per-section mirror method, no flash);
+  **`reactive_scope :form`** lets bindings use bare field symbols
+  (`[name="form[field]"]` on the client); **`disable: true`** disables a hidden
+  section's own controls so a switched-away value never submits. The wire is now
+  ONE DNF shape (`data-reactive-show='{"any":[[term,…],…]}'`); the client keeps
+  legacy read arms for one minor (deploy overlap), removed in 0.11.
+
+- **`Phlex::Reactive::ClientBindings` — a blessed client-only include (#180).** A
+  view that only shows/hides, filters, or computes client-side (no server
+  actions, no token) includes this instead of the full `Component`. It does NOT
+  pull in `Streamable` (so it never clobbers an app's own `replace`/`to_stream_*`
+  concern) or the token machinery — a token-less `reactive_root` with no `#id`
+  requirement, invisible to `phlex_reactive:doctor`. The full `Component`
+  includes it (one implementation), then layers Streamable + Identity on top.
+
+- **Automatic token refresh — `reply.with` and `reply.streams` converge (#180).**
+  The action endpoint now appends a `reactive:token` refresh stream automatically
+  whenever a reply does not re-render the component's root, instead of prepending
+  a full self-replace that could clobber a live input. Picking `.streams` vs
+  `.with` to keep the signed token fresh is no longer a correctness decision — a
+  companion-only reply refreshes the token either way.
+
+- **BREAKING: `verify_authorized` is ON by default (#168).** A reactive action
+  that completes **without any authorization call now raises**
+  `Phlex::Reactive::AuthorizationNotVerified` — **rolling back the transaction**
+  (fail-closed, stronger than Pundit's after-the-fact check). This is the
+  presence-side complement to `authorization_errors`: a forgotten `authorize!`
+  becomes a loud 500 your error tracker sees, not a silent hole. The guard
+  detects a call to any `Phlex::Reactive.authorization_methods` name
+  (default `%i[authorize! authorize allowed_to?]` — Pundit/CanCanCan/ActionPolicy)
+  **or** `mark_authorized!`, made anywhere during the action (a helper the action
+  calls counts too). **Three remedies** for each action:
+  1. call your authorization method (`authorize! @record, :update?`);
+  2. call `mark_authorized!` after a bespoke check the interceptor can't see;
+  3. declare `skip_verify_authorized` (whole component) or
+     `skip_verify_authorized :action_name` (specific actions) for an
+     intentionally public action.
+  Turn it off globally with `Phlex::Reactive.verify_authorized = false` (the
+  install-generator initializer documents the knob). The `action.phlex_reactive`
+  instrumentation event gains a new `:unverified` outcome. A new **advisory**
+  doctor check flags mutating actions with no detected authorization call
+  (heuristic — a helper may authorize indirectly; never a hard fail).
+
 ### Fixed
+
+- **A `transition:` on show/hide/toggle no longer ends when a child's
+  animation or transition does.** `runTransition` had the settle bugs #296
+  fixed in effects: a descendant's bubbling `animationend` consumed its
+  `{ once: true }` listener and stripped the `during`/`to` classes early, and
+  a CSS transition's own `transitionend` was never listened for. Only the
+  element's own end event (or the fallback) settles it now, and settling
+  removes both listeners. In a hidden tab the fallback already cleaned up (it
+  never waited on a frame), but the late frame then re-added `to` for good;
+  cleanup now cancels that frame and clears `from` too. Rapid show/hide on one
+  element no longer lets a superseded run's late cleanup strip the new run's
+  classes: a new run settles the live one first (its classes, timer,
+  listeners and frame). And the fallback is no longer a fixed 350 ms that cut
+  longer transitions short: it follows the element's computed
+  transition/animation durations (times an animation's iteration count) plus
+  delays (+50 ms), with 350 ms as the floor and a 5 s cap.
+
+- **A custom-legs exit effect no longer waits for a background tab to become
+  visible (#295).** The legs choreography awaited an animation frame before
+  any timeout was armed, so in a hidden tab (no `requestAnimationFrame`) the
+  removal, and every stream behind it, stalled. The frame wait now races the
+  1 s settle fallback.
+
+- **An effect no longer ends when a child's animation or transition does
+  (#296).** `animationend`/`transitionend` bubble, so a descendant finishing
+  first cleared the container's effect class (and released an exit's removal)
+  early; settling also left the other end listener attached. Only the
+  element's own end event settles it now, and settling removes both listeners.
+
+- **A JSON-mode nested row serializes what a real submit would carry
+  (#299).** The row object behind `reactive_nested_list(as: :json)` and the
+  per-row confirm `%{field}` interpolation now takes only the checked radio
+  of a group (it took the last in DOM order), skips a nested reactive root's
+  controls, and skips disabled controls (so `reactive_show(disable: true)`
+  keeps a hidden field out of the JSON). A radio group with nothing checked,
+  like a disabled control, now leaves its key out; a confirm `%{field}` for
+  such a key stays literal.
+
+- **A single `<select>` with no `selected` option no longer reads as dirty
+  (#297).** The browser selects its first enabled option while that option's
+  `defaultSelected` stays false; dirty tracking now compares a one-row single
+  select against its reset state (the last `selected` option, else the first
+  enabled one — an option inside a disabled `<optgroup>` is not enabled).
+- **Two dirty `warn_unsaved` roots prompt once per Turbo visit (#298).** The
+  first dirty root to see a `turbo:before-visit` asks; the others skip that
+  event, and any dirty root's decline still vetoes the visit.
+
+- **A token an outside morph brings wins over the cached one (#301).** After a
+  morph or update reply the controller kept the token it cached from that
+  reply, so a later broadcast, page refresh or dormant morph-back that morphed
+  the root in place with markup signed for another state was ignored, and the
+  next action ran against the old state. The controller now drops its cached
+  token whenever `data-reactive-token-value` changes (Stimulus'
+  `tokenValueChanged`, which also fires on a reconnect after such a change).
+
+- **A pushed deferred render stays pending until it arrives (#292).** The
+  client settled a `via="stream"` defer on any turbo-stream to its target, so
+  an unrelated update of that element before the job's broadcast released the
+  guard (and the activity count) early. Only the job's removal of
+  `reactive-defer-src-<target>` settles it now.
+
+- **A morph inside a loading lazy shell no longer restarts its load (#294).**
+  `turbo:morph-element` bubbles, so a morph of any descendant re-probed a
+  `reactive_lazy` shell and aborted its in-flight fetch for a new one. Only a
+  morph of the shell's root re-probes now.
+
+- **A `hide:`/`show:` hint no longer flips a target that was already in that
+  state (#300).** A `busy:` or `optimistic:` `hide:` aimed at an
+  already-hidden element revealed it when the request settled (or failed), and
+  a `show:` on a visible one hid it. hide/show now undo only what the hint
+  changed, like the class ops.
+
+- **Subclasses of a reactive component appear in the actions inventory
+  (#302).** A subclass inherits `Phlex::Reactive::Component` instead of
+  including it, so Streamable's `included` hook never registered it, and
+  `phlex_reactive:actions`, `phlex_reactive:find`, the MCP tools and the doctor
+  skipped it. Streamable now registers subclasses from an `inherited` hook. A
+  subclass with a constant name is listed with its inherited and own actions
+  and any inherited `skip_verify_authorized`; an anonymous subclass is still
+  left out. Subclasses also have their memoized view context reset on a Rails
+  code reload now.
+
+- **The browser suite no longer wedges under Falcon when two requests
+  overlap (#303).** Transactional system tests pin one connection that the
+  test and the server share, guarded by a lock keyed on
+  `ActiveSupport::IsolatedExecutionState` — a thread-keyed `ThreadMonitor`
+  under the default `:thread` isolation. Falcon serves each request as a fiber
+  on one thread, so the first page that made two action requests overlap (the
+  two-roots hotkey fixture) let both fibers into the pinned connection's
+  critical section: a `ThreadError` in `ConnectionPool#checkout`, after which
+  every later request blocked and CI sat on the step until the 6-hour kill.
+  The dummy app now sets `config.active_support.isolation_level = :fiber` when
+  it serves under Falcon, as Rails documents for fiber-per-request servers; a
+  spec reproduces the overlap without a browser. Apps that run Falcon need the
+  same setting (the testing page says so).
+
+- **A lazy shell connects the feature a morph asks for (#312).** A Turbo morph
+  that kept a `reactive_lazy` shell connected (a `cache:` one, or a plain one)
+  but turned it into a root needing persist, form, bindings or compute never
+  connected that feature, or imported it on the opt-in core: the root's own
+  morph listener was installed only on a root with an identity token, which a
+  shell does not carry.
+
+- **A refused fragment URL supersedes the in-flight lazy load (#293).** A morph
+  that re-showed a lazy shell with a URL the client refuses left the earlier
+  load running, and its late arrival painted over the refused shell.
 
 - **A loaded `reactive_lazy` root morphed back into its shell loads again.**
   A plain `reactive_lazy` component only re-probed after a Turbo morph when its
@@ -1057,284 +1658,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   order-independence test (declare outputs in the historically-wrong order — values
   stay correct) and a self-re-entry-suppression test.
 
-### Changed
-
-- **The client ships as two entries: the default, one file with everything,
-  and an opt-in core that imports feature modules on demand (#275). The
-  default is unchanged: nothing to do when upgrading.**
-  - **`phlex/reactive/reactive_controller` — the default — is still one file
-    with the whole client in it.** Same specifier, same imports (Stimulus and
-    the three override seams), nothing fetched on demand, every feature
-    connected inside `connect()` as before. Existing importmap pins, bundler
-    aliases and vendored copies keep working as they are. It contains no
-    `import()` at all. It is 24,675 B gzipped, 2,403 B more than the 22,272 B
-    it was before the split. The split first left it at 26,132 B; #305 builds
-    it with `__SPLIT__` false, so the runtime imports every feature statically
-    and calls it directly — no feature table, no loader, no `withFeature` —
-    and recovers 1,457 B of that. What remains is how the features are written
-    as modules (per-root state records where the controller had private
-    fields, exported wrappers, the `core` handle), not the boundary between
-    them. The budget test holds a 24,900 B ratchet; getting back to the
-    22,700 B target (the pre-split size plus a loader's worth) is #310.
-  - **`phlex/reactive/core` — new, opt-in — is the controller without its
-    feature modules** (12,467 B gzipped). It imports a feature the first time
-    something on the page needs it, by a literal bare-specifier `import()`:
-    `phlex/reactive/features/persist` (3,210 B: `reactive_persist` drafts and
-    rich-text editors), `…/defer` (2,846 B: `reply.defer`, `reactive_lazy`,
-    `reactive_lazy(on:/cache:)`), `…/form` (1,015 B: dirty tracking,
-    `warn_unsaved`, the paste-trigger gate), `…/bindings` (5,360 B:
-    `reactive_show` and show targets, `reactive_on_complete`,
-    `reactive_filter`, `reactive_tags`, nested rows and their JSON mode, the
-    conditional `confirm:`), `…/compute` (2,084 B: `reactive_compute`,
-    `reactive_text`, the connect-time seed), `…/effects` (1,693 B:
-    `reactive_effects` and `dismiss_after`), `…/hints` (1,024 B: `optimistic:`
-    and `busy:`) and `…/devtools` (1,589 B: the latency simulator, the
-    zero-target warnings, the debug trace). The engine pins the core and every
-    feature (`preload: false`) and precompiles them. An app imports it INSTEAD
-    of `reactive_controller`, never both; loading both logs `the client was
-    loaded twice`. The README's "The split client" section is the opt-in
-    guide: what loads when, the trade-off, how to preload a feature, and the
-    one prefix alias a bundler needs.
-  - **The budget.** The epic's "core under 8 KB" became 10,240 B during the
-    work. The honest moves — every feature out, the test seams out of the
-    shipped build, the diagnostics into devtools, the conditional confirm and
-    its DNF fold into bindings, the compute seam import into compute — leave
-    the core at 12,383 B, 2,143 B over. The budget test holds the real size
-    (rounded up to 12,500 B) as the ratchet and prints the target; the PR for
-    the last phase lists what else could move and what each is worth. The
-    epic's criterion is amended to the shipped number.
-  - **Only with the split client:** the first root of a page load that needs
-    a feature waits for its import (later roots and Turbo visits do not).
-    While a draft-keeping root waits, nothing is drafted from the server's
-    blanks, what the user changes is drafted when the module arrives (also if
-    they leave the page first), a successful submit still forgets the draft,
-    `persist_state` / `persist_clear` wait for the restore, and an action
-    waits for the restore and posts the restored values — except when the
-    module is slower than the feature timeout, fails to load, or the root
-    leaves the page first. An `on:` event during a lazy shell's wait loads it
-    exactly once afterwards; a `reactive:defer` stream is kept and applied. A
-    stream that brings a page's first effect or dismissing flash — or swaps
-    in a root that needs a module — waits up to a second for the imports, and
-    the streams behind it keep their order; after that they render as they
-    are, and the effects module sweeps up the flashes it missed when it
-    arrives. A dirty-tracked form counts an edit made before its module
-    arrived, but `warn_unsaved` does not prompt for a navigation in that
-    window (preload `phlex/reactive/features/form` where that matters). A
-    form's bindings and a compute root show the server's rendering until
-    their module arrives, then seed from the fields as the user left them;
-    both hold the root's requests until then. A trigger with a hint has its
-    request wait for the hints module, then the hint applies and the request
-    goes out once; a failure after a late apply still reverts it. A
-    conditional `confirm:` asks once the bindings module can evaluate it.
-    `enableLatencySim` / `disableLatencySim` are exported by
-    `phlex/reactive/features/devtools` (the default client still exports them
-    itself). `reactive:error` gains `kind: "feature"`, whose detail carries
-    `feature`, `error` and a `phase` (one of `"load"`, `"timeout"`,
-    `"connect"`, `"detect"`); a feature that failed to load stays failed until
-    the page is reloaded.
-  - **`controller.featuresReady`** is a promise that resolves once the
-    features a root needs have connected. With the default client it is
-    always already resolved. It never rejects.
-  - A morph that adds a feature's marker to a connected, token-bearing root
-    connects the feature (and, on the split client, loads it first).
-  - The shipped builds no longer export the controller's `__…ForTest` seams
-    (they remain in the source the JS suite imports).
-  - `spec/javascript/bundle_budget.test.js` holds a ratchet on the default
-    file, the core, each feature and the split total (31,204 B).
-  - `rake bench:client` gains a `connect()` bench (2,000 roots), the one
-    place a feature module adds work to every root.
-  - Verified on Chromium (the browser suite, Puma and Falcon). Not run:
-    Firefox or WebKit; a real importmap-rails app with Propshaft digests on
-    the default entry (the docs site is one and its suite passes, but its
-    network requests were not inspected); the per-root `connect()` bench on
-    a quiet machine. A preloaded feature module (`preload: true`,
-    `modulepreload`) removes the network wait, not the window: it connects
-    in the task after `connect()`, and the first root's request gate applies
-    for that moment.
-
-- **`on_client` emits a binding record (#271).** `data-reactive-ops-param` now
-  holds `{"on":…,"ops":[…], "window"?, "outside"?, "confirm"?, "confirmWhen"?}`
-  instead of the bare `[[op, args]]` list, with every space written as
-  `\u0020`. `on_client` no longer writes the element-wide
-  `data-reactive-outside-param` / `-window-param` / `-confirm-param` /
-  `-confirm-when-param` (`on(...)` still does). A hand-built legacy
-  `[[op, args]]` attribute still runs, reading its flags from those params as
-  before. **Upgrade note:** apps served by the engine's importmap pin get the
-  matching client automatically; an app that bundles its own copy of
-  `reactive_controller.js` must rebuild from the shipped source, or its
-  `on_client` triggers go dead (the old client parses only arrays).
-
-- **Client build toolchain: bun 1.3.14 → 1.4.0.** `.bun-version`, the root `engines.bun`
-  floor, and the docs `packageManager` pin all move together. The shipped
-  `*.min.js` / `.map` artifacts (and their vendored twins under
-  `spec/dummy/public/vendor`) are rebuilt — the 1.4 minifier picks different
-  local identifier names and sorts export lists, so the bytes differ, but the
-  code is semantically identical (JS unit, request, and browser suites unchanged).
-
-- **BREAKING: small sharp knives — the last 0.11 API-clarity pass (#186).**
-  Four independent edges honed, one contract frozen:
-  - **`reactive_filter` speaks fields, not selectors.** `reactive_filter(:q)` names the
-    driving FIELD and compiles it to `[name="q"]` (scope-aware, like `reactive_field`
-    from #184); `option:` defaults to `[role=option]`. The old
-    `reactive_filter(input: "#search", …)` selector form raises a guided error. The
-    client wire is byte-identical (it still receives selectors) — this is a server-only
-    compile, no client change. `group:`/`empty:` stay opt-in (emit only when passed).
-  - **`transition:` takes named legs.** `js.toggle("#x", transition: { during:, from:, to: })`
-    replaces the positional `transition: [during, from, to]` array (which raises with the
-    caller's values slotted into the named form). Compiles to the same wire array — zero
-    client change.
-  - **BREAKING: one registry reader — the plural frozen hash IS the fetch-one.** The seven
-    singular getters (`reactive_action`, `reactive_action?`, `reactive_collection_def`,
-    `reactive_collection?`, `reactive_compute_def`, `reactive_compute?`, and the bare
-    `reactive_compute(:name)` GETTER form) are removed — each raises a guided error naming
-    the hash form (`reactive_actions[:name]`, `reactive_actions.key?(:name)`,
-    `reactive_computes[:name]`, `reactive_collections[:name]`). The resolved registries now
-    come back FROZEN — they are the memoized dispatch table, so mutation raises `FrozenError`
-    and can never corrupt default-deny. The `reactive_compute :name, inputs:, outputs:`
-    SETTER is unchanged.
-  - **`reply.append`/`reply.prepend` accept row kwargs (non-breaking).** Extra kwargs
-    (`reply.append(item, to: :items, autofocus: true)`) now thread through to the row
-    component's initializer (`ItemRow.new(item:, autofocus: true)`). Additive — no-kwarg
-    calls are unchanged.
-  - **`defer.phlex_reactive` joins the frozen instrumentation contract (non-breaking).**
-    The deferred-render endpoint's `ActiveSupport::Notifications` event now has a
-    request-spec contract test driving all five outcomes (`ok`/`no_content`/`invalid_token`/
-    `not_found`/`unauthorized`), freezing its `{ component:, outcome: }` payload shape (a
-    rename fails CI, like `action`/`render`/`broadcast`). Documented in the README
-    instrumentation table and the observability section of the performance docs page.
-
-- **BREAKING: one `broadcast_to` — verbs as kwargs, components as payloads (#185).**
-  The 11 `broadcast_*_to` / `broadcast_*_to_each` methods collapse into ONE
-  `broadcast_to` where the verb is a kwarg and its value is the payload:
-
-  ```ruby
-  # before                                          # after
-  Item.broadcast_replace_to(@list, :todos,          Item.broadcast_to(@list, :todos,
-    model: @todo, morph: true)                        replace: @todo, morph: true)
-  Row.broadcast_append_to(@list, target: t,         Row.broadcast_to(@list, append: item, target: t)
-    model: item)
-  Counter.broadcast_replace_to_each(keys,           Counter.broadcast_to(each: keys, replace: counter)
-    model: counter)
-  Badge.broadcast_js_to(user, :alerts, ops)         Badge.broadcast_to(user, :alerts, js: ops)
-  ```
-
-  A Hash payload is the component's init kwargs verbatim (`update: { room:, author: }`),
-  killing the old `**options` collision (a component with an init kwarg named
-  `target`/`morph`/`exclude` is broadcastable again). Payloads can be BUILT
-  components, and the new module-level `Phlex::Reactive.broadcast_to(@list, :todos,
-  update: TodoCount.new(...), target: "todos-count")` broadcasts a NON-Streamable
-  component (a count badge) — instrumented — without hand-rolling the raw channel +
-  render. Self-targeting verbs (`replace:`/`remove:`) require a Streamable payload
-  (its `#id` is the target); container verbs (`update:`/`append:`/`prepend:`) take any
-  component. Every removed method raises a guided error printing the `broadcast_to`
-  rewrite. `exclude:`/`visible_to:` still thread to pgbus through the capability-gated
-  thread-local path — unchanged (verified against pgbus 0.11.0).
-
-- **BREAKING: `to_stream_morph` is removed — morph is a kwarg (#185).**
-  Use `to_stream_replace(morph: true)` (byte-identical wire). `reply.morph` /
-  `reply.replace(morph: true)` are unchanged.
-
-- **BREAKING: forms & fields — scope everywhere, one dirty declaration, named schemas (#184).**
-  - **`reactive_scope` extends to `reactive_field` and the param unwrap:** a scoped
-    field emits `name="scope[field]"` and the endpoint peels one scope level, so the
-    schema stays flat. A schema nested under the scope key raises a guided
-    `ArgumentError` from BOTH the `action` macro and `reactive_scope` (either
-    declaration order).
-  - **One dirty declaration — `reactive_dirty`:** `reactive_dirty warn_unsaved: true`
-    (class-level) and `reactive_dirty only: %i[title]` replace
-    `reactive_root(track_dirty:, warn_unsaved:)` + `reactive_field(dirty:)`. The
-    removed kwargs raise guided errors; the emitted DOM is unchanged (zero client
-    change).
-  - **Named param schemas — `Phlex::Reactive.param_schema`:** register a reusable
-    schema in an initializer (`param_schema :todo, title: :string, …`) and resolve it
-    with `action :save, params: :todo`, or compose with `{ **param_schema(:todo), … }`.
-    Frozen after boot (the `param_type` precedent); an unknown name lists the
-    registered ones. `params:` still takes a Hash.
-  - **One binding helper:** `reactive_input` / `reactive_select` are removed — use
-    `input(**reactive_field(…))` / `select(**reactive_field(…)) { … }` /
-    `textarea(**reactive_field(…))`. The stubs raise the rewrite.
-
-- **BREAKING: `reactive_compute` is scope-aware, root-bound, and permit-shaped (#183).**
-  - **Bind + listen at the root:** `reactive_root(compute: :name)` emits the compute
-    descriptors AND the `input->reactive#recompute` delegation, so fields carry
-    ZERO per-field wiring. Conditional binding collapses to one expression
-    (`reactive_root(compute: (:split unless @order.persisted?))`; `nil` = no binding).
-    `reactive_compute_attrs(...)` raises a guided error naming the new form.
-  - **Scope-resolved names:** under `reactive_scope :order`, a bare compute input/
-    output `cash` resolves as `[name="order[cash]"]` client-side (the same
-    convention `reactive_show`/`reactive_field` use); a bracketed literal passes
-    through unscoped.
-  - **Permit-style inputs:** `inputs: [:qty, title: :string]` — bare symbols default
-    to `:number`, a trailing Hash types the exceptions. The old array form
-    (`%i[a b]`) and hash form (`{ a: :number }`) are degenerate cases (zero shim,
-    byte-identical wire).
-  - **Sinks declare themselves:** every reducer result key paints into any matching
-    sink — an owned field iff in `outputs:` (the allowlist), any owned
-    `reactive_text` node by presence, any declared `mirror:` id. An `outputs:` entry
-    that existed only to reach a text node is now redundant (old declarations keep
-    working). `reactive_text(:name)` with no explicit initial seeds its first paint
-    from `reactive_values` when covered.
-
-- **BREAKING: `reply` is the only door — the `Response` class verbs are removed (#182).**
-  `Phlex::Reactive::Response.replace(self)` / `.morph` / `.update` / `.remove` /
-  `.redirect` / `.with` / `.streams` (and the collection class methods) are removed
-  as public entry points — each raises a guided `ArgumentError` naming the
-  `reply.<verb>` rewrite. Actions return `reply.<verb>` (the subject-bound door added
-  earlier); the immutable `Response` value object and its instance chain
-  (`.flash`/`.stream`/`.also`/`.js`/`.defer`) are unchanged, so the endpoint reads it
-  exactly as before. One concept, one entry point.
-
-- **BREAKING: reactive-collection replies read as Ruby — `to:`/`from:` keywords (#182).**
-  The collection name moved from a leading Symbol to a keyword, and the `UNSET`
-  sentinel that overloaded `reply.remove` is gone (dispatch keys on `from:`'s
-  presence):
-
-  | Before (removed) | After |
-  |---|---|
-  | `reply.append(:items, item)` | `reply.append(item, to: :items)` |
-  | `reply.prepend(:items, item)` | `reply.prepend(item, to: :items)` |
-  | `reply.remove(:items, id)` | `reply.remove(id, from: :items)` |
-  | `reply.remove` (bare) | `reply.remove` — unchanged (removes self) |
-
-  A Symbol in the model position (the old shape) raises a guided rewrite.
-
-- **BREAKING: one flash contract — `flash_component` is a callable (#182).**
-  `Phlex::Reactive.flash_component` is now a lambda the app owns, so the gem no
-  longer guesses your component's kwargs (the old hardcoded `new(level:, content:)`
-  collided with real flash components):
-
-  ```ruby
-  # before: Phlex::Reactive.flash_component = MyFlash   (gem calls MyFlash.new(level:, content:))
-  # after:
-  Phlex::Reactive.flash_component = ->(level, content) { MyFlash.new(level:, message: content) }
-  ```
-
-  Assigning a Class raises a guided error printing the one-line lambda. The internal
-  flash builders (`flash_stream`/`flash_html`/`default_flash_html`) are now private.
-
-- **BREAKING: `also_update` / `also_replace` collapse into one `.also` (#182).**
-  The lying `html:` kwarg (it accepted components too) and the per-companion method
-  choice are gone:
-
-  ```ruby
-  # before
-  reply.replace.also_update("page_heading", html: @account.name)
-  reply.replace.also_replace(SummaryCard.new(account: @account), morph: true)
-  # after
-  reply.replace.also(page_heading: @account.name)                        # target => content
-  reply.replace.also(SummaryCard.new(account: @account), morph: true)    # a component at its own id
-  ```
-
-  String content is HTML-escaped, component content rendered — the escaping contract
-  is verbatim. `also_update`/`also_replace` raise guided rewrites.
-
-- **BREAKING: the `flash_builder` / `reset_flash_builder!` aliases are removed (#182).**
-  They were "permanent aliases" for `stream_builder` / `reset_stream_builder!` that
-  contradicted the clean-break rule. Each old name now raises a guided `NoMethodError`
-  naming the real method.
-
-### Fixed
-
 - **A pending-state text swap no longer destroys a composite trigger's icon (#181).**
   The former `disable_with:`/`loading:` text swap wrote `trigger.textContent`, which
   **flattens every child node** — a `<button><svg/> Save</button>` lost its icon the
@@ -1354,350 +1677,31 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   end-to-end pgbus transport suite (below) — the prior unit doubles only proved the
   option was *forwarded to the method*, never that it *reached pgbus*.
 
-### Added
-
-- **Conditional confirm — warn only when the values look suspect (#179).**
-  `confirm:` now takes a Hash for soft-validation-before-submit, so the dialog fires
-  ONLY when the field values are wrong — instead of a hand-written submit handler that
-  inspects fields and calls `confirm()` itself. Two forms, both evaluated client-side
-  over the same collected fields `reactive_compute` reads:
-  - **Declarative** — `confirm: { when: { total: 0 }, message: "Total is 0 — continue?" }`.
-    `when:` reuses `reactive_show`'s conditions language verbatim: a scalar is equals,
-    a `Range` is a threshold (`qty: 100..`), an `Array` is membership. Zero JS. The
-    dialog fires when the condition MATCHES; a clean value submits silently.
-  - **Named predicate** — `confirm: { predicate: "end_before_start", message: "…" }` for
-    multi-field logic the single-field form can't express. Register a pure function at
-    boot (`setConfirmPredicate("end_before_start", ({ starts_at, ends_at }) => ends_at < starts_at)`),
-    the twin of `setComputeReducer`. An unregistered name warns and proceeds without a
-    dialog. Works on `on(...)` AND `on_client(...)`. The predicate is soft-validation UX,
-    **not authorization** — a user can bypass it and the action still hits the endpoint's
-    real authorize/default-deny; never let it stand in for a server-side check.
-
-- **`confirm:` on `on_client(...)` — themed confirmation for zero-round-trip client ops (#178).**
-  The client-op path gains the SAME overridable `confirmResolver` gate `on(:action, confirm:)`
-  has (#52/#55). A destructive-feeling client op (clear a draft, reset a form) gets the
-  app's themed dialog with one line and no round trip:
-  `button(**on_client(:click, js.text("#draft", ""), confirm: "Discard this draft?"))`.
-  The gate lives in the user-gesture path (`runOps`), never in the shared op applier — a
-  server-pushed `reactive:js` op stream must not prompt. `setConfirmResolver` now themes
-  both paths at once.
-
-- **CI transport verification matrix — the browser suite runs on Action Cable AND pgbus (#187).**
-  The system job is now `server × transport` (Puma/Falcon × cable/pgbus). The pgbus
-  cells add a plain `postgres:18` (pgbus vendors the PGMQ schema via its own
-  migrations — no extension image) and set `TRANSPORT=pgbus`, so the existing browser
-  suite proves the reactive round trip is transport-agnostic, and new `:pgbus`-tagged
-  specs prove real cross-tab broadcast delivery + actor-echo exclusion over live
-  Postgres SSE. `rake spec:system_matrix` runs the 2×2 locally (pgbus cells skip with
-  a note when Postgres isn't reachable); `rake pgbus:prepare_test_db` sets up the DB.
-  pgbus remains an optional, non-gemspec dependency — it is now a first-class *tested*
-  transport, not a required one.
-
-### Changed
-
-- **BREAKING: ONE pending-state vocabulary — `busy:` replaces `loading:` / `disable_with:` (#181).**
-  A trigger's declarative pending affordance is now a single `on(…, busy:)` kwarg
-  that shares `optimistic:`'s key vocabulary and normalizer — the only difference
-  is the lifecycle (`busy:` reverts on **settle**, `optimistic:` on **failure**).
-  `busy:` takes a **String shorthand** (`busy: "Saving…"` ≡ `{ disable: true, text:
-  "Saving…" }`) or a **Hash** with the same keys as `optimistic:`
-  (`add_class:`/`remove_class:`/`toggle_class:`/`hide:`/`show:`/`disable:`/`text:`/`to:`).
-  The removed `loading:` (with its odd `class:` key), `disable_with:`, and the
-  `on(…, listnav:)` kwarg each raise a **guided `ArgumentError`** printing the exact
-  rewrite. Combobox keyboard nav is now the standalone `reactive_listnav` (composed
-  via `mix`), which defaults its option selector to `[role=option]`. Migration:
-
-  | Before (removed) | After |
-  |---|---|
-  | `on(:save, disable_with: "Saving…")` | `on(:save, busy: "Saving…")` |
-  | `on(:save, loading: { disable: true, class: "opacity-50", text: "Saving…" })` | `on(:save, busy: { disable: true, add_class: "opacity-50", text: "Saving…" })` |
-  | `on(:search, event: "input", listnav: "[role=option]")` | `mix(on(:search, event: "input"), reactive_listnav)` |
-
-  The wire attribute is renamed `data-reactive-loading-param` → `data-reactive-busy-param`;
-  the client keeps a **read shim** for the old attribute for one minor so an
-  in-flight page rendered by the previous gem across a deploy keeps its affordance.
-
-- **BREAKING: `reactive_show` speaks ONE conditions language — `if:`/`if_any:`/`unless:` (#180).**
-  The four accreted dialects (the positional-field predicate kwargs
-  `equals:`/`not:`/`in:`/`gte:`/`gt:`/`lte:`/`lt:`, the `all:`/`any:` term
-  arrays, and the `{ equals: … }` target predicate hashes) are **removed** and
-  replaced by a single Ruby-native language: a **Hash is an AND**, an **Array is
-  membership**, a **Range is a threshold**, `if_any:` is OR-of-AND (one level of
-  disjunction — the distributive-law killer), and `unless:` negates. Each removed
-  form raises a **guided `ArgumentError`** printing the exact rewrite. Migration:
-
-  | Before (removed) | After |
-  |---|---|
-  | `reactive_show(:mode, not: "off")` | `reactive_show(unless: { mode: "off" })` |
-  | `reactive_show(:gift, equals: true)` | `reactive_show(if: { gift: true })` |
-  | `reactive_show(:size, in: %w[l xl])` | `reactive_show(if: { size: %w[l xl] })` |
-  | `reactive_show(:qty, gte: 10)` | `reactive_show(if: { qty: 10.. })` |
-  | `reactive_show(:amt, gt: 5000)` | `reactive_show(unless: { amt: ..5000 })` |
-  | `reactive_show(all: [{ field: :a, equals: "x" }, …])` | `reactive_show(if: { a: "x", … })` |
-  | `reactive_show(any: [{ field: :a, equals: "x" }, …])` | `reactive_show(if_any: [{ a: "x" }, …])` |
-  | `reactive_show_targets(:m, "#id" => { equals: "x" })` | `reactive_show_targets(:m, "#id" => "x")` |
-
-  New alongside it: **`reactive_values`** computes each binding's first-paint
-  `hidden:` server-side (no per-section mirror method, no flash);
-  **`reactive_scope :form`** lets bindings use bare field symbols
-  (`[name="form[field]"]` on the client); **`disable: true`** disables a hidden
-  section's own controls so a switched-away value never submits. The wire is now
-  ONE DNF shape (`data-reactive-show='{"any":[[term,…],…]}'`); the client keeps
-  legacy read arms for one minor (deploy overlap), removed in 0.11.
-
-- **`Phlex::Reactive::ClientBindings` — a blessed client-only include (#180).** A
-  view that only shows/hides, filters, or computes client-side (no server
-  actions, no token) includes this instead of the full `Component`. It does NOT
-  pull in `Streamable` (so it never clobbers an app's own `replace`/`to_stream_*`
-  concern) or the token machinery — a token-less `reactive_root` with no `#id`
-  requirement, invisible to `phlex_reactive:doctor`. The full `Component`
-  includes it (one implementation), then layers Streamable + Identity on top.
-
-- **Automatic token refresh — `reply.with` and `reply.streams` converge (#180).**
-  The action endpoint now appends a `reactive:token` refresh stream automatically
-  whenever a reply does not re-render the component's root, instead of prepending
-  a full self-replace that could clobber a live input. Picking `.streams` vs
-  `.with` to keep the signed token fresh is no longer a correctness decision — a
-  companion-only reply refreshes the token either way.
-
-- **BREAKING: `verify_authorized` is ON by default (#168).** A reactive action
-  that completes **without any authorization call now raises**
-  `Phlex::Reactive::AuthorizationNotVerified` — **rolling back the transaction**
-  (fail-closed, stronger than Pundit's after-the-fact check). This is the
-  presence-side complement to `authorization_errors`: a forgotten `authorize!`
-  becomes a loud 500 your error tracker sees, not a silent hole. The guard
-  detects a call to any `Phlex::Reactive.authorization_methods` name
-  (default `%i[authorize! authorize allowed_to?]` — Pundit/CanCanCan/ActionPolicy)
-  **or** `mark_authorized!`, made anywhere during the action (a helper the action
-  calls counts too). **Three remedies** for each action:
-  1. call your authorization method (`authorize! @record, :update?`);
-  2. call `mark_authorized!` after a bespoke check the interceptor can't see;
-  3. declare `skip_verify_authorized` (whole component) or
-     `skip_verify_authorized :action_name` (specific actions) for an
-     intentionally public action.
-  Turn it off globally with `Phlex::Reactive.verify_authorized = false` (the
-  install-generator initializer documents the knob). The `action.phlex_reactive`
-  instrumentation event gains a new `:unverified` outcome. A new **advisory**
-  doctor check flags mutating actions with no detected authorization call
-  (heuristic — a helper may authorize indirectly; never a hard fail).
-
-### Added
-
-- **Compound & numeric `reactive_show` predicates — `all:`/`any:` and
-  `gte:`/`gt:`/`lte:`/`lt:` (#176).** Value-conditional visibility now spans
-  **more than one field** and **numeric thresholds**, staying inside the
-  eval-free "declared literal predicate" contract. `all:` / `any:` fold a list of
-  per-field terms (`{ field:, equals:/not:/in:/gte:/… }`) with one fixed
-  connective — AND vs OR over the same literal vocabulary, no expression surface;
-  one flat binding replaces wrapper-div nesting and is the only way to express OR.
-  `gte:`/`gt:`/`lte:`/`lt:` compare `Number(value)` against a literal number baked
-  into the binding (the RHS must be a real `Numeric` — a typo fails at render); a
-  non-numeric field value is `NaN` → hidden, the safe reveal-on-threshold default.
-  Numeric predicates work standalone, as a compound term, and inside a
-  `reactive_show_targets` map. Malformed terms fold **false** (fail-closed:
-  default-deny). The single-field `reactive_show(:field, equals:)` form is
-  unchanged; the additions are backwards compatible.
-
-- **Installable Claude debugging skill + `rails g phlex:reactive:claude` (#168).**
-  The gem ships a `phlex-reactive-debugging` skill (the doctor → inventory → find
-  → browser `report()` → MCP workflow + a failure table) under `lib/`, and the
-  new generator copies it into a host app's `.claude/skills/` and writes the MCP
-  server entry to `.mcp.json` — only when absent (it never rewrites an existing
-  `.mcp.json`; it prints the snippet instead). A new **Debugging & tooling** docs
-  page ties the four surfaces together; the security page documents
-  `verify_authorized`; the instrumentation table gains the `:unverified` outcome;
-  the README gains a Debugging & tooling section + the config rows.
-
-- **On-demand client inspector — `phlex/reactive/inspect` (#168).** A standalone
-  JS module (the `confirm.js`/`compute.js` precedent — **zero hot-path cost**, no
-  edit to `reactive_controller.js`, loaded only when imported) that scans the live
-  DOM and maps every reactive root + bound trigger back to the server
-  `Component#action` names. From the browser console:
-  `(await import("phlex/reactive/inspect")).report()` prints a `console.table` of
-  every reactive root — its `id`, decoded token payload (component class, gid,
-  state keys, token version — try/catch base64+JSON decode, degrading to
-  `{ opaque: true }` on a Marshal-serialized payload), status attrs, triggers
-  (action + event + params + debounce/throttle/confirm), client-only ops,
-  computes, the `name`d fields the dispatch would collect, and the
-  show/filter/text binding families. Triggers are scoped to the **nearest** root,
-  so nested roots aren't double-attributed. The server↔client mapping is
-  by-name: `scan()`'s `component` + trigger `action` strings are exactly the
-  identifiers `phlex_reactive:actions` and the MCP tools list. Pinned by the
-  engine (not preloaded); pure read, never mutates the page.
-
-- **Read-only diagnostic MCP server (#168).** `bin/rails phlex_reactive:mcp`
-  starts a stdio [MCP](https://modelcontextprotocol.io) server exposing five
-  read-only tools — `phlex_reactive_doctor`, `phlex_reactive_components`,
-  `phlex_reactive_actions` (optional `component:` filter), `phlex_reactive_find`
-  (fuzzy search + Prism method source), `phlex_reactive_config` (redacted) — so
-  Claude Code inside a host app can introspect the live reactive registry when
-  debugging. The `mcp` gem is **optional and lazy**: it is NOT a gemspec runtime
-  dependency; `Phlex::Reactive::MCP.load!` requires it on demand with a helpful
-  message when missing (the pgbus pattern), and the gem-dependent tool tree stays
-  out of the Zeitwerk autoloader — a host app without `mcp` boots and eager-loads
-  unaffected. Every tool is read-only and non-destructive (no arbitrary-query or
-  mutation tool) and reports names/paths/schemas only — never a token, secret, or
-  runtime state; `phlex_reactive_config` never emits the verifier or
-  `secret_key_base`. Consumer `.mcp.json`:
-  `{ "mcpServers": { "phlex-reactive": { "command": "bin/rails", "args": ["phlex_reactive:mcp"] } } }`.
-  Known constraint: stdio MCP needs a clean stdout — an initializer that `puts`
-  breaks the transport (same caveat as pgbus).
-
-- **verify_authorized runtime guard (#168).** New
-  `Phlex::Reactive::Authorization` (fiber-local tracking window, method
-  interception, the enforcement decision), `mark_authorized!` instance helper,
-  the `skip_verify_authorized` DSL (registry #6, inherits like the other five),
-  and `Phlex::Reactive.verify_authorized` / `authorization_methods` config
-  (`defined?`-guarded so an explicit override sticks). See the breaking note
-  above for the behavior and remedies.
-
-- **Action inventory — `Phlex::Reactive::Inspector` + rake tasks (#168).** A new
-  read-only introspection layer that answers "what reactive actions exist in this
-  app, where are they defined, and is each authorized?" without grepping.
-  `Phlex::Reactive::Inspector.components` discovers every constant-backed reactive
-  component from the loaded `Streamable` registry; `.find(query)` fuzzy-matches
-  one (exact > prefix > substring > subsequence, on both the demodulized and the
-  full name). Each action reports its declared param schema, `file:line`, the full
-  `def … end` source (extracted with **Prism**, degrading to `nil` on an
-  unreadable/unparseable file — never raising), and a **heuristic** authorization
-  status (a Prism scan for a configured authorization method or
-  `mark_authorized!` in the body — advisory only, since a helper may authorize
-  indirectly). Two shipped rake tasks surface it: `bin/rails
-  phlex_reactive:actions` (plain-text table, `FORMAT=json` for tooling) and
-  `bin/rails "phlex_reactive:find[query]"` (ranked matches; top match in detail
-  with each action's method source). Output is names/paths/schemas only — never
-  tokens, secrets, or runtime state (the instrumentation privacy contract
-  extended to tooling). `Doctor` now delegates its `constant_backed_component?`
-  filter to the Inspector so the endpoint-rebuild predicate lives in one place.
-
-- **Deferred reply segments — `reply.defer` (#165).** An expensive part of a
-  reply (a cross-aggregate rollup, a report) no longer stalls the actor's
-  interaction: `reply.streams(cheap).defer(SessionTotals.new(workout:))`
-  returns the cheap streams immediately and streams the real render to the
-  SAME actor when it finishes. Keep-content default (the stale value stays
-  visible, marked `data-reactive-defer-pending` + `aria-busy` for CSS
-  shimmer); `placeholder: true` / a component swaps a skeleton in;
-  `morph: true` morphs the arrival (the mode rides INSIDE the signed token).
-  Transactional (the directive rides the post-commit reply — a rollback or a
-  denied action leaks nothing), actor-scoped (peers keep `broadcast_*_to`),
-  superseding (a newer action for the same target aborts the in-flight
-  deferred render — no stale paint), and interactive on arrival (fresh action
-  token). Delivery is transport-adaptive (`Phlex::Reactive.defer_transport`,
-  default `:auto`): a parallel fetch to the new `POST /reactive/defer`
-  endpoint everywhere (purpose-scoped, short-TTL defer token —
-  `defer_token_ttl`, default 120s; `reply.defer` tokens are **actor-bound**
-  to the requesting session so a leaked one can't be redeemed elsewhere,
-  `reactive_lazy` shell tokens are unbound by necessity — they render
-  before a session exists — with the TTL + `authorize!` as their bound;
-  never interchangeable with action tokens),
-  or a **durable pgbus one-shot stream + `DeferredRenderJob`** when pgbus's
-  reactive Streams and ActiveJob are present (`defer_job_queue` config; the
-  durable since-id replay closes the broadcast-before-subscribe race, and the
-  broadcast tears down its own subscription). The push lane's one-shot queue is
-  reclaimed by pgbus's age-based orphan-stream sweep (**pgbus ≥ 0.9.10**; run
-  the Dispatcher with `streams_orphan_threshold` set); we never eager-drop it
-  (that would reopen the delivery race). The one-shot key is sized to the live
-  pgbus `queue_prefix` budget, so a non-default prefix can't overflow it; the
-  render job broadcasts a cleanup on ANY failure so the actor's pending state
-  always resolves. Every capability gap degrades to the fetch lane — the
-  Action-Cable-or-pgbus invariant holds. **Profile first:** an app-side N+1
-  looks exactly like framework lag; defer is for segments that are genuinely
-  expensive after the synchronous path is cheap.
-
-- **Lazy initial mount — `reactive_lazy` (#165).** The same machinery for the
-  FIRST render (Livewire `#[Lazy]`): the page ships the component's
-  placeholder shell (`deferred_placeholder`, or a built-in pending shell) with
-  the defer token on the root; the client fetches the real content on connect
-  AND after a Turbo page-refresh morph (so a lazy component survives a
-  `turbo:reload`). `reactive_lazy tag: :tr` (etc.) ships a shell element that
-  matches a `<tr>`/`<li>` root instead of an invalid `<div>`.
-  Reactive-machinery renders (an action's self-replace, broadcasts, the defer
-  endpoint/job) stay REAL, so actions never pay two round trips.
-
-- **pgbus capability gates.** `Phlex::Reactive.pgbus?` and `.pgbus_streams?`
-  (the documented broadcast-accepts-`:exclude` probe, now actually
-  implemented) plus `.defer_push_capable?` for the defer push lane.
-
-- **Client-side option filtering — `reactive_filter` (#163).** The other half
-  of #72's combobox: **preload the options, type to narrow — zero round
-  trips.** Spread `reactive_filter(input:, option:, group:, empty:)` onto the
-  root and the generic controller shows/hides each option on every keystroke by
-  a case-folded substring match against its `data-reactive-filter-text`
-  haystack (falling back to the option's own text) — no POST, no token, no
-  bespoke per-feature Stimulus controller. Optional `group:` collapses a header
-  whose every contained option is hidden; optional `empty:` reveals a
-  no-matches node at 0 visible. Selectors resolve within the root only (nested
-  reactive roots untouched), state seeds at connect and re-applies after a
-  morph, and blank selectors raise at render (a dead binding must fail loudly).
-  Composes with keyboard nav and per-row selection: a filtered-out option also
-  drops out of the Arrow-key path and loses its highlight, so Enter can never
-  pick an invisible row — selection itself stays a signed `on(:select)` action.
-- **Standalone combobox keyboard nav — `reactive_listnav` (#163).** The same
-  Arrow/Enter/Escape wiring `on(…, listnav:)` appends, without the dispatch
-  descriptor — for the preload-and-filter input that fires **no** action (an
-  `on()` trigger would POST per keystroke). Spread
-  `reactive_listnav("[role=option]")` onto the input; Enter still picks by
-  clicking the highlighted option's own signed trigger.
-- **Cross-root `reactive_show` targets — `reactive_show_targets` (#164).** A
-  field can now drive the visibility of declared elements **outside** its
-  reactive root — the nav tab, the panel in another tab pane, the sidebar note
-  a mode selector governs — the visibility parallel to the #159 cross-root
-  text mirror. The component that **owns** the field declares which outside
-  ids it governs, spread on the root:
-  `mix(reactive_root, reactive_show_targets(:mode, "#advanced-tab" =>
-  { equals: "advanced" }, "#basic-note" => { not: "advanced" }))`. Same
-  posture as `mirror:`: opt-in and declared, never implicit (a plain
-  `reactive_show` stays root-isolated, #15 untouched); targets are **single id
-  selectors only** — a class/compound selector raises at declare time AND is
-  warn-and-skipped by the client (two-sided default-deny); the predicate is
-  the same literal-only `reactive_show` vocabulary; the toggle is `hidden`
-  only. The field read stays **owned** — you can only drive outside visibility
-  from a field the declaring root owns. A target id not on the page is
-  silently skipped (an unrendered tab pane is normal); the cross-root pass
-  shares the owned-binding pass's field-read memo (one read per field per
-  sync). No map declared → one `getAttribute` and out. **One call per root**:
-  Phlex `mix` space-joins duplicate string data values, so a second call's
-  JSON would corrupt the attr (the client warns and ignores it) — several
-  fields go in one call via the hash form
-  (`reactive_show_targets(mode: { … }, kind: { … })`).
-- **Value-conditional visibility — `reactive_show` (#161).** The `x-show` /
-  `data-show` / `wire:show` case — show/hide an element from a form field's
-  **current value** — no longer needs a hand-written `change`-listener Stimulus
-  controller. Spread `reactive_show(:mode, not: "off")` onto the element to
-  show/hide (also `equals:` and `in: [...]`; `equals: true` reads a checkbox's
-  checked state, a radio group reads the checked radio's value) and the generic
-  controller toggles the `hidden` attribute on every `input`/`change` —
-  client-only, zero round trip, no token. The predicate is a **declared literal
-  match**, never an expression (no eval surface); exactly one predicate is
-  enforced loudly at render; a missing field or malformed wire attr is
-  warn-and-skipped (client-side default-deny). Visibility seeds at connect and
-  re-syncs after a `turbo:morph-element`; a `reactive_compute` output write
-  dispatches a real `input` event, so derived values drive visibility too.
-  Ownership follows the nested-root rules (#15). Roots without a binding pay
-  one connect-time probe — no new listeners, byte-identical wire.
-
-- **Cross-root text mirrors + the `text` client op (#159).** A derived value can
-  now be painted into a text node **outside** the computing component's reactive
-  root — the read-only recap in another tab pane that previously forced a
-  bespoke JS listener — with the library's default-deny posture intact:
-  - `reactive_compute ..., mirror: { sum_total: "#sum_total" }` declares
-    allowlisted cross-root text mirrors. Each compute pass paints every declared
-    name into its document-wide **id** target(s) via `textContent`
-    (change-guarded, never `innerHTML`, never blanks a name the pass produced no
-    value for). The value comes from the reducer result, a just-written output's
-    field, or a declared input's identity value — so it works with no reducer at
-    all. Non-id selectors raise at declare time AND are warn-and-skipped by the
-    client interpreter (two-sided default-deny). No `mirror:` → the wire is
-    byte-identical to before.
-  - `js.text(to, value, global: false)` — a new op that sets `textContent`
-    (stringified; `nil` clears), available to `on_client`, `reply.js`, and
-    `broadcast_js_to`. Strictly less powerful than `set_attr`; pair with
-    `global: true` for the cross-root paint.
-  - `global: true` is now honored on the `reactive:js` stream path: a single op
-    can opt out of the reply's target-root scope to document-wide resolution
-    (previously it was silently ignored when a `target` was set).
-
 ### Performance
+
+- **The default client is 1,008 B smaller gzipped (#310).**
+  `reactive_controller.min.js` goes from 25,933 B to 24,925 B. The feature
+  modules keep their per-root state in closures instead of records whose
+  property names the minifier cannot rename (form, bindings, persist, defer;
+  compute's record gets short names), and hints, devtools and bindings drop
+  their per-call context records and wrapper exports. The features are also
+  laid out in the bundle so gzip's 32 KB window reaches the runtime code they
+  repeat (about 450 B of the total). The split client total goes from
+  32,568 B to 32,027 B; the core is unchanged. Behaviour is unchanged. The
+  22,700 B target is not met: 2,225 B remain, about 800 B of them from bulk
+  selection (#319), which landed after the target was set.
+- **A cacheable lazy shell is less than half the size (#306).** A
+  `reactive_lazy(on:, cache:)` shell with `reactive_cache_viewer` and
+  `reactive_cache_version` gzips to about 290 B (was about 580–670 B). The
+  fragment id is the identity encoded once plus a 128-bit MAC (it was the
+  verifier's token wrapped in a second Base64); `u` is 22 base64url characters
+  and `v` 11. A `cache:` shell no longer carries the identity token: a fragment
+  URL the client refuses falls back to a GET of the same id under the fragment
+  path it knows (`cache: "no-store"`), not to the `__materialize` POST, and a
+  failed defer module is reported by its `reactive:error` (`kind: "feature"`)
+  without a POST. Ids minted before this change still verify; their old `u`
+  no longer matches, so such a URL renders but is `no-store`. The
+  deferred-rendering page now says when deferring pays off.
 
 - The defer machinery adds nothing measurable to the existing hot paths
   (same-machine, same-checkout before/after vs `main`): `to_stream_replace`

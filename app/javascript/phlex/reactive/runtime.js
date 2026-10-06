@@ -494,30 +494,75 @@ function attrRefused(name) {
 
 // Run an animated visibility change (issue #96 `transition:`). `flip` performs
 // the actual hidden-flag change; `[during, from, to]` are class lists applied
-// AROUND it. Cleanup (removing during+to) is awaited via `animationend` OR a
-// setTimeout fallback — whichever comes first — so an element with NO animation
-// never leaves the helper classes stuck (the op chain itself is not blocked:
-// cleanup is fire-and-forget, later ops run immediately). The fallback and the
-// listener share a one-shot `done` guard so cleanup runs exactly once.
+// AROUND it. Cleanup is awaited via the element's OWN animationend/transitionend
+// OR a setTimeout fallback — whichever comes first — so an element with NO
+// animation never leaves the helper classes stuck (the op chain itself is not
+// blocked: cleanup is fire-and-forget, later ops run immediately). Both end
+// events bubble, so a descendant's is ignored, and settling drops both
+// listeners (the effects.js fix, #296). The fallback is armed synchronously,
+// not behind the frame, so a hidden tab (no rAF) still cleans up; cleanup then
+// cancels the pending frame and clears `from` too, so a late frame can't leave
+// `to` (or `from`) stuck. A one-shot `done` guard runs cleanup exactly once.
+// One run per element: a new run first settles the live one (its classes,
+// timer, listeners and frame), so a superseded run's late wakeups can't strip
+// the new run's classes. The fallback follows the element's computed
+// durations (transitionFallbackMs), so a 600 ms transition isn't cut at 350.
+const transitionRuns = new WeakMap()
 function runTransition(el, transition, flip) {
   const [during, from, to] = transition
+  transitionRuns.get(el)?.()
   el.classList.add(during, from)
   flip()
-  requestAnimationFrame(() => {
+  let done = false
+  const frame = requestAnimationFrame(() => {
+    if (done) return
     el.classList.remove(from)
     el.classList.add(to)
   })
 
-  let done = false
-  const cleanup = () => {
-    if (done) return
+  const cleanup = (event) => {
+    if (done || (event && event.target !== el)) return
     done = true
-    el.classList.remove(during, to)
+    transitionRuns.delete(el)
+    clearTimeout(timer)
+    globalThis.cancelAnimationFrame?.(frame)
+    el.removeEventListener("animationend", cleanup)
+    el.removeEventListener("transitionend", cleanup)
+    el.classList.remove(during, from, to)
   }
-  el.addEventListener("animationend", cleanup, { once: true })
-  // ~10% over a common 300ms transition; also the ONLY path for a non-animated
-  // element (animationend never fires there), so it must always be scheduled.
-  setTimeout(cleanup, 350)
+  transitionRuns.set(el, cleanup)
+  el.addEventListener("animationend", cleanup)
+  el.addEventListener("transitionend", cleanup)
+  // Also the ONLY path for a non-animated element (no end event fires there),
+  // so it must always be scheduled — and never behind the frame.
+  const timer = setTimeout(cleanup, transitionFallbackMs(el))
+}
+
+// The longest computed duration × iteration-count + delay over the transition
+// and animation lists (CSS repeats the shorter list; a transition runs once,
+// `infinite` hits the cap), plus 50 ms; 350 ms when nothing is declared (or
+// there is no computed style), capped at 5 s so a bogus value can't wedge the
+// classes on. Read once `during` is on the element.
+function transitionFallbackMs(el) {
+  let longest = 0
+  try {
+    const style = getComputedStyle(el)
+    for (const kind of ["transition", "animation"]) {
+      const [durations, delays] = ["Duration", "Delay"].map((name) =>
+        String(style[kind + name])
+          .split(",")
+          .map((v) => parseFloat(v) * (/ms/.test(v) ? 1 : 1000) || 0),
+      )
+      const counts = String(style[kind + "IterationCount"])
+        .split(",")
+        .map((v) => (/inf/.test(v) ? Infinity : parseFloat(v) >= 0 ? parseFloat(v) : 1))
+      for (let i = 0; i < durations.length || i < delays.length || i < counts.length; i++) {
+        const runs = durations[i % durations.length] * counts[i % counts.length] || 0
+        longest = Math.max(longest, runs + delays[i % delays.length])
+      }
+    }
+  } catch {}
+  return Math.min(Math.max(longest + 50, 350), 5000)
 }
 
 // Rich-text and contenteditable fields, as #collectFields reads them (minus

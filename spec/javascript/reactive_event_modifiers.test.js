@@ -17,10 +17,13 @@
 //              event.target === document — two window-bound triggers must not
 //              collide) and cleared in disconnect().
 //
-// Real timers with small delays, like the debounce suite.
+// Real timers with small delays, like the debounce suite — except the
+// leading-edge throttle test, whose window is driven by a captured (fake)
+// suppression timer: real 5 ms sleeps could overrun its 60 ms window under
+// machine load.
 //
 // Run with: bun test spec/javascript
-import { test, expect, mock, beforeAll } from "bun:test"
+import { test, expect, mock, beforeAll, afterEach } from "bun:test"
 
 let ReactiveController
 
@@ -33,7 +36,27 @@ beforeAll(async () => {
   ReactiveController = (await import("../../app/javascript/phlex/reactive/reactive_controller.js")).default
 })
 
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+// bun runs every test file in ONE process: keep the real setTimeout (wait()
+// uses it even while a test stubs the global) and restore it after each test.
+const realSetTimeout = globalThis.setTimeout
+afterEach(() => {
+  globalThis.setTimeout = realSetTimeout
+})
+
+const wait = (ms) => new Promise((resolve) => realSetTimeout(resolve, ms))
+
+// Capture the timers scheduled for `ms` (the throttle's suppression window)
+// instead of running them; every other timer still runs for real. Firing a
+// captured one is "the window elapsed", with no dependence on wall-clock time.
+function captureTimers(ms) {
+  const captured = []
+  globalThis.setTimeout = (fn, delay, ...args) => {
+    if (delay !== ms) return realSetTimeout(fn, delay, ...args)
+    captured.push(fn)
+    return captured.length
+  }
+  return captured
+}
 
 // A reactive root stub that records raw-dispatched CustomEvents (so the tests
 // can assert reactive:before-dispatch did or did not fire) and scripts
@@ -140,24 +163,29 @@ test("an element-bound trigger still preventDefaults unconditionally (issue #11)
 test("throttled dispatches fire LEADING-EDGE: first immediately, burst suppressed, next window fires again", async () => {
   const { controller, calls } = buildController()
   const target = {}
+  const windows = captureTimers(60) // the 60 ms window never elapses on its own
 
-  // First event of the burst fires NOW (leading edge)...
+  // First event of the burst fires NOW (leading edge) and opens ONE window...
   controller.dispatch(makeEvent({ action: "track", params: "{}", throttle: 60 }, { target }))
   await wait(5)
   expect(calls()).toBe(1)
+  expect(windows).toHaveLength(1)
 
-  // ...the rest of the burst inside the window is suppressed (dropped, not queued).
+  // ...the rest of the burst inside the window is suppressed (dropped, not
+  // queued, and no further window is opened).
   for (let i = 0; i < 4; i++) {
     controller.dispatch(makeEvent({ action: "track", params: "{}", throttle: 60 }, { target }))
     await wait(5)
   }
   expect(calls()).toBe(1)
+  expect(windows).toHaveLength(1)
 
   // After the window elapses the next event fires immediately again.
-  await wait(80)
+  windows[0]()
   controller.dispatch(makeEvent({ action: "track", params: "{}", throttle: 60 }, { target }))
   await wait(5)
   expect(calls()).toBe(2)
+  expect(windows).toHaveLength(2)
 })
 
 test("throttle timers are keyed on action + target — two actions sharing event.target don't collide", async () => {

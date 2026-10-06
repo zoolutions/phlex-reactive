@@ -19,7 +19,7 @@
 // surfaced exception, so that case can't be asserted cleanly in this runner.
 //
 // Run with: bun test spec/javascript
-import { test, expect, mock, beforeAll, afterEach } from "bun:test"
+import { test, expect, mock, beforeAll, beforeEach, afterEach } from "bun:test"
 
 let ReactiveController
 
@@ -29,9 +29,20 @@ let ReactiveController
 // originals once and restore them after every test.
 const REAL = {
   setTimeout: globalThis.setTimeout,
+  clearTimeout: globalThis.clearTimeout,
   requestAnimationFrame: globalThis.requestAnimationFrame,
+  cancelAnimationFrame: globalThis.cancelAnimationFrame,
+  getComputedStyle: globalThis.getComputedStyle,
   CustomEvent: globalThis.CustomEvent,
 }
+
+// The transition tests' fake setTimeout hands back plain numbers, and a settled
+// run clears its fallback timer. bun's real timers are objects, so a numeric
+// id is always one of ours — never pass it to the real clearTimeout, where it
+// could cancel an unrelated timer elsewhere in the shared process.
+beforeEach(() => {
+  globalThis.clearTimeout = (id) => (typeof id === "number" ? undefined : REAL.clearTimeout(id))
+})
 
 beforeAll(async () => {
   mock.module("@hotwired/stimulus", () => ({
@@ -44,7 +55,10 @@ beforeAll(async () => {
 
 afterEach(() => {
   globalThis.setTimeout = REAL.setTimeout
+  globalThis.clearTimeout = REAL.clearTimeout
   globalThis.requestAnimationFrame = REAL.requestAnimationFrame
+  globalThis.cancelAnimationFrame = REAL.cancelAnimationFrame
+  globalThis.getComputedStyle = REAL.getComputedStyle
   globalThis.CustomEvent = REAL.CustomEvent
 })
 
@@ -73,6 +87,9 @@ function makeEl({ owner = null } = {}) {
       return true
     },
     addEventListener: (name, cb, opts) => el.listeners.set(name, { cb, opts }),
+    removeEventListener: (name, cb) => {
+      if (el.listeners.get(name)?.cb === cb) el.listeners.delete(name)
+    },
     querySelectorAll: () => [],
   }
   el.classList = {
@@ -437,4 +454,280 @@ test("a non-animated element does NOT hang: the setTimeout fallback cleans up", 
   expect(menu.classes.has("t-fade")).toBe(true) // still mid-transition
   timeoutCb() // the fallback fires (animationend never came)
   expect(menu.classes.has("t-fade")).toBe(false)
+})
+
+// The settle bugs effects.js had (#296), in runTransition: animationend and
+// transitionend both BUBBLE, so a descendant's end event must not clean the
+// parent's transition classes up early, and settling drops BOTH listeners
+// (`once` would drop only the one that fired — or let a child's event consume it).
+function startTransition(op = "show") {
+  const root = makeRoot()
+  const menu = makeEl({ owner: root })
+  root.querySelectorAll = () => [menu]
+  const controller = buildController(root)
+  globalThis.requestAnimationFrame = (cb) => (cb(), 1)
+  fire(controller, { ops: [[op, { to: "#menu", transition: ["t-fade", "from", "to"] }]] })
+  return menu
+}
+
+test("a CSS transition settles on the element's own transitionend", () => {
+  const menu = startTransition()
+
+  const listener = menu.listeners.get("transitionend")
+  expect(listener).toBeDefined()
+  listener.cb({ target: menu })
+
+  expect(menu.classes.has("t-fade")).toBe(false)
+  expect(menu.classes.has("to")).toBe(false)
+})
+
+test("a descendant's bubbling transitionend/animationend does NOT settle the parent", () => {
+  const menu = startTransition()
+  const child = makeEl()
+
+  menu.listeners.get("transitionend").cb({ target: child })
+  menu.listeners.get("animationend").cb({ target: child })
+
+  // Still mid-transition, and still listening for its OWN end event.
+  expect(menu.classes.has("t-fade")).toBe(true)
+  expect(menu.classes.has("to")).toBe(true)
+  expect(menu.listeners.has("animationend")).toBe(true)
+  expect(menu.listeners.has("transitionend")).toBe(true)
+
+  menu.listeners.get("animationend").cb({ target: menu })
+  expect(menu.classes.has("t-fade")).toBe(false)
+})
+
+test("settling removes BOTH end listeners, whichever event fired", () => {
+  const menu = startTransition()
+  menu.listeners.get("animationend").cb({ target: menu })
+  expect(menu.listeners.has("animationend")).toBe(false)
+  expect(menu.listeners.has("transitionend")).toBe(false)
+
+  const other = startTransition("hide")
+  other.listeners.get("transitionend").cb({ target: other })
+  expect(other.listeners.has("animationend")).toBe(false)
+  expect(other.listeners.has("transitionend")).toBe(false)
+})
+
+test("the fallback timer settles and removes both listeners too", () => {
+  const root = makeRoot()
+  const menu = makeEl({ owner: root })
+  root.querySelectorAll = () => [menu]
+  const controller = buildController(root)
+  globalThis.requestAnimationFrame = (cb) => (cb(), 1)
+  let timeoutCb = null
+  globalThis.setTimeout = (cb) => {
+    timeoutCb = cb
+    return 1
+  }
+
+  fire(controller, { ops: [["hide", { to: "#menu", transition: ["t-fade", "from", "to"] }]] })
+  timeoutCb()
+
+  expect(menu.classes.has("t-fade")).toBe(false)
+  expect(menu.listeners.has("animationend")).toBe(false)
+  expect(menu.listeners.has("transitionend")).toBe(false)
+})
+
+// A hidden tab never runs rAF, but the 350 ms fallback is armed synchronously
+// (not behind the frame), so cleanup still happens. What must not happen is the
+// late frame — run when the tab wakes — re-adding `to` after cleanup, or `from`
+// staying behind: cleanup drops all three classes and cancels the pending frame.
+test("a never-firing rAF (hidden tab): the fallback cleans up all classes and cancels the frame", () => {
+  const root = makeRoot()
+  const menu = makeEl({ owner: root })
+  root.querySelectorAll = () => [menu]
+  const controller = buildController(root)
+  let rafCb = null
+  globalThis.requestAnimationFrame = (cb) => {
+    rafCb = cb
+    return 42
+  }
+  const canceled = []
+  globalThis.cancelAnimationFrame = (id) => canceled.push(id)
+  let timeoutCb = null
+  globalThis.setTimeout = (cb) => {
+    timeoutCb = cb
+    return 1
+  }
+
+  fire(controller, { ops: [["show", { to: "#menu", transition: ["t-fade", "from", "to"] }]] })
+  expect(menu.hidden).toBe(false)
+  timeoutCb() // the frame never came
+
+  expect([...menu.classes]).toEqual([])
+  expect(canceled).toEqual([42])
+
+  // Even if the browser runs the stale frame anyway, it must not re-add `to`.
+  rafCb()
+  expect([...menu.classes]).toEqual([])
+})
+
+// A controllable clock for the run-token and duration tests: every timer is
+// captured with its delay (the id is its 1-based index), and clearing one is
+// recorded.
+function fakeClock() {
+  const timers = []
+  const cleared = []
+  globalThis.setTimeout = (fn, ms) => timers.push({ fn, ms })
+  globalThis.clearTimeout = (id) => cleared.push(id)
+  return { timers, cleared }
+}
+
+function transitionHarness() {
+  const root = makeRoot()
+  const menu = makeEl({ owner: root })
+  root.querySelectorAll = () => [menu]
+  const controller = buildController(root)
+  const frames = []
+  globalThis.requestAnimationFrame = (cb) => frames.push(cb)
+  const canceledFrames = []
+  globalThis.cancelAnimationFrame = (id) => canceledFrames.push(id)
+  const run = (op, triple) => fire(controller, { ops: [[op, { to: "#menu", transition: triple }]] })
+  return { menu, frames, canceledFrames, run }
+}
+
+// Rapid show/hide on one element: each run cleans up only its OWN classes. A
+// new run supersedes the live one (its timer, listeners and pending frame are
+// cancelled), so the superseded run's late fallback, end event or frame does
+// nothing to the new run's classes.
+test("a superseded transition run's late fallback, end event and frame leave the new run alone", () => {
+  const clock = fakeClock()
+  const { menu, frames, canceledFrames, run } = transitionHarness()
+
+  run("show", ["fade", "fade-from", "fade-to"]) // run A
+  const aTimer = clock.timers[0]
+  const aAnimationEnd = menu.listeners.get("animationend").cb
+  const aFrame = frames[0]
+
+  run("hide", ["out", "out-from", "out-to"]) // run B, before A settles
+  expect(menu.hidden).toBe(true)
+  // A was cancelled: its timer cleared, its frame cancelled, its classes gone.
+  expect(clock.cleared).toEqual([1])
+  expect(canceledFrames).toEqual([1])
+  expect(menu.classes.has("fade")).toBe(false)
+  expect(menu.classes.has("fade-from")).toBe(false)
+
+  // A's late wakeups all arrive after B started: none touches B.
+  aTimer.fn()
+  aAnimationEnd({ target: menu })
+  aFrame()
+  expect(menu.classes.has("out")).toBe(true)
+  expect(menu.classes.has("out-from")).toBe(true)
+  expect(menu.classes.has("fade-to")).toBe(false)
+
+  // B still runs and settles normally.
+  frames[1]()
+  expect(menu.classes.has("out-to")).toBe(true)
+  menu.listeners.get("transitionend").cb({ target: menu })
+  expect([...menu.classes]).toEqual([])
+})
+
+test("a superseding run with the SAME classes keeps them (toggle twice mid-transition)", () => {
+  const clock = fakeClock()
+  const { menu, run } = transitionHarness()
+  const triple = ["t-fade", "from", "to"]
+
+  run("toggle", triple)
+  const aTimer = clock.timers[0]
+  run("toggle", triple)
+  aTimer.fn() // A's stale fallback
+
+  expect(menu.classes.has("t-fade")).toBe(true)
+  expect(menu.classes.has("from")).toBe(true)
+  clock.timers[1].fn() // B's own fallback
+  expect([...menu.classes]).toEqual([])
+})
+
+// Transitions longer than 350 ms: the fallback follows the element's computed
+// durations (+delays), read once `during` is applied, with 350 ms as the floor
+// and a 5 s cap.
+function styleWith(props) {
+  globalThis.getComputedStyle = () => ({
+    transitionDuration: "0s",
+    transitionDelay: "0s",
+    animationDuration: "0s",
+    animationDelay: "0s",
+    ...props,
+  })
+}
+
+test("a 600 ms transition is not cut at 350 ms: the fallback follows its computed duration", () => {
+  const clock = fakeClock()
+  const { menu, frames, run } = transitionHarness()
+  let seenDuring = null
+  globalThis.getComputedStyle = (el) => {
+    seenDuring = el.classes.has("t-slow")
+    return { transitionDuration: "0.6s", transitionDelay: "0s", animationDuration: "0s", animationDelay: "0s" }
+  }
+
+  run("show", ["t-slow", "from", "to"])
+  frames[0]()
+
+  expect(seenDuring).toBe(true) // read after `during` is applied
+  expect(clock.timers).toHaveLength(1)
+  expect(clock.timers[0].ms).toBeGreaterThan(600)
+  expect(clock.timers[0].ms).toBeLessThan(1000)
+  expect(menu.classes.has("t-slow")).toBe(true) // nothing settled at 350 ms
+
+  menu.listeners.get("transitionend").cb({ target: menu })
+  expect([...menu.classes]).toEqual([])
+})
+
+test("the fallback takes the longest duration+delay pair across comma lists, in s or ms", () => {
+  const clock = fakeClock()
+  const { run } = transitionHarness()
+  styleWith({
+    transitionDuration: "150ms, 0.2s",
+    transitionDelay: "0s, 500ms", // 0.2s + 500ms = 700 ms
+    animationDuration: "0.4s",
+    animationDelay: "100ms", // 500 ms
+  })
+
+  run("show", ["t", "f", "to"])
+  expect(clock.timers[0].ms).toBeGreaterThanOrEqual(700)
+  expect(clock.timers[0].ms).toBeLessThan(1000)
+})
+
+test("no declared duration keeps the 350 ms floor; a bogus huge one is capped at 5 s", () => {
+  const clock = fakeClock()
+  const { run } = transitionHarness()
+
+  styleWith({})
+  run("show", ["t", "f", "to"])
+  expect(clock.timers[0].ms).toBe(350)
+
+  styleWith({ transitionDuration: "99999s" })
+  run("hide", ["t", "f", "to"])
+  expect(clock.timers[1].ms).toBe(5000)
+
+  globalThis.getComputedStyle = () => {
+    throw new Error("not an Element")
+  }
+  run("show", ["t", "f", "to"])
+  expect(clock.timers[2].ms).toBe(350)
+})
+
+test("a finite animation's fallback covers every iteration; infinite takes the 5 s cap", () => {
+  const clock = fakeClock()
+  const { run } = transitionHarness()
+
+  styleWith({ animationDuration: "0.3s", animationDelay: "100ms", animationIterationCount: "3" }) // 0.3s × 3 + 100ms = 1000 ms
+  run("show", ["t", "f", "to"])
+  expect(clock.timers[0].ms).toBeGreaterThanOrEqual(1000)
+  expect(clock.timers[0].ms).toBeLessThan(1200)
+
+  styleWith({ animationDuration: "0.2s, 0.5s", animationIterationCount: "2, 1" }) // max(400, 500) ms
+  run("hide", ["t", "f", "to"])
+  expect(clock.timers[1].ms).toBeGreaterThanOrEqual(500)
+  expect(clock.timers[1].ms).toBeLessThan(700)
+
+  styleWith({ animationDuration: "0.4s", animationIterationCount: "infinite" })
+  run("show", ["t", "f", "to"])
+  expect(clock.timers[2].ms).toBe(5000)
+
+  styleWith({ animationDuration: "0s", animationIterationCount: "infinite" }) // no animation runs: floor, not NaN
+  run("hide", ["t", "f", "to"])
+  expect(clock.timers[3].ms).toBe(350)
 })
