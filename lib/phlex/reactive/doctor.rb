@@ -16,6 +16,8 @@ module Phlex
     # default-deny boundary; the worst it does is a throwaway sign→verify round
     # trip and (for the component checks) iterate the loaded Streamable registry.
     class Doctor
+      include FiberIsolation
+
       # The result of one check: a status (:ok/:fail/:unknown), a human message,
       # and (on anything but :ok) a fix line telling the adopter what to do. A
       # plain value object (not Data) so it takes positional status/message plus
@@ -76,6 +78,7 @@ module Phlex
           csrf_check,
           verifier_check,
           base_controller_check,
+          fiber_isolation_check,
           action_check(components),
           id_check(components),
           authorization_check(components),

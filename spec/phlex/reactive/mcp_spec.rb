@@ -119,6 +119,15 @@ RSpec.describe Phlex::Reactive::MCP do
         expect(public_inc).to include("authorization" => "skipped", "authorization_skip" => "class")
       end
 
+      it "lists a subclass of a reactive component with its inherited skip (issue #302)" do
+        result = tool_json(described_class::Tools::ActionsTool, component: "InheritedSkipComponent")
+        sub = result["components"].find { it["component"] == "InheritedSkipComponent" }
+
+        expect(sub).not_to be_nil
+        expect(sub["actions"].map { it["name"] }).to include("increment", "reset")
+        expect(sub["actions"]).to all(include("authorization" => "skipped", "authorization_skip" => "class"))
+      end
+
       it "filters to one component when given component:" do
         result = tool_json(described_class::Tools::ActionsTool, component: "CounterComponent")
         names = result["components"].map { it["component"] }
