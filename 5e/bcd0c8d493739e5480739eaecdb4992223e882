@@ -1,0 +1,61 @@
+lib/phlex/reactive/doctor/fiber_isolation.rb
+  s_d02db4353d49da::t_2ecaa0e0a8f4bb 1-86
+docs/app/views/docs/pages/tooling.rb
+  s_d02db4353d49da::t_2ecaa0e0a8f4bb 82-90
+spec/phlex/reactive/inspector_spec.rb
+  s_d02db4353d49da::t_2ecaa0e0a8f4bb 55-76,245-246
+spec/phlex/reactive/mcp_spec.rb
+  s_d02db4353d49da::t_2ecaa0e0a8f4bb 122-130
+app/javascript/phlex/reactive/features/hints.min.js.map
+  ai_agent 5,7-8
+lib/phlex/reactive/streamable.rb
+  s_d02db4353d49da::t_2ecaa0e0a8f4bb 78,324-333
+spec/dummy/app/components/inherited_skip_component.rb
+  s_d02db4353d49da::t_2ecaa0e0a8f4bb 1-14
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,3
+spec/dummy/public/vendor/compute.min.js.map
+  ai_agent 5,7
+lib/phlex/reactive/doctor.rb
+  s_d02db4353d49da::t_2ecaa0e0a8f4bb 19-20,81
+spec/dummy/public/vendor/reactive_controller.min.js.map
+  ai_agent 7,12,16-17
+spec/phlex/reactive/doctor/fiber_isolation_spec.rb
+  s_d02db4353d49da::t_2ecaa0e0a8f4bb 1-115
+spec/dummy/public/vendor/features/hints.js
+  ai_agent 1,3
+docs/app/views/docs/pages/installation.rb
+  s_d02db4353d49da::t_2ecaa0e0a8f4bb 23,282-317
+app/javascript/phlex/reactive/features/hints.js
+  s_d02db4353d49da::t_2ecaa0e0a8f4bb 93-95,99
+spec/javascript/reactive_busy.test.js
+  s_d02db4353d49da::t_2ecaa0e0a8f4bb 254-291
+spec/phlex/reactive/streamable_registry_spec.rb
+  s_d02db4353d49da::t_2ecaa0e0a8f4bb 1-33
+spec/requests/inventory_tasks_spec.rb
+  s_d02db4353d49da::t_2ecaa0e0a8f4bb 77-83,165-168
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/features/hints.min.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 12,16-17
+CHANGELOG.md
+  s_d02db4353d49da::t_2ecaa0e0a8f4bb 37-52,80-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "5ebcd0c8d493739e5480739eaecdb4992223e882",
+  "prompts": {},
+  "sessions": {
+    "s_d02db4353d49da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5775b781-4946-4755-bdd4-dcdc0ac0b0ea",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
