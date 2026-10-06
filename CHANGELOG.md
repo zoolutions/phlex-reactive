@@ -23,6 +23,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A token an outside morph brings wins over the cached one (#301).** After a
+  morph or update reply the controller kept the token it cached from that
+  reply, so a later broadcast, page refresh or dormant morph-back that morphed
+  the root in place with markup signed for another state was ignored, and the
+  next action ran against the old state. The controller now drops its cached
+  token whenever `data-reactive-token-value` changes (Stimulus'
+  `tokenValueChanged`, which also fires on a reconnect after such a change).
+
 - **A pushed deferred render stays pending until it arrives (#292).** The
   client settled a `via="stream"` defer on any turbo-stream to its target, so
   an unrelated update of that element before the job's broadcast released the
