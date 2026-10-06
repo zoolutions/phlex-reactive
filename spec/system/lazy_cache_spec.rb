@@ -178,6 +178,33 @@ RSpec.describe "reactive_lazy(cache:) (issue #277)", type: :system do
       expect(network_fetches.size).to eq(1)
     end
 
+    # Issue #312: the shell carries no identity token (#306), yet a morph that
+    # keeps it connected can turn it into a root that needs another feature —
+    # here a draft-keeping one, whose draft is restored. (On the split client
+    # the draft module is imported then.)
+    it "connects the feature a morph of the still-connected shell asks for" do
+      visit "/cached_panel"
+      expect(page).to have_css("#cached-panel[data-controller~='reactive'][data-reactive-defer-src]")
+      expect(page).to have_no_css("#cached-panel[data-reactive-token-value]")
+      page.execute_script(<<~JS)
+        window.__marker = "same-page"
+        window.localStorage.setItem("phlex-reactive:persist:panel-312",
+          JSON.stringify({ v: 1, savedAt: Date.now(), fields: { note: "Ada" } }))
+        window.__snapshots = { persisted:
+          '<ul id="cached-panel" data-controller="reactive" ' +
+          `data-reactive-persist='{"key":"panel-312","ttl":60,"debounce":0}'>` +
+          '<li><input type="text" name="note" data-testid="panel-note"></li></ul>' }
+      JS
+
+      morph_to("cached-panel", snapshot: "persisted")
+
+      expect(page).to have_field("note", with: "Ada")
+      expect(page.evaluate_script("window.__marker")).to eq("same-page")
+      expect(fragment_fetches).to be_empty
+    ensure
+      page.execute_script("window.localStorage.clear()")
+    end
+
     # The honest limit of the default mode: Rails' cookie session store issues a
     # NEW session cookie on every page response, and `Vary: Cookie` then (rightly)
     # refuses the stored copy. Declaring reactive_cache_viewer is what makes a

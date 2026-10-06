@@ -1522,14 +1522,17 @@ export default class extends Controller {
     // Lazy shells (reactive_lazy, on:, cache:) are wired by the defer feature
     // module (issue #275), which #loadFeatures below starts importing when the
     // root carries one of its markers. What stays here is the root-only morph
-    // listener of a TOKEN-BEARING root: a Turbo morph can turn a root that
-    // connected on REAL content (no marker, so no feature) into a shell while
-    // it stays connected — no Stimulus lifecycle fires — and only a listener
-    // that is already there can notice and load the feature. It costs a root
+    // listener of a TOKEN-BEARING root or a LAZY SHELL: a Turbo morph can turn
+    // a root that connected on REAL content (no marker, so no feature) into a
+    // shell while it stays connected — no Stimulus lifecycle fires — and only
+    // a listener that is already there can notice and load the feature. A
+    // shell carries no identity token (a `cache:` one has its URL, issue #306;
+    // a plain one its defer token), and a morph can turn it, still connected,
+    // into a root that needs another feature (issue #312). It costs a root
     // without any marker, before and after the morph, a few attribute reads and
     // never an import. (turbo:morph-element BUBBLES: only a morph of the root
     // itself counts.) A tokenless, client-only root has no such listener.
-    if (this.element.getAttribute?.("data-reactive-token-value") != null) {
+    if (this.element.getAttribute?.("data-reactive-token-value") != null || deferNeeded(this.element)) {
       this.#boundRootMorph = (event) => {
         if (event.target !== this.element) return
         if (__SPLIT__) this.#loadFeatures(true)

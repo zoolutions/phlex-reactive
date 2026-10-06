@@ -199,6 +199,36 @@ test("a persist op runs in the same tick", () => {
   expect(store.has(KEY)).toBe(false)
 })
 
+// Issue #312: a lazy shell carries no identity token — a `cache:` shell
+// (#306) has its fragment URL, a plain one its defer token — yet a Turbo morph
+// can turn it, still connected, into a root that needs another feature. The
+// runtime's own morph listener must be there to connect it. (Runs under both
+// __SPLIT__ values: the static calls, and the core with every module handed
+// over.)
+for (const [shell, attrs] of [
+  ["a tokenless cache: shell", { "data-reactive-lazy-on": "panel:opened", "data-reactive-defer-src": "/reactive/fragment/abc?v=1" }],
+  ["a plain lazy shell", { "data-reactive-defer-token": "t", "data-reactive-defer-pending": "true" }],
+]) {
+  test(`${shell} morphed into a draft-keeping root restores the draft in the same tick`, () => {
+    seedDraft({ note: "Ada" })
+    document.body.innerHTML = `<form id="f"><div id="root" data-controller="reactive"><span>…</span></div></form>`
+    const root = document.getElementById("root")
+    for (const [name, value] of Object.entries(attrs)) root.setAttribute(name, value)
+    const controller = new ReactiveController()
+    controller.element = root
+    controller.connect()
+
+    // What a morph leaves: the shell's markers gone, real content in place.
+    for (const name of Object.keys(attrs)) root.removeAttribute(name)
+    root.setAttribute("data-reactive-persist", '{"key":"entry","ttl":60,"debounce":0}')
+    root.innerHTML = `<input type="text" name="note">`
+    root.dispatchEvent(new window.Event("turbo:morph-element", { bubbles: true }))
+
+    expect(root.querySelector('[name="note"]').value).toBe("Ada")
+    controller.disconnect()
+  })
+}
+
 // --- loading both entries ---------------------------------------------------------
 
 test("a second copy of the core says, loudly, that the client was loaded twice", async () => {
@@ -257,9 +287,10 @@ function lazyShellWithBrokenDefer(attrs) {
   document.body.innerHTML = `<div id="root" data-controller="reactive"></div>`
   const root = document.getElementById("root")
   for (const [name, value] of Object.entries(attrs)) root.setAttribute(name, value)
-  // The runtime's own morph listener (token roots only) registers first; the
-  // defer feature's is the next one, and throwing there fails its connect.
-  let allowed = root.hasAttribute("data-reactive-token-value") ? 1 : 0
+  // The runtime's own morph listener (a token root or a lazy shell, issue
+  // #312) registers first; the defer feature's is the next one, and throwing
+  // there fails its connect.
+  let allowed = 1
   const add = root.addEventListener.bind(root)
   root.addEventListener = (name, fn, options) => {
     if (name === "turbo:morph-element" && allowed-- <= 0) throw new Error("broken defer connect")
