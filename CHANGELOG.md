@@ -6,6 +6,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-07
+
+This section also covers 0.10.0 through 0.13.4, which were released without
+changelog sections of their own.
+
 ### Added
 
 - **Bulk-selection lists without a per-list controller (#319).**
@@ -3361,7 +3366,8 @@ room for dogfood fixes.
   scaffolds a reactive component (and an RSpec spec when the app uses RSpec),
   state-backed by default or record-backed with `--record`.
 
-[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/mhenrixon/phlex-reactive/compare/v0.9.0...v0.14.0
 [0.9.0]: https://github.com/mhenrixon/phlex-reactive/compare/v0.2.6...v0.9.0
 [0.2.6]: https://github.com/mhenrixon/phlex-reactive/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/mhenrixon/phlex-reactive/compare/v0.2.4...v0.2.5
