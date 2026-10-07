@@ -96,9 +96,6 @@ export function connect(controller, core) {
       syncShow(c)
     }
     listen(c, "input change", c.show)
-    // A form reset (issue #342) restores its boxes AFTER the `reset` event
-    // dispatches (and only if nothing cancelled it), so the re-sync waits a task.
-    listen(c, "reset", () => setTimeout(() => contexts.get(controller) === c && c.show(), 0))
     seed(c, c.show)
   }
 
@@ -121,6 +118,20 @@ export function connect(controller, core) {
         syncOnComplete(c, null)
         observeGroups(c)
       }),
+    )
+  }
+
+  // A form reset (issue #342) restores its fields AFTER the `reset` event
+  // dispatches (and only if nothing cancelled it), so this waits a task, then
+  // re-syncs the bindings and re-arms the completion latches without firing
+  // (a reset fires no input/change, so a checked-count latch would stay high).
+  if (c.show || c.arm) {
+    listen(c, "reset", () =>
+      setTimeout(() => {
+        if (contexts.get(controller) !== c) return
+        c.show?.()
+        c.arm?.()
+      }, 0),
     )
   }
 

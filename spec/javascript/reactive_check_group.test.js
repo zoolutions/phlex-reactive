@@ -266,3 +266,20 @@ test("a form reset inside the root re-syncs the group bindings after the reset a
   expect($("#archive").disabled).toBe(true)
   expect($("#all").indeterminate).toBe(false)
 })
+
+test("a form reset re-arms a checked-count on_complete, so the next rise fires again", async () => {
+  const onComplete = JSON.stringify([
+    { any: [[{ field: "ids[]", checked_gte: 1 }]], ops: [["toggle_class", { to: "@root", classes: ["many"] }]] },
+  ]).replaceAll('"', "&quot;")
+  const { root, $, $$ } = mount(LIST.replace('data-controller="reactive"', `data-controller="reactive" data-reactive-on-complete="${onComplete}"`))
+  const boxes = $$('[name="ids[]"]')
+  tick(boxes[0], true)
+  expect(root.classList.contains("many")).toBe(true)
+
+  $("#bulk").reset()
+  await flush()
+  tick(boxes[0], true)
+
+  // Re-armed by the reset: the second rise fires again (toggles the class off).
+  expect(root.classList.contains("many")).toBe(false)
+})

@@ -1569,8 +1569,8 @@ end
   of a bulk-action bar — the way the header does: every box first, then `input`
   + `change` on each one it flipped, then one re-sync of the header, the count,
   the shows and the enables. `global: true` is for a trigger outside the root
-  that owns the group: every reactive root on the page flips the boxes of that
-  name it owns. Actor-only: a broadcast refuses it.
+  that owns the group: every connected reactive root on the page flips the boxes
+  of that name it owns (a root not yet connected takes no part). Actor-only: a broadcast refuses it.
 
   ```ruby
   button(type: "button", **on_client(:click, js.check_group("ids[]", false))) { "✕" }

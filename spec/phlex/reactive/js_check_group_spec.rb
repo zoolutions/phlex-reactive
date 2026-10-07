@@ -23,6 +23,13 @@ RSpec.describe Phlex::Reactive::JS do
       expect(JSON.parse(js.check_group(:tag_ids).to_json).dig(0, 1, "group")).to eq("tag_ids")
     end
 
+    it "keeps its own copy of the group name (a later mutation of the caller's string never leaks in)" do
+      name = +"ids[]"
+      chain = js.check_group(name)
+      name << "x"
+      expect(JSON.parse(chain.to_json).dig(0, 1, "group")).to eq("ids[]")
+    end
+
     it "carries global: true for a trigger outside the root that owns the group" do
       expect(JSON.parse(js.check_group("ids[]", false, global: true).to_json).dig(0, 1, "global")).to be(true)
     end

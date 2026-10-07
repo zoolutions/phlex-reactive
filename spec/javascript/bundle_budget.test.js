@@ -95,8 +95,9 @@ const SLACK = 250
 // an animation's iterations in that fallback adds 71 B: 25,245 B. Issue #338
 // (a morph keeps the focused field's value, its default written) adds 184 B: 25,429 B.
 // Issue #336 (a defer reply renders now, not a frame later) adds 128 B: 25,557 B.
-// Issue #342 (the check_group op, a form reset re-syncs the group) adds 132 B: 25,689 B.
-const BUNDLE_GZIP_CEILING = 25_689
+// Issue #342 (the check_group op, a form reset re-syncs the group) adds 132 B: 25,689 B;
+// its reset also re-arming on_complete latches adds 9 B: 25,698 B.
+const BUNDLE_GZIP_CEILING = 25_698
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -148,8 +149,8 @@ const FEATURE_GZIP_CEILINGS = {
 // focused field's value, in the core) adds 186 B: 32,519 B. Issue #336 (render a
 // defer reply now, in features/defer, plus the core's held-stream fix) adds
 // 150 B: 32,669 B. Issue #342 (check_group, in the core and bindings) adds
-// 169 B: 32,838 B.
-const SPLIT_TOTAL_GZIP_CEILING = 32_838
+// 169 B: 32,838 B; its reset re-arming on_complete latches adds 11 B: 32,849 B.
+const SPLIT_TOTAL_GZIP_CEILING = 32_849
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

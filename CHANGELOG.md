@@ -8,7 +8,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- **`js.check_group(group, checked = true)` — "clear selection" without a
+- **`js.check_group(group, checked = true, global: false)` — "clear selection" without a
   controller (#342).** A client op that ticks or unticks every owned box of a
   checkbox group from any control (a bulk-action bar's ✕), dispatching `input`
   + `change` on each box it flips and re-syncing the header, `reactive_count`,
