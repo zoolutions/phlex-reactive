@@ -677,7 +677,7 @@ Use in controllers: `render turbo_stream: Counter.replace(counter)`.
 | `on(:save, loading: { disable: true, class: "opacity-50", text: "…" })` | Full loading form: `disable:`, a loading `class:` (on the trigger or a `to:` target), a `text:` swap. Reverts on settle. |
 | `busy_on(:save)` | Mark any element so it carries `data-reactive-busy` **only while `save` is in flight** — a spinner styled with pure CSS, zero Ruby. See [Loading states](#declarative-loading-states-loading--disable_with). |
 | `on(:action, once: true)` | Fire at most once, then unbind (Stimulus's native `:once`). |
-| `on_client(:click, js.toggle("#menu"))` | **Client-only** trigger: applies declared DOM ops with ZERO round trip — no token, no POST, ever. Takes the same `window:`/`once:`/`outside:` modifiers. See [Client-only ops](#client-only-ops-on_client--js--zero-round-trips). |
+| `on_client(:click, js.toggle("#menu"))` | **Client-only** trigger: applies declared DOM ops with ZERO round trip — no token, no POST, ever. Takes the same `window:`/`once:`/`outside:` modifiers, plus `detail:` (run only when `event.detail` carries the listed values). See [Client-only ops](#client-only-ops-on_client--js--zero-round-trips). |
 | `js` | The immutable op builder behind `on_client`: `show`/`hide`/`toggle` (the `hidden` attribute, with an optional `transition:` and `expanded:`), `add_class`/`remove_class`/`toggle_class`, `set_attr`/`remove_attr`/`toggle_attr` (allowlisted names; `toggle_attr` also flips between two values), `focus`/`focus_first`, `text` (set `textContent` — XSS-safe), `dispatch`, `submit` (requestSubmit the target's own form, optionally through a `submitter:`), `paste_into` (read the clipboard into a field, gesture-gated), `check_group` (tick or untick a checkbox group, then re-sync its bindings), and `persist_state`/`persist_clear` (the `reactive_persist` draft) — chainable. |
 | `reactive_field(:param, **attrs)` | The attribute hash that binds a control to an action param (no magic `name:`) — spread onto any control: `input(**reactive_field(:value, value: @record.name))`, `select(**reactive_field(:status)) { … }`. |
 | `reactive_text(:name, initial)` | Mirror a compute output (or a declared input) into a **text node** — a live preview heading, a character counter, `"Hello, {name}"` — via `textContent` (XSS-safe). The text sibling of `reactive_field`; carries no `name`, so it's never POSTed. See [Client-side computes](#client-side-computes-reactive_compute--reactive_text). |
@@ -1272,6 +1272,24 @@ button(**on_client(:click, js
 `window:`, `once:`, and `outside:` compose exactly like `on(...)`'s event
 modifiers: the dropdown above closes on any click outside the component, and
 window-bound triggers never `preventDefault`, so links elsewhere keep working.
+
+**Gate on the event's payload with `detail:` (#346).** A Hash of top-level
+`event.detail` keys to the value each must strictly equal (`===`). Values are
+JSON scalars only (`true`/`false`, `nil`, a String, a number); anything else
+raises at render. A missing `event.detail` or key never matches, and a miss is
+a complete no-op: no `confirm:`, no `preventDefault`. A bulk form whose
+successful reply only swaps a flash clears its selection on success, and keeps
+it after a failed (4xx/5xx) submit for the retry:
+
+```ruby
+form(action: "/posts/bulk", method: "post",
+     **on_client("turbo:submit-end", js.check_group("ids[]", false), detail: { success: true })) { … }
+```
+
+It is not Turbo-specific: an app's own `upload:done` event with `{ ok: true }`
+filters the same way. `detail:` does not combine with `once:` (raises): Stimulus
+removes a `:once` listener on its first event, so a first non-matching event
+would leave the binding dead.
 
 **Several bindings on one element (#271).** Each `on_client` call emits one
 self-describing **binding record** — its descriptor, flags, `confirm:` and ops —

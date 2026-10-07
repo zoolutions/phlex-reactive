@@ -458,6 +458,19 @@ class DemosController < ActionController::Base
     redirect_to "/bulk_selection?result=#{CGI.escape(result)}", status: :see_other
   end
 
+  # Issue #346: the success reply only swaps #flash (the rows stay); op=fail
+  # answers 422 with a flash, which Turbo renders but reports as unsuccessful.
+  def bulk_outcome
+    render_component BulkOutcomeComponent.new
+  end
+
+  def bulk_outcome_submit
+    ids = Array(params[:ids]).join(",")
+    failed = params[:op] == "fail"
+    message = failed ? "Could not publish #{ids}" : "Published #{ids}"
+    render turbo_stream: turbo_stream.update("flash", html: message), status: failed ? 422 : 200
+  end
+
   # Issue #343: a nested-root list whose boxes drive a bulk bar outside it.
   def group_targets
     render_component GroupTargetsPageComponent.new

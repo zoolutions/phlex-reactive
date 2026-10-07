@@ -1508,6 +1508,63 @@ RSpec.describe Phlex::Reactive::Component do
       expect(binding_record(instance.send(:on_client, :click, ops))).not_to have_key("once")
     end
 
+    # Issue #346: detail: gates the binding on the event's payload.
+    it "records detail: with stringified keys, next to the other flags" do
+      attrs = instance.send(:on_client, "turbo:submit-end", ops, detail: { success: true })
+
+      expect(attrs[:data][:action]).to eq("turbo:submit-end->reactive#runOps")
+      expect(attrs[:data][:reactive_ops_param])
+        .to eq('{"on":"turbo:submit-end","detail":{"success":true},"ops":[["toggle",{"to":"#menu"}]]}')
+    end
+
+    it "accepts JSON scalars as detail values" do
+      record = binding_record(instance.send(:on_client, "upload:done", ops,
+        detail: { "ok" => true, failed: false, status: "done", code: 200, ratio: 0.5, error: nil }))
+
+      expect(record["detail"])
+        .to eq("ok" => true, "failed" => false, "status" => "done", "code" => 200, "ratio" => 0.5, "error" => nil)
+    end
+
+    it "leaves detail out of the record when it is not given (existing markup unchanged)" do
+      expect(binding_record(instance.send(:on_client, :click, ops))).not_to have_key("detail")
+    end
+
+    it "keeps each binding's own detail when two compose through mix" do
+      attrs = Object.new.extend(Phlex::Helpers).send(:mix,
+        instance.send(:on_client, "turbo:submit-end", ops, detail: { success: true }),
+        instance.send(:on_client, "turbo:submit-end", instance.js.show("#error"), detail: { success: false }))
+      records = attrs[:data][:reactive_ops_param].split.map { JSON.parse(it) }
+
+      expect(records.pluck("detail")).to eq([{ "success" => true }, { "success" => false }])
+    end
+
+    { "a Hash" => { a: 1 }, "an Array" => [1], "a Proc" => -> {}, "a Symbol" => :ok,
+      "Infinity" => Float::INFINITY }.each do |label, value|
+      it "raises at render for #{label} as a detail value" do
+        expect { instance.send(:on_client, "turbo:submit-end", ops, detail: { success: value }) }
+          .to raise_error(ArgumentError, /detail: values must be JSON scalars/)
+      end
+    end
+
+    it "raises for a detail: that is not a non-empty Hash" do
+      expect { instance.send(:on_client, "turbo:submit-end", ops, detail: {}) }
+        .to raise_error(ArgumentError, /detail: takes a non-empty Hash/)
+      expect { instance.send(:on_client, "turbo:submit-end", ops, detail: true) }
+        .to raise_error(ArgumentError, /detail: takes a non-empty Hash/)
+      expect { instance.send(:on_client, "turbo:submit-end", ops, detail: false) }
+        .to raise_error(ArgumentError, /detail: takes a non-empty Hash/)
+    end
+
+    it "raises when a Symbol and a String key collapse into one (a condition would be dropped)" do
+      expect { instance.send(:on_client, "turbo:submit-end", ops, detail: { success: true, "success" => false }) }
+        .to raise_error(ArgumentError, /keys must be unique as strings/)
+    end
+
+    it "raises for detail: with once: (the :once listener is gone after a first non-matching event)" do
+      expect { instance.send(:on_client, "turbo:submit-end", ops, detail: { success: true }, once: true) }
+        .to raise_error(ArgumentError, /once:/)
+    end
+
     it "raises the shared guided error for a confirm: that is neither String nor Hash" do
       expect { instance.send(:on_client, :click, ops, confirm: true) }
         .to raise_error(ArgumentError, /confirm: takes a String/)

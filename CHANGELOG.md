@@ -6,6 +6,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`on_client(…, detail: { success: true })` — run ops only when the event's
+  payload qualifies (#346).** A binding can require top-level `event.detail`
+  keys to strictly equal JSON scalars, so `on_client("turbo:submit-end",
+  js.check_group("ids[]", false), detail: { success: true })` clears a bulk
+  selection after a successful submit and keeps it after a failed one. A
+  missing detail or key never matches; a miss runs no confirm and no
+  `preventDefault`. Each binding record carries its own filter, so two bindings
+  on one element can split success and failure. A non-scalar value, an empty
+  Hash, or `detail:` with `once:` raises at render. Records without `detail`
+  are byte-identical.
+
 ## [0.14.1] - 2026-10-07
 
 ### Added

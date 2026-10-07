@@ -417,6 +417,16 @@ module Phlex
         #             on_client(:click, js.hide("#menu"), outside: true),
         #             on_client("keydown.esc", js.hide("#menu"))))
         #
+        # Issue #346: `detail:` gates the binding on the event's payload — a Hash
+        # of top-level event.detail keys to the JSON scalar each must strictly
+        # equal. The ops run after a SUCCESSFUL submit only, and a failed one
+        # keeps the selection for the retry:
+        #   form(**on_client("turbo:submit-end", js.check_group("ids[]", false),
+        #                    detail: { success: true }))
+        # A missing event.detail or key never matches; a miss is a complete
+        # no-op (no confirm, no preventDefault). Not Turbo-specific: any
+        # CustomEvent whose detail carries a flag works.
+        #
         # Ops are EPHEMERAL UI: any server re-render of the component (an action
         # reply, a broadcast, a morph) rebuilds from server state and resets
         # whatever they toggled — by design (the LiveView JS-commands caveat). Use
@@ -425,7 +435,7 @@ module Phlex
         # Validation is loud: only a non-empty Phlex::Reactive::JS chain is
         # accepted — a dead trigger should fail at render, not no-op in the
         # browser.
-        def on_client(event, ops, window: false, once: false, outside: false, confirm: nil)
+        def on_client(event, ops, window: false, once: false, outside: false, confirm: nil, detail: nil)
           unless ops.is_a?(Phlex::Reactive::JS)
             raise ArgumentError,
               "on_client expects a Phlex::Reactive::JS chain (e.g. js.toggle(\"#menu\")), " \
@@ -443,7 +453,7 @@ module Phlex
               "(change/input), or gate it behind a reducer's $ops / reactive_on_complete."
           end
           window_bound = window || outside
-          record = client_binding_record(event, ops, window_bound:, outside:, once:, confirm:)
+          record = client_binding_record(event, ops, window_bound:, outside:, once:, confirm:, detail:)
           attrs = {
             data: {
               action: "#{event}#{"@window" if window_bound}->reactive#runOps#{":once" if once}",
@@ -1440,13 +1450,14 @@ module Phlex
         # overridable confirmResolver on(:action, confirm:) uses (#52/#55); the
         # client prompts BEFORE applying the ops. Issue #179: a Hash confirm: is
         # CONDITIONAL, compiled by the shared compile_conditional_confirm.
-        def client_binding_record(event, ops, window_bound:, outside:, once:, confirm:)
+        def client_binding_record(event, ops, window_bound:, outside:, once:, confirm:, detail:)
           record = { "on" => event }
           record["window"] = true if window_bound
           record["outside"] = true if outside
           # A mix-ed regular sibling keeps calling runOps after Stimulus drops
           # this binding's :once listener — the client skips a spent once record.
           record["once"] = true if once
+          record["detail"] = client_binding_detail(detail, once:) unless detail.nil?
           case confirm
           when nil, false then nil
           when String then record["confirm"] = confirm
@@ -1455,6 +1466,44 @@ module Phlex
           end
           record["ops"] = ops.ops
           record
+        end
+
+        # Issue #346: validate + stringify on_client's detail: filter. Loud at
+        # render, like the other on_client validations — a dead filter fails
+        # here, never silently in the browser.
+        def client_binding_detail(detail, once:)
+          unless detail.is_a?(Hash) && !detail.empty?
+            raise ArgumentError,
+              "on_client detail: takes a non-empty Hash of event.detail keys to values " \
+              "(e.g. detail: { success: true }), got #{detail.inspect}"
+          end
+          if once
+            raise ArgumentError,
+              "on_client detail: cannot combine with once: — Stimulus removes a :once listener on its " \
+              "first event, so a first non-matching event would leave the binding dead"
+          end
+          normalized = detail.to_h do |key, value|
+            unless client_detail_scalar?(value)
+              raise ArgumentError,
+                "on_client detail: values must be JSON scalars (true/false/nil, a String or a finite " \
+                "number), got #{value.inspect} for #{key.inspect}"
+            end
+            [key.to_s, value]
+          end
+          # :success and "success" would collapse into one key, dropping a condition.
+          if normalized.size < detail.size
+            raise ArgumentError, "on_client detail: keys must be unique as strings, got #{detail.keys.inspect}"
+          end
+
+          normalized
+        end
+
+        def client_detail_scalar?(value)
+          case value
+          when true, false, nil, String, Integer then true
+          when Float then value.finite?
+          else false
+          end
         end
 
         def apply_confirm!(data, confirm)
