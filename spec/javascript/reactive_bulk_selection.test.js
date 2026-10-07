@@ -446,6 +446,15 @@ for (const hidden of [true, false]) {
   })
 }
 
+test("a mixed payload with an unowned value field is still evaluated while a box is owned (#348)", () => {
+  const mixed = { "#bar": { any: [[{ field: "mode", equals: "x" }, { field: "ids[]", checked_gte: 1 }]] } }
+  const { $ } = mount(showTargetsRoot(mixed, ONE_ROW))
+  const bar = document.getElementById("bar")
+  bar.hidden = false
+  tick($("#r1 input"), true)
+  expect(bar.hidden).toBe(true) // mode reads blank, so the AND group fails
+})
+
 // The cross-root and the in-root paths agree on every checked-only vector of
 // the shared fixture — zero boxes included.
 const CHECKED_VECTORS = JSON.parse(

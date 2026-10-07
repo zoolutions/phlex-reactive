@@ -537,7 +537,7 @@ function applyConditionsTarget(selector, payload, fieldValue) {
     console.warn(`[phlex-reactive] malformed reactive_show_targets conditions for ${selector} — skipped`)
     return
   }
-  if (!countsOnly(groups) && fields.every((name) => fieldValue(name) === null)) return // no owned field — leave it be
+  if (fields.every((name) => fieldValue(name) === null) && !countsOnly(groups)) return // no owned field — leave it be
   const match = anyOfAllsMatches(groups, fieldValue)
   if (match === null) return // unreachable after dnfGroupFields, kept fail-closed
   for (const node of document.querySelectorAll(selector)) node.hidden = !match
