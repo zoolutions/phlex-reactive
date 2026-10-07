@@ -551,6 +551,17 @@ module Views
               stays as it is (`aria-busy` included) and ignores later events until
               the next Turbo morph of the root re-arms it.
 
+              **A fragment renders as soon as it arrives.** Turbo applies a
+              `<turbo-stream>` one animation frame after its
+              `turbo:before-stream-render`. A defer-lane reply (a `reply.defer`
+              fetch, a `reactive_lazy` load, a cached fragment) does not wait for
+              that frame: once every `turbo:before-stream-render` listener has run,
+              the client calls the event's `detail.render` itself, stream by stream,
+              in the same task. The event is still Turbo's own — `preventDefault()`
+              cancels it and a wrapped `detail.render` runs as usual — so a warm open
+              from the browser cache lands in the same frame as its response.
+              Action replies and broadcasts keep Turbo's timing.
+
               **With `reactive_dormant`.** An `on:` + `cache:` shell goes dormant like
               any `on:` shell: the event wakes the root and the load is the cacheable
               GET. The fragment itself always renders **awake** — the client that

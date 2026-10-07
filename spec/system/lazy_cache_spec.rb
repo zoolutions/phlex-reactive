@@ -178,6 +178,38 @@ RSpec.describe "reactive_lazy(cache:) (issue #277)", type: :system do
       expect(network_fetches.size).to eq(1)
     end
 
+    # Issue #336: Turbo applies a <turbo-stream> one animation frame after its
+    # turbo:before-stream-render. The defer lane renders its reply in that same
+    # task instead, so a frame queued from the event has NOT run when the
+    # fragment's rows reach the DOM (before the fix it always had: Turbo's own
+    # frame is queued after the event's).
+    it "puts a warm open's fragment in the DOM before the next animation frame" do
+      visit "/cached_panel"
+      snapshot("cached-panel", as: "shell")
+      fire_panel_opened
+      expect(page).to have_css("[data-testid='cached-panel-item']")
+      page.execute_script(<<~JS)
+        document.querySelector("[data-testid='cached-panel-item']").setAttribute("data-stale", "yes")
+        const probe = (window.__frame336 = {})
+        document.addEventListener("turbo:before-stream-render", (event) => {
+          if (probe.stream || !event.target.innerHTML.includes("cached-panel-item")) return
+          probe.stream = true
+          requestAnimationFrame(() => (probe.frame = true))
+        }, true)
+        new MutationObserver(() => {
+          if (document.querySelector("[data-testid='cached-panel-item']:not([data-stale])")) {
+            probe.frameBeforeRows ??= probe.frame === true
+          }
+        }).observe(document.documentElement, { subtree: true, childList: true })
+      JS
+
+      morph_to("cached-panel", snapshot: "shell")
+
+      expect(page).to have_css("[data-testid='cached-panel-item']:not([data-stale])", text: "panel:mine")
+      expect(cache_hits.size).to eq(1)
+      expect(page.evaluate_script("window.__frame336")).to include("stream" => true, "frameBeforeRows" => false)
+    end
+
     # Issue #312: the shell carries no identity token (#306), yet a morph that
     # keeps it connected can turn it into a root that needs another feature —
     # here a draft-keeping one, whose draft is restored. (On the split client
