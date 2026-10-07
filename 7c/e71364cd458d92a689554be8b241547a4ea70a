@@ -1,0 +1,24 @@
+lib/phlex/reactive/component/helpers.rb
+  s_3871a8898199ed::t_2caf588a45815d 1485,1493-1496,1498
+  ai_agent 1497
+spec/javascript/reactive_run_ops_bindings.test.js
+  s_3871a8898199ed::t_2caf588a45815d 535-536
+spec/phlex/reactive/component_spec.rb
+  s_3871a8898199ed::t_2caf588a45815d 1558-1562
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "7ce71364cd458d92a689554be8b241547a4ea70a",
+  "prompts": {},
+  "sessions": {
+    "s_3871a8898199ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a11103ea-6a23-4364-9293-7b909e276640",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
