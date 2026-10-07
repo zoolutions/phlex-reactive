@@ -620,22 +620,31 @@ module Phlex
         coerced
       end
 
-      # Issue #184: a scoped component's fields POST bracketed (todo[title]), which
-      # Rails expands to { "todo" => { "title" => … } } before the action runs. Peel
+      # Issue #184: a scoped component's fields POST bracketed (todo[title]); peel
       # exactly ONE scope level so the FLAT schema { title: :string } matches (the
       # #67 bracket-drop footgun). Only when the component declares reactive_scope
-      # AND the raw params carry that single key mapping to a Hash — otherwise the
-      # raw params pass through untouched (unscoped components + nested_attributes
-      # shapes are unaffected).
+      # AND the scope key maps to a Hash — otherwise the params pass through
+      # (unscoped components + nested_attributes shapes are unaffected).
+      #
+      # Issue #337: expand the bracketed keys FIRST. A multipart body arrives
+      # expanded (Rails parses the brackets), but the client's default JSON body
+      # keeps "todo[title]" as one literal key, so a peel that looked for "todo"
+      # before expanding found nothing and the flat schema dropped every field.
+      #
+      # Bare siblings of the scope key (a trigger's on(:save, note: "x") param,
+      # an unscoped file input) stay beside the peeled fields on BOTH encodings;
+      # a scoped field wins a collision. Still only the declared schema reaches
+      # the action — the peel moves keys, coerce decides what survives.
       def unwrap_scope(raw, component_class)
         scope = reactive_scope_of(component_class)
         return raw unless scope
 
-        # At the endpoint `raw` is ActionController::Parameters, so `raw[scope]` is
-        # too — NOT a Hash. Accept either shape (both answer to the schema's
-        # coerce): unwrap only when the scope key maps to a nested params/hash.
-        nested = raw[scope.to_s]
-        nested.is_a?(Hash) || nested.is_a?(ActionController::Parameters) ? nested : raw
+        expanded = Phlex::Reactive::ParamSchema.expand(raw)
+        nested = expanded[scope.to_s]
+        return expanded unless nested.is_a?(Hash)
+
+        expanded.delete(scope.to_s)
+        expanded.merge!(nested)
       end
 
       # Issue #258: a form body cannot carry an empty array, so the client
@@ -666,7 +675,9 @@ module Phlex
           # nesting the group under it. `dropped` is nil unless verbose_errors.
           next dropped&.<<(["empty_groups #{it}", ANNOUNCED_UNDECLARED]) unless key
 
-          raw[key] = [] unless raw.key?(key)
+          # String-keyed: a scoped `raw` is the expanded plain Hash (no
+          # indifferent access), and `key` is the declaration's (often a Symbol).
+          raw[key.to_s] = [] unless raw.key?(key.to_s)
         end
         raw
       end
