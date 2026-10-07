@@ -1,0 +1,65 @@
+spec/system/morph_normalize_spec.rb
+  s_d02db4353d49da::t_95ac47fea1a92a 1-56
+README.md
+  s_d02db4353d49da::t_95ac47fea1a92a 881-886,1127-1131,2348-2349,2366
+spec/requests/scoped_json_params_spec.rb
+  s_d02db4353d49da::t_95ac47fea1a92a 1-124
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,3
+spec/dummy/public/vendor/reactive_controller.min.js.map
+  ai_agent 5,16-17
+app/controllers/phlex/reactive/actions_controller.rb
+  s_d02db4353d49da::t_95ac47fea1a92a 623,626-638,643-648,679-681
+spec/dummy/config/routes.rb
+  s_d02db4353d49da::t_95ac47fea1a92a 102,106
+spec/dummy/public/vendor/core.js
+  ai_agent 1,3
+spec/dummy/app/components/scoped_editor_component.rb
+  s_d02db4353d49da::t_95ac47fea1a92a 19-22,40-44,50-51
+spec/phlex/reactive/param_schema_spec.rb
+  s_d02db4353d49da::t_95ac47fea1a92a 197-218
+spec/system/scoped_editor_spec.rb
+  s_d02db4353d49da::t_95ac47fea1a92a 1-25
+docs/app/views/docs/pages/example_todo_list.rb
+  s_d02db4353d49da::t_95ac47fea1a92a 162-164
+docs/app/views/docs/pages/architecture.rb
+  s_d02db4353d49da::t_95ac47fea1a92a 100-102
+app/javascript/phlex/reactive/core.min.js.map
+  ai_agent 5,8-9
+spec/dummy/app/components/morph_normalize_component.rb
+  s_d02db4353d49da::t_95ac47fea1a92a 1-45
+benchmark/micro/coerce_params.rb
+  s_d02db4353d49da::t_95ac47fea1a92a 52-78
+CHANGELOG.md
+  s_d02db4353d49da::t_95ac47fea1a92a 1233-1264
+app/javascript/phlex/reactive/core.min.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 5,16-17
+spec/dummy/app/controllers/demos_controller.rb
+  s_d02db4353d49da::t_95ac47fea1a92a 598-602,618-621
+lib/phlex/reactive/param_schema.rb
+  s_d02db4353d49da::t_95ac47fea1a92a 337-340,348-365,367-368,370-384,387-394,396-415
+app/javascript/phlex/reactive/runtime.js
+  s_d02db4353d49da::t_95ac47fea1a92a 223-270,464
+spec/javascript/reactive_morph_focus.test.js
+  s_d02db4353d49da::t_95ac47fea1a92a 1-247
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "60791d5041e6caf60dfc694af5b0ceab92663211",
+  "prompts": {},
+  "sessions": {
+    "s_d02db4353d49da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5775b781-4946-4755-bdd4-dcdc0ac0b0ea",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
