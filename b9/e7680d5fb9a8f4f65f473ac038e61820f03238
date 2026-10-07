@@ -1,0 +1,21 @@
+lib/phlex/reactive/component/selection.rb
+  s_34ff65093af7d9::t_1516b2d1569f8a 86-90
+spec/phlex/reactive/group_targets_helpers_spec.rb
+  s_34ff65093af7d9::t_e53e773732b935 96-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "b9e7680d5fb9a8f4f65f473ac038e61820f03238",
+  "prompts": {},
+  "sessions": {
+    "s_34ff65093af7d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5f04be84-ce96-4016-a4c4-338bdb4c0162",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
