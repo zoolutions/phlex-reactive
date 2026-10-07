@@ -1,0 +1,23 @@
+spec/system/bulk_outcome_spec.rb
+  s_3871a8898199ed::t_23a55b53c2c709 31-38
+spec/phlex/reactive/component_spec.rb
+  s_3871a8898199ed::t_23a55b53c2c709 1554-1555
+lib/phlex/reactive/component/helpers.rb
+  s_3871a8898199ed::t_059937fffa0a78 1460
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f98579edb80fe18b5006ed9d2775a8186dcb8e3b",
+  "prompts": {},
+  "sessions": {
+    "s_3871a8898199ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a11103ea-6a23-4364-9293-7b909e276640",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
