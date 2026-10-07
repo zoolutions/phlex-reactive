@@ -882,8 +882,8 @@ action :save, params: {invoice: {date: :string, status: :string}}
 > The exception is `reactive_scope :invoice`: the endpoint expands the names and
 > then peels that one level, on the JSON body and the multipart one alike, so the
 > flat schema is the one to declare. Bare params posted beside the scoped fields
-> (a trigger's `on(:save, note: "x")`) stay at the top level next to them; a
-> scoped field wins if both carry the same name.
+> (a trigger's `on(:save, note: "x")`) stay at the top level next to them; as
+> on the client, an explicit `on(...)` param wins over a field of the same name.
 
 **Nested reactive components compose.** A reactive component rendered inside
 another is its own root — field collection stops at nested

@@ -1240,8 +1240,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   give the action the same params, and `verbose_errors` no longer reports
   `todo[title]` as dropped. Bare params posted beside the scoped fields (a
   trigger's `on(:save, note: "x")`, an unscoped file input) now stay next to
-  them on both encodings, where the multipart path used to drop them; a
-  scoped field wins a name collision. Only declared params still reach the
+  them on both encodings, where the multipart path used to drop them; an
+  explicit `on(...)` param wins over a scoped field of the same name, as it
+  does on the client. Only declared params still reach the
   action. Present since `reactive_scope` landed in 0.11.0 (#184), through
   0.13.4.
 

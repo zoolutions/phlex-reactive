@@ -633,7 +633,8 @@ module Phlex
       #
       # Bare siblings of the scope key (a trigger's on(:save, note: "x") param,
       # an unscoped file input) stay beside the peeled fields on BOTH encodings;
-      # a scoped field wins a collision. Still only the declared schema reaches
+      # a bare param wins a collision, as an explicit on() param wins over a
+      # collected field on the client (runtime.js allParams). Still only the declared schema reaches
       # the action — the peel moves keys, coerce decides what survives.
       def unwrap_scope(raw, component_class)
         scope = reactive_scope_of(component_class)
@@ -644,7 +645,7 @@ module Phlex
         return expanded unless nested.is_a?(Hash)
 
         expanded.delete(scope.to_s)
-        expanded.merge!(nested)
+        nested.merge(expanded)
       end
 
       # Issue #258: a form body cannot carry an empty array, so the client

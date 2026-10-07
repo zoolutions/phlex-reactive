@@ -58,11 +58,14 @@ RSpec.describe "reactive_scope over the JSON wire shape (issue #337)", type: :re
     expect(received(response)).to eq("title" => "t", "note" => "from the trigger")
   end
 
-  it "lets the scoped field win when a bare sibling collides with it" do
+  it "lets an explicit bare param win over a scoped field of the same name" do
+    # The client's rule: an explicit on(:act, title: …) param wins over a
+    # collected field. Under a scope the two arrive as different wire keys
+    # (title vs todo[title]), so the endpoint has to keep that precedence.
     post_reactive_action(ScopedEditorComponent, :echo, payload:,
-      params: { "title" => "bare", "todo[title]" => "scoped" })
+      params: { "title" => "explicit", "todo[title]" => "field" })
 
-    expect(received(response)).to eq("title" => "scoped")
+    expect(received(response)).to eq("title" => "explicit")
   end
 
   it "passes bare params through when the scope key is absent" do
