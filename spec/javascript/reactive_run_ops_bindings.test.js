@@ -468,3 +468,100 @@ test("spent once state belongs to the trigger element: a re-rendered or sibling 
 
   expect(names).toEqual(["once", "every", "every", "once", "every"])
 })
+
+// --- detail per record (issue #346) ---------------------------------------------
+// A record's `detail` lists top-level keys of event.detail and the values they
+// must strictly equal. A miss is a complete no-op: no preventDefault, no
+// confirm, no once spent, no "no binding" warning.
+
+function detailEvent(ops, detail, root) {
+  const event = makeEvent({ type: "turbo:submit-end", ops, currentTarget: root })
+  if (detail !== undefined) event.detail = detail
+  return event
+}
+
+test("a detail filter runs the ops only when every listed key strictly equals its value", () => {
+  const root = makeRoot()
+  const controller = buildController(root)
+  const ops = { on: "turbo:submit-end", detail: { success: true }, ops: [["toggle", { to: "@root" }]] }
+
+  controller.runOps(detailEvent(ops, { success: false }, root))
+  expect(root.hidden).toBe(false)
+
+  controller.runOps(detailEvent(ops, { success: "true" }, root)) // strict: no coercion
+  expect(root.hidden).toBe(false)
+
+  controller.runOps(detailEvent(ops, { success: true, fetchResponse: {} }, root))
+  expect(root.hidden).toBe(true)
+})
+
+test("a missing event.detail, a non-object detail or a missing key never matches (default-deny)", () => {
+  const root = makeRoot()
+  const controller = buildController(root)
+  const ops = { on: "upload:done", detail: { ok: true, error: null }, ops: [["hide", { to: "@root" }]] }
+  const event = (detail) => {
+    const e = makeEvent({ type: "upload:done", ops, currentTarget: root })
+    if (detail !== undefined) e.detail = detail
+    return e
+  }
+
+  controller.runOps(event(undefined))
+  controller.runOps(event(null))
+  controller.runOps(event(1))
+  controller.runOps(event({ ok: true })) // error: null is listed, but the key is missing
+  expect(root.hidden).toBe(false)
+
+  controller.runOps(event({ ok: true, error: null }))
+  expect(root.hidden).toBe(true)
+})
+
+test("two records on one element, success true and false, each run only on their own outcome", () => {
+  const cleared = makeEl()
+  const kept = makeEl()
+  const root = makeRoot({ "#cleared": [cleared], "#kept": [kept] })
+  const controller = buildController(root)
+  const ops = wire({ on: "turbo:submit-end", detail: { success: true }, ops: [["hide", { to: "#cleared" }]] },
+    { on: "turbo:submit-end", detail: { success: false }, ops: [["hide", { to: "#kept" }]] })
+
+  controller.runOps(detailEvent(ops, { success: false }, root))
+  expect(cleared.hidden).toBe(false)
+  expect(kept.hidden).toBe(true)
+
+  controller.runOps(detailEvent(ops, { success: true }, root))
+  expect(cleared.hidden).toBe(true)
+})
+
+test("a detail miss is a complete no-op: no preventDefault, no confirm, no once spent, no warning", async () => {
+  const root = makeRoot()
+  const controller = buildController(root)
+  controller.element.setAttribute = () => {}
+  const asked = []
+  setConfirmResolver((message) => {
+    asked.push(message)
+    return true
+  })
+  const ops = { on: "turbo:submit-end", once: true, detail: { success: true }, confirm: "Clear?",
+    ops: [["hide", { to: "@root" }]] }
+
+  const miss = detailEvent(ops, { success: false }, root)
+  const warns = captureWarns(() => controller.runOps(miss))
+  await new Promise((r) => setTimeout(r, 0))
+  expect(miss.defaultPrevented).toBe(false)
+  expect(asked).toEqual([])
+  expect(warns).toEqual([])
+  expect(root.hidden).toBe(false)
+
+  controller.runOps(detailEvent(ops, { success: true }, root)) // the once record is still armed
+  await new Promise((r) => setTimeout(r, 0))
+  expect(asked).toEqual(["Clear?"])
+  expect(root.hidden).toBe(true)
+})
+
+test("a record without detail runs whatever the event's detail is (today's behaviour)", () => {
+  const root = makeRoot()
+  const controller = buildController(root)
+  const ops = { on: "turbo:submit-end", ops: [["toggle", { to: "@root" }]] }
+
+  controller.runOps(detailEvent(ops, { success: false }, root))
+  expect(root.hidden).toBe(true)
+})

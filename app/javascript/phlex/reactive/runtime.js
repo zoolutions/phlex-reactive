@@ -846,8 +846,8 @@ function parseOps(raw) {
 }
 
 // --- on_client binding records (issue #271) -----------------------------------
-// Each on_client call emits ONE record ({on, ops, window?, outside?, confirm?,
-// confirmWhen?}); mix space-joins several onto one element (spaces inside a
+// Each on_client call emits ONE record ({on, ops, window?, outside?, once?,
+// detail?, confirm?, confirmWhen?}); mix space-joins several onto one element (spaces inside a
 // record ride as \u0020, so the join is unambiguous). Stimulus hands every
 // runOps descriptor on an element the SAME event.params, so runOps selects the
 // record(s) whose descriptor matches the firing event: event.type, the key
@@ -938,6 +938,21 @@ function bindingMatches(record, event, keyMappings) {
   if (event.type !== (dot < 0 ? on : on.slice(0, dot))) return false
   if (Boolean(record.window) !== isWindow(event.currentTarget)) return false
   return dot < 0 || keyMappings === null || keyFilterMatches(on.slice(dot + 1), event, keyMappings)
+}
+
+// Issue #346: a record's `detail` lists top-level keys of event.detail and the
+// JSON scalar each must strictly equal — on_client("turbo:submit-end", ops,
+// detail: { success: true }) runs only after a successful submit. A missing or
+// non-object event.detail, or a missing key, never matches (default-deny); a
+// record without `detail` matches whatever the event carries.
+function detailMatches(record, event) {
+  const expected = record.detail
+  if (expected === undefined) return true
+  if (expected === null || typeof expected !== "object" || Array.isArray(expected)) return false
+  const detail = event.detail
+  if (detail === null || typeof detail !== "object") return false
+  // A missing key reads undefined, which no JSON scalar (null included) equals.
+  return Object.keys(expected).every((key) => detail[key] === expected[key])
 }
 
 // A `once: true` record (PR #272) is spent after its first run. Stimulus
@@ -2364,6 +2379,9 @@ export default class extends Controller {
       // An early replay never runs an outside: record (issue #303: an outside
       // click before connect had nothing to close).
       if (record.outside && event[EARLY_KEY]) continue
+      // A detail miss (issue #346) is a complete no-op — checked before the
+      // once record is spent, preventDefault and the confirm gate.
+      if (!detailMatches(record, event)) continue
       if (onceBindingSpent(this, event, record)) continue
       this.#runBinding(record.legacy ? { ...params, ops: record.ops } : record, event, trigger)
     }
