@@ -1,0 +1,45 @@
+spec/requests/scoped_json_params_spec.rb
+  s_d02db4353d49da::t_43a7a9ceca38e8 1-113
+CHANGELOG.md
+  s_d02db4353d49da::t_00bc629effe3e9 1233-1244,1247
+  s_d02db4353d49da::t_cc6bf57171e048 1245-1246
+app/controllers/phlex/reactive/actions_controller.rb
+  s_d02db4353d49da::t_029849fa5006a2 680
+  s_d02db4353d49da::t_d884d0fbaefcea 623,626-637,642-647,678-679
+README.md
+  s_d02db4353d49da::t_5e9d165c959dd2 881-886
+benchmark/micro/coerce_params.rb
+  s_d02db4353d49da::t_43cbdc56b9065d 68
+  s_d02db4353d49da::t_143d4738b10924 52-67,69-78
+lib/phlex/reactive/param_schema.rb
+  s_d02db4353d49da::t_0937bdf2450a7f 353-356
+  s_d02db4353d49da::t_fc06665b34c9a8 337-340,348-352,357-365,367-368,370-384,387-394,396-415
+spec/dummy/app/controllers/demos_controller.rb
+  s_d02db4353d49da::t_c420fb077b928b 613-618
+spec/dummy/config/routes.rb
+  s_d02db4353d49da::t_b9ed8b5a59c8c7 105
+spec/system/scoped_editor_spec.rb
+  s_d02db4353d49da::t_f24e52eaed1fab 19-21
+  s_d02db4353d49da::t_c65d8804a8cb68 1-18,22-25
+spec/phlex/reactive/param_schema_spec.rb
+  s_d02db4353d49da::t_72699f45de25ed 197-218
+spec/dummy/app/components/scoped_editor_component.rb
+  s_d02db4353d49da::t_a885089bba7d67 19-22,40-44,50
+  s_d02db4353d49da::t_43eae91f31af5a 51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e508b1b5149a9c59cb6c59cc1398124dcd1e99ce",
+  "prompts": {},
+  "sessions": {
+    "s_d02db4353d49da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5775b781-4946-4755-bdd4-dcdc0ac0b0ea",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
