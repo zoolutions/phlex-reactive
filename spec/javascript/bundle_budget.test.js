@@ -92,8 +92,9 @@ const SLACK = 250
 // as modules. runTransition's settle fix (its own end event only, both
 // listeners dropped, transitionend, a late frame canceled) adds 37 B: 24,962 B.
 // Its run token and computed-duration fallback add 212 B: 25,174 B; counting
-// an animation's iterations in that fallback adds 71 B: 25,245 B.
-const BUNDLE_GZIP_CEILING = 25_245
+// an animation's iterations in that fallback adds 71 B: 25,245 B. Issue #338
+// (a morph keeps the focused field's value, its default written) adds 177 B: 25,422 B.
+const BUNDLE_GZIP_CEILING = 25_422
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -111,7 +112,8 @@ const TARGET_BUNDLE_GZIP = 22_700
 // (feature internals only) leaves it unchanged. runTransition's settle fix
 // adds 51 B: 12,882 B. Its run token and computed-duration fallback add
 // 199 B: 13,081 B; counting animation iterations adds 56 B: 13,137 B.
-const CORE_GZIP_CEILING = 13_137
+// Issue #338 (a morph keeps the focused field's value) adds 176 B: 13,313 B.
+const CORE_GZIP_CEILING = 13_313
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -136,8 +138,9 @@ const FEATURE_GZIP_CEILINGS = {
 // adds 781 B: 32,568 B. Issue #310 (the features' internals) recovers 541 B:
 // 32,027 B. runTransition's settle fix (in the core) adds 51 B: 32,078 B;
 // its run token and computed-duration fallback add 199 B: 32,277 B; counting
-// animation iterations adds 56 B: 32,333 B.
-const SPLIT_TOTAL_GZIP_CEILING = 32_333
+// animation iterations adds 56 B: 32,333 B. Issue #338 (a morph keeps the
+// focused field's value, in the core) adds 176 B: 32,509 B.
+const SPLIT_TOTAL_GZIP_CEILING = 32_509
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

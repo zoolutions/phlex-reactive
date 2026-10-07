@@ -220,6 +220,53 @@ export function __resetReactiveStreamRenderForTest() {
   streamRenderRegistered = false
 }
 
+// --- A morph keeps the focused field's value (issue #338) ---
+// Turbo's stream morph (reply.morph, a broadcast morph) runs Idiomorph without
+// ignoreActiveValue, so a field being typed in took the render's value: a
+// normalised "Hello" over "Hello ", or the value as the request left. Two
+// document listeners give a focused input/textarea inside a reactive root
+// Idiomorph's own ignoreActiveValue behaviour, minus the stale default:
+//   before-morph-element   — write the field's DEFAULT (its value attribute)
+//                            from the new render ourselves; with the user's
+//                            edit on it (the dirty-value flag) that never
+//                            touches .value, so dirty tracking still re-scans
+//                            against the saved value. A textarea's default is
+//                            its text child, which Idiomorph still morphs.
+//   before-morph-attribute — cancel `value` on that field: Idiomorph honours it
+//                            for the attribute AND the property. Nothing else
+//                            (a root's token, a field's class) is held.
+// data-reactive-morph-value on a field lets the morph write it while focused.
+let morphFocusRegistered = false
+
+function holdsTypedValue(el) {
+  return (
+    el === document.activeElement &&
+    (el.localName === "input" || el.localName === "textarea") &&
+    !el.hasAttribute("data-reactive-morph-value") &&
+    !!el.closest('[data-controller~="reactive"]')
+  )
+}
+
+export function registerReactiveMorphFocus() {
+  if (morphFocusRegistered) return
+  if (typeof document === "undefined" || typeof document.addEventListener !== "function") return
+  morphFocusRegistered = true
+  document.addEventListener("turbo:before-morph-element", (event) => {
+    const el = event.target
+    if (event.defaultPrevented || el.localName !== "input" || !holdsTypedValue(el)) return
+    const value = event.detail?.newElement?.getAttribute("value")
+    if (value == null) el.removeAttribute("value")
+    else if (el.getAttribute("value") !== value) el.setAttribute("value", value)
+  })
+  document.addEventListener("turbo:before-morph-attribute", (event) => {
+    if (event.detail?.attributeName === "value" && holdsTypedValue(event.target)) event.preventDefault()
+  })
+}
+
+export function __resetReactiveMorphFocusForTest() {
+  morphFocusRegistered = false
+}
+
 // The framework-owned act a reactive_lazy(on:) shell sends (issue #276).
 // Lockstep with Phlex::Reactive::Component::Lazy::MATERIALIZE_ACTION.
 const LAZY_MATERIALIZE_ACTION = "__materialize"
@@ -413,6 +460,7 @@ export function registerReactiveActions() {
   registerReactiveJs()
   registerReactiveDefer()
   registerReactiveStreamRender()
+  registerReactiveMorphFocus()
   registerReactiveOffline()
   registerReactiveDev()
 }

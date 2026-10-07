@@ -159,8 +159,9 @@ module Views
               Give each row a stable `id` (here `dom_id(@todo)`) so idiomorph can
               match rows across renders — that's what lets `reply.morph` preserve
               focus in the rename input and avoids re-creating unchanged rows.
-              Turbo 8 morph keeps the focused field's in-progress value while
-              writing the fresh server value as the new default.
+              The morph keeps the focused field's in-progress value while
+              writing the fresh server value as the new default (issue #338);
+              every other field takes the server's value.
             MD
             DocsUI::Callout(:warning, title: 'Don’t render list items without a stable id') do
               md <<~MD

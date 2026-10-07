@@ -595,6 +595,11 @@ class DemosController < ActionController::Base
     render_component MorphGridComponent.new(account: Account.find(params[:id]))
   end
 
+  # Issue #338: a morph save that normalises the value keeps the focused field's text.
+  def morph_normalize
+    render_component MorphNormalizeComponent.new
+  end
+
   # Issue #97: post-save focus lands on the freshly morphed field via
   # reply.morph.js(js.focus(...)) — the reactive:js op stream rides AFTER the
   # morph so focus targets the morphed node.
