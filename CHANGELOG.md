@@ -19,6 +19,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Hash, or `detail:` with `once:` raises at render. Records without `detail`
   are byte-identical.
 
+### Fixed
+
+- **A `checked:`-only `reactive_show_targets` entry hides at zero boxes
+  (#348).** `"#bulk-bar" => { if: { "ids[]" => { checked: 1.. } } }` was left
+  visible once the owning root held no box of the group (the last ticked row
+  stream-removed, or a morph that emptied the list), while
+  `reactive_group_targets` beside it wrote 0. A target made only of `checked_*`
+  terms is now always evaluated, as the in-root `reactive_show` and the server
+  first paint already were. A target with any value term keeps the skip when
+  none of its fields is owned.
+
 ## [0.14.1] - 2026-10-07
 
 ### Added

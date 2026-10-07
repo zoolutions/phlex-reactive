@@ -10,6 +10,11 @@ require "system_helper"
 RSpec.describe "Cross-root group targets (issue #343)", type: :system do
   def box(testid) = find("[data-testid='#{testid}']")
 
+  def remove_rows(*ids)
+    streams = ids.map { %(<turbo-stream action="remove" target="item-#{it}"></turbo-stream>) }.join
+    page.execute_script("Turbo.renderStreamMessage(#{streams.to_json})")
+  end
+
   before { visit "/group_targets" }
 
   it "paints the outside bar from reactive_values: hidden, 0, both buttons disabled" do
@@ -60,6 +65,30 @@ RSpec.describe "Cross-root group targets (issue #343)", type: :system do
     box("row-2").click # the morphed root still drives them
     expect(page).to have_css("[data-testid='footer-count']", text: "1")
     expect(page).to have_css("[data-testid='archive']:not([disabled])")
+  end
+
+  it "hides the outside bar when a stream removes the last owned box (#348)" do
+    box("row-1").click
+    expect(page).to have_css("[data-testid='bar']", visible: :visible)
+
+    remove_rows(2, 3) # the unticked rows first: the ticked one is the last box
+    expect(page).to have_no_css("[data-testid='row-3']")
+    expect(page).to have_css("[data-testid='bar']", visible: :visible)
+
+    remove_rows(1)
+    expect(page).to have_no_css("[data-testid^='row-']")
+    expect(page).to have_css("[data-testid='footer-count']", text: "0")
+    expect(page).to have_css("#bulk-bar[hidden]", visible: :all)
+  end
+
+  it "hides the outside bar when a morph of the list leaves no box (#348)" do
+    box("row-1").click
+    expect(page).to have_css("[data-testid='bar']", visible: :visible)
+
+    box("empty").click
+    expect(page).to have_no_css("[data-testid^='row-']")
+    expect(page).to have_css("[data-testid='footer-count']", text: "0")
+    expect(page).to have_css("#bulk-bar[hidden]", visible: :all)
   end
 
   it "re-syncs the outside targets after js.check_group clears the selection (#342)" do

@@ -17,6 +17,8 @@
 // Run with: bun test spec/javascript
 import { test, expect, mock, beforeAll, beforeEach, afterEach } from "bun:test"
 import { Window } from "happy-dom"
+import { readFileSync } from "node:fs"
+import { fileURLToPath } from "node:url"
 
 const window = new Window()
 let ReactiveController
@@ -386,3 +388,90 @@ test("a conditional confirm counts a group through the collected fields", async 
   const none = { collectFields: () => ({ fields: { "ids[]": [] } }) }
   expect(bindings.confirmMessage({}, none, when)).toBe(null)
 })
+
+// Issue #348: a show target referencing a group ONLY through checked_* terms
+// is always decidable — a group with no owned boxes counts 0 — so it is
+// evaluated (and hidden) even when the root owns none of the group's boxes.
+// A value term whose field is unowned still leaves its target alone.
+const showTargetsRoot = (targets, rows) =>
+  `<p id="bar">bar</p><form id="targets-root" data-controller="reactive" ` +
+  `data-reactive-show-targets="${JSON.stringify(targets).replaceAll('"', "&quot;")}"><ul id="rows">${rows}</ul></form>`
+
+const ONE_ROW = '<li id="r1"><input type="checkbox" name="ids[]" value="1"></li>'
+const CHECKED_BAR = { "#bar": { any: [[{ field: "ids[]", checked_gte: 1 }]] } }
+
+test("removing the last owned box of a group hides a checked-count show target (#348)", async () => {
+  const { $ } = mount(showTargetsRoot(CHECKED_BAR, ONE_ROW))
+  const bar = document.getElementById("bar")
+  tick($("#r1 input"), true)
+  expect(bar.hidden).toBe(false)
+
+  $("#r1").remove()
+  await flush()
+  expect(bar.hidden).toBe(true)
+})
+
+test("a morph that leaves no box of the group hides a checked-count show target (#348)", () => {
+  const { root, $ } = mount(showTargetsRoot(CHECKED_BAR, ONE_ROW))
+  const bar = document.getElementById("bar")
+  tick($("#r1 input"), true)
+  expect(bar.hidden).toBe(false)
+
+  $("#rows").innerHTML = ""
+  root.dispatchEvent(new window.Event("turbo:morph-element", { bubbles: true }))
+  expect(bar.hidden).toBe(true)
+})
+
+test("a root that never owned a box of the group paints a checked-count show target hidden (#348)", () => {
+  mount(showTargetsRoot(CHECKED_BAR, ""))
+  expect(document.getElementById("bar").hidden).toBe(true)
+})
+
+for (const hidden of [true, false]) {
+  test(`a value-term show target whose field is unowned is left alone (starts hidden=${hidden}, #348)`, () => {
+    const { root } = mount(showTargetsRoot({ "#bar": { any: [[{ field: "mode", equals: "advanced" }]] } }, ONE_ROW))
+    const bar = document.getElementById("bar")
+    bar.hidden = hidden
+    root.dispatchEvent(new window.Event("turbo:morph-element", { bubbles: true }))
+    expect(bar.hidden).toBe(hidden)
+  })
+
+  test(`a mixed payload keeps the skip while none of its fields is owned (starts hidden=${hidden}, #348)`, () => {
+    const mixed = { "#bar": { any: [[{ field: "mode", equals: "x" }, { field: "ids[]", checked_gte: 1 }]] } }
+    const { root } = mount(showTargetsRoot(mixed, ""))
+    const bar = document.getElementById("bar")
+    bar.hidden = hidden
+    root.dispatchEvent(new window.Event("turbo:morph-element", { bubbles: true }))
+    expect(bar.hidden).toBe(hidden)
+  })
+}
+
+test("a mixed payload with an unowned value field is still evaluated while a box is owned (#348)", () => {
+  const mixed = { "#bar": { any: [[{ field: "mode", equals: "x" }, { field: "ids[]", checked_gte: 1 }]] } }
+  const { $ } = mount(showTargetsRoot(mixed, ONE_ROW))
+  const bar = document.getElementById("bar")
+  bar.hidden = false
+  tick($("#r1 input"), true)
+  expect(bar.hidden).toBe(true) // mode reads blank, so the AND group fails
+})
+
+// The cross-root and the in-root paths agree on every checked-only vector of
+// the shared fixture — zero boxes included.
+const CHECKED_VECTORS = JSON.parse(
+  readFileSync(fileURLToPath(new URL("../fixtures/show_predicate_vectors.json", import.meta.url)), "utf8"),
+).vectors.filter((vector) => vector.groups.flat().every((term) => Object.keys(term).some((key) => key.startsWith("checked_"))))
+
+test("the fixture has checked-only vectors to compare", () => {
+  expect(CHECKED_VECTORS.length).toBeGreaterThanOrEqual(5)
+})
+
+for (const vector of CHECKED_VECTORS) {
+  test(`cross-root agrees with in-root: ${vector.name}`, () => {
+    const boxes = Object.entries(vector.values).flatMap(([name, values]) =>
+      values.map((value) => `<input type="checkbox" name="${name}" value="${value}" checked>`))
+    const show = JSON.stringify({ any: vector.groups }).replaceAll('"', "&quot;")
+    mount(showTargetsRoot({ "#bar": { any: vector.groups } }, `${boxes.join("")}<p id="inside" data-reactive-show="${show}">in</p>`))
+    expect(document.getElementById("bar").hidden).toBe(!vector.expect)
+    expect(document.getElementById("inside").hidden).toBe(!vector.expect)
+  })
+}

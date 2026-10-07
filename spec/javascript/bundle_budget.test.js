@@ -100,7 +100,8 @@ const SLACK = 250
 // Issue #343 (cross-root group targets: a count and an enable outside the
 // owning root, sharing the show targets' guard and parser) adds 218 B: 25,916 B.
 // Issue #346 (on_client's detail: filter on event.detail) adds 69 B: 25,985 B.
-const BUNDLE_GZIP_CEILING = 25_985
+// Issue #348 (a checked-only show target decides at zero boxes) adds 29 B: 26,014 B.
+const BUNDLE_GZIP_CEILING = 26_014
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -160,7 +161,9 @@ const FEATURE_GZIP_CEILINGS = {
 // 150 B: 32,669 B. Issue #343 (cross-root group targets, in bindings plus the
 // core's marker) adds 212 B: 33,061 B.
 // Issue #346 (on_client's detail: filter, in the core) adds 55 B: 33,116 B.
-const SPLIT_TOTAL_GZIP_CEILING = 33_116
+// Issue #348 (a checked-only show target decides at zero boxes, in bindings)
+// adds 31 B: 33,147 B.
+const SPLIT_TOTAL_GZIP_CEILING = 33_147
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

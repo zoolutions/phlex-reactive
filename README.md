@@ -1518,7 +1518,12 @@ reactive_show_targets(
 The fold is identical to an in-root `reactive_show` (each term reads its own
 field; a missing owned field reads as blank — fail-closed). Every referenced
 field must be owned by the declaring root; a target whose fields are all
-unowned is left alone, like the single-field skip.
+unowned is left alone, like the single-field skip. A target made only of
+`checked:` terms is the exception: a group with no owned boxes counts 0, so
+`"#bulk-bar" => { if: { "ids[]" => { checked: 1.. } } }` hides once the last
+box is removed, as an in-root `reactive_show` does. A target that mixes a
+`checked:` term with a value field keeps the skip while none of its fields is
+owned.
 
 ### Bulk selection (`reactive_select_all`, `reactive_count`, `reactive_enable`)
 
