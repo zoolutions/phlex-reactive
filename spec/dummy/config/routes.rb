@@ -82,6 +82,8 @@ Rails.application.routes.draw do
   # and a confirmed submit through a hidden submitter.
   get "bulk_selection" => "demos#bulk_selection"
   post "bulk_selection" => "demos#bulk_selection_submit"
+  # Issue #343: a nested-root list driving an outside bulk bar (reactive_group_targets).
+  get "group_targets" => "demos#group_targets"
   # Issue #241: reactive_persist over rich editors (real Trix + Lexxy + a bare
   # contenteditable); ?late=1 defers the editor definitions past connect.
   get "persist_editors" => "demos#persist_editors"

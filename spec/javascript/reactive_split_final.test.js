@@ -467,6 +467,21 @@ describe("bindings: the window before the module", () => {
     controller.disconnect()
   })
 
+  test("a root that only declares group targets (issue #343) loads the module and drives them on arrival", async () => {
+    const bindings = slowFeature("bindings", bindingsModule)
+    document.body.insertAdjacentHTML("beforeend", '<span id="outside-count">0</span>')
+    const targets = JSON.stringify({ "ids[]": { count: ["#outside-count"] } })
+    const { controller } = addRoot("div", { "data-reactive-group-targets": targets }, '<input type="checkbox" name="ids[]" value="1" checked>')
+    controller.connect()
+    expect(bindings.loads()).toBe(1)
+
+    bindings.arrive()
+    await controller.featuresReady
+
+    expect(document.getElementById("outside-count").textContent).toBe("1")
+    controller.disconnect()
+  })
+
   test("a tag picked in the window is added once the module is here", async () => {
     const bindings = slowFeature("bindings", bindingsModule)
     const { root, controller } = addRoot("tags", { "data-reactive-tags-field": "[name=tags]" }, `

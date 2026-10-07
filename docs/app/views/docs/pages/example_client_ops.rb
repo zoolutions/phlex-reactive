@@ -381,6 +381,30 @@ module Views
                 `button(type: "button", **on_client(:click, js.check_group("ids[]", false))) { "✕" }`
               - A form **`reset`** inside the root re-syncs the group bindings, so
                 a `type: "reset"` button never leaves a stale count.
+
+              **A bulk bar outside the list's root.** When the list is its own
+              reactive root (an action filters or paginates it), the page's
+              bindings cannot see its boxes. The owning root declares the
+              outside ids it drives instead, next to `reactive_show_targets`
+              (#343):
+
+              ```ruby
+              div(**mix(reactive_root,
+                reactive_show_targets("#bulk-bar" => { if: { "ids[]" => { checked: 1.. } } }),
+                reactive_group_targets("ids[]",
+                  count:  "#bulk-count",                    # textContent = ticked count
+                  enable: { "#bulk-archive" => 1.. })))     # disabled = !(count in range)
+
+              # outside, first paint from the page's reactive_values:
+              span(id: "bulk-count") { reactive_group_target_attrs("ids[]", :count).to_s }
+              button(id: "bulk-archive", **reactive_group_target_attrs("ids[]", :enable, 1..)) { "Archive" }
+              ```
+
+              Targets are id selectors only, resolved document-wide; an
+              `enable:` value is an Integer, a Range or a conditions Hash. They
+              re-sync on every change, a morph of the owning root, and rows
+              added or removed. One call per root (the hash form takes several
+              groups).
             MD
           end
         end

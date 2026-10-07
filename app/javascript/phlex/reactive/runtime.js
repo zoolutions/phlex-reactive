@@ -1169,12 +1169,13 @@ function formNeeded(root) {
 
 // Show bindings and cross-root show targets, completion bindings, option
 // filtering, the bulk-selection group bindings (enable, select-all, count —
-// issue #319), the tag-chip input and draft nested rows: a form's client-only
-// bindings. The root declares one, or owns an element that does. (The probes
-// the connect-time gates ran before the split, unchanged.)
+// issue #319) and their cross-root targets (#343), the tag-chip input and
+// draft nested rows: a form's client-only bindings. The root declares one, or
+// owns an element that does. (The probes the connect-time gates ran before
+// the split, unchanged.)
 function bindingsNeeded(root) {
   return (
-    ["show-targets", "on-complete", "filter-input", "tags-field"].some(
+    ["show-targets", "group-targets", "on-complete", "filter-input", "tags-field"].some(
       (marker) => root.getAttribute?.(`data-reactive-${marker}`) != null,
     ) ||
     (root.querySelectorAll?.("[data-reactive-show-field], [data-reactive-show]") ?? []).length > 0 ||

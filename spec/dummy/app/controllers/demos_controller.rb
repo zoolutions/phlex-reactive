@@ -458,6 +458,11 @@ class DemosController < ActionController::Base
     redirect_to "/bulk_selection?result=#{CGI.escape(result)}", status: :see_other
   end
 
+  # Issue #343: a nested-root list whose boxes drive a bulk bar outside it.
+  def group_targets
+    render_component GroupTargetsPageComponent.new
+  end
+
   # Issue #275: the draft code is a feature module the client imports on
   # demand. ?slow=<ms> pins that module to a delayed copy, so a spec can act
   # in the window between the controller connecting and the draft restoring;

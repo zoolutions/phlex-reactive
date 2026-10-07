@@ -17,6 +17,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   owning root) flips the group in every reactive root that owns boxes of it. Actor-only: `broadcast_to(js:)` refuses it.
   A form `reset` inside the root now re-syncs the group bindings too.
 
+- **A count and an enable outside the root that owns the checkboxes (#343).**
+  `reactive_group_targets("ids[]", count: "#bulk-count", enable: { "#bulk-archive" => 1.. })`,
+  spread on the root that owns a checkbox group, drives outside, id-allowlisted
+  elements: the ticked count as text, and `disabled` from an Integer (exact
+  count), a Range (threshold) or a full conditions Hash. It is the count and
+  enable sibling of `reactive_show_targets`, so a list that is its own reactive
+  root can drive a bulk bar the page renders. Targets re-sync on every change,
+  the header's flip, a morph of the owning root and rows added or removed; a
+  non-id selector raises at render and is warn-skipped on the client.
+  `reactive_group_target_attrs(group, :count)` / `(group, :enable, 1..)` give
+  the outside markup its first paint from `reactive_values`.
+
 ## [0.14.0] - 2026-10-07
 
 This section also covers 0.10.0 through 0.13.4, which were released without

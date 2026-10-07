@@ -684,6 +684,7 @@ Use in controllers: `render turbo_stream: Counter.replace(counter)`.
 | `reactive_show(if:/if_any:/unless:)` | **Value-conditional visibility** (the `x-show`/`data-show` case): spread onto the element to show/hide — it toggles `hidden` from the fields' **current values**, client-only, zero round trip. One conditions language: a **Hash is an AND**, an **Array is membership**, a **Range is a threshold**, `if_any:` is OR-of-AND, `unless:` negates. `reactive_values` computes first paint; `disable:` disables a hidden section's controls. See [Value-conditional visibility](#value-conditional-visibility-reactive_show). |
 | `reactive_enable(if:/if_any:/unless:)` | The sibling of `reactive_show` that flips the element's **own `disabled`** (a button, a fieldset) instead of `hidden` — same conditions, same `reactive_values` first paint. `button(**reactive_enable(if: { "ids[]" => { checked: 1.. } }))`. See [Bulk selection](#bulk-selection-reactive_select_all-reactive_count-reactive_enable). |
 | `reactive_select_all("ids[]")` / `reactive_count("ids[]")` | A checkbox **group**'s header box (ticks/unticks every owned box; shows checked / indeterminate / unchecked) and its ticked count as text — re-synced on every change and when rows are appended or removed. See [Bulk selection](#bulk-selection-reactive_select_all-reactive_count-reactive_enable). |
+| `reactive_group_targets("ids[]", count: "#c", enable: { "#b" => 1.. })` | Spread on the root that **owns** a checkbox group: drives a count and an enable on outside, id-allowlisted elements (a bulk bar the page renders). `reactive_group_target_attrs` gives that outside markup its first paint. See [A bulk bar outside the list's root](#a-bulk-bar-outside-the-lists-root-reactive_group_targets). |
 | `reactive_show_targets(:field, "#id" => value)` | **Cross-root visibility**: the component that owns the field declares which **outside**, id-allowlisted elements it governs (a nav tab, a panel in another pane) — the visibility parallel of `mirror:`. Spread on the **root** via `mix(reactive_root, …)`, **once per root** — several fields go in one call via the hash form. The value uses the same `where`-style vocabulary (`"advanced"`, `%w[a b]`, `10..`); a `"#id"` **key** takes a full conditions Hash for a **multi-field** predicate (`"#warn" => { if: { type: "trade", price: ..0 } }`). Id selectors only (raise at render + client warn-skip); toggles `hidden` only. See [Value-conditional visibility](#value-conditional-visibility-reactive_show). |
 | `reactive_persist(key:, ttl: 7.days)` | **Client-only drafts**: spread on the **root** (once) and the generic controller keeps a `localStorage` draft of every **owned** control — debounced write on `input`, immediate on `change`, flushed on disconnect, restored into **blank** controls on the next connect (`restore: :always` lets the draft win), cleared by a successful Turbo submit / `ttl` / `js.persist_clear`. Never hidden/file/password; `reactive_persist_skip` opts a control out; `fields:` narrows. See [Client-only drafts](#client-only-drafts-reactive_persist). |
 | `js.persist_state(step: 2)` / `js.persist_clear` | The draft ops (actor-only): merge a flat state bag into the draft (restored as `data-reactive-persist-state` + the `reactive:persist-restored` event) / forget the draft. |
@@ -1577,6 +1578,39 @@ end
   ```
 - **A form `reset`** inside the root re-syncs the group bindings once the reset
   has applied, so `button(type: "reset")` never leaves a stale count.
+
+#### A bulk bar outside the list's root (`reactive_group_targets`)
+
+When the list is its own reactive root (an action filters, sorts or paginates
+it), its boxes are not the page's (#15), so a bulk bar the page renders outside
+it cannot count them. The root that **owns** the boxes declares the outside
+ids it drives instead, next to `reactive_show_targets`:
+
+```ruby
+# The list (its own reactive root):
+div(**mix(reactive_root,
+  reactive_show_targets("#bulk-bar" => { if: { "ids[]" => { checked: 1.. } } }),
+  reactive_group_targets("ids[]",
+    count:  "#bulk-count",                    # textContent = ticked count
+    enable: { "#bulk-archive" => 1.. })))     # disabled = !(count in range)
+
+# The page, outside the list's root (first paint from ITS reactive_values):
+span(id: "bulk-count") { reactive_group_target_attrs("ids[]", :count).to_s }
+button(id: "bulk-archive", **reactive_group_target_attrs("ids[]", :enable, 1..)) { "Archive" }
+```
+
+- Targets are **id selectors only** (a raise at render, a warn-skip on the
+  client), resolved document-wide: inside another root or outside every root.
+  A missing one is skipped. `count:` takes one id or an Array of them.
+- An `enable:` value is an Integer (an exact count), a Range (a threshold) or a
+  full `{ if:/if_any:/unless: }` conditions Hash.
+- They re-sync on every change, on the select-all header's flip, on a morph of
+  the owning root, and when rows are added or removed.
+- **One call per root**; several groups go in the hash form:
+  `reactive_group_targets("ids[]" => { count: "#c" }, "tags[]" => { enable: { "#t" => 1.. } })`.
+- `reactive_group_target_attrs(group, :count)` is the Integer seed;
+  `(group, :enable, condition)` is `{ disabled: }` (or `{}` when
+  `reactive_values` does not cover the group, and the client seeds it).
 
 ### Client-only drafts (`reactive_persist`)
 
