@@ -17,6 +17,8 @@ import { test, expect, mock, beforeAll, beforeEach } from "bun:test"
 import { Window } from "happy-dom"
 
 const window = new Window()
+let mod
+let resetStreamHold
 let registerReactiveDefer
 let resetReactiveDefers
 let frames
@@ -92,10 +94,15 @@ beforeAll(async () => {
   globalThis.document = window.document
   globalThis.CustomEvent = window.CustomEvent
   mock.module("@hotwired/stimulus", () => ({ Controller: class {} }))
-  const mod = await import("../../app/javascript/phlex/reactive/reactive_controller.js")
-  await import("../../app/javascript/phlex/reactive/core.js")
+  mod = await import("../../app/javascript/phlex/reactive/reactive_controller.js")
+  ;({ __resetReactiveStreamHoldForTest: resetStreamHold } = await import("../../app/javascript/phlex/reactive/core.js"))
   registerReactiveDefer = mod.registerReactiveDefer
   resetReactiveDefers = (await mod.__loadReactiveFeatureForTest("defer")).resetReactiveDefers
+  // The runtime's own stream-render listener (effects, dismiss, and on the
+  // opt-in client the hold for a module a stream needs) on THIS document,
+  // once: every reply below passes through it, as on a page.
+  mod.__resetReactiveStreamRenderForTest()
+  mod.registerReactiveStreamRender()
 })
 
 let rendered
@@ -274,4 +281,39 @@ test("a Turbo without a <turbo-stream> element still gets the body (renderStream
 
   expect(rendered).toEqual([REPLACE])
   expect(document.getElementById("menu").textContent).toBe("loading")
+})
+
+// The opt-in client holds a stream's render while a module it needs is on its
+// way (core.js). The hold resolving before Turbo's frame must not hand Turbo
+// the real render back: the stream applies once.
+test.skipIf(!__SPLIT__)("a stream held for the effects module still applies once", async () => {
+  // Cold: no feature loaded yet (the default entry hands over all of them).
+  mod.__resetReactiveFeaturesForTest(true)
+  await mod.__loadReactiveFeatureForTest("defer")
+  const shipped = mod.__reactiveFeatureEntryForTest("effects")
+  let arrive
+  mod.__setReactiveFeatureForTest(
+    "effects",
+    shipped[0],
+    () => new Promise((resolve) => (arrive = () => resolve({ wrap() {}, sweep() {} }))),
+    shipped[2],
+    shipped[3],
+  )
+  resetStreamHold()
+  try {
+    reply('<turbo-stream action="append" target="list"><template><li data-reactive-effect-enter="fade">a</li></template></turbo-stream>')
+    await defer("list")
+    expect(document.querySelectorAll("#list li").length).toBe(0)
+
+    arrive()
+    await settle()
+    expect(document.querySelectorAll("#list li").length).toBe(1)
+
+    runFrames()
+    await settle()
+    expect(document.querySelectorAll("#list li").length).toBe(1)
+  } finally {
+    mod.__resetReactiveFeaturesForTest()
+    resetStreamHold()
+  }
 })

@@ -111,8 +111,9 @@ const TARGET_BUNDLE_GZIP = 22_700
 // observer, show-target checked_* re-sync) add 14 B: 12,831 B. Issue #310
 // (feature internals only) leaves it unchanged. runTransition's settle fix
 // adds 51 B: 12,882 B. Its run token and computed-duration fallback add
-// 199 B: 13,081 B; counting animation iterations adds 56 B: 13,137 B.
-const CORE_GZIP_CEILING = 13_137
+// 199 B: 13,081 B; counting animation iterations adds 56 B: 13,137 B. Issue
+// #336 (a held stream wraps a copy, not the event's detail) adds 25 B: 13,162 B.
+const CORE_GZIP_CEILING = 13_162
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -139,8 +140,9 @@ const FEATURE_GZIP_CEILINGS = {
 // 32,027 B. runTransition's settle fix (in the core) adds 51 B: 32,078 B;
 // its run token and computed-duration fallback add 199 B: 32,277 B; counting
 // animation iterations adds 56 B: 32,333 B. Issue #336 (render a defer reply
-// now, in features/defer) adds 129 B: 32,462 B.
-const SPLIT_TOTAL_GZIP_CEILING = 32_462
+// now, in features/defer) adds 129 B, and the core's held-stream fix 25 B:
+// 32,487 B.
+const SPLIT_TOTAL_GZIP_CEILING = 32_487
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 
