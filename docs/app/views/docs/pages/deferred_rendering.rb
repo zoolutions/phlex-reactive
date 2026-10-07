@@ -559,8 +559,11 @@ module Views
               the client calls the event's `detail.render` itself, stream by stream,
               in the same task. The event is still Turbo's own — `preventDefault()`
               cancels it and a wrapped `detail.render` runs as usual — so a warm open
-              from the browser cache lands in the same frame as its response.
-              Action replies and broadcasts keep Turbo's timing.
+              from the browser cache lands in the same frame as its response. This
+              relies on Turbo dispatching that event while the stream is appended,
+              as Turbo 8 does; a Turbo that dispatches it later renders on its own,
+              a frame later, as before. Action replies and broadcasts keep Turbo's
+              timing.
 
               **With `reactive_dormant`.** An `on:` + `cache:` shell goes dormant like
               any `on:` shell: the event wakes the root and the load is the cacheable
