@@ -524,7 +524,9 @@ function syncShowTargets(c, fieldValue) {
 // in-root reactive_show — each term reads its OWN owned field, a missing
 // owned field reads as blank (fail-closed, the shared-fixture contract). A
 // target whose referenced fields are ALL unowned is left alone — the
-// single-field skip generalized (this root has nothing to evaluate with). A
+// single-field skip generalized (this root has nothing to evaluate with) —
+// unless every term is a checked_* count (issue #348): a group with no owned
+// boxes counts 0, so that target is always decidable, as in-root. A
 // malformed payload warn-skips its one target while siblings still apply;
 // the selector guard is the same id-only allowlist as every cross-root arm.
 function applyConditionsTarget(selector, payload, fieldValue) {
@@ -535,7 +537,7 @@ function applyConditionsTarget(selector, payload, fieldValue) {
     console.warn(`[phlex-reactive] malformed reactive_show_targets conditions for ${selector} — skipped`)
     return
   }
-  if (fields.every((name) => fieldValue(name) === null)) return // no owned field — leave it be
+  if (!countsOnly(groups) && fields.every((name) => fieldValue(name) === null)) return // no owned field — leave it be
   const match = anyOfAllsMatches(groups, fieldValue)
   if (match === null) return // unreachable after dnfGroupFields, kept fail-closed
   for (const node of document.querySelectorAll(selector)) node.hidden = !match
@@ -1533,6 +1535,12 @@ function dnfGroupFields(groups) {
     }
   }
   return fields.size > 0 ? [...fields] : null
+}
+
+// Whether every term of a DNF payload is a checked_* count (issue #348) —
+// the payload a group with zero owned boxes still decides (count 0).
+function countsOnly(groups) {
+  return groups.flat().every((term) => SHOW_CHECKED_KEYS.some((key) => key in Object(term)))
 }
 
 // Resolve the effective confirm message (issue #179). A plain string is the

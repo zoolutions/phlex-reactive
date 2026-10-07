@@ -317,6 +317,12 @@
       "expect": true
     },
     {
+      "name": "absent group (zero boxes) fails checked_gte 1 (issue #348)",
+      "groups": [[{ "field": "ids[]", "checked_gte": 1 }]],
+      "values": {},
+      "expect": false
+    },
+    {
       "name": "absent group counts as zero ticked (checked_eq 0 matches)",
       "groups": [[{ "field": "ids[]", "checked_eq": 0 }]],
       "values": {},
