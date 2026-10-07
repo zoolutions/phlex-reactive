@@ -1,0 +1,22 @@
+spec/dummy/app/components/group_targets_page_component.rb
+  s_34ff65093af7d9::t_e9cd54eb0a52ea 33
+  s_34ff65093af7d9::t_4d012fdd34c8ae 34-35
+spec/system/group_targets_spec.rb
+  s_34ff65093af7d9::t_3218ba7ac65ec6 64-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "8169537ce06cfce847a1654737f1f8ac1249937e",
+  "prompts": {},
+  "sessions": {
+    "s_34ff65093af7d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5f04be84-ce96-4016-a4c4-338bdb4c0162",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
