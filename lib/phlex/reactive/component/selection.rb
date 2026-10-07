@@ -83,6 +83,11 @@ module Phlex
         #
         # The outside markup gets its first paint from reactive_group_target_attrs.
         def reactive_group_targets(group = nil, **options)
+          if group.nil? && (options.key?(:count) || options.key?(:enable))
+            raise ArgumentError, "reactive_group_targets needs the group first: " \
+                                 "reactive_group_targets(\"ids[]\", #{options.keys.map { "#{it}: ..." }.join(", ")})"
+          end
+
           groups =
             if group.nil? then options
             elsif group.is_a?(Hash) then group

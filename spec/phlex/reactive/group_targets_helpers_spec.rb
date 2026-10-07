@@ -93,6 +93,10 @@ RSpec.describe Phlex::Reactive::Component::Selection do
       expect { view.reactive_group_targets(" ", count: "#c") }.to raise_error(ArgumentError, /checkbox group name/)
     end
 
+    it "raises a guided error when the group is left out" do
+      expect { view.reactive_group_targets(count: "#c") }.to raise_error(ArgumentError, /needs the group first/)
+    end
+
     it "raises when no target is given" do
       expect { view.reactive_group_targets("ids[]") }.to raise_error(ArgumentError, /count: or enable:/)
     end
