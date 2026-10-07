@@ -6,16 +6,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-10-07
+
 ### Added
 
-- **`js.check_group(group, checked = true, global: false)` — "clear selection" without a
-  controller (#342).** A client op that ticks or unticks every owned box of a
-  checkbox group from any control (a bulk-action bar's ✕), dispatching `input`
-  + `change` on each box it flips and re-syncing the header, `reactive_count`,
-  `reactive_show` and `reactive_enable` once — the select-all header's own path.
-  A nested root's boxes are left alone; `global: true` (a trigger outside the
-  owning root) flips the group in every reactive root that owns boxes of it. Actor-only: `broadcast_to(js:)` refuses it.
-  A form `reset` inside the root now re-syncs the group bindings too.
+- **`js.check_group(group, checked = true, global: false)` — "clear selection"
+  without a controller (#342).** A client op that ticks or unticks every owned
+  box of a checkbox group from any control (a bulk-action bar's ✕), dispatching
+  `input` + `change` on each box it flips and re-syncing the header,
+  `reactive_count`, `reactive_show` and `reactive_enable` once — the select-all
+  header's own path. A nested root's boxes are left alone; `global: true` (a
+  trigger outside the owning root) flips the group in every connected reactive
+  root that owns boxes of it. Actor-only: `broadcast_to(js:)` refuses it. A form
+  `reset` inside the root now re-syncs the group bindings and re-arms
+  checked-count `reactive_on_complete` latches.
 
 - **A count and an enable outside the root that owns the checkboxes (#343).**
   `reactive_group_targets("ids[]", count: "#bulk-count", enable: { "#bulk-archive" => 1.. })`,
@@ -24,10 +28,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   count), a Range (threshold) or a full conditions Hash. It is the count and
   enable sibling of `reactive_show_targets`, so a list that is its own reactive
   root can drive a bulk bar the page renders. Targets re-sync on every change,
-  the header's flip, a morph of the owning root and rows added or removed; a
-  non-id selector raises at render and is warn-skipped on the client.
-  `reactive_group_target_attrs(group, :count)` / `(group, :enable, 1..)` give
-  the outside markup its first paint from `reactive_values`.
+  the header's flip, `js.check_group`, a morph of the owning root and rows
+  added or removed; a non-id selector raises at render and is warn-skipped on
+  the client. `reactive_group_target_attrs(group, :count)` /
+  `(group, :enable, 1..)` give the outside markup its first paint from
+  `reactive_values`.
 
 ## [0.14.0] - 2026-10-07
 
@@ -3389,7 +3394,8 @@ room for dogfood fixes.
   scaffolds a reactive component (and an RSpec spec when the app uses RSpec),
   state-backed by default or record-backed with `--record`.
 
-[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.14.1...HEAD
+[0.14.1]: https://github.com/mhenrixon/phlex-reactive/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/mhenrixon/phlex-reactive/compare/v0.9.0...v0.14.0
 [0.9.0]: https://github.com/mhenrixon/phlex-reactive/compare/v0.2.6...v0.9.0
 [0.2.6]: https://github.com/mhenrixon/phlex-reactive/compare/v0.2.5...v0.2.6
