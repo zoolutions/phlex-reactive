@@ -1,0 +1,57 @@
+app/javascript/phlex/reactive/reactive_controller.js
+  s_34ff65093af7d9::t_2a3d295205a169 63
+spec/requests/js_broadcast_spec.rb
+  s_34ff65093af7d9::t_8e7233886e5e46 124-132
+lib/phlex/reactive/streamable.rb
+  s_34ff65093af7d9::t_ecbee732445802 39-43
+spec/javascript/bundle_budget.test.js
+  s_34ff65093af7d9::t_f4a21bc17830ee 98-99,126,151-152
+  s_34ff65093af7d9::t_bc4c4ac54ca51d 119-120,125,127,150
+docs/app/views/docs/pages/example_client_ops.rb
+  s_34ff65093af7d9::t_7ddfc4d79b3a84 375-383
+app/javascript/phlex/reactive/features/bindings.js
+  s_34ff65093af7d9::t_13bc06458eae82 33-35,39-40,42
+  s_34ff65093af7d9::t_e32d205de77b7c 174
+  s_34ff65093af7d9::t_88d303efb5a582 41
+  s_34ff65093af7d9::t_cdc0297daf99c5 101
+  s_34ff65093af7d9::t_da0444a36a19ec 99-100
+  s_34ff65093af7d9::t_07c3b29271cc97 621-622,625-645,647,650
+spec/system/bulk_selection_spec.rb
+  s_34ff65093af7d9::t_850e2397ba240f 109-148
+CHANGELOG.md
+  s_34ff65093af7d9::t_be3901b0501af0 9-19
+docs/app/views/docs/pages/broadcasting.rb
+  s_34ff65093af7d9::t_a32f9ed9b1df73 124
+spec/javascript/reactive_check_group.test.js
+  s_34ff65093af7d9::t_ba27c53aac054b 1-163,166,171-172,176,180-254
+  s_34ff65093af7d9::t_09c86677eb8f6c 164-165,167-170,173-175,177-179
+lib/phlex/reactive/js.rb
+  s_34ff65093af7d9::t_e4297170f0b6bd 262-275,279,283-291
+  s_34ff65093af7d9::t_cc454bed75cc74 276-278,280-282
+app/javascript/phlex/reactive/runtime.js
+  s_34ff65093af7d9::t_0be65471652d4c 685-699
+spec/phlex/reactive/js_check_group_spec.rb
+  s_34ff65093af7d9::t_52c921d48c730f 1-45
+README.md
+  s_34ff65093af7d9::t_a32f9ed9b1df73 2740-2743
+  s_34ff65093af7d9::t_be3901b0501af0 681,1567-1578
+spec/dummy/app/components/bulk_selection_component.rb
+  s_34ff65093af7d9::t_44bdf422dc5c10 55-56
+  s_34ff65093af7d9::t_fbb9aa92094fde 48-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d9f89b0c283a5f01820b7d5be0225c0e0357d8ce",
+  "prompts": {},
+  "sessions": {
+    "s_34ff65093af7d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5f04be84-ce96-4016-a4c4-338bdb4c0162",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
