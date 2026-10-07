@@ -1,0 +1,39 @@
+spec/dummy/public/vendor/reactive_controller.min.js.map
+  ai_agent 5,16-17
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/runtime.js
+  s_d02db4353d49da::t_793da01f3aaa42 256-258
+README.md
+  s_d02db4353d49da::t_5b3ad970f51f45 1121-1122
+spec/javascript/bundle_budget.test.js
+  s_d02db4353d49da::t_5b3ad970f51f45 96-97,115-116,142-143
+spec/javascript/reactive_morph_focus.test.js
+  s_d02db4353d49da::t_f2c803a177ba3b 221-230
+app/javascript/phlex/reactive/core.min.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 5,16-17
+app/javascript/phlex/reactive/core.min.js.map
+  ai_agent 5,8-9
+spec/dummy/public/vendor/core.js
+  ai_agent 1,3
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d277d819043c3491ec1d04299064da98688c6f58",
+  "prompts": {},
+  "sessions": {
+    "s_d02db4353d49da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5775b781-4946-4755-bdd4-dcdc0ac0b0ea",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
