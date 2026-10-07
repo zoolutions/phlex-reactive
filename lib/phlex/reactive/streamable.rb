@@ -192,7 +192,8 @@ module Phlex
             raise ArgumentError,
               "broadcast_to(js:) refuses actor-only op(s) #{refused.join(", ")} — broadcasting focus " \
               "steals it in every subscriber's tab; broadcasting submit force-submits every " \
-              "subscriber's form; broadcasting paste_into reads every subscriber's clipboard. " \
+              "subscriber's form; broadcasting paste_into reads every subscriber's clipboard; " \
+              "broadcasting check_group ticks or clears every subscriber's selection. " \
               "These are actor concerns (reply.js / on_client / $ops)."
           end
 

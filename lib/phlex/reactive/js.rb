@@ -268,8 +268,8 @@ module Phlex
       # show and enable bindings. The group is a checkbox name resolved like
       # reactive_select_all's: a bare name takes reactive_scope, a bracketed one
       # ("ids[]") is used verbatim. `global: true` is for a trigger outside the
-      # root that owns the group: every reactive root on the page flips the
-      # boxes it owns. ACTOR-ONLY like focus/submit: a broadcast that cleared
+      # root that owns the group: EVERY reactive root on the page flips the
+      # boxes of that name it owns (nested roots included). ACTOR-ONLY like focus/submit: a broadcast that cleared
       # every subscriber's selection would be hostile (BROADCAST_REFUSED_OPS).
       #   button(**on_client(:click, js.check_group("ids[]", false))) { "✕" }
 

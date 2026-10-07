@@ -13,8 +13,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   checkbox group from any control (a bulk-action bar's ✕), dispatching `input`
   + `change` on each box it flips and re-syncing the header, `reactive_count`,
   `reactive_show` and `reactive_enable` once — the select-all header's own path.
-  A nested root's boxes are left alone; `global: true` reaches the root that owns
-  the group from a trigger outside it. Actor-only: `broadcast_to(js:)` refuses it.
+  A nested root's boxes are left alone; `global: true` (a trigger outside the
+  owning root) flips the group in every reactive root that owns boxes of it. Actor-only: `broadcast_to(js:)` refuses it.
   A form `reset` inside the root now re-syncs the group bindings too.
 
 ## [0.14.0] - 2026-10-07

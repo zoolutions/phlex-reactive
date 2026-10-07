@@ -396,6 +396,13 @@ RSpec.describe Phlex::Reactive::Response do
       expect(stream).to include("&quot;paste_into&quot;")
     end
 
+    # Issue #342: check_group is actor-only too — the actor's own reply may
+    # clear the selection it just acted on.
+    it "allows a check_group op (actor-scoped, mirroring focus/submit)" do
+      stream = counter.reply.with.js(CounterComponent.new(count: 0).js.check_group("ids[]", false)).streams.first
+      expect(stream).to include("&quot;check_group&quot;")
+    end
+
     it "enforces the attr allowlist on a raw op array (escape hatch can't bypass it)" do
       hostile = [["set_attr", { "to" => "#x", "name" => "onclick", "value" => "alert(1)" }]]
       expect { counter.reply.with.js(hostile) }.to raise_error(ArgumentError, /onclick/)

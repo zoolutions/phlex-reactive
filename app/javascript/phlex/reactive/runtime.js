@@ -687,7 +687,7 @@ const CLIENT_OPS = Object.freeze({
   // header does (every box set, then input + change on each flipped one) and
   // re-syncs the group bindings once. global: true ignores the op's own root
   // and asks every reactive root on the page; each flips only the boxes it
-  // owns, so the one that holds the group answers.
+  // owns (nested roots included), so every root holding the group answers.
   check_group: (el, args) => {
     const roots = args.global ? document.querySelectorAll('[data-controller~="reactive"]') : [el]
     for (const root of roots) {

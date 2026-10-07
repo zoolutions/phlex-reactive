@@ -212,6 +212,20 @@ test("global: true flips the group in the root that owns the boxes, from a trigg
   expect(document.querySelector("#bar").hidden).toBe(true)
 })
 
+test("global: true reaches every root that owns boxes of the group, a nested one included", () => {
+  document.body.innerHTML = `
+    <div id="page" data-controller="reactive">
+      <div id="a" data-controller="reactive"><input type="checkbox" name="ids[]" value="1" checked></div>
+      <div id="b" data-controller="reactive"><input type="checkbox" name="ids[]" value="2" checked></div>
+    </div>`
+  const pageController = connect(document.querySelector("#page"))
+  for (const id of ["#a", "#b"]) connect(document.querySelector(id))
+
+  runOps(pageController, clear({ global: true }))
+
+  expect([...document.querySelectorAll('[name="ids[]"]')].some((b) => b.checked)).toBe(false)
+})
+
 test("without global:, a trigger's own root that owns no boxes flips nothing (ownership)", () => {
   document.body.innerHTML = `<div id="page" data-controller="reactive">${LIST}</div>`
   const page = document.querySelector("#page")

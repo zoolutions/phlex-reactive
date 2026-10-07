@@ -376,8 +376,8 @@ module Views
                 selection ✕" from any control: it unticks (`false`) or ticks
                 every owned box of the group the way the header does, then
                 re-syncs the header, the count, the shows and the enables once.
-                `global: true` reaches the owning root from a trigger outside
-                it. Actor-only: a broadcast refuses it.
+                `global: true` (a trigger outside the owning root) flips the
+                group in every reactive root that owns boxes of it. Actor-only: a broadcast refuses it.
                 `button(type: "button", **on_client(:click, js.check_group("ids[]", false))) { "✕" }`
               - A form **`reset`** inside the root re-syncs the group bindings, so
                 a `type: "reset"` button never leaves a stale count.
