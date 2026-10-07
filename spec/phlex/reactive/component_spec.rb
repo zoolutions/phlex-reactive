@@ -1551,6 +1551,8 @@ RSpec.describe Phlex::Reactive::Component do
         .to raise_error(ArgumentError, /detail: takes a non-empty Hash/)
       expect { instance.send(:on_client, "turbo:submit-end", ops, detail: true) }
         .to raise_error(ArgumentError, /detail: takes a non-empty Hash/)
+      expect { instance.send(:on_client, "turbo:submit-end", ops, detail: false) }
+        .to raise_error(ArgumentError, /detail: takes a non-empty Hash/)
     end
 
     it "raises for detail: with once: (the :once listener is gone after a first non-matching event)" do

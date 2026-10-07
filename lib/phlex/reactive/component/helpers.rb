@@ -1457,7 +1457,7 @@ module Phlex
           # A mix-ed regular sibling keeps calling runOps after Stimulus drops
           # this binding's :once listener — the client skips a spent once record.
           record["once"] = true if once
-          record["detail"] = client_binding_detail(detail, once:) if detail
+          record["detail"] = client_binding_detail(detail, once:) unless detail.nil?
           case confirm
           when nil, false then nil
           when String then record["confirm"] = confirm

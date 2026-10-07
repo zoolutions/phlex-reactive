@@ -28,5 +28,13 @@ RSpec.describe "Clear a selection on a successful submit only (issue #346)", typ
     expect(box("row-1")).not_to be_checked
     expect(box("row-2")).not_to be_checked
     expect(box("all")).not_to be_checked
+
+    # The binding survives the clearing re-sync: a later failed submit keeps
+    # the new selection.
+    box("row-1").click
+    box("fail").click
+    expect(page).to have_css("#flash", text: "Could not publish 1")
+    expect(page).to have_css("[data-testid='count']", text: "1")
+    expect(box("row-1")).to be_checked
   end
 end
