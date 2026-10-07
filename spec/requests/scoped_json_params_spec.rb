@@ -12,6 +12,13 @@ RSpec.describe "reactive_scope over the JSON wire shape (issue #337)", type: :re
   let!(:todo) { Todo.create!(title: "old") }
   let(:payload) { { "gid" => todo.to_gid.to_s } }
 
+  # post_reactive_multipart posts a form-encoded body unless a file part is
+  # present; this undeclared file (dropped by the schema) makes rack-test send
+  # real multipart/form-data, the encoding the client uses for a :file param.
+  def multipart(params)
+    params.merge("upload" => Rack::Test::UploadedFile.new(StringIO.new("x"), "text/plain", original_filename: "x.txt"))
+  end
+
   def received(response)
     JSON.parse(CGI.unescapeHTML(response.body[%r{data-testid="received">(.*?)</pre>}m, 1]))
   end
@@ -30,8 +37,9 @@ RSpec.describe "reactive_scope over the JSON wire shape (issue #337)", type: :re
   end
 
   it "still matches a multipart body" do
-    post_reactive_multipart(ScopedEditorComponent, :save, payload:, params: { todo: { title: "Buy milk" } })
+    post_reactive_multipart(ScopedEditorComponent, :save, payload:, params: multipart({ todo: { title: "Buy milk" } }))
 
+    expect(request.media_type).to eq("multipart/form-data")
     expect(response).to have_http_status(:ok)
     expect(todo.reload.title).to eq("Buy milk")
   end
@@ -53,7 +61,7 @@ RSpec.describe "reactive_scope over the JSON wire shape (issue #337)", type: :re
 
   it "keeps a bare sibling param beside the scoped fields over multipart" do
     post_reactive_multipart(ScopedEditorComponent, :echo, payload:,
-      params: { "todo" => { "title" => "t" }, "note" => "from the trigger" })
+      params: multipart({ "todo" => { "title" => "t" }, "note" => "from the trigger" }))
 
     expect(received(response)).to eq("title" => "t", "note" => "from the trigger")
   end
@@ -90,7 +98,7 @@ RSpec.describe "reactive_scope over the JSON wire shape (issue #337)", type: :re
 
   it "keeps a posted scoped group when the same group is also announced empty (multipart)" do
     post_reactive_multipart(ScopedEditorComponent, :echo, payload:,
-      params: { "todo" => { "tags" => %w[ruby] } }, empty_groups: ["todo[tags]"])
+      params: multipart({ "todo" => { "tags" => %w[ruby] } }), empty_groups: ["todo[tags]"])
 
     expect(received(response)).to eq("tags" => %w[ruby])
   end
