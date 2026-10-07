@@ -1,0 +1,39 @@
+docs/app/views/docs/pages/example_notifications.rb
+  s_34ff65093af7d9::t_014a575cf0392e 165
+app/javascript/phlex/reactive/runtime.js
+  s_34ff65093af7d9::t_014a575cf0392e 690
+docs/app/views/docs/pages/examples_overview.rb
+  s_34ff65093af7d9::t_014a575cf0392e 51
+docs/app/views/docs/pages/security.rb
+  s_34ff65093af7d9::t_014a575cf0392e 141
+CHANGELOG.md
+  s_34ff65093af7d9::t_014a575cf0392e 16-17
+lib/phlex/reactive/streamable.rb
+  s_34ff65093af7d9::t_014a575cf0392e 195-196
+README.md
+  s_34ff65093af7d9::t_014a575cf0392e 1572-1573
+spec/javascript/reactive_check_group.test.js
+  s_34ff65093af7d9::t_014a575cf0392e 215-228
+spec/phlex/reactive/response_spec.rb
+  s_34ff65093af7d9::t_014a575cf0392e 399-405
+docs/app/views/docs/pages/example_client_ops.rb
+  s_34ff65093af7d9::t_014a575cf0392e 379-380
+lib/phlex/reactive/js.rb
+  s_34ff65093af7d9::t_014a575cf0392e 271-272
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ea94814b9cd9812c451381745fc225426adfdab8",
+  "prompts": {},
+  "sessions": {
+    "s_34ff65093af7d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5f04be84-ce96-4016-a4c4-338bdb4c0162",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
