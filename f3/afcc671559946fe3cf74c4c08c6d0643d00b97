@@ -1,0 +1,19 @@
+spec/javascript/reactive_morph_focus.test.js
+  s_d02db4353d49da::t_f103aa63688a5c 232-239,242-244,246
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f3afcc671559946fe3cf74c4c08c6d0643d00b97",
+  "prompts": {},
+  "sessions": {
+    "s_d02db4353d49da": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5775b781-4946-4755-bdd4-dcdc0ac0b0ea",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
