@@ -45,6 +45,15 @@ class BulkSelectionComponent < ApplicationComponent
           )
         ) { "Delete" }
         button(type: "submit", name: "bulk_action", value: "delete", hidden: true, id: "delete-submit")
+        button(type: "reset", data: { testid: "reset" }) { "Reset" }
+      end
+      # Issue #342: a floating bulk-action bar whose "✕" clears the selection
+      # with js.check_group — no per-list controller.
+      div(**reactive_show(if: { "ids[]" => { checked: 1.. } }, data: { testid: "bar" })) do
+        span(**reactive_count("ids[]", data: { testid: "bar-count" })) { "0" }
+        plain " selected "
+        button(type: "button", **mix(on_client(:click, js.check_group("ids[]", false)), data: { testid: "clear" })) { "✕" }
+        button(type: "button", **mix(on_client(:click, js.check_group("ids[]")), data: { testid: "tick-all" })) { "All" }
       end
       div(data: { controller: "reactive" }) do
         input(type: "checkbox", name: "ids[]", value: "99", data: { testid: "nested" })

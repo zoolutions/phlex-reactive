@@ -60,6 +60,7 @@ if (__SPLIT__) {
     nestedRemove: bindings.nestedRemove,
     syncNestedJson: bindings.syncNestedJson,
     confirmMessage: bindings.confirmMessage,
+    checkGroup: bindings.checkGroup,
   })
   registerReactiveFeature("compute", { connect: compute.connect, disconnect: compute.disconnect, seed: compute.seed, recompute: compute.recompute })
   registerReactiveFeature("effects", { wrap: effects.wrap, sweep: effects.sweep })

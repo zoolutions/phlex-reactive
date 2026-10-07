@@ -121,6 +121,15 @@ RSpec.describe "broadcast_js_to (issue #97)", type: :request do
       .to raise_error(ArgumentError, /persist_clear/)
   end
 
+  # Issue #342: check_group joins the actor-only set — a broadcast that ticks
+  # or clears every subscriber's selection would be hostile.
+  it "rejects a check_group op (broadcasting a selection change would be hostile)" do
+    ops = TodoItemComponent.new(todo: Todo.new).js.check_group("ids[]", false)
+
+    expect { TodoItemComponent.broadcast_to("alerts", js: ops) }
+      .to raise_error(ArgumentError, /check_group/)
+  end
+
   it "rejects an empty op chain (a dead reactive:js broadcast is a mistake)" do
     empty = TodoItemComponent.new(todo: Todo.new).js
 

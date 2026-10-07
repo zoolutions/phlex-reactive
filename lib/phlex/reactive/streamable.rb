@@ -36,10 +36,11 @@ module Phlex
       # Actor-only ops: a js broadcast rejects a broadcast that carries one.
       # Focus ops steal focus in every subscriber's tab (issue #96); submit
       # (issue #226) would force-submit every subscriber's form; paste_into
-      # (issue #228) would read every subscriber's clipboard. They belong to
-      # the actor's own reply (reply.js) or gesture (on_client / a reducer's
-      # $ops), never a broadcast. Names mirror Phlex::Reactive::JS's verbs.
-      BROADCAST_REFUSED_OPS = %w[focus focus_first submit paste_into persist_state persist_clear].freeze
+      # (issue #228) would read every subscriber's clipboard; check_group
+      # (issue #342) would tick or clear every subscriber's selection. They
+      # belong to the actor's own reply (reply.js) or gesture (on_client / a
+      # reducer's $ops), never a broadcast. Names mirror Phlex::Reactive::JS's verbs.
+      BROADCAST_REFUSED_OPS = %w[focus focus_first submit paste_into persist_state persist_clear check_group].freeze
 
       # The broadcast_to verb kwargs (issue #185) → their Turbo stream action.
       # SELF-TARGETING verbs derive the target from the component's #id (require a

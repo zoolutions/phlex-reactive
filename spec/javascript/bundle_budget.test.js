@@ -95,7 +95,8 @@ const SLACK = 250
 // an animation's iterations in that fallback adds 71 B: 25,245 B. Issue #338
 // (a morph keeps the focused field's value, its default written) adds 184 B: 25,429 B.
 // Issue #336 (a defer reply renders now, not a frame later) adds 128 B: 25,557 B.
-const BUNDLE_GZIP_CEILING = 25_557
+// Issue #342 (the check_group op, a form reset re-syncs the group) adds 132 B: 25,689 B.
+const BUNDLE_GZIP_CEILING = 25_689
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -115,13 +116,15 @@ const TARGET_BUNDLE_GZIP = 22_700
 // 199 B: 13,081 B; counting animation iterations adds 56 B: 13,137 B.
 // Issue #338 (a morph keeps the focused field's value) adds 186 B: 13,323 B.
 // Issue #336 (a held stream wraps a copy, not the event's detail) adds 21 B: 13,344 B.
-const CORE_GZIP_CEILING = 13_344
+// Issue #342 (the check_group op) adds 40 B: 13,384 B.
+const CORE_GZIP_CEILING = 13_384
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
   // wrappers) to 5,859 B. Issue #310 lowered every ceiling below to its
-  // module's real size, rounded up to the next 50 B.
-  "features/bindings": 5_900,
+  // module's real size, rounded up to the next 50 B. Issue #342 (check_group,
+  // the reset re-sync) takes it to 5,988 B.
+  "features/bindings": 6_000,
   // Issue #336 (render a defer reply now) takes it from 2,845 B to 2,974 B.
   "features/defer": 2_974,
   "features/compute": 2_050,
@@ -144,8 +147,9 @@ const FEATURE_GZIP_CEILINGS = {
 // animation iterations adds 56 B: 32,333 B. Issue #338 (a morph keeps the
 // focused field's value, in the core) adds 186 B: 32,519 B. Issue #336 (render a
 // defer reply now, in features/defer, plus the core's held-stream fix) adds
-// 150 B: 32,669 B.
-const SPLIT_TOTAL_GZIP_CEILING = 32_669
+// 150 B: 32,669 B. Issue #342 (check_group, in the core and bindings) adds
+// 169 B: 32,838 B.
+const SPLIT_TOTAL_GZIP_CEILING = 32_838
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

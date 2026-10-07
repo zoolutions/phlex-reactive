@@ -30,10 +30,16 @@ import { confirmPredicate } from "phlex/reactive/confirm_predicate"
 // minifier never renames, so the record carries no more of them than it
 // must (issue #310).
 const contexts = new WeakMap()
+// root element -> the same context, for the check_group op (issue #342),
+// which names a root, not a controller.
+const rootContexts = new WeakMap()
 
 function ctx(controller, core) {
   let c = contexts.get(controller)
-  if (!c) contexts.set(controller, (c = { root: controller.element, core, nestedIndex: 0 }))
+  if (!c) {
+    contexts.set(controller, (c = { root: controller.element, core, nestedIndex: 0 }))
+    if (c.root) rootContexts.set(c.root, c)
+  }
   return c
 }
 
@@ -90,6 +96,9 @@ export function connect(controller, core) {
       syncShow(c)
     }
     listen(c, "input change", c.show)
+    // A form reset (issue #342) restores its boxes AFTER the `reset` event
+    // dispatches (and only if nothing cancelled it), so the re-sync waits a task.
+    listen(c, "reset", () => setTimeout(() => contexts.get(controller) === c && c.show(), 0))
     seed(c, c.show)
   }
 
@@ -162,6 +171,7 @@ export function disconnect(controller) {
   const c = contexts.get(controller)
   if (!c) return
   contexts.delete(controller)
+  rootContexts.delete(c.root)
   for (const off of c.offs ?? []) off()
   c.groupObserver?.disconnect()
 }
@@ -608,18 +618,36 @@ function groupBoxes(c, name, owns, scope) {
   return [...c.root.querySelectorAll(namedSelector(name, scope))].filter((el) => el.type === "checkbox" && owns(el))
 }
 
-// A header's edit ticks or unticks every owned box of its group, and
-// dispatches `input` + `change` on each one it flips so computes, shows and on-complete
-// bindings see a real edit. The re-entrant change events are skipped by the
-// show listener while this runs (c.flipping); it syncs once afterwards.
+// A header's edit ticks or unticks every owned box of its group (the header
+// itself is never a member). The show listener syncs once afterwards.
 function flipGroup(c, header) {
   const group = header?.getAttribute?.("data-reactive-select-all")
-  if (!group || !c.core.owns(header)) return
+  if (group && c.core.owns(header)) setGroup(c, group, header.checked, header)
+}
+
+// The check_group op (issue #342): set a root's group the way its header
+// would, then sync its bindings once. A root this module never connected (no
+// group binding, only the boxes) still flips, with the #15 ownership check.
+export function checkGroup(root, group, checked) {
+  if (!group) return
+  const c = rootContexts.get(root) ?? {
+    root,
+    core: { ownership: () => (el) => el.closest('[data-controller~="reactive"]') === root },
+  }
+  setGroup(c, group, checked !== false)
+  c.show?.()
+}
+
+// Tick or untick every owned box of a group, and dispatch `input` + `change`
+// on each one it flips so computes, shows and on-complete bindings see a real
+// edit. The re-entrant events are skipped by the show listener while this
+// runs (c.flipping); the caller syncs once afterwards.
+function setGroup(c, group, checked, except) {
   const scope = c.root.getAttribute?.("data-reactive-scope") || null
-  const flipped = groupBoxes(c, group, c.core.ownership(), scope).filter((box) => box !== header && box.checked !== header.checked)
+  const flipped = groupBoxes(c, group, c.core.ownership(), scope).filter((box) => box !== except && box.checked !== checked)
   // Every box first, then the events: a listener (a checked-count
   // on_complete) must see the group's final count, never a half-flipped one.
-  for (const box of flipped) box.checked = header.checked
+  for (const box of flipped) box.checked = checked
   c.flipping = true
   try {
     for (const box of flipped) {

@@ -372,6 +372,15 @@ module Views
               - The Delete button confirms, then submits **this** form through
                 the hidden submitter, so the POST carries `bulk_action=delete` and
                 the ticked `ids[]`. A cancelled confirm submits nothing.
+              - **`js.check_group(group, checked = true)`** (#342) — "Clear
+                selection ✕" from any control: it unticks (`false`) or ticks
+                every owned box of the group the way the header does, then
+                re-syncs the header, the count, the shows and the enables once.
+                `global: true` reaches the owning root from a trigger outside
+                it. Actor-only: a broadcast refuses it.
+                `button(type: "button", **on_client(:click, js.check_group("ids[]", false))) { "✕" }`
+              - A form **`reset`** inside the root re-syncs the group bindings, so
+                a `type: "reset"` button never leaves a stale count.
             MD
           end
         end
