@@ -229,19 +229,19 @@ test("a removal (before-morph-element with no newElement) leaves the focused fie
 })
 
 test("registration is idempotent: one pair of listeners however often it runs", () => {
-  registerReactiveMorphFocus()
-  registerReactiveMorphFocus()
-  mount(`<div data-controller="reactive"><input name="name" value="old"></div>`)
-  const field = document.querySelector("input")
-  type(field, "Hello ")
-  let writes = 0
-  const real = field.setAttribute.bind(field)
-  field.setAttribute = (name, value) => {
-    if (name === "value") writes++
-    real(name, value)
+  // A second listener would see the attribute already updated and skip it, so
+  // counting writes can't catch a duplicate; count the registrations instead.
+  __resetReactiveMorphFocusForTest()
+  const added = []
+  const real = document.addEventListener.bind(document)
+  document.addEventListener = (type, ...rest) => {
+    added.push(type)
+    return real(type, ...rest)
   }
 
-  morph(field, `<input name="name" value="Hello">`)
+  registerReactiveMorphFocus()
+  registerReactiveMorphFocus()
+  registerReactiveMorphFocus()
 
-  expect(writes).toBe(1)
+  expect(added.sort()).toEqual(["turbo:before-morph-attribute", "turbo:before-morph-element"])
 })
