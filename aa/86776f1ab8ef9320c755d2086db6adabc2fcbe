@@ -1,0 +1,19 @@
+CHANGELOG.md
+  s_34ff65093af7d9::t_498dac97a1d716 9-10,13-22,31-35,3397-3398
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "aa86776f1ab8ef9320c755d2086db6adabc2fcbe",
+  "prompts": {},
+  "sessions": {
+    "s_34ff65093af7d9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5f04be84-ce96-4016-a4c4-338bdb4c0162",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
