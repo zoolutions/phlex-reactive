@@ -1711,6 +1711,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Performance
 
+- **A deferred fragment renders as soon as it is read (#336).** The defer lane
+  (a `reply.defer` fetch, a `reactive_lazy` load, a `cache:` fragment) handed
+  its reply to `Turbo.renderStreamMessage`, and Turbo applies each
+  `<turbo-stream>` one animation frame after its `turbo:before-stream-render`.
+  The lane now catches those events and, once every listener has run, calls
+  the final `event.detail.render` itself, in order, in the same task; Turbo's
+  frame-later call gets a no-op. The event is still Turbo's own, so
+  `preventDefault()` cancels a stream and a wrapped `detail.render` (effects,
+  dismissing flashes) still runs. A Turbo that dispatches later renders on its
+  own, as before. A warm `reactive_lazy(on:, cache:)` open in headless
+  Chromium: median time from the trigger to the rows in the DOM 5.9 → 0.8 ms
+  (stream event to rows 5.2 → 0.2 ms). Action replies and broadcasts keep
+  Turbo's timing. On the opt-in client, a stream held for a module on its way
+  wraps a copy of the event's render instead of writing it back, so Turbo's
+  later call stays the no-op. The default bundle grows 128 B gzip
+  (25,429 → 25,557 B), the defer module 129 B (2,845 → 2,974 B), the split
+  core 21 B (13,323 → 13,344 B).
+
 - **The default client is 1,008 B smaller gzipped (#310).**
   `reactive_controller.min.js` goes from 25,933 B to 24,925 B. The feature
   modules keep their per-root state in closures instead of records whose

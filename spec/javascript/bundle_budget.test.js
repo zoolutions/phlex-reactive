@@ -94,7 +94,8 @@ const SLACK = 250
 // Its run token and computed-duration fallback add 212 B: 25,174 B; counting
 // an animation's iterations in that fallback adds 71 B: 25,245 B. Issue #338
 // (a morph keeps the focused field's value, its default written) adds 184 B: 25,429 B.
-const BUNDLE_GZIP_CEILING = 25_429
+// Issue #336 (a defer reply renders now, not a frame later) adds 128 B: 25,557 B.
+const BUNDLE_GZIP_CEILING = 25_557
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -113,14 +114,16 @@ const TARGET_BUNDLE_GZIP = 22_700
 // adds 51 B: 12,882 B. Its run token and computed-duration fallback add
 // 199 B: 13,081 B; counting animation iterations adds 56 B: 13,137 B.
 // Issue #338 (a morph keeps the focused field's value) adds 186 B: 13,323 B.
-const CORE_GZIP_CEILING = 13_323
+// Issue #336 (a held stream wraps a copy, not the event's detail) adds 21 B: 13,344 B.
+const CORE_GZIP_CEILING = 13_344
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
   // wrappers) to 5,859 B. Issue #310 lowered every ceiling below to its
   // module's real size, rounded up to the next 50 B.
   "features/bindings": 5_900,
-  "features/defer": 2_850,
+  // Issue #336 (render a defer reply now) takes it from 2,845 B to 2,974 B.
+  "features/defer": 2_974,
   "features/compute": 2_050,
   "features/hints": 1_000,
   "features/effects": 1_750,
@@ -139,8 +142,10 @@ const FEATURE_GZIP_CEILINGS = {
 // 32,027 B. runTransition's settle fix (in the core) adds 51 B: 32,078 B;
 // its run token and computed-duration fallback add 199 B: 32,277 B; counting
 // animation iterations adds 56 B: 32,333 B. Issue #338 (a morph keeps the
-// focused field's value, in the core) adds 186 B: 32,519 B.
-const SPLIT_TOTAL_GZIP_CEILING = 32_519
+// focused field's value, in the core) adds 186 B: 32,519 B. Issue #336 (render a
+// defer reply now, in features/defer, plus the core's held-stream fix) adds
+// 150 B: 32,669 B.
+const SPLIT_TOTAL_GZIP_CEILING = 32_669
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

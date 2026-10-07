@@ -135,9 +135,11 @@ onReactiveStreamWithoutEffects((event, loadedEffects) => {
   detail.render = async (streamElement) => {
     await waiting
     // Wrapped now, not when the event fired: nothing has rendered meanwhile.
-    detail.render = render
-    ;(loadedEffects ?? effects)?.wrap(event)
-    await detail.render(streamElement)
+    // On a copy: the event's detail.render is not ours to set back — a defer
+    // reply has already rendered it, and leaves Turbo a no-op (issue #336).
+    const held = { target: event.target, detail: { newStream: detail.newStream, render } }
+    ;(loadedEffects ?? effects)?.wrap(held)
+    await held.detail.render(streamElement)
   }
 })
 

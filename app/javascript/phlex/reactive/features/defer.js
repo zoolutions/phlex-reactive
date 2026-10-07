@@ -107,6 +107,8 @@ export function streamAction(streamEl) {
 function registerSettleOnRender() {
   if (deferStreamSettleRegistered || typeof document === "undefined" || !document.addEventListener) return
   deferStreamSettleRegistered = true
+  // Capture phase: seen before any listener can stop it (renderStreamsNow).
+  document.addEventListener("turbo:before-stream-render", catchStream, true)
   document.addEventListener("turbo:before-stream-render", settleStreamDeferOnRender)
 }
 
@@ -386,7 +388,39 @@ async function performDeferFetch(targetId, entry, source) {
   settleDefer(targetId)
   // A normal replace/morph of the target — the fresh root carries no pending
   // markers and a fresh action token, so the component lands interactive.
-  window.Turbo.renderStreamMessage(html)
+  renderStreamsNow(html)
+}
+
+// Render a reply's streams in this task, not a frame from now (issue #336).
+// renderStreamMessage appends the <turbo-stream>s; each one dispatches
+// turbo:before-stream-render as it connects, then awaits nextRepaint() before
+// calling event.detail.render(this). The events are caught here, and once
+// every listener has had its say (dispatch is synchronous) the final
+// detail.render runs now, in order, unless the event was cancelled; Turbo's
+// frame-later call gets a no-op. Everything else — the event, the parse,
+// scripts, permanent elements, autofocus — stays Turbo's. A Turbo that
+// dispatches later is never caught, and renders on its own as before.
+// The catching listener is registerSettleOnRender's (every fetch starts after
+// it ran).
+let caughtStreams = null
+const catchStream = (event) => caughtStreams?.push(event)
+
+function renderStreamsNow(html) {
+  const caught = (caughtStreams = [])
+  try {
+    window.Turbo.renderStreamMessage(html)
+  } finally {
+    caughtStreams = null
+  }
+  for (const event of caught) {
+    if (event.defaultPrevented) continue
+    const detail = event.detail
+    const render = detail.render
+    detail.render = () => {}
+    // A throwing render is logged, as Turbo's connectedCallback does, and the
+    // next stream still applies.
+    new Promise((resolve) => resolve(render(detail.newStream))).catch(console.error)
+  }
 }
 
 // Abort/unsubscribe whatever delivery is in flight for this target. The
