@@ -332,10 +332,11 @@ function legacyCompoundShowMatches(payload, fieldValue) {
 // a refused show target is distinguishable in the console. The client half of
 // the two-sided default-deny: reactive_show_targets raises at declare time; a
 // hand-built wire attr must not widen the escape to class/compound selectors.
-// A refused selector warns + skips — its siblings still apply.
-function guardShowTargetSelector(selector) {
+// A refused selector warns + skips — its siblings still apply. The group
+// targets (issue #343) share it, naming their own kind in the warn.
+function guardShowTargetSelector(selector, kind = "show") {
   if (typeof selector === "string" && ID_SELECTOR.test(selector)) return true
-  console.warn(`[phlex-reactive] refused cross-root show target ${JSON.stringify(selector)} — skipped`)
+  console.warn(`[phlex-reactive] refused cross-root ${kind} target ${JSON.stringify(selector)} — skipped`)
   return false
 }
 
@@ -348,6 +349,7 @@ function guardShowTargetSelector(selector) {
 // getAttribute, cheaper than the binding walk.
 function showSyncEnabled(c) {
   if (c.root.getAttribute?.("data-reactive-show-targets")) return true
+  if (c.root.getAttribute?.("data-reactive-group-targets")) return true
   // Single-field bindings carry -field; compound all:/any: bindings (issue
   // #176) carry data-reactive-show and have NO single controlling field, so
   // both selectors gate the sync.
@@ -444,6 +446,7 @@ function syncShow(c) {
   // share the same owned-field memo, so a field driving several reads once.
   if (c.groups) syncGroups(c, fieldValue, owns, scope)
   syncShowTargets(c, fieldValue)
+  syncGroupTargets(c, fieldValue)
 }
 
 // Toggle `hidden` (and, when the binding declares data-reactive-show-disable,
@@ -545,8 +548,8 @@ function applyConditionsTarget(selector, payload, fieldValue) {
 // contract), but never silent either: the likeliest cause is TWO
 // reactive_show_targets calls on one root, whose JSON strings Phlex `mix`
 // space-joined into an unparseable attr. The warn names the fix.
-function parseShowTargets(c) {
-  const raw = c.root.getAttribute?.("data-reactive-show-targets")
+function parseShowTargets(c, kind = "show", fix = "mode: { ... }, kind: { ... }") {
+  const raw = c.root.getAttribute?.(`data-reactive-${kind}-targets`)
   if (!raw) return {}
   try {
     const parsed = JSON.parse(raw)
@@ -555,9 +558,9 @@ function parseShowTargets(c) {
     // fall through to the shared warn below
   }
   console.warn(
-    "[phlex-reactive] malformed data-reactive-show-targets — ignored. " +
-      "Did two reactive_show_targets calls collide on one root? Declare every field in ONE call: " +
-      "reactive_show_targets(mode: { ... }, kind: { ... })"
+    `[phlex-reactive] malformed data-reactive-${kind}-targets — ignored. ` +
+      `Did two reactive_${kind}_targets calls collide on one root? Declare every entry in ONE call: ` +
+      `reactive_${kind}_targets(${fix})`
   )
   return {}
 }
@@ -696,6 +699,34 @@ function syncGroups(c, fieldValue, owns, scope) {
   }
 }
 
+// The declared cross-root group targets (issue #343) — the count and enable
+// parallel of syncShowTargets, declared on the root that OWNS the group:
+// { group: { count: ["#id", …], enable: { "#id": { any: … } } } }. The count
+// is this root's owned ticked boxes (a nested root's are its own, #15), the
+// enable folds its DNF payload with the same owned-field memo as every other
+// binding. Targets are id-only (warn-skip — the Ruby helper raised at
+// declare time) and resolved document-wide; a missing one is skipped.
+function syncGroupTargets(c, fieldValue) {
+  for (const [group, targets] of Object.entries(parseShowTargets(c, "group", '"ids[]" => { ... }, "tags[]" => { ... }'))) {
+    if (!targets || typeof targets !== "object" || Array.isArray(targets)) continue
+    const text = String(fieldValue(group, true))
+    for (const selector of Array.isArray(targets.count) ? targets.count : []) {
+      if (!guardShowTargetSelector(selector, "group")) continue
+      for (const node of document.querySelectorAll(selector)) if (node.textContent !== text) node.textContent = text
+    }
+    const enable = targets.enable && typeof targets.enable === "object" ? targets.enable : {}
+    for (const [selector, payload] of Object.entries(enable)) {
+      if (!guardShowTargetSelector(selector, "group")) continue
+      const match = anyOfAllsMatches(payload?.any, fieldValue)
+      if (match === null) {
+        console.warn(`[phlex-reactive] malformed reactive_group_targets enable for ${selector} — skipped`)
+        continue
+      }
+      for (const node of document.querySelectorAll(selector)) node.disabled = !match
+    }
+  }
+}
+
 // Boxes added or removed later — a stream append, a removal — fire no event,
 // so a root with a group binding (a header, a count, an enable, or a show,
 // show target or on_complete with a checked_* term) watches its subtree and
@@ -706,7 +737,8 @@ function syncGroups(c, fieldValue, owns, scope) {
 function observeGroups(c) {
   if (c.groupObserver || typeof MutationObserver !== "function") return
   const onRoot = (name) => c.root.getAttribute?.(`data-reactive-${name}`)?.includes("checked_")
-  if (!c.root.querySelector?.(`${GROUP_BINDING_SELECTOR}, [data-reactive-show*=checked_]`) && !onRoot("show-targets") && !onRoot("on-complete")) return
+  const targeted = !!c.root.getAttribute?.("data-reactive-group-targets")
+  if (!targeted && !c.root.querySelector?.(`${GROUP_BINDING_SELECTOR}, [data-reactive-show*=checked_]`) && !onRoot("show-targets") && !onRoot("on-complete")) return
   const boxIn = (node) => node.nodeType === 1 && (node.matches('input[type="checkbox"]') || !!node.querySelector('input[type="checkbox"]'))
   c.groupObserver = new MutationObserver((records) => {
     if (!records.some((r) => [...r.addedNodes, ...r.removedNodes].some(boxIn))) return
