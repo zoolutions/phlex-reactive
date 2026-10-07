@@ -878,6 +878,12 @@ action :save, params: {invoice: {date: :string, status: :string}}
 > `invoice[…]` (any `Form(model:)`-style form), nest the schema under `invoice:`
 > to match. When in doubt, read a field's real `name` attribute and shape the
 > schema to it.
+>
+> The exception is `reactive_scope :invoice`: the endpoint expands the names and
+> then peels that one level, on the JSON body and the multipart one alike, so the
+> flat schema is the one to declare. Bare params posted beside the scoped fields
+> (a trigger's `on(:save, note: "x")`) stay at the top level next to them; as
+> on the client, an explicit `on(...)` param wins over a field of the same name.
 
 **Nested reactive components compose.** A reactive component rendered inside
 another is its own root — field collection stops at nested
@@ -1118,9 +1124,11 @@ controller (re-scan on `connect`); an in-place **morph** keeps the element
 connected and fires no Stimulus lifecycle, so the client also re-scans on
 `turbo:morph-element` after the morph writes fresh `default*` attributes. So a
 `reply.morph` save renders the field with the new value as its **new default**,
-and the badge clears with no reload. (Turbo 8 morph preserves a focused field's
-in-progress value while writing the fresh defaults — the post-morph re-scan is
-what keeps the root count honest in that state.)
+and the badge clears with no reload — for a focused field, once the saved value
+matches what is in the box. (A morph keeps a focused field's
+in-progress value while writing its fresh default — the client does that, issue
+#338, since Turbo's stream morph would overwrite it — and the post-morph re-scan
+is what keeps the root count honest in that state.)
 
 **`reactive_dirty warn_unsaved: true`** arms a navigate-away guard gated on the
 **live** dirty count: `beforeunload` (a real browser unload) and
@@ -2337,7 +2345,8 @@ def add(item:) = reply.replace.stream(Totals.update(@order))               # mul
 
 # Per-field reactive editing (a "spreadsheet" grid): a debounced save fires
 # while the user is still typing/tabbing. Morph in place so the focused <input>
-# and its in-progress value survive the re-render (issue #28). Note the action is
+# and its in-progress value survive the re-render (issues #28, #338) — even when
+# the render differs (the model strips "Hello " to "Hello"). Note the action is
 # named `update`, yet `reply.morph` is unambiguous — the verb is on `reply`:
 def update(name:) = (@row.update!(name:); reply.morph)
 
@@ -2354,7 +2363,7 @@ def update(quantity:, price:) = (@item.update!(quantity:, price:); reply.streams
 | Builder | Reply |
 |---|---|
 | `reply.replace` / `reply.update(morph: false)` | re-render in place (default; `replace` swaps the whole element via outerHTML, `update` swaps only the inner HTML) |
-| `reply.morph` / `reply.replace(morph: true)` / `reply.update(morph: true)` | re-render in place via Idiomorph (`method="morph"`) — preserves the focused `<input>` + caret; for per-field reactive editing (`replace` #28; `update` #113) |
+| `reply.morph` / `reply.replace(morph: true)` / `reply.update(morph: true)` | re-render in place via Idiomorph (`method="morph"`) — preserves the focused `<input>`/`<textarea>`, its caret AND what was typed in it (the render's value becomes its new default; other fields take the server's value; `data-reactive-morph-value` on a field lets the morph overwrite it while focused, #338); for per-field reactive editing (`replace` #28; `update` #113) |
 | `.also(target => content, …)` | **UPDATE** (inner HTML) companion elements by DOM id; `content` is a plain string (escaped) or a Phlex component. The argument *type* picks the action — pairs mean `update` |
 | `.also(component, morph: false)` | **REPLACE** another Streamable component at its own `#id` (`morph: true` morphs in place). A component argument means `replace` |
 | `.flash(level, content, target: …)` | append a flash; `content` is a plain string (escaped, wrapped in a level-carrying `<div>` — see [Flash levels](#flash-levels)) or a Phlex component (rendered verbatim; off-request — no Rails `flash`); target defaults to `Phlex::Reactive.flash_target` (`"flash"`) |

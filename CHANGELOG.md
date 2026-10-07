@@ -1230,6 +1230,38 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **`reply.morph` no longer overwrites the field being typed in** (#338).
+  Turbo's stream morph runs Idiomorph without `ignoreActiveValue`, so when a
+  debounced save's render carried a different value — normalised by the
+  server (`"Hello "` saved as `"Hello"`) or stale because the user kept typing
+  during the round trip — the focused field took it, and the next keystrokes
+  landed after it (`"Helloworld"`). Present since `reply.morph` (#28), so in
+  0.13.4. The client now holds the value of a focused `<input>`/`<textarea>`
+  inside a reactive root through any morph (it cancels
+  `turbo:before-morph-attribute` for `value` on that field, which Idiomorph
+  honours for the attribute and the property) and writes the render's value as
+  the field's new default itself, so dirty tracking still re-scans against the
+  saved value. Unfocused fields, every other attribute (a root's token
+  included), and morphs outside a reactive root are untouched. A field that
+  must be rewritten while focused (a formatter) opts out with
+  `data-reactive-morph-value`.
+
+- **`reactive_scope` with a flat schema receives its fields from a real browser
+  (#337).** The client's default JSON body keeps each field's bracketed name as
+  one key (`"todo[title]"`), and the endpoint looked for the scope key (`todo`)
+  before expanding those names, so it peeled nothing and the flat schema
+  (`params: { title: :string }`) dropped every field. Only the multipart body,
+  which Rails expands itself, worked; a request spec posting a nested hash
+  passed. The endpoint now expands first and then peels, so both encodings
+  give the action the same params, and `verbose_errors` no longer reports
+  `todo[title]` as dropped. Bare params posted beside the scoped fields (a
+  trigger's `on(:save, note: "x")`, an unscoped file input) now stay next to
+  them on both encodings, where the multipart path used to drop them; an
+  explicit `on(...)` param wins over a scoped field of the same name, as it
+  does on the client. Only declared params still reach the
+  action. Present since `reactive_scope` landed in 0.11.0 (#184), through
+  0.13.4.
+
 - **A `transition:` on show/hide/toggle no longer ends when a child's
   animation or transition does.** `runTransition` had the settle bugs #296
   fixed in effects: a descendant's bubbling `animationend` consumed its

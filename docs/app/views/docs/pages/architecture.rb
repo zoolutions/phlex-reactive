@@ -97,7 +97,9 @@ module Views
                   code { 'reply.morph' }
                   plain ' — re-render in place via Idiomorph; preserves the focused '
                   code { '<input>' }
-                  plain ' and its caret (see below).'
+                  plain ', its caret and what was typed in it, even when the render differs (see below; '
+                  code { 'data-reactive-morph-value' }
+                  plain ' on a field lets the morph overwrite it).'
                 end
                 li do
                   code { 'reply.remove' }

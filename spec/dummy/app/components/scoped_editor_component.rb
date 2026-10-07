@@ -16,6 +16,10 @@ class ScopedEditorComponent < ApplicationComponent
   # todo[tags][], so a cleared group is announced as "todo[tags]" and has to land
   # where the FLAT schema looks for it.
   action :save_tags, params: { title: :string, tags: [:string] }
+  # Issue #337: echoes what reached the action, so a spec can see every wire
+  # shape land — scoped fields AND a bare trigger param (`note`, as `on(...)`
+  # posts it) side by side.
+  action :echo, params: { title: :string, tags: [:string], note: :string }
 
   def initialize(todo:)
     @todo = todo
@@ -33,11 +37,18 @@ class ScopedEditorComponent < ApplicationComponent
     reply.replace
   end
 
+  def echo(**received)
+    @received = received
+    reply.replace
+  end
+
   def view_template
     div(id:, **reactive_root) do
       input(**reactive_field(:title, value: @todo.title, data: { testid: "title" })) # name="todo[title]"
       button(**mix(on(:save), data: { testid: "save" })) { "Save" }
       pre(data: { testid: "received-tags" }) { @received_tags.to_json }
+      pre(data: { testid: "received" }) { @received.to_json }
+      span(data: { testid: "saved-title" }) { @todo.title } # server-rendered: moves only on a real save
     end
   end
 end

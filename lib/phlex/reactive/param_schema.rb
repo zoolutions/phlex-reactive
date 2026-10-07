@@ -334,36 +334,10 @@ module Phlex
         value.is_a?(Hash) || value.respond_to?(:to_unsafe_h)
       end
 
-      # Unwrap ActionController::Parameters (or a plain Hash) to a string-keyed
-      # Hash so coercion can index it uniformly, then expand bracket notation so
-      # a model-scoped Rails form's flat keys nest (issue #21).
-      def to_param_hash(value)
-        flat =
-          if value.respond_to?(:to_unsafe_h)
-            value.to_unsafe_h.stringify_keys
-          elsif value.is_a?(Hash)
-            value.stringify_keys
-          else
-            return {}
-          end
-
-        expand_bracket_keys(flat)
-      end
-
-      # The client's #collectFields keeps a form input's name verbatim, so a
-      # Rails Form(model: @invoice) posts FLAT bracketed keys like
-      # "invoice[date]". Coercion does exact-key matching, so without this a
-      # nested schema (params: { invoice: { date: … } }) never finds "invoice"
-      # and drops everything. Expand "invoice[date]" => "2026-01-02" into
-      # { "invoice" => { "date" => "2026-01-02" } } — and "items[0][qty]" into
-      # the Rails index-hash form coerce_array already understands — deep-merging
-      # so sibling keys (invoice[date], invoice[status]) coalesce. Keys WITHOUT
-      # brackets and already-nested values pass through untouched.
-      def expand_bracket_keys(flat)
-        flat.each_with_object({}) do |(key, value), out|
-          deep_assign(out, bracket_path(key), value)
-        end
-      end
+      # Each nested hash is unwrapped and expanded by the class-level expand
+      # below — the same expansion the endpoint runs before peeling a
+      # reactive_scope (issue #337), so both read one shape.
+      def to_param_hash(value) = self.class.expand(value)
 
       # Matches each bracket segment in "items_attributes][0][qty]" — the part
       # after the first "[". Hoisted to a frozen constant so coercing a bracketed
@@ -371,35 +345,75 @@ module Phlex
       BRACKET_SEGMENT = /[^\[\]]+/
       private_constant :BRACKET_SEGMENT
 
-      # "invoice[items_attributes][0][qty]" => ["invoice", "items_attributes",
-      # "0", "qty"]. A key with no brackets is a single-element path.
-      def bracket_path(key)
-        return [key] unless key.include?("[")
+      class << self
+        # Public so the endpoint can expand BEFORE it peels a reactive_scope
+        # (issue #337): a JSON body keeps "todo[title]" as one literal key, which
+        # only becomes { "todo" => { "title" => … } } here. Idempotent on input
+        # that is already nested (a multipart body Rails expanded itself).
+        #
+        # Unwraps ActionController::Parameters (or a plain Hash) to a string-keyed
+        # Hash so coercion can index it uniformly, then expands bracket notation so
+        # a model-scoped Rails form's flat keys nest (issue #21). Anything else is {}.
+        def expand(value)
+          flat =
+            if value.respond_to?(:to_unsafe_h)
+              value.to_unsafe_h.stringify_keys
+            elsif value.is_a?(Hash)
+              value.stringify_keys
+            else
+              return {}
+            end
 
-        head, rest = key.split("[", 2)
-        [head, *rest.scan(BRACKET_SEGMENT)]
-      end
-
-      # Walk/create nested hashes along `path`, then merge `value` at the leaf so
-      # a bracket key and a sibling pre-nested object coalesce regardless of which
-      # arrives first. #merge_value deep-merges hash/hash collisions and otherwise
-      # lets the later value win.
-      def deep_assign(hash, path, value)
-        *parents, leaf = path
-        node = parents.reduce(hash) do |acc, segment|
-          acc[segment] = {} unless acc[segment].is_a?(Hash)
-          acc[segment]
+          expand_bracket_keys(flat)
         end
-        node[leaf] = merge_value(node[leaf], value)
-      end
 
-      # Combine an existing leaf value with a new one. Two hashes deep-merge (so
-      # bracket-expanded fields and a pre-nested object for the same key both
-      # survive); any other collision takes the new value.
-      def merge_value(existing, value)
-        return value unless existing.is_a?(Hash) && value.is_a?(Hash)
+        private
 
-        existing.merge(value.stringify_keys) { |_k, old, new| merge_value(old, new) }
+        # The client's #collectFields keeps a form input's name verbatim, so a
+        # Rails Form(model: @invoice) posts FLAT bracketed keys like
+        # "invoice[date]". Coercion does exact-key matching, so without this a
+        # nested schema (params: { invoice: { date: … } }) never finds "invoice"
+        # and drops everything. Expand "invoice[date]" => "2026-01-02" into
+        # { "invoice" => { "date" => "2026-01-02" } } — and "items[0][qty]" into
+        # the Rails index-hash form coerce_array already understands — deep-merging
+        # so sibling keys (invoice[date], invoice[status]) coalesce. Keys WITHOUT
+        # brackets and already-nested values pass through untouched.
+        def expand_bracket_keys(flat)
+          flat.each_with_object({}) do |(key, value), out|
+            deep_assign(out, bracket_path(key), value)
+          end
+        end
+
+        # "invoice[items_attributes][0][qty]" => ["invoice", "items_attributes",
+        # "0", "qty"]. A key with no brackets is a single-element path.
+        def bracket_path(key)
+          return [key] unless key.include?("[")
+
+          head, rest = key.split("[", 2)
+          [head, *rest.scan(BRACKET_SEGMENT)]
+        end
+
+        # Walk/create nested hashes along `path`, then merge `value` at the leaf so
+        # a bracket key and a sibling pre-nested object coalesce regardless of which
+        # arrives first. #merge_value deep-merges hash/hash collisions and otherwise
+        # lets the later value win.
+        def deep_assign(hash, path, value)
+          *parents, leaf = path
+          node = parents.reduce(hash) do |acc, segment|
+            acc[segment] = {} unless acc[segment].is_a?(Hash)
+            acc[segment]
+          end
+          node[leaf] = merge_value(node[leaf], value)
+        end
+
+        # Combine an existing leaf value with a new one. Two hashes deep-merge (so
+        # bracket-expanded fields and a pre-nested object for the same key both
+        # survive); any other collision takes the new value.
+        def merge_value(existing, value)
+          return value unless existing.is_a?(Hash) && value.is_a?(Hash)
+
+          existing.merge(value.stringify_keys) { |_k, old, new| merge_value(old, new) }
+        end
       end
     end
   end
