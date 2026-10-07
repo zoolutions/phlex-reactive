@@ -218,6 +218,16 @@ test("a select is not held: Idiomorph syncs its options' `selected`, never `valu
   expect(dispatch("turbo:before-morph-attribute", a, { attributeName: "selected", mutationType: "update" })).toBe(true)
 })
 
+test("a removal (before-morph-element with no newElement) leaves the focused field's default alone", () => {
+  mount(`<div data-controller="reactive"><input name="name" value="old"></div>`)
+  const field = document.querySelector("input")
+  type(field, "Hello ")
+
+  dispatch("turbo:before-morph-element", field, { currentElement: field })
+
+  expect(field.defaultValue).toBe("old")
+})
+
 test("registration is idempotent: one pair of listeners however often it runs", () => {
   registerReactiveMorphFocus()
   registerReactiveMorphFocus()

@@ -253,8 +253,9 @@ export function registerReactiveMorphFocus() {
   morphFocusRegistered = true
   document.addEventListener("turbo:before-morph-element", (event) => {
     const el = event.target
-    if (event.defaultPrevented || el.localName !== "input" || !holdsTypedValue(el)) return
-    const value = event.detail?.newElement?.getAttribute("value")
+    const next = event.detail?.newElement // absent when Turbo asks before a removal
+    if (!next || event.defaultPrevented || el.localName !== "input" || !holdsTypedValue(el)) return
+    const value = next.getAttribute("value")
     if (value == null) el.removeAttribute("value")
     else if (el.getAttribute("value") !== value) el.setAttribute("value", value)
   })

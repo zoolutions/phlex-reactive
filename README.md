@@ -1118,7 +1118,8 @@ controller (re-scan on `connect`); an in-place **morph** keeps the element
 connected and fires no Stimulus lifecycle, so the client also re-scans on
 `turbo:morph-element` after the morph writes fresh `default*` attributes. So a
 `reply.morph` save renders the field with the new value as its **new default**,
-and the badge clears with no reload. (A morph keeps a focused field's
+and the badge clears with no reload — for a focused field, once the saved value
+matches what is in the box. (A morph keeps a focused field's
 in-progress value while writing its fresh default — the client does that, issue
 #338, since Turbo's stream morph would overwrite it — and the post-morph re-scan
 is what keeps the root count honest in that state.)
