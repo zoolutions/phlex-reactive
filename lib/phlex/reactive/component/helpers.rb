@@ -1482,7 +1482,7 @@ module Phlex
               "on_client detail: cannot combine with once: — Stimulus removes a :once listener on its " \
               "first event, so a first non-matching event would leave the binding dead"
           end
-          detail.to_h do |key, value|
+          normalized = detail.to_h do |key, value|
             unless client_detail_scalar?(value)
               raise ArgumentError,
                 "on_client detail: values must be JSON scalars (true/false/nil, a String or a finite " \
@@ -1490,6 +1490,12 @@ module Phlex
             end
             [key.to_s, value]
           end
+          # :success and "success" would collapse into one key, dropping a condition.
+          if normalized.size < detail.size
+            raise ArgumentError, "on_client detail: keys must be unique as strings, got #{detail.keys.inspect}"
+          end
+
+          normalized
         end
 
         def client_detail_scalar?(value)

@@ -532,7 +532,8 @@ test("two records on one element, success true and false, each run only on their
 })
 
 test("a detail miss is a complete no-op: no preventDefault, no confirm, no once spent, no warning", async () => {
-  const root = makeRoot()
+  // Verbose, so a "no binding" diagnostic WOULD warn if a miss reached it.
+  const root = makeRoot({}, { "data-reactive-verbose": "true" })
   const controller = buildController(root)
   controller.element.setAttribute = () => {}
   const asked = []

@@ -1555,6 +1555,11 @@ RSpec.describe Phlex::Reactive::Component do
         .to raise_error(ArgumentError, /detail: takes a non-empty Hash/)
     end
 
+    it "raises when a Symbol and a String key collapse into one (a condition would be dropped)" do
+      expect { instance.send(:on_client, "turbo:submit-end", ops, detail: { success: true, "success" => false }) }
+        .to raise_error(ArgumentError, /keys must be unique as strings/)
+    end
+
     it "raises for detail: with once: (the :once listener is gone after a first non-matching event)" do
       expect { instance.send(:on_client, "turbo:submit-end", ops, detail: { success: true }, once: true) }
         .to raise_error(ArgumentError, /once:/)
