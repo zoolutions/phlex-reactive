@@ -103,6 +103,7 @@ Rails.application.routes.draw do
   get "js_focus/:id" => "demos#js_focus"
   get "partial_grid/:id" => "demos#partial_grid"
   get "checkbox_group" => "demos#checkbox_group"
+  get "scoped_editor/:id" => "demos#scoped_editor" # issue #337: reactive_scope over the JSON wire
   get "document_upload/:id" => "demos#document_upload"
   # Nav probe: where a NON-intercepted form submit would land. Accept POST (and
   # GET) so a native submit produces an observable navigation, not a 404.

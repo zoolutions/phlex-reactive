@@ -615,6 +615,12 @@ class DemosController < ActionController::Base
     render_component CheckboxGroupComponent.new
   end
 
+  # Issue #337: a reactive_scope component saved by a real browser, whose
+  # default JSON body keeps the field's bracketed name ("todo[title]").
+  def scoped_editor
+    render_component ScopedEditorComponent.new(todo: Todo.find(params[:id]))
+  end
+
   def document_upload
     render_component DocumentUploadComponent.new(document: Document.find(params[:id]))
   end

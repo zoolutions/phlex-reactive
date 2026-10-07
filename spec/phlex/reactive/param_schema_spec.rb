@@ -194,6 +194,28 @@ RSpec.describe Phlex::Reactive::ParamSchema do
     end
   end
 
+  describe ".expand — the bracket expansion the endpoint runs before a scope peel (issue #337)" do
+    it "expands literal bracketed keys (the JSON wire shape) into nested hashes" do
+      expect(described_class.expand({ "todo[title]" => "a", "todo[tags][]" => %w[x], "note" => "n" }))
+        .to eq("todo" => { "title" => "a", "tags" => %w[x] }, "note" => "n")
+    end
+
+    it "unwraps ActionController::Parameters to a string-keyed Hash" do
+      expanded = described_class.expand(ActionController::Parameters.new("todo[title]" => "a"))
+      expect(expanded).to be_a(Hash).and(eq("todo" => { "title" => "a" }))
+    end
+
+    it "is idempotent on already-nested input (a multipart body Rails expanded)" do
+      nested = { "todo" => { "title" => "a" } }
+      expect(described_class.expand(described_class.expand(nested))).to eq(nested)
+    end
+
+    it "returns {} for anything that is not hash-like" do
+      expect(described_class.expand(nil)).to eq({})
+      expect(described_class.expand("x")).to eq({})
+    end
+  end
+
   describe "#coerce — a schema-less action drops everything" do
     it "returns {} for an empty schema regardless of payload" do
       expect(coerce({}, { "anything" => "x" })).to eq({})

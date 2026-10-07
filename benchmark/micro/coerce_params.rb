@@ -49,3 +49,30 @@ BenchSupport.ips { it.report("coerce_params") { run.call } }
 
 BenchSupport.header("coerce_params allocations (per call)")
 BenchSupport.allocations("coerce_params") { run.call }
+
+# Issue #337: a `reactive_scope` component. The client's default JSON body keeps
+# each field's bracketed name as ONE literal key ("todo[title]"); the endpoint
+# peels the scope (ActionsController#unwrap_scope) and then coerces against the
+# FLAT schema. Measured through the controller's own unwrap + coerce, so the
+# scoped path's whole per-request cost shows up. The unscoped bench above never
+# reaches the peel (unwrap_scope returns early without a scope).
+scoped_schema = ScopedEditorComponent.reactive_actions.fetch(:save_tags).schema
+controller = Phlex::Reactive::ActionsController.new
+scoped_json = ActionController::Parameters.new(
+  "todo[title]" => "Buy milk",
+  "todo[tags][]" => %w[ruby rails]
+)
+scoped_nested = ActionController::Parameters.new(
+  "todo" => { "title" => "Buy milk", "tags" => %w[ruby rails] }
+)
+scoped = -> { scoped_schema.coerce(controller.send(:unwrap_scope, it, ScopedEditorComponent), nil) }
+
+BenchSupport.header("coerce_params: reactive_scope (JSON bracketed keys vs nested/multipart)")
+BenchSupport.ips do
+  it.report("scoped JSON \"todo[title]\"") { scoped.call(scoped_json) }
+  it.report("scoped nested todo: {...}") { scoped.call(scoped_nested) }
+end
+
+BenchSupport.header("coerce_params: reactive_scope allocations (per call)")
+BenchSupport.allocations("scoped JSON \"todo[title]\"") { scoped.call(scoped_json) }
+BenchSupport.allocations("scoped nested todo: {...}") { scoped.call(scoped_nested) }

@@ -1246,6 +1246,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   must be rewritten while focused (a formatter) opts out with
   `data-reactive-morph-value`.
 
+- **`reactive_scope` with a flat schema receives its fields from a real browser
+  (#337).** The client's default JSON body keeps each field's bracketed name as
+  one key (`"todo[title]"`), and the endpoint looked for the scope key (`todo`)
+  before expanding those names, so it peeled nothing and the flat schema
+  (`params: { title: :string }`) dropped every field. Only the multipart body,
+  which Rails expands itself, worked; a request spec posting a nested hash
+  passed. The endpoint now expands first and then peels, so both encodings
+  give the action the same params, and `verbose_errors` no longer reports
+  `todo[title]` as dropped. Bare params posted beside the scoped fields (a
+  trigger's `on(:save, note: "x")`, an unscoped file input) now stay next to
+  them on both encodings, where the multipart path used to drop them; an
+  explicit `on(...)` param wins over a scoped field of the same name, as it
+  does on the client. Only declared params still reach the
+  action. Present since `reactive_scope` landed in 0.11.0 (#184), through
+  0.13.4.
+
 - **A `transition:` on show/hide/toggle no longer ends when a child's
   animation or transition does.** `runTransition` had the settle bugs #296
   fixed in effects: a descendant's bubbling `animationend` consumed its
