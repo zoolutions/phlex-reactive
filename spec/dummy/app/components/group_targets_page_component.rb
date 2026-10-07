@@ -30,6 +30,9 @@ class GroupTargetsPageComponent < ApplicationComponent
         **reactive_group_target_attrs("ids[]", :enable, 1..)) { "Archive" }
       button(id: "bulk-merge", type: "button", data: { testid: "merge" },
         **reactive_group_target_attrs("ids[]", :enable, 2)) { "Merge two" }
+      # #342: the boxes live in the table's root, so the ✕ reaches it with global:.
+      button(**mix(on_client(:click, js.check_group("ids[]", false, global: true)),
+        type: "button", data: { testid: "clear" })) { "✕" }
     end
   end
 end

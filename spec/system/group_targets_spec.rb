@@ -61,4 +61,17 @@ RSpec.describe "Cross-root group targets (issue #343)", type: :system do
     expect(page).to have_css("[data-testid='footer-count']", text: "1")
     expect(page).to have_css("[data-testid='archive']:not([disabled])")
   end
+
+  it "re-syncs the outside targets after js.check_group clears the selection (#342)" do
+    box("row-1").click
+    box("row-2").click
+    expect(page).to have_css("[data-testid='footer-count']", text: "2")
+
+    box("clear").click
+    expect(page).to have_css("[data-testid='footer-count']", text: "0")
+    expect(page).to have_css("#bulk-bar[hidden]", visible: :all)
+    expect(page).to have_css("[data-testid='archive'][disabled]", visible: :all)
+    expect(page).to have_no_css("[data-testid^='row-']:checked")
+    expect(page).to have_reactive_requests(0)
+  end
 end
