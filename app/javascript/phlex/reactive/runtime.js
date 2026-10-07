@@ -682,6 +682,21 @@ const CLIENT_OPS = Object.freeze({
     if (el.textContent !== text) el.textContent = text
   },
 
+  // Tick or untick a whole checkbox group (issue #342) — "clear selection".
+  // The bindings feature flips the root's OWNED boxes the way its select-all
+  // header does (every box set, then input + change on each flipped one) and
+  // re-syncs the group bindings once. global: true ignores the op's own root
+  // and asks every reactive root on the page; each flips only the boxes it
+  // owns (nested roots included), so every root holding the group answers.
+  check_group: (el, args) => {
+    const roots = args.global ? document.querySelectorAll('[data-controller~="reactive"]') : [el]
+    for (const root of roots) {
+      __SPLIT__
+        ? withFeature("bindings", (bindings) => bindings.checkGroup(root, args.group, args.checked))
+        : bindingsFeature.checkGroup(root, args.group, args.checked)
+    }
+  },
+
   // Dispatch a bubbling CustomEvent (issue #96). RAW element.dispatchEvent — the
   // controller SHADOWS Stimulus's this.dispatch helper, so it must not be used.
   dispatch: (el, args) => {

@@ -162,7 +162,7 @@ module Views
             DocsUI::Callout(:note) do
               md <<~MD
                 `broadcast_to(..., js: ops)` **refuses the actor-only ops** (`focus` /
-                `focus_first` / `submit` / `paste_into` raise `ArgumentError`) —
+                `focus_first` / `submit` / `paste_into` / `check_group` raise `ArgumentError`) —
                 broadcasting focus would steal it in every subscriber's tab, a broadcast
                 submit would force-submit every form, and a broadcast clipboard read
                 would be hostile; those stay actor-reply concerns (`reply.js`).

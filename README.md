@@ -678,7 +678,7 @@ Use in controllers: `render turbo_stream: Counter.replace(counter)`.
 | `busy_on(:save)` | Mark any element so it carries `data-reactive-busy` **only while `save` is in flight** — a spinner styled with pure CSS, zero Ruby. See [Loading states](#declarative-loading-states-loading--disable_with). |
 | `on(:action, once: true)` | Fire at most once, then unbind (Stimulus's native `:once`). |
 | `on_client(:click, js.toggle("#menu"))` | **Client-only** trigger: applies declared DOM ops with ZERO round trip — no token, no POST, ever. Takes the same `window:`/`once:`/`outside:` modifiers. See [Client-only ops](#client-only-ops-on_client--js--zero-round-trips). |
-| `js` | The immutable op builder behind `on_client`: `show`/`hide`/`toggle` (the `hidden` attribute, with an optional `transition:` and `expanded:`), `add_class`/`remove_class`/`toggle_class`, `set_attr`/`remove_attr`/`toggle_attr` (allowlisted names; `toggle_attr` also flips between two values), `focus`/`focus_first`, `text` (set `textContent` — XSS-safe), `dispatch`, `submit` (requestSubmit the target's own form, optionally through a `submitter:`), `paste_into` (read the clipboard into a field, gesture-gated), and `persist_state`/`persist_clear` (the `reactive_persist` draft) — chainable. |
+| `js` | The immutable op builder behind `on_client`: `show`/`hide`/`toggle` (the `hidden` attribute, with an optional `transition:` and `expanded:`), `add_class`/`remove_class`/`toggle_class`, `set_attr`/`remove_attr`/`toggle_attr` (allowlisted names; `toggle_attr` also flips between two values), `focus`/`focus_first`, `text` (set `textContent` — XSS-safe), `dispatch`, `submit` (requestSubmit the target's own form, optionally through a `submitter:`), `paste_into` (read the clipboard into a field, gesture-gated), `check_group` (tick or untick a checkbox group, then re-sync its bindings), and `persist_state`/`persist_clear` (the `reactive_persist` draft) — chainable. |
 | `reactive_field(:param, **attrs)` | The attribute hash that binds a control to an action param (no magic `name:`) — spread onto any control: `input(**reactive_field(:value, value: @record.name))`, `select(**reactive_field(:status)) { … }`. |
 | `reactive_text(:name, initial)` | Mirror a compute output (or a declared input) into a **text node** — a live preview heading, a character counter, `"Hello, {name}"` — via `textContent` (XSS-safe). The text sibling of `reactive_field`; carries no `name`, so it's never POSTed. See [Client-side computes](#client-side-computes-reactive_compute--reactive_text). |
 | `reactive_show(if:/if_any:/unless:)` | **Value-conditional visibility** (the `x-show`/`data-show` case): spread onto the element to show/hide — it toggles `hidden` from the fields' **current values**, client-only, zero round trip. One conditions language: a **Hash is an AND**, an **Array is membership**, a **Range is a threshold**, `if_any:` is OR-of-AND, `unless:` negates. `reactive_values` computes first paint; `disable:` disables a hidden section's controls. See [Value-conditional visibility](#value-conditional-visibility-reactive_show). |
@@ -1564,6 +1564,19 @@ end
 - **`js.submit(to, submitter:)`** submits the form through the hidden submit
   button, so the POST carries `bulk_action=delete` (see the
   [op vocabulary](#client-only-ops-on_client--js--zero-round-trips)).
+- **`js.check_group(group, checked = true)`** ticks (or, with `false`, unticks)
+  every owned box of the group from any other control — the "Clear selection ✕"
+  of a bulk-action bar — the way the header does: every box first, then `input`
+  + `change` on each one it flipped, then one re-sync of the header, the count,
+  the shows and the enables. `global: true` is for a trigger outside the root
+  that owns the group: every connected reactive root on the page flips the boxes
+  of that name it owns (a root not yet connected takes no part). Actor-only: a broadcast refuses it.
+
+  ```ruby
+  button(type: "button", **on_client(:click, js.check_group("ids[]", false))) { "✕" }
+  ```
+- **A form `reset`** inside the root re-syncs the group bindings once the reset
+  has applied, so `button(type: "reset")` never leaves a stale count.
 
 ### Client-only drafts (`reactive_persist`)
 
@@ -2725,9 +2738,10 @@ Notifications::Badge.broadcast_to(user, :alerts,
 ```
 
 `broadcast_to` with `js:` **refuses the actor-only ops** (`focus`/`focus_first`/
-`submit`/`paste_into` raise `ArgumentError`): broadcasting focus would steal it
-in every subscriber's tab, a broadcast submit would force-submit every
-subscriber's form, and a broadcast clipboard read would be hostile — these
+`submit`/`paste_into`/`persist_state`/`persist_clear`/`check_group` raise
+`ArgumentError`): broadcasting focus would steal it in every subscriber's tab, a
+broadcast submit would force-submit every subscriber's form, and a broadcast
+clipboard read, draft write or selection change would be hostile — these
 belong to the actor's own reply or gesture. Everything else is a fair broadcast
 (class and attribute toggles, `text`, `dispatch`). As with `on_client`, the ops are
 whitelist-interpreted client-side — an unknown op warns and is skipped — and the

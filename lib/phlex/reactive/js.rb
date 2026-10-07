@@ -259,6 +259,36 @@ module Phlex
         append("text", args.freeze)
       end
 
+      # --- Tick or untick a checkbox group (issue #342) ---
+      #
+      # check_group(group, checked = true) — set every OWNED box of the group
+      # (the #15 rule: a nested root's boxes are its own) the way a
+      # reactive_select_all header does: every box first, then `input` +
+      # `change` on each one it flipped, then ONE re-sync of the header, count,
+      # show and enable bindings. The group is a checkbox name resolved like
+      # reactive_select_all's: a bare name takes reactive_scope, a bracketed one
+      # ("ids[]") is used verbatim. `global: true` is for a trigger outside the
+      # root that owns the group: EVERY connected reactive root on the page flips the
+      # boxes of that name it owns (nested roots included). ACTOR-ONLY like focus/submit: a broadcast that cleared
+      # every subscriber's selection would be hostile (BROADCAST_REFUSED_OPS).
+      #   button(**on_client(:click, js.check_group("ids[]", false))) { "✕" }
+
+      # Positional `checked` on purpose: js.check_group("ids[]", false) reads as
+      # the op it is (the issue #342 API).
+      def check_group(group, checked = true, global: false) # rubocop:disable Style/OptionalBooleanParameter
+        name = -group.to_s
+        if name.strip.empty?
+          raise ArgumentError, "check_group needs a checkbox group name (e.g. \"ids[]\"), got #{group.inspect}"
+        end
+        unless [true, false].include?(checked)
+          raise ArgumentError, "check_group(#{name.inspect}) takes true or false, got #{checked.inspect}"
+        end
+
+        args = { "to" => ROOT_SENTINEL, "group" => name, "checked" => checked }
+        args["global"] = true if global
+        append("check_group", args.freeze)
+      end
+
       # --- Dispatch a bubbling CustomEvent (issue #96) ---
       #
       # dispatch(name, to: nil, detail: {}) — emit a bubbling CustomEvent so other

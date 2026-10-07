@@ -6,6 +6,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`js.check_group(group, checked = true, global: false)` — "clear selection" without a
+  controller (#342).** A client op that ticks or unticks every owned box of a
+  checkbox group from any control (a bulk-action bar's ✕), dispatching `input`
+  + `change` on each box it flips and re-syncing the header, `reactive_count`,
+  `reactive_show` and `reactive_enable` once — the select-all header's own path.
+  A nested root's boxes are left alone; `global: true` (a trigger outside the
+  owning root) flips the group in every reactive root that owns boxes of it. Actor-only: `broadcast_to(js:)` refuses it.
+  A form `reset` inside the root now re-syncs the group bindings too.
+
 ## [0.14.0] - 2026-10-07
 
 This section also covers 0.10.0 through 0.13.4, which were released without

@@ -106,4 +106,44 @@ RSpec.describe "Bulk selection (issue #319)", type: :system do
     expect(box("result").text).to eq("")
     expect(box("row-2")).to be_checked
   end
+
+  describe "js.check_group (issue #342)" do
+    it "clears the selection from the bar's ✕: count 0, bar hidden, header unchecked — no request" do
+      reset_reactive_requests!
+      box("row-1").click
+      box("row-2").click
+      expect(page).to have_css("[data-testid='bar']:not([hidden])")
+      expect(page).to have_css("[data-testid='bar-count']", text: "2")
+
+      box("clear").click
+
+      expect(page).to have_css("[data-testid='bar'][hidden]", visible: :all)
+      expect(page).to have_css("[data-testid='count']", text: "0")
+      %w[row-1 row-2 row-3].each { expect(box(it)).not_to be_checked }
+      expect(header_state).to eq([false, false])
+      expect(page).to have_css("[data-testid='delete'][disabled]")
+      expect(page).to have_reactive_requests(0)
+    end
+
+    it "ticks the whole group, leaving the nested root's box alone" do
+      box("row-1").click
+      box("tick-all").click
+
+      expect(page).to have_css("[data-testid='count']", text: "3")
+      expect(header_state).to eq([true, false])
+      expect(box("nested")).not_to be_checked
+    end
+
+    it "re-syncs the group bindings after a form reset" do
+      box("row-1").click
+      box("row-3").click
+      expect(page).to have_css("[data-testid='count']", text: "2")
+
+      box("reset").click
+
+      expect(page).to have_css("[data-testid='count']", text: "0")
+      expect(page).to have_css("[data-testid='bar'][hidden]", visible: :all)
+      expect(header_state).to eq([false, false])
+    end
+  end
 end

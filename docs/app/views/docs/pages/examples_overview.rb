@@ -48,7 +48,7 @@ module Views
 
               | Feature | Where it's shown (live) |
               |---|---|
-              | **Client-only ops** — `on_client` + `js` (`show`/`hide`/`toggle`, `set_attr`/`toggle_attr`, `focus`, `text`, `dispatch`, `submit`, `paste_into`, transitions): zero round trips | [Client-only ops](/docs/example-client-ops), [Todo list](/docs/example-todo-list), [Team inbox](/docs/example-team-inbox) |
+              | **Client-only ops** — `on_client` + `js` (`show`/`hide`/`toggle`, `set_attr`/`toggle_attr`, `focus`, `text`, `dispatch`, `submit`, `paste_into`, `check_group`, transitions): zero round trips | [Client-only ops](/docs/example-client-ops), [Todo list](/docs/example-todo-list), [Team inbox](/docs/example-team-inbox) |
               | **Client-side computes** — `reactive_compute` + `reactive_text` (a live preview / char counter that paints with no round trip) | [Payment split](/docs/example-payment-split) |
               | **Declarative loading states** — `busy:` / `busy_on` (+ the always-on `aria-busy` / `data-reactive-busy`) | [Loading states](/docs/example-loading-states), [Todo list](/docs/example-todo-list), [Collections](/docs/example-collections), [Team inbox](/docs/example-team-inbox) |
               | **Dirty-field tracking** — `reactive_dirty` / `warn_unsaved:` / `only:` (enable Save only on change; warn before leaving) | [Inline edit](/docs/example-inline-edit) |
