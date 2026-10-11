@@ -237,6 +237,65 @@ export function __resetReactiveStreamRenderForTest() {
 //                            for the attribute AND the property. Nothing else
 //                            (a root's token, a field's class) is held.
 // data-reactive-morph-value on a field lets the morph write it while focused.
+// --- An engine without contenteditable="plaintext-only" (issue #355) ---
+// reactive_editable renders contenteditable="plaintext-only": the browser
+// itself then pastes plain text and inserts "\n" for Enter. An engine without
+// it reads the value as INVALID — the element is not editable, cannot even be
+// focused — so there every reactive editable is switched to "true" (and the
+// bindings feature does the plain-text paste itself). However it reaches the
+// page: present at load, appended by a stream into a root that is already
+// connected, loaded in a frame, or written back by a morph of an unfocused
+// editable. One observer, only in such an engine; elsewhere the probe is all
+// that runs. Detected once per page.
+let plaintextOnly
+let plaintextObserver = null
+const PLAINTEXT_EDITABLE = "[data-reactive-editable][contenteditable=plaintext-only]"
+
+function plaintextSupported() {
+  if (plaintextOnly === undefined) {
+    try {
+      const probe = document.createElement("div")
+      probe.contentEditable = "plaintext-only"
+      plaintextOnly = probe.contentEditable === "plaintext-only"
+    } catch {
+      plaintextOnly = false
+    }
+  }
+  return plaintextOnly
+}
+
+function makeEditable(el) {
+  if (el.matches?.(PLAINTEXT_EDITABLE)) el.setAttribute("contenteditable", "true")
+  el.querySelectorAll?.(PLAINTEXT_EDITABLE).forEach(makeEditable)
+}
+
+export function registerReactivePlaintext() {
+  // (No element factory, no page to observe: never probe a stub document.)
+  if (plaintextObserver || typeof document === "undefined" || typeof document.createElement !== "function") return
+  if (plaintextSupported()) return
+  makeEditable(document)
+  plaintextObserver = new MutationObserver((records) => {
+    for (const record of records) {
+      if (record.type === "attributes") makeEditable(record.target)
+      else record.addedNodes.forEach(makeEditable)
+    }
+  })
+  plaintextObserver.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["contenteditable"],
+  })
+}
+
+// For tests: what the probe answers (undefined probes again), with no
+// observer installed.
+export function __setReactivePlaintextOnlyForTest(value) {
+  plaintextObserver?.disconnect()
+  plaintextObserver = null
+  plaintextOnly = value
+}
+
 let morphFocusRegistered = false
 
 //
@@ -486,6 +545,7 @@ export function registerReactiveActions() {
   registerReactiveDefer()
   registerReactiveStreamRender()
   registerReactiveMorphFocus()
+  registerReactivePlaintext()
   registerReactiveOffline()
   registerReactiveDev()
 }
@@ -2074,7 +2134,9 @@ export default class extends Controller {
         ),
       listnavOptions: (event) => this.#listnavOptions(event),
       collectFields: () => this.#collectFields(),
-      // A reactive_editable's value and its last server-rendered text (#351).
+      // A reactive_editable's value and its last server-rendered text (#351),
+      // and whether the engine has contenteditable="plaintext-only" (#355).
+      plain: plaintextSupported,
       text: editableValue,
       served: serverText,
       // The confirm gate, as dispatch() runs it: the resolver inside the chain

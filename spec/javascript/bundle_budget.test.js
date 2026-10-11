@@ -113,8 +113,9 @@ const SLACK = 250
 // in the core; keys, paste and the plaintext-only fallback in bindings; dirty
 // and drafts) adds 963 B on main (26,977 B); merged on top of #350, 921 B: 29,887 B.
 // With #352's review fixes merged in: 29,964 B. A first editable a stream
-// appends loads bindings on its focus (#351): 29,978 B.
-const BUNDLE_GZIP_CEILING = 29_978
+// appends loads bindings on its focus (#351): 29,978 B. Issue #355 (the plaintext-only
+// fallback moves from bindings into one runtime observer) adds 152 B: 30,130 B.
+const BUNDLE_GZIP_CEILING = 30_130
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -142,7 +143,8 @@ const TARGET_BUNDLE_GZIP = 22_700
 // Issue #351 (editable text: the collector, the server text, the morph hold
 // and the bindings marker) adds 376 B on main (13,823 B); on top of #350, 369 B: 13,870 B. A stream bringing
 // an editable starts the bindings import, and its focus loads it: 13,906 B.
-const CORE_GZIP_CEILING = 13_906
+// Issue #355 (the plaintext-only probe and observer, from bindings) adds 240 B: 14,146 B.
+const CORE_GZIP_CEILING = 14_146
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -191,7 +193,8 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #351 (editable text, in the core, bindings, form and persist) adds
 // 986 B on main (34,133 B); on top of #350, 981 B: 37,310 B.
 // With #352's review fixes merged in: 37,395 B; a late editable's bindings: 37,416 B.
-const SPLIT_TOTAL_GZIP_CEILING = 37_416
+// Issue #355 (the plaintext-only fallback: +240 B core, -138 B bindings) adds 102 B: 37,518 B.
+const SPLIT_TOTAL_GZIP_CEILING = 37_518
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

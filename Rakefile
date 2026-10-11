@@ -36,6 +36,7 @@ namespace :spec do
     spec/system/persist_form_spec.rb
     spec/system/persist_editors_spec.rb
     spec/system/editable_text_spec.rb
+    spec/system/editable_plaintext_fallback_spec.rb
     spec/system/defer_spec.rb
     spec/system/lazy_mount_spec.rb
     spec/system/lazy_on_spec.rb
