@@ -14,6 +14,7 @@ module Phlex
         extend ActiveSupport::Concern
         include Selection
         include Sortable
+        include Editable
 
         # The acting client's SSE connection id during the current action (nil
         # outside an action, or when the client isn't subscribed to a stream).

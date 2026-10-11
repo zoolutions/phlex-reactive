@@ -95,6 +95,13 @@ module Views
                 attribute: :name)`.
               MD
             end
+            DocsUI::Callout(:note) do
+              md <<~MD
+                To edit the text where it is shown, with no input to swap in, see
+                [Editable text](/docs/editable-text): `reactive_editable` makes the
+                displayed element itself the field.
+              MD
+            end
           end
         end
 

@@ -174,6 +174,17 @@ export function connect(controller, core) {
     listen(c, "input change", (event) => syncNestedJson(c, event))
     seed(c, () => syncAllNestedJson(c))
   }
+
+  // Editable text (issue #351) — ONLY when the root owns a reactive_editable
+  // (one probe otherwise). Delegated keys, paste and drop on the root; the
+  // seed downgrades plaintext-only where the engine lacks it, again after a
+  // morph (which writes the server's attribute back).
+  if (c.root.querySelector?.("[data-reactive-editable]")) {
+    seed(c, () => downgradeEditables(c))
+    listen(c, "keydown", (event) => editableKey(c, event))
+    listen(c, "paste drop", (event) => editablePaste(c, event))
+    listen(c, "input", (event) => editableEmptied(c, event))
+  }
 }
 
 // Remove every listener connect() added, so a stray event after a Turbo
@@ -1587,4 +1598,89 @@ function conditionalConfirmMessage(c, confirmWhen) {
   }
 
   return fires ? payload.message : null
+}
+
+// --- Editable text (issue #351) ----------------------------------------------
+// reactive_editable renders contenteditable="plaintext-only": the browser
+// itself then pastes plain text and inserts "\n" for Enter. An engine without
+// it reads the value as invalid — NOT editable — so the seed downgrades to
+// "true" there and the paste handler below does the plain-text part. Detected
+// once per page.
+let plaintextOnly
+
+export function __setPlaintextOnlyForTest(value) {
+  plaintextOnly = value
+}
+
+function plaintextSupported() {
+  if (plaintextOnly === undefined) {
+    try {
+      const probe = document.createElement("div")
+      probe.contentEditable = "plaintext-only"
+      plaintextOnly = probe.contentEditable === "plaintext-only"
+    } catch {
+      plaintextOnly = false
+    }
+  }
+  return plaintextOnly
+}
+
+// The owned editable an event came from, or null — a nested reactive root's
+// editables are its own (#15).
+function ownedEditable(c, event) {
+  const el = event.target?.closest?.("[data-reactive-editable]")
+  return el && c.core.owns(el) ? el : null
+}
+
+function downgradeEditables(c) {
+  if (plaintextSupported()) return
+  for (const el of c.root.querySelectorAll("[data-reactive-editable][contenteditable=plaintext-only]")) {
+    el.setAttribute("contenteditable", "true")
+  }
+}
+
+// Enter: a single-line field swallows it; on_enter runs its ops (root-scoped,
+// as on_client) or submits the field's form — in a multiline field only a
+// plain Enter, so Shift+Enter still breaks the line. Never while an IME is
+// composing (its Enter commits the composition). Escape with on_escape:
+// :revert restores the last server-rendered text, announces it as an edit
+// (dirty, show, an input-bound save) and blurs.
+function editableKey(c, event) {
+  const el = ownedEditable(c, event)
+  if (!el || event.isComposing || event.keyCode === 229) return
+  if (event.key === "Enter") {
+    const enter = el.getAttribute("data-reactive-editable-enter")
+    const multi = el.getAttribute("data-reactive-editable") === "multi"
+    if (multi && (enter == null || event.shiftKey)) return
+    event.preventDefault()
+    if (enter === "submit") el.closest("form")?.requestSubmit()
+    else if (enter) c.core.applyOps(JSON.parse(enter), "@root")
+  } else if (event.key === "Escape" && el.hasAttribute("data-reactive-editable-escape")) {
+    event.preventDefault()
+    el.textContent = c.core.served(el)
+    fireInput(el)
+    el.blur()
+  }
+}
+
+// Paste and drop insert the clipboard's PLAIN text — handled here where the
+// engine has no plaintext-only, and for a single-line field everywhere (its
+// line breaks fold to spaces). insertText keeps the browser's undo stack. A
+// drop lands at the caret, not under the pointer.
+function editablePaste(c, event) {
+  const el = ownedEditable(c, event)
+  const single = el?.getAttribute("data-reactive-editable") !== "multi"
+  let text = (event.clipboardData ?? event.dataTransfer)?.getData("text/plain")
+  if (!el || text == null || (plaintextSupported() && !(single && /[\r\n]/.test(text)))) return
+  event.preventDefault()
+  if (single) text = text.replace(/\r?\n|\r/g, " ")
+  el.focus()
+  document.execCommand("insertText", false, text)
+}
+
+// A field the user emptied keeps the <br> browsers leave behind, so
+// :empty::before (the placeholder) would never match: drop it.
+function editableEmptied(c, event) {
+  const el = ownedEditable(c, event)
+  if (el?.firstChild && c.core.text(el) === "") el.replaceChildren()
 }

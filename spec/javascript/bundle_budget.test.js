@@ -108,7 +108,10 @@ const SLACK = 250
 // default entry has no import(), so it carries it. Its review fixes (the live
 // region made at connect and written a frame later, boundary moves announced)
 // add 22 B: 28,966 B.
-const BUNDLE_GZIP_CEILING = 28_966
+// Issue #351 (editable text: the collector, the server text and the morph hold
+// in the core; keys, paste and the plaintext-only fallback in bindings; dirty
+// and drafts) adds 963 B on main (26,977 B); merged on top of #350, 921 B: 29,887 B.
+const BUNDLE_GZIP_CEILING = 29_887
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -133,7 +136,9 @@ const TARGET_BUNDLE_GZIP = 22_700
 // Issue #346 (on_client's detail: filter) adds 55 B: 13,447 B.
 // Issue #350 (the sortable marker and table entry, core.proceed's busy hint
 // and its reply) adds 54 B: 13,501 B.
-const CORE_GZIP_CEILING = 13_501
+// Issue #351 (editable text: the collector, the server text, the morph hold
+// and the bindings marker) adds 376 B on main (13,823 B); on top of #350, 369 B: 13,870 B.
+const CORE_GZIP_CEILING = 13_870
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -141,15 +146,18 @@ const FEATURE_GZIP_CEILINGS = {
   // module's real size, rounded up to the next 50 B. Issue #342 (check_group,
   // the reset re-sync) takes it to 5,988 B.
   // module's real size, rounded up to the next 50 B. Issue #343 (cross-root
-  // group targets) takes it to 6,203 B.
-  "features/bindings": 6_250,
+  // group targets) takes it to 6,203 B. Issue #351 (editable text: Enter,
+  // Escape, paste/drop, the plaintext-only fallback) takes it to 6,771 B.
+  "features/bindings": 6_800,
   // Issue #336 (render a defer reply now) takes it from 2,845 B to 2,974 B.
   "features/defer": 2_974,
   "features/compute": 2_050,
   "features/hints": 1_000,
   "features/effects": 1_750,
-  "features/persist": 3_150,
-  "features/form": 1_050,
+  // Issue #351 (an editable drafted through the core's collector) takes it to 3,167 B.
+  "features/persist": 3_200,
+  // Issue #351 (an editable's dirty diff against its server text) takes it to 1,088 B.
+  "features/form": 1_100,
   "features/devtools": 1_600,
   // Issue #350: sortable lists, 3,094 B; its review fixes take it to 3,130 B.
   "features/sortable": 3_150,
@@ -176,7 +184,9 @@ const FEATURE_GZIP_CEILINGS = {
 // adds 31 B: 33,147 B.
 // Issue #350 (the sortable feature module, 3,094 B, plus 54 B in the core)
 // adds 3,146 B: 36,293 B; its review fixes add 36 B: 36,329 B.
-const SPLIT_TOTAL_GZIP_CEILING = 36_329
+// Issue #351 (editable text, in the core, bindings, form and persist) adds
+// 986 B on main (34,133 B); on top of #350, 981 B: 37,310 B.
+const SPLIT_TOTAL_GZIP_CEILING = 37_310
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

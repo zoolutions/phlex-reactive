@@ -116,16 +116,23 @@ export function scan(controller, core) {
   if (typeof root?.querySelectorAll !== "function") return
 
   let count = 0
-  root.querySelectorAll("input[name], select[name], textarea[name]").forEach((field) => {
-    if (!core.owns(field)) return // skip a nested reactive root's fields (issue #15)
-    if (field.type === "file") return // no server default baseline to diff against
-
-    if (fieldDirty(field)) {
+  const mark = (field, dirty) => {
+    if (dirty) {
       field.setAttribute("data-reactive-dirty", "true")
       count++
     } else {
       field.removeAttribute("data-reactive-dirty")
     }
+  }
+  root.querySelectorAll("input[name], select[name], textarea[name]").forEach((field) => {
+    if (!core.owns(field)) return // skip a nested reactive root's fields (issue #15)
+    if (field.type === "file") return // no server default baseline to diff against
+    mark(field, fieldDirty(field))
+  })
+  // A reactive_editable (issue #351) diffs its text against the text of its
+  // last server render, which the core keeps.
+  root.querySelectorAll("[data-reactive-editable][name]").forEach((field) => {
+    if (core.owns(field)) mark(field, core.text(field) !== core.served(field))
   })
 
   if (count > 0) root.setAttribute("data-reactive-dirty", String(count))

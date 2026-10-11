@@ -608,6 +608,8 @@ test("a feature receives the core handle on connect and on disconnect", async ()
     "owns",
     "proceed",
     "reseed",
+    "served",
+    "text",
   ])
   expect(events).toEqual([{ n: 1 }])
   expect(() => core.reseed()).not.toThrow()

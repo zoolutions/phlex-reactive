@@ -228,7 +228,7 @@ test("a removal (before-morph-element with no newElement) leaves the focused fie
   expect(field.defaultValue).toBe("old")
 })
 
-test("registration is idempotent: one pair of listeners however often it runs", () => {
+test("registration is idempotent: one set of listeners however often it runs", () => {
   // A second listener would see the attribute already updated and skip it, so
   // counting writes can't catch a duplicate; count the registrations instead.
   __resetReactiveMorphFocusForTest()
@@ -243,5 +243,6 @@ test("registration is idempotent: one pair of listeners however often it runs", 
   registerReactiveMorphFocus()
   registerReactiveMorphFocus()
 
-  expect(added.sort()).toEqual(["turbo:before-morph-attribute", "turbo:before-morph-element"])
+  // focusin: an editable's server text when a morph never reached it (#351).
+  expect(added.sort()).toEqual(["focusin", "turbo:before-morph-attribute", "turbo:before-morph-element"])
 })

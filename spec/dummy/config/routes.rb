@@ -61,6 +61,7 @@ Rails.application.routes.draw do
   get "rich_editor/:id" => "demos#rich_editor"
   get "form_submit/:id" => "demos#form_submit"
   get "dirty_form/:id" => "demos#dirty_form"
+  get "editable_title/:id" => "demos#editable_title" # issue #351: reactive_editable
   get "nested_editor" => "demos#nested_editor"
   get "nested_params" => "demos#nested_params"
   get "debounce" => "demos#debounce"

@@ -342,6 +342,10 @@ class DemosController < ActionController::Base
     render_component DirtyFormComponent.new(todo: Todo.find(params[:id]))
   end
 
+  def editable_title
+    render_component EditableTitleComponent.new(todo: Todo.find(params[:id]))
+  end
+
   def nested_editor
     render_component NestedEditorComponent.new
   end
