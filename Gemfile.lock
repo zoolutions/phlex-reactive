@@ -229,7 +229,7 @@ GEM
     pg (1.6.3-aarch64-linux)
     pg (1.6.3-arm64-darwin)
     pg (1.6.3-x86_64-linux)
-    pgbus (0.15.2)
+    pgbus (0.17.3)
       concurrent-ruby (~> 1.2)
       fugit (~> 1.11, >= 1.11.1)
       globalid (~> 1.0)
@@ -514,7 +514,7 @@ CHECKSUMS
   pg (1.6.3-aarch64-linux) sha256=0698ad563e02383c27510b76bf7d4cd2de19cd1d16a5013f375dd473e4be72ea
   pg (1.6.3-arm64-darwin) sha256=7240330b572e6355d7c75a7de535edb5dfcbd6295d9c7777df4d9dddfb8c0e5f
   pg (1.6.3-x86_64-linux) sha256=5d9e188c8f7a0295d162b7b88a768d8452a899977d44f3274d1946d67920ae8d
-  pgbus (0.15.2) sha256=c1cee6c3d5e235ab5107737e49fa967f5b015e857c471b35d1e16d03366d1ed4
+  pgbus (0.17.3) sha256=0d0c8180945faa0aaf3bc89f1bce2b61c864f8b6d9a85288f43ff71b4e6f10f4
   pgmq-ruby (0.7.1) sha256=d5057dd16fb2bc2668978a942809749b4a27092ff92c904fc96ebab5ebc418f5
   phlex (2.4.1) sha256=e596717fbfe38b5271840266758779ebe75092e02629f0c170287e6290a70b12
   phlex-rails (2.4.0) sha256=2bcddbd488681acb25753bab1887d3ac150e644244ff8ba307f2171a4d0195f5
