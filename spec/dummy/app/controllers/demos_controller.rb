@@ -355,6 +355,10 @@ class DemosController < ActionController::Base
     render_component LateEditableComponent.new
   end
 
+  def late_show
+    render_component LateShowComponent.new
+  end
+
   def nested_editor
     render_component NestedEditorComponent.new
   end

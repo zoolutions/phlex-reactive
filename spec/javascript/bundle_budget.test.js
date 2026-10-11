@@ -119,7 +119,10 @@ const SLACK = 250
 // appends loads bindings on its focus (#351): 29,978 B. Issue #355 (the plaintext-only
 // fallback moves from bindings into one runtime observer) adds 152 B: 30,130 B; observing data-reactive-editable too, 30,135 B.
 // Issue #357 (shortcut: — the platform twin, the editable guard, the prevent) adds 177 B: 30,312 B.
-const BUNDLE_GZIP_CEILING = 30_312
+// Issue #356 (a stream into a connected root re-reads its markers and re-runs
+// its seeds; form and bindings wire a gate that reads true only then) adds 274 B on
+// #355 (30,409 B); on top of #357, 305 B: 30,617 B.
+const BUNDLE_GZIP_CEILING = 30_617
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -149,7 +152,9 @@ const TARGET_BUNDLE_GZIP = 22_700
 // an editable starts the bindings import, and its focus loads it: 13,906 B.
 // Issue #355 (the plaintext-only probe and observer, from bindings) adds 240 B: 14,146 B; observing data-reactive-editable too, 14,147 B.
 // Issue #357 (shortcut:) adds 192 B: 14,339 B.
-const CORE_GZIP_CEILING = 14_339
+// Issue #356 (the stream-into-root signal; the hold reads every stream's content)
+// adds 211 B on #355 (14,358 B); on top of #357, 215 B: 14,554 B.
+const CORE_GZIP_CEILING = 14_554
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -168,7 +173,8 @@ const FEATURE_GZIP_CEILINGS = {
   // Issue #351 (an editable drafted through the core's collector) takes it to 3,167 B.
   "features/persist": 3_200,
   // Issue #351 (an editable's dirty diff against its server text) takes it to 1,088 B.
-  "features/form": 1_100,
+  // Issue #356 (a gate wired the first time it reads true, and reseed) to 1,152 B.
+  "features/form": 1_152,
   "features/devtools": 1_600,
   // Issue #350: sortable lists, 3,094 B; its review fixes take it to 3,130 B; PR #352 review to 3,215 B.
   "features/sortable": 3_215,
@@ -200,7 +206,8 @@ const FEATURE_GZIP_CEILINGS = {
 // With #352's review fixes merged in: 37,395 B; a late editable's bindings: 37,416 B.
 // Issue #355 (the plaintext-only fallback: +240 B core, -138 B bindings) adds 102 B: 37,518 B (37,519 B with data-reactive-editable observed).
 // Issue #357 (shortcut:, in the core) adds 192 B: 37,711 B.
-const SPLIT_TOTAL_GZIP_CEILING = 37_711
+// Issue #356 (+215 B core, +64 B form, +46 B bindings) adds 325 B: 38,036 B.
+const SPLIT_TOTAL_GZIP_CEILING = 38_036
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

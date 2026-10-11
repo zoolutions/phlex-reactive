@@ -199,6 +199,7 @@ export function registerReactiveStreamRender() {
   if (typeof document === "undefined" || typeof document.addEventListener !== "function") return
   streamRenderRegistered = true
   document.addEventListener("turbo:before-stream-render", (event) => {
+    streamIntoRoots(event)
     // The opt-in entry sees every stream (it may hold one for a module the
     // incoming content needs); with no entry hook, a loaded effects module
     // wraps the stream directly — in the default entry, always.
@@ -209,6 +210,39 @@ export function registerReactiveStreamRender() {
 }
 // The names this registration had while it was two listeners.
 export { registerReactiveStreamRender as registerReactiveDismiss, registerReactiveStreamRender as registerReactiveEffects }
+
+// --- A stream into a connected root (issue #356) ---
+// A morph of a root makes it re-read its feature markers (#boundRootMorph); a
+// stream that renders INTO it — append, prepend or update of the root or a
+// child, before, after or replace of a child — fires neither a lifecycle nor
+// a morph of the root, so a marker it brings was never connected. The roots
+// a stream renders into are resolved here, before anything (effects, the opt-in
+// entry's hold) wraps Turbo's render; once that render has run, each one still
+// connected is told (STREAMED, not bubbling: an outer root's content is not
+// its own). The root re-runs its connected features' seeds and connects what
+// the new content needs, in both entries.
+const STREAMED = "reactive:streamed"
+
+function streamIntoRoots(event) {
+  const detail = event.detail
+  const render = detail?.render
+  const stream = detail?.newStream ?? event.target
+  const action = stream?.getAttribute?.("action")
+  const into = /^(append|prepend|update)$/.test(action)
+  if (typeof render !== "function" || !(into || /^(before|after|replace)$/.test(action))) return
+  const id = stream.getAttribute("target")
+  const selector = stream.getAttribute("targets")
+  const roots = new Set()
+  for (const target of id ? [document.getElementById(id)] : selector ? document.querySelectorAll(selector) : []) {
+    const root = (into ? target : target?.parentElement)?.closest?.('[data-controller~="reactive"]')
+    if (root) roots.add(root)
+  }
+  if (roots.size === 0) return
+  detail.render = async (el) => {
+    await render(el)
+    for (const root of roots) if (root.isConnected) root.dispatchEvent(new Event(STREAMED))
+  }
+}
 
 // For the opt-in entry: what to do with a stream before its render — hold it
 // for a module the incoming content needs. `handle(event, effects)` gets the
@@ -1880,15 +1914,20 @@ export default class extends Controller {
     // The same listener hears an editable being focused (issue #351): a stream
     // can append a root's first reactive_editable without morphing the root,
     // and its keys and paste need the bindings feature before anything is
-    // typed into it.
+    // typed into it. And it hears a stream that rendered into the root
+    // (STREAMED, issue #356): the features already connected re-run their
+    // seeds first (a morph's own listeners do that for a morph), then what the
+    // new content needs connects.
     if (this.element.getAttribute?.("data-reactive-token-value") != null || deferNeeded(this.element)) {
       this.#boundRootMorph = (event) => {
         if (event.type === "focusin" ? !event.target.hasAttribute?.("data-reactive-editable") : event.target !== this.element) return
+        if (event.type === STREAMED) this.#reseed()
         if (__SPLIT__) this.#loadFeatures(true)
         else this.#connectFeaturesNow(true)
       }
       this.element.addEventListener?.("turbo:morph-element", this.#boundRootMorph)
       this.element.addEventListener?.("focusin", this.#boundRootMorph)
+      this.element.addEventListener?.(STREAMED, this.#boundRootMorph)
     }
 
     // Feature modules (issue #275): connect the ones that are here and START
@@ -2169,15 +2208,17 @@ export default class extends Controller {
 
   // Re-run the connect-time seeds that read field values, in connect() order
   // — for a feature that changed those values after connect() ran (the draft
-  // restore). Each is the same re-sync its feature runs after a morph; a root
-  // that did not opt into one skips it. on-complete re-ARMS without firing.
+  // restore), or content a stream rendered into the root (issue #356). Each is
+  // the same re-sync its feature runs after a morph; a root that did not opt
+  // into one skips it. on-complete re-ARMS without firing. Form and bindings
+  // also wire a binding whose gate reads true only now (a stream's content).
   #reseed() {
     if (!__SPLIT__) {
-      if (this.#featuresOn & FORM) formFeature.scan(this, this.#featureCore())
+      if (this.#featuresOn & FORM) formFeature.reseed(this)
       if (this.#featuresOn & BINDINGS) bindingsFeature.reseed(this)
       if (this.#featuresOn & COMPUTE) computeFeature.seed(this)
     } else {
-      this.#features.get("form")?.scan(this, this.#featureCore())
+      this.#features.get("form")?.reseed(this)
       this.#features.get("bindings")?.reseed(this)
       this.#features.get("compute")?.seed(this)
     }
@@ -2350,6 +2391,7 @@ export default class extends Controller {
     if (this.#boundRootMorph) {
       this.element.removeEventListener?.("turbo:morph-element", this.#boundRootMorph)
       this.element.removeEventListener?.("focusin", this.#boundRootMorph)
+      this.element.removeEventListener?.(STREAMED, this.#boundRootMorph)
     }
     // Early triggers (issue #273): a disconnected root records again.
     earlyState().connected.delete(this.element)

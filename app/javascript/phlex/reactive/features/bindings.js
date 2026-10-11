@@ -64,116 +64,124 @@ export function connect(controller, core) {
   const c = ctx(controller, core)
   c.offs = []
   c.seeds = []
-
-  // Show bindings (issue #161) — ONLY when this root owns one, so a component
-  // without any pays a single probe (the dirty-tracking gate precedent). ONE
-  // delegated listener pair on the root (input + change bubble from every
-  // owned field — no per-field wiring, and a reactive_compute output write
-  // dispatches a real input event, so computed values drive visibility too).
-  // The connect sync seeds the initial state — a plain replace re-connects —
-  // and turbo:morph-element re-syncs after an in-place morph (which keeps the
-  // element connected, fires no Stimulus lifecycle, and may preserve a
-  // user-edited field value the server's hidden attrs don't reflect).
-  if (showSyncEnabled(c)) {
-    // A select-all header's edit flips its group first (issue #319) — on
-    // `input`, which a click fires BEFORE `change`, or the pass below would
-    // reset the header to its group's state first (the flip is idempotent, so
-    // the `change` that follows flips nothing). The change events it
-    // dispatches re-enter here and are skipped while it flips, so the pass
-    // after the loop runs once, not once per box.
-    c.show = (event) => {
-      if (c.flipping) return
-      // Only a user edit pushes the header onto its group; a morph (whose
-      // turbo:morph-element bubbles from the header too) derives it instead.
-      if (event?.type === "input" || event?.type === "change") flipGroup(c, event.target)
-      // Whether this root has group bindings is read at connect and again on
-      // a morph (which may add one, and so need the observer) — never per
-      // keystroke.
-      else {
-        c.groups = hasGroups(c)
-        observeGroups(c)
+  // Each binding below is wired once, the first time its gate reads true:
+  // here, and again from reseed() — a stream can render a root's first show
+  // target, filter or nested list into it after connect (issue #356).
+  let resetting
+  let filtering
+  let tagging
+  let serializing
+  ;(c.wire = () => {
+    // Show bindings (issue #161) — ONLY when this root owns one, so a component
+    // without any pays a single probe (the dirty-tracking gate precedent). ONE
+    // delegated listener pair on the root (input + change bubble from every
+    // owned field — no per-field wiring, and a reactive_compute output write
+    // dispatches a real input event, so computed values drive visibility too).
+    // The connect sync seeds the initial state — a plain replace re-connects —
+    // and turbo:morph-element re-syncs after an in-place morph (which keeps the
+    // element connected, fires no Stimulus lifecycle, and may preserve a
+    // user-edited field value the server's hidden attrs don't reflect).
+    if (!c.show && showSyncEnabled(c)) {
+      // A select-all header's edit flips its group first (issue #319) — on
+      // `input`, which a click fires BEFORE `change`, or the pass below would
+      // reset the header to its group's state first (the flip is idempotent, so
+      // the `change` that follows flips nothing). The change events it
+      // dispatches re-enter here and are skipped while it flips, so the pass
+      // after the loop runs once, not once per box.
+      c.show = (event) => {
+        if (c.flipping) return
+        // Only a user edit pushes the header onto its group; a morph (whose
+        // turbo:morph-element bubbles from the header too) derives it instead.
+        if (event?.type === "input" || event?.type === "change") flipGroup(c, event.target)
+        // Whether this root has group bindings is read at connect and again on
+        // a morph (which may add one, and so need the observer) — never per
+        // keystroke.
+        else {
+          c.groups = hasGroups(c)
+          observeGroups(c)
+        }
+        syncShow(c)
       }
-      syncShow(c)
+      listen(c, "input change", c.show)
+      seed(c, c.show)
     }
-    listen(c, "input change", c.show)
-    seed(c, c.show)
-  }
 
-  // Completion bindings (issue #226) — ONLY when the root declares
-  // data-reactive-on-complete (the show/filter gate precedent). ONE
-  // delegated input+change listener evaluates every binding's DNF over the
-  // owned fields and runs its ops on the RISING EDGE — the event-driven
-  // flip to true. The connect pass ARMS without firing (a fresh render with
-  // already-satisfied conditions must never self-fire — the $ops seed
-  // precedent), and turbo:morph-element re-arms the same way after an
-  // in-place morph. Listeners added HERE run after the Stimulus-wired
-  // recompute delegation for the same event, so the evaluation reads
-  // compute-NORMALIZED values (and a compute output write dispatches a real
-  // input event that re-evaluates anyway).
-  if (onCompleteEnabled(c)) {
-    listen(c, "input change", (event) => syncOnComplete(c, event))
-    seed(
-      c,
-      (c.arm = () => {
-        syncOnComplete(c, null)
-        observeGroups(c)
-      }),
-    )
-  }
+    // Completion bindings (issue #226) — ONLY when the root declares
+    // data-reactive-on-complete (the show/filter gate precedent). ONE
+    // delegated input+change listener evaluates every binding's DNF over the
+    // owned fields and runs its ops on the RISING EDGE — the event-driven
+    // flip to true. The connect pass ARMS without firing (a fresh render with
+    // already-satisfied conditions must never self-fire — the $ops seed
+    // precedent), and turbo:morph-element re-arms the same way after an
+    // in-place morph. Listeners added HERE run after the Stimulus-wired
+    // recompute delegation for the same event, so the evaluation reads
+    // compute-NORMALIZED values (and a compute output write dispatches a real
+    // input event that re-evaluates anyway).
+    if (!c.arm && onCompleteEnabled(c)) {
+      listen(c, "input change", (event) => syncOnComplete(c, event))
+      seed(
+        c,
+        (c.arm = () => {
+          syncOnComplete(c, null)
+          observeGroups(c)
+        }),
+      )
+    }
 
-  // A form reset (issue #342) restores its fields AFTER the `reset` event
-  // dispatches (and only if nothing cancelled it), so this waits a task, then
-  // re-syncs the bindings and re-arms the completion latches without firing
-  // (a reset fires no input/change, so a checked-count latch would stay high).
-  if (c.show || c.arm) {
-    listen(c, "reset", () =>
-      setTimeout(() => {
-        if (contexts.get(controller) !== c) return
-        c.show?.()
-        c.arm?.()
-      }, 0),
-    )
-  }
+    // A form reset (issue #342) restores its fields AFTER the `reset` event
+    // dispatches (and only if nothing cancelled it), so this waits a task, then
+    // re-syncs the bindings and re-arms the completion latches without firing
+    // (a reset fires no input/change, so a checked-count latch would stay high).
+    if (!resetting && (resetting = c.show || c.arm)) {
+      listen(c, "reset", () =>
+        setTimeout(() => {
+          if (contexts.get(controller) !== c) return
+          c.show?.()
+          c.arm?.()
+        }, 0),
+      )
+    }
 
-  // Option filtering (issue #163) — ONLY when the root declares the binding
-  // (reactive_filter emits both attrs together), so a component without one
-  // pays two attribute reads. ONE delegated input listener on the root — the
-  // handler re-filters only for events from the NAMED input, so keystrokes in
-  // unrelated fields on a wide form never pay a filter pass. The connect sync
-  // seeds from the input's current value (a plain replace re-connects; back
-  // navigation may restore typed text), and turbo:morph-element re-applies
-  // after an in-place morph (which keeps the element connected, fires no
-  // Stimulus lifecycle, and may preserve the user's typed query while the
-  // server re-rendered every option visible).
-  if (filterEnabled(c)) {
-    listen(c, "input", (event) => filterInputEvent(c, event) && syncFilter(c))
-    seed(c, () => syncFilter(c))
-  }
+    // Option filtering (issue #163) — ONLY when the root declares the binding
+    // (reactive_filter emits both attrs together), so a component without one
+    // pays two attribute reads. ONE delegated input listener on the root — the
+    // handler re-filters only for events from the NAMED input, so keystrokes in
+    // unrelated fields on a wide form never pay a filter pass. The connect sync
+    // seeds from the input's current value (a plain replace re-connects; back
+    // navigation may restore typed text), and turbo:morph-element re-applies
+    // after an in-place morph (which keeps the element connected, fires no
+    // Stimulus lifecycle, and may preserve the user's typed query while the
+    // server re-rendered every option visible).
+    if (!filtering && (filtering = filterEnabled(c))) {
+      listen(c, "input", (event) => filterInputEvent(c, event) && syncFilter(c))
+      seed(c, () => syncFilter(c))
+    }
 
-  // Tag-chip input (issue #203) — ONLY when the root names the hidden value
-  // field (reactive_tags), so a component without one pays one attribute
-  // read. The chip list is a CLIENT PROJECTION of the hidden field's
-  // comma-joined value: connect seeds it (a plain replace re-connects with
-  // the server-rendered value), and turbo:morph-element re-projects after an
-  // in-place morph (the morph wrote server truth into the hidden field while
-  // the chips DOM kept the pre-morph projection). Registered AFTER the
-  // filter's listeners so a morph re-filters first and the tags pass then
-  // re-marks selected options on the fresh visibility state.
-  if (tagsEnabled(c)) seed(c, () => syncTags(c))
+    // Tag-chip input (issue #203) — ONLY when the root names the hidden value
+    // field (reactive_tags), so a component without one pays one attribute
+    // read. The chip list is a CLIENT PROJECTION of the hidden field's
+    // comma-joined value: connect seeds it (a plain replace re-connects with
+    // the server-rendered value), and turbo:morph-element re-projects after an
+    // in-place morph (the morph wrote server truth into the hidden field while
+    // the chips DOM kept the pre-morph projection). Registered AFTER the
+    // filter's listeners so a morph re-filters first and the tags pass then
+    // re-marks selected options on the fresh visibility state.
+    if (!tagging && (tagging = tagsEnabled(c))) seed(c, () => syncTags(c))
 
-  // JSON-mode nested rows (issue #208) — ONLY when the root owns a list with
-  // `as: :json`, so a form without one pays a single probe (the show/filter/
-  // tags gate precedent). ONE delegated input + change listener re-serializes
-  // the rows into the hidden field on every owned edit (nestedAdd/Remove call
-  // the sync directly; this covers typing into a row's fields). The connect
-  // seed writes the initial array (a plain replace re-connects), and
-  // turbo:morph-element re-seeds after an in-place morph (which keeps the
-  // element connected, fires no Stimulus lifecycle, and may have rewritten
-  // the rows to server truth while the hidden field kept its pre-morph value).
-  if (nestedJsonEnabled(c)) {
-    listen(c, "input change", (event) => syncNestedJson(c, event))
-    seed(c, () => syncAllNestedJson(c))
-  }
+    // JSON-mode nested rows (issue #208) — ONLY when the root owns a list with
+    // `as: :json`, so a form without one pays a single probe (the show/filter/
+    // tags gate precedent). ONE delegated input + change listener re-serializes
+    // the rows into the hidden field on every owned edit (nestedAdd/Remove call
+    // the sync directly; this covers typing into a row's fields). The connect
+    // seed writes the initial array (a plain replace re-connects), and
+    // turbo:morph-element re-seeds after an in-place morph (which keeps the
+    // element connected, fires no Stimulus lifecycle, and may have rewritten
+    // the rows to server truth while the hidden field kept its pre-morph value).
+    if (!serializing && (serializing = nestedJsonEnabled(c))) {
+      listen(c, "input change", (event) => syncNestedJson(c, event))
+      seed(c, () => syncAllNestedJson(c))
+    }
+  })()
 
   // Editable text (issue #351). Delegated keys, paste and drop on the root,
   // whether or not it owns an editable yet: a stream can append the first one
@@ -196,10 +204,15 @@ export function disconnect(controller) {
 }
 
 // Re-run the seeds that read field values, in connect() order — for a
-// feature that changed those values after connect() ran (the draft restore).
-// Each is the same re-sync a morph runs; on-complete re-ARMS without firing.
+// feature that changed those values after connect() ran (the draft restore),
+// or content a stream rendered into the root (issue #356) — then wire any
+// binding whose gate reads true only now. Each seed is the same re-sync a
+// morph runs; on-complete re-ARMS without firing.
 export function reseed(controller) {
-  for (const run of contexts.get(controller)?.seeds ?? []) run()
+  const c = contexts.get(controller)
+  if (!c) return
+  for (const run of c.seeds) run()
+  c.wire()
 }
 
 // A value this module wrote is announced the way a user's edit is: a bubbling
