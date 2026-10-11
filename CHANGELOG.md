@@ -67,9 +67,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   re-runs the seeds of the features it has (a new show target takes the
   field's current value) and connects any feature its new content needs, in
   both clients; bindings and form also wire a binding whose gate reads true
-  only then. On the split client the stream's render waits for the module the
-  content needs, as it already did for an incoming root, so the content lands
-  wired.
+  only then. As after a morph, this covers a root with an action token or a
+  lazy shell; a tokenless, client-only root does not re-read. On the split
+  client the stream's render waits for the module the content needs, as it
+  already did for an incoming root, so the content lands wired. A draft
+  restore no longer marks fields `data-reactive-dirty` on a root that never
+  opted into dirty tracking (one that only gates a paste trigger).
 - **An editable is editable in an engine without `contenteditable="plaintext-only"`,
   however it reaches the page (#355).** Such an engine reads the server's
   `plaintext-only` as invalid, so the element cannot even be focused. The
