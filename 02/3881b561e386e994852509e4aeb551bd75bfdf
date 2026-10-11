@@ -1,0 +1,27 @@
+docs/app/views/docs/pages/performance.rb
+  s_fb38037c533860::t_35516e19deb8a9 1186-1187
+spec/javascript/reactive_editable.test.js
+  s_fb38037c533860::t_35516e19deb8a9 39,52
+lib/phlex/reactive/component/editable.rb
+  s_fb38037c533860::t_35516e19deb8a9 39
+docs/app/views/docs/pages/example_todo_list.rb
+  s_fb38037c533860::t_35516e19deb8a9 166
+docs/app/reactive_components/editable_card_component.rb
+  s_fb38037c533860::t_35516e19deb8a9 32-39,74-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "023881b561e386e994852509e4aeb551bd75bfdf",
+  "prompts": {},
+  "sessions": {
+    "s_fb38037c533860": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9f689cc-9812-4ee9-89c0-dfa4c5e4b757",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
