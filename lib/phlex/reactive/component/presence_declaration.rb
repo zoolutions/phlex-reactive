@@ -30,6 +30,12 @@ module Phlex
             require_server_actions!(:reactive_presence)
             declaration = build_presence_declaration(name, state, ttl, key)
             refuse_dormant_presence! if reactive_dormant?
+            # The name's fit in pgbus's stream-name budget is configuration (the
+            # queue prefix), so it is refused here; the render re-checks it.
+            transport = Phlex::Reactive::Presence::Transport
+            if transport.wired? && !transport.fits?(declaration.name)
+              raise Phlex::Reactive::ConfigurationError, transport.over_budget_message(self, declaration.name)
+            end
 
             # The generated action. Exempt from verify_authorized: the signed
             # token already proves the actor rendered this root, and the write
@@ -43,7 +49,6 @@ module Phlex
             include Phlex::Reactive::Presence::ComponentMethods
 
             # Class load runs before a database exists: the signatures alone gate it.
-            transport = Phlex::Reactive::Presence::Transport
             transport.register_ttl(declaration.name, ttl) if transport.wired?
             declaration
           end

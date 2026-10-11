@@ -51,13 +51,7 @@ module Phlex
         end
 
         def reactive_presence_stream_name
-          @reactive_presence_stream_name ||= Transport.stream_name(reactive_presence_stream_parts)
-        rescue ::ArgumentError => e # pgbus raises the core one; Phlex defines its own
-          name = self.class.reactive_presence_declaration.name
-          raise ConfigurationError,
-            "#{self.class.name}: the presence stream for reactive_presence :#{name} does not fit pgbus's " \
-            "stream-name budget of #{Transport.stream_name_budget} chars (a 16-char digest of the record, " \
-            "\":presence:\" and the name). Use a shorter presence name. (#{e.message})"
+          @reactive_presence_stream_name ||= reactive_presence_key(reactive_presence_stream_parts)
         end
 
         # The root's subscription marker (reactive_attrs): the signed SSE src of
@@ -73,6 +67,15 @@ module Phlex
         end
 
         private
+
+        # The stream key for the parts. Only pgbus's budget error becomes a
+        # ConfigurationError (the backstop for a name the declaration could not
+        # check); a missing key keeps its own error.
+        def reactive_presence_key(parts)
+          Transport.stream_name(parts)
+        rescue ::ArgumentError => e # pgbus raises the core one; Phlex defines its own
+          raise ConfigurationError, Transport.over_budget_message(self.class, parts.last, e.message)
+        end
 
         def reactive_presence_subject
           declaration = self.class.reactive_presence_declaration
@@ -108,8 +111,13 @@ module Phlex
           # for the peers; the client announces again until it sees itself.
           return if written.nil?
 
+          # A seatless actor (no ?seat=) is on no roster: nothing any viewer
+          # sees changed, so there is nothing to broadcast.
+          me = presence.me
+          return if me.nil?
+
           Presence.broadcast(self.class.from_identity(reactive_identity_payload), exclude: connection_id)
-          presence.me
+          me
         end
 
         # Which component wrote the row, and its record: how the render job

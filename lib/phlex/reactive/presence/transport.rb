@@ -20,6 +20,10 @@ module Phlex
         # transport at boot so a subscription to one joins on connect and leaves
         # on disconnect, with no controller code.
         PATTERN = /:presence:[^:]+\z/
+        # Hex characters of the subject's digest that start a presence key.
+        DIGEST_LENGTH = 16
+        # What joins the digest and the presence name.
+        SEPARATOR = ":presence:"
 
         # pgbus's default streams_heartbeat_interval (seconds), used when pgbus
         # is absent or does not expose the setting.
@@ -88,11 +92,21 @@ module Phlex
           # pgbus raises ArgumentError when it still does not fit.
           def stream_name(parts)
             *subject, presence, name = parts
-            digest = Digest::SHA256.hexdigest(::Pgbus::Streams::Stream.name_from(subject))[0, 16]
+            digest = Digest::SHA256.hexdigest(::Pgbus::Streams::Stream.name_from(subject))[0, DIGEST_LENGTH]
             ::Pgbus.stream_key!("#{digest}:#{presence}:#{name}")
           end
 
           def stream_name_budget = ::Pgbus.stream_name_budget
+
+          # Whether a presence name fits the key: pure configuration (the queue
+          # prefix), no database, so the declaration can check it.
+          def fits?(name) = DIGEST_LENGTH + SEPARATOR.length + name.to_s.length <= stream_name_budget
+
+          def over_budget_message(klass, name, detail = nil)
+            "#{klass.name}: the presence stream for reactive_presence :#{name} does not fit pgbus's " \
+              "stream-name budget of #{stream_name_budget} chars (a #{DIGEST_LENGTH}-char digest of the record, " \
+              "\":presence:\" and the name). Use a shorter presence name.#{" (#{detail})" if detail}"
+          end
 
           # The signed SSE URL a <pgbus-stream-source> subscribes with.
           def source_src(stream_name) = Phlex::Reactive::Defer.stream_src(stream_name)

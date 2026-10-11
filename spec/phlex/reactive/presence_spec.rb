@@ -88,20 +88,52 @@ RSpec.describe Phlex::Reactive::Presence, "reactive_presence (issue #358)" do
     end
 
     context "with a presence name too long for the budget" do
-      it "raises a ConfigurationError naming the presence name and the budget" do
-        stub_const("OversizedViewers", Class.new(ApplicationComponent) do
+      def oversized_class
+        Class.new(ApplicationComponent) do
           include Phlex::Reactive::Component
 
+          def self.name = "OversizedViewers"
           reactive_record :todo
           reactive_presence :everyone_on_this_page_right_now
 
           def initialize(todo:) = @todo = todo
           def id = "oversized-#{@todo.id}"
           def view_template = div(**reactive_root)
-        end)
+        end
+      end
 
-        expect { render_html(OversizedViewers.new(todo:)) }
+      it "refuses the name at declaration, naming it and the budget" do
+        expect { oversized_class }
           .to raise_error(Phlex::Reactive::ConfigurationError, /everyone_on_this_page_right_now.*41/m)
+      end
+
+      # Declared while the transport was not wired (no check then): the render
+      # is the backstop.
+      it "raises the same ConfigurationError at render when the declaration could not check" do
+        allow(Phlex::Reactive::Presence::Transport).to receive(:wired?).and_return(false)
+        klass = oversized_class
+        allow(Phlex::Reactive::Presence::Transport).to receive(:wired?).and_call_original
+
+        expect { render_html(klass.new(todo:)) }
+          .to raise_error(Phlex::Reactive::ConfigurationError, /everyone_on_this_page_right_now.*41/m)
+      end
+    end
+
+    it "keeps its own error for a roster with neither reactive_record nor key:" do
+      nokey = Class.new(ApplicationComponent) do
+        include Phlex::Reactive::Component
+
+        def self.name = "NoKeyViewers"
+        reactive_state :value
+        reactive_presence :viewers
+
+        def initialize(value: 1) = @value = value
+        def id = "nokey"
+        def view_template = div(**reactive_root)
+      end
+
+      expect { render_html(nokey.new) }.to raise_error(ArgumentError, /needs reactive_record/) do
+        expect(it).not_to be_a(Phlex::Reactive::ConfigurationError)
       end
     end
 
@@ -194,6 +226,19 @@ RSpec.describe Phlex::Reactive::Presence, "reactive_presence (issue #358)" do
         expect(Phlex::Reactive::Streamable).to have_received(:broadcast_component)
           .with(TodoViewersComponent, :replace, anything, anything, [stream_name],
             hash_including(morph: true, exclude: "c1", coalesce: Phlex::Reactive::Presence::COALESCE_MS))
+      end
+
+      # A seatless actor (its connection sent no ?seat=) is on no roster, so
+      # nothing any viewer sees changed: the row is written, nothing broadcast.
+      it "writes a seatless actor's row but broadcasts nothing" do
+        component = TodoViewersComponent.new(todo:)
+        allow(Phlex::Reactive::Streamable).to receive(:broadcast_component)
+
+        result = described_class.with_connection_id("secret-conn-7f3a") { component.presence.set(selected: 1) }
+
+        expect(result).to be_nil
+        expect(presence.members.find { it["connection_id"] == "secret-conn-7f3a" }["state"]).to include("selected" => 1)
+        expect(Phlex::Reactive::Streamable).not_to have_received(:broadcast_component)
       end
 
       it "is a no-op without a presence connection (the tab has not connected yet)" do
