@@ -1783,7 +1783,9 @@ end
 ```
 
 - **The stream** is `[record, :presence, name]` (a record-less roster passes
-  `key: ["lobby"]`). The root subscribes to it by itself: the client mints a
+  `key: ["lobby"]`), keyed with pgbus's `stream_key` (the record becomes a
+  fixed-length digest, so any id fits pgbus's stream-name budget). The root
+  subscribes to it by itself: the client mints a
   `<pgbus-stream-source>` from the root's signed src, so the page must load the
   pgbus client element (`import "pgbus/stream_source_element"`, which any
   `pgbus_stream_from` on the page already does).
@@ -1814,9 +1816,12 @@ end
   elements `data-reactive-presence-same-member` after every morph. Style them.
 - **Events**: `reactive:presence` fires on the root with
   `{ joined: [seat…], left: [seat…], me: seat }` when a morph changes who is
-  there; a replayed frame that changes nothing fires nothing.
-- **Leaving**: closing the tab leaves at once; a tab that goes silent (sleep, a
-  lost network) expires after `ttl:` seconds. A reconnect keeps the tab's seat
+  there; a replayed frame that changes nothing fires nothing. The root names
+  the seats its render saw (`data-reactive-presence-roster`), so this works for
+  a roster that renders people, not tabs.
+- **Leaving**: pgbus notices a closed tab when its next heartbeat write fails,
+  so the tab leaves within one `streams_heartbeat_interval` (15 s by default);
+  a tab that goes silent (sleep, a lost network) expires after `ttl:` seconds. A reconnect keeps the tab's seat
   id and re-sends its state, but pgbus drops the row on the disconnect, so
   unless the reconnect lands within one coalesce window (150 ms) peers see that
   seat leave and join again (`reactive:presence` reports both). A tab that left
@@ -1825,12 +1830,30 @@ end
   next `js.presence`. `ttl:` must be above the transport's heartbeat interval
   (`streams_heartbeat_interval`, 15 s by default), or a live tab would expire
   between two beats: `reactive_presence` raises otherwise.
-- **Transport**: needs pgbus with presence keyed by SSE connection
-  (zoolutions/pgbus#515; upgrade the table with
-  `rails g pgbus:add_presence_seats`) and ActiveJob. `ttl:` (45 by default) is
-  written into pgbus's `streams_presence_ttl` under the stream's pattern. Action Cable has no connection
-  identity: rendering a presence root without it raises
+- **Transport**: needs pgbus 0.17.3 or later (presence keyed by SSE
+  connection; create the table with `rails g pgbus:add_presence`, or upgrade an
+  older one with `rails g pgbus:add_presence_seats`). `ttl:` (45 by default) is
+  written into pgbus's `streams_presence_ttl` under the stream's pattern. Action
+  Cable has no connection identity: rendering a presence root without it raises
   `Phlex::Reactive::ConfigurationError`. Every other component is unaffected.
+- **Identity**: pgbus takes each tab's person from the context its stream
+  app's `authorize:` hook returns. The engine's own mount has no hook, so every
+  connection is anonymous and pgbus joins nobody. Mount a stream app with one,
+  ahead of the engine (the tab then warns in the console that it never
+  appeared on its roster, if this is missing):
+
+  ```ruby
+  # config/routes.rb
+  mount Pgbus::Web::StreamApp.new(authorize: ->(env, _stream) {
+    env["warden"]&.user # a User (pgbus reads #id), or { id:, metadata: { name: } }
+  }) => "/pgbus/streams"
+  mount Pgbus::Engine => "/pgbus"
+  ```
+
+  Shape the member with `config.streams_presence_member = ->(user) { { id: user.id, metadata: { name: user.name } } }`.
+- **Jobs**: a join, a leave and an expiry re-render the roster in
+  `Phlex::Reactive::PresenceRenderJob` (on `defer_job_queue`), so the app needs
+  an ActiveJob adapter that runs jobs. A state change renders in the action.
 
 ### Client-only drafts (`reactive_persist`)
 

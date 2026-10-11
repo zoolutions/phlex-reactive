@@ -180,7 +180,9 @@ module Views
               After a morph that changes who is there, the root fires
               `reactive:presence` with `{ joined: [seat…], left: [seat…], me: seat }`.
               It is computed from the page, so a replayed frame that changes
-              nothing fires nothing:
+              nothing fires nothing. The root names the seats its render saw
+              (`data-reactive-presence-roster`), so a roster that shows people
+              rather than tabs reports them too:
 
               ```ruby
               div(**mix(reactive_root, on_client("reactive:presence", js.add_class(:root, "pulse"))))
@@ -192,7 +194,9 @@ module Views
         def leaving
           DocsUI::Section('Leaving and expiry') do
             md <<~MD
-              Closing a tab leaves at once. A tab that goes silent (a laptop
+              A closed tab leaves when pgbus's next heartbeat write to it fails,
+              so within one `streams_heartbeat_interval` (15 s by default). A
+              tab that goes silent (a laptop
               asleep, a lost network) expires after `ttl:` seconds (45 by
               default; it is written into pgbus's `streams_presence_ttl` at
               boot, under this stream's pattern); the transport's heartbeat
@@ -221,16 +225,34 @@ module Views
         def transport
           DocsUI::Section('Transport') do
             md <<~MD
-              Presence needs pgbus with presence keyed by SSE connection
-              (zoolutions/pgbus#515), its seat table migrated
-              (`rails g pgbus:add_presence_seats`, which `rails pgbus:update`
-              queues), and ActiveJob. At boot the gem registers
+              Presence needs pgbus 0.17.3 or later (presence keyed by SSE
+              connection), its table created (`rails g pgbus:add_presence`) or
+              upgraded (`rails g pgbus:add_presence_seats`, which
+              `rails pgbus:update` queues), and an ActiveJob adapter that runs
+              jobs: each join, leave and expiry renders in a job. At boot the gem registers
               the presence stream pattern and its change hook; without that
               capability it does nothing at boot, and rendering a presence root
               raises `Phlex::Reactive::ConfigurationError`. Action Cable has no
               connection identity, so there is no fallback. The page must load
               pgbus's client element (`import "pgbus/stream_source_element"`;
               any `pgbus_stream_from` on the page already does).
+
+              pgbus takes each tab's person from the context its stream app's
+              `authorize:` hook returns. The engine's own mount has no hook, so
+              every connection is anonymous and pgbus joins nobody (the tab
+              warns in the console that it never appeared on its roster). Mount
+              a stream app with one, ahead of the engine:
+
+              ```ruby
+              # config/routes.rb
+              mount Pgbus::Web::StreamApp.new(authorize: ->(env, _stream) {
+                env["warden"]&.user # a User (pgbus reads #id), or { id:, metadata: { name: } }
+              }) => "/pgbus/streams"
+              mount Pgbus::Engine => "/pgbus"
+              ```
+
+              `config.streams_presence_member = ->(user) { { id: user.id, metadata: { name: user.name } } }`
+              shapes the member from it.
 
               `reactive_connection_id` (for `exclude:` on your own broadcasts)
               is the first `<pgbus-stream-source>` on the page, so a source
@@ -255,7 +277,7 @@ module Views
               not a lowercase identifier, a `ttl:` that is not a positive
               Integer above the heartbeat interval, the reserved state key
               `_rp`, or a dormant component (a dormant root never connects). The client is the `presence`
-              feature module (1.1 KB gzipped); the split client loads it only
+              feature module (1.4 KB gzipped); the split client loads it only
               for a page with a presence root.
             MD
           end

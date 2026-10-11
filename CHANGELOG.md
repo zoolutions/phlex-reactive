@@ -22,11 +22,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   client marks this tab's element `data-reactive-presence-me` and the same
   person's other elements `data-reactive-presence-same-member`, and fires
   `reactive:presence` with the seats that joined and left. A new `presence`
-  feature module (1.1 KB gzipped): the default client bundles it (+769 B), the
-  split client fetches it only for a page with a presence root (+103 B in the
-  core). Needs pgbus with per-connection presence (zoolutions/pgbus#515);
+  feature module (1.4 KB gzipped): the default client bundles it (+1,005 B), the
+  split client fetches it only for a page with a presence root (+100 B in the
+  core). Needs pgbus 0.17.3 or later (per-connection presence);
   without it a presence root raises `Phlex::Reactive::ConfigurationError` at
-  render. Upgrade the seat table with `rails g pgbus:add_presence_seats`.
+  render. Create the table with `rails g pgbus:add_presence` (or upgrade it
+  with `rails g pgbus:add_presence_seats`), mount a `Pgbus::Web::StreamApp`
+  whose `authorize:` returns the viewer (the engine's own mount is anonymous,
+  so pgbus joins nobody), and run an ActiveJob adapter (joins, leaves and
+  expiries render in `PresenceRenderJob`). A closed tab leaves within one
+  `streams_heartbeat_interval`.
   `ttl:` must be above pgbus's `streams_heartbeat_interval` (15 s by default). `js.presence` is refused on a broadcast, like `focus`. Docs: "Presence".
 
 - **`shortcut:` on `on()` and `on_client(:keydown, …)` — page-level keyboard

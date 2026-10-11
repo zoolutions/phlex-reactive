@@ -1194,7 +1194,7 @@ module Views
                              'Inside the one file.',
                              [:md, 'When the first root that is, or holds, a `reactive_sortable` or ' \
                                    '`reactive_sortable_source` list connects.']],
-                            [[:code, 'phlex/reactive/features/presence'], '1.1 KB',
+                            [[:code, 'phlex/reactive/features/presence'], '1.4 KB',
                              'Inside the one file.',
                              [:md, 'When the first `reactive_presence` root connects.']],
                             [[:code, 'phlex/reactive/features/hints'], '1.0 KB',
