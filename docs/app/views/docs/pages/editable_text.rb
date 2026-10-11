@@ -90,8 +90,11 @@ module Views
                 fire for that element while it is focused.
               - **Paste and drop** insert plain text: natively where the engine has
                 `plaintext-only` (all current ones), through a handler where it does
-                not (the client switches the element to `contenteditable="true"`
-                there). Line breaks pasted into a single-line field become spaces.
+                not. There the client switches every editable to
+                `contenteditable="true"`, whenever it reaches the page (at load, by
+                a stream, a frame or a morph), because such an engine cannot edit
+                `plaintext-only` at all. Line breaks pasted into a single-line
+                field become spaces.
               - **Enter** is left alone during IME composition.
               - **Dirty and drafts.** `reactive_dirty` marks the field when its text
                 differs from the text of its last server render; `reactive_persist`
@@ -135,10 +138,7 @@ module Views
                 An editable can arrive later: a stream can append it into a root
                 that is already on the page. Its keys and paste work from its
                 first focus. On the split client a stream that brings one starts
-                loading the bindings module before it renders. (In a browser
-                without `contenteditable="plaintext-only"`, such an editable only
-                becomes editable once something else in its root has loaded that
-                module. Every current browser has it.)
+                loading the bindings module before it renders.
               MD
             end
           end

@@ -606,6 +606,7 @@ test("a feature receives the core handle on connect and on disconnect", async ()
     "opTargets",
     "ownership",
     "owns",
+    "plain",
     "proceed",
     "reseed",
     "served",

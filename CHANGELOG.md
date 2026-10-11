@@ -58,6 +58,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **An editable is editable in an engine without `contenteditable="plaintext-only"`,
+  however it reaches the page (#355).** Such an engine reads the server's
+  `plaintext-only` as invalid, so the element cannot even be focused. The
+  bindings feature switched it to `"true"` only when it connected, or after a
+  morph of the root, which left an editable that a stream appended, a frame
+  loaded or an unfocused morph rewrote uneditable. The runtime now does the
+  switch with one observer, installed only in such an engine (elsewhere the
+  probe is all that runs). Bundle: default +157 B gzip, split core +241 B,
+  `features/bindings` -138 B.
+
 - **A `checked:`-only `reactive_show_targets` entry hides at zero boxes
   (#348).** `"#bulk-bar" => { if: { "ids[]" => { checked: 1.. } } }` was left
   visible once the owning root held no box of the group (the last ticked row

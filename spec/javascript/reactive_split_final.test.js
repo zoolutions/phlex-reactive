@@ -486,6 +486,36 @@ describe("bindings: the window before the module", () => {
     controller.disconnect()
   })
 
+  test("in an engine without plaintext-only, a stream-appended editable becomes editable, and its focus loads the module (issue #355)", async () => {
+    const hadObserver = "MutationObserver" in globalThis
+    const savedObserver = globalThis.MutationObserver
+    globalThis.MutationObserver = window.MutationObserver
+    mod.__setReactivePlaintextOnlyForTest(false)
+    mod.registerReactivePlaintext()
+    try {
+      const bindings = slowFeature("bindings", bindingsModule)
+      const { root, controller } = addRoot("card", {}, `<p>no bindings yet</p>`)
+      controller.connect()
+      root.insertAdjacentHTML("beforeend", `<h3 name="title" contenteditable="plaintext-only" data-reactive-editable="single">Hi</h3>`)
+      await settle()
+      const h3 = root.querySelector("h3")
+      expect(h3.getAttribute("contenteditable")).toBe("true")
+
+      h3.dispatchEvent(new window.FocusEvent("focusin", { bubbles: true }))
+      expect(bindings.loads()).toBe(1)
+      bindings.arrive()
+      await controller.featuresReady
+      const enter = new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })
+      h3.dispatchEvent(enter)
+      expect(enter.defaultPrevented).toBe(true)
+      controller.disconnect()
+    } finally {
+      mod.__setReactivePlaintextOnlyForTest(undefined)
+      if (hadObserver) globalThis.MutationObserver = savedObserver
+      else delete globalThis.MutationObserver
+    }
+  })
+
   test("a root that only declares group targets (issue #343) loads the module and drives them on arrival", async () => {
     const bindings = slowFeature("bindings", bindingsModule)
     document.body.insertAdjacentHTML("beforeend", '<span id="outside-count">0</span>')

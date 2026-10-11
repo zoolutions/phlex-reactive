@@ -178,10 +178,7 @@ export function connect(controller, core) {
   // Editable text (issue #351). Delegated keys, paste and drop on the root,
   // whether or not it owns an editable yet: a stream can append the first one
   // into a root whose bindings connected for another marker (each handler
-  // returns at once for an event that is not an owned editable's). The seed
-  // downgrades plaintext-only where the engine lacks it, again after a morph
-  // (which writes the server's attribute back).
-  seed(c, () => downgradeEditables(c))
+  // returns at once for an event that is not an owned editable's).
   listen(c, "keydown", (event) => editableKey(c, event))
   listen(c, "paste drop", (event) => editablePaste(c, event))
   listen(c, "input", (event) => editableEmptied(c, event))
@@ -1603,40 +1600,15 @@ function conditionalConfirmMessage(c, confirmWhen) {
 // --- Editable text (issue #351) ----------------------------------------------
 // reactive_editable renders contenteditable="plaintext-only": the browser
 // itself then pastes plain text and inserts "\n" for Enter. An engine without
-// it reads the value as invalid — NOT editable — so the seed downgrades to
-// "true" there and the paste handler below does the plain-text part. Detected
-// once per page.
-let plaintextOnly
-
-export function __setPlaintextOnlyForTest(value) {
-  plaintextOnly = value
-}
-
-function plaintextSupported() {
-  if (plaintextOnly === undefined) {
-    try {
-      const probe = document.createElement("div")
-      probe.contentEditable = "plaintext-only"
-      plaintextOnly = probe.contentEditable === "plaintext-only"
-    } catch {
-      plaintextOnly = false
-    }
-  }
-  return plaintextOnly
-}
+// it reads the value as invalid; the runtime switches every reactive editable
+// to "true" there (issue #355), and the paste handler below does the
+// plain-text part.
 
 // The owned editable an event came from, or null — a nested reactive root's
 // editables are its own (#15).
 function ownedEditable(c, event) {
   const el = event.target?.closest?.("[data-reactive-editable]")
   return el && c.core.owns(el) ? el : null
-}
-
-function downgradeEditables(c) {
-  if (plaintextSupported()) return
-  for (const el of c.root.querySelectorAll("[data-reactive-editable][contenteditable=plaintext-only]")) {
-    el.setAttribute("contenteditable", "true")
-  }
 }
 
 // Enter: a single-line field swallows it; on_enter runs its ops (root-scoped,
@@ -1671,7 +1643,7 @@ function editablePaste(c, event) {
   const el = ownedEditable(c, event)
   const single = el?.getAttribute("data-reactive-editable") !== "multi"
   let text = (event.clipboardData ?? event.dataTransfer)?.getData("text/plain")
-  if (!el || text == null || (plaintextSupported() && !(single && /[\r\n]/.test(text)))) return
+  if (!el || text == null || (c.core.plain() && !(single && /[\r\n]/.test(text)))) return
   event.preventDefault()
   if (single) text = text.replace(/\r?\n|\r/g, " ")
   el.focus()

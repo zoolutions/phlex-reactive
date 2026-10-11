@@ -50,13 +50,22 @@ beforeEach(() => {
   globalThis.MutationObserver = window.MutationObserver
   document.body.innerHTML = ""
   mod.registerReactiveMorphFocus() // idempotent: the listener is added once (beforeAll)
-  bindings.__setPlaintextOnlyForTest(true)
+  mod.__setReactivePlaintextOnlyForTest(true)
 })
 
 afterEach(() => {
   for (const [key, value] of Object.entries(SAVED)) globalThis[key] = value
-  bindings.__setPlaintextOnlyForTest(undefined)
+  mod.__setReactivePlaintextOnlyForTest(undefined)
 })
+
+// An engine without contenteditable="plaintext-only" (issue #355): the runtime
+// installs its observer, which switches every reactive editable to "true".
+function fallbackEngine() {
+  mod.__setReactivePlaintextOnlyForTest(false)
+  mod.registerReactivePlaintext()
+}
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 async function mount(html, { attrs = "" } = {}) {
   document.body.innerHTML = `<div id="r" data-controller="reactive" ${attrs}>${html}</div>`
@@ -178,8 +187,9 @@ test("a focused editable keeps its text and caret through a morph; its attribute
 })
 
 test("a held editable drops an attribute the render no longer has, but keeps a downgraded contenteditable", async () => {
-  bindings.__setPlaintextOnlyForTest(false)
+  fallbackEngine()
   const { $ } = await mount(SINGLE.replace("<h3 ", '<h3 class="invalid" '))
+  await settle()
   const h3 = $("h3")
   expect(h3.getAttribute("contenteditable")).toBe("true") // the fallback engine
   h3.focus()
@@ -235,8 +245,9 @@ function stubInsertText() {
 }
 
 test("where plaintext-only is missing, the editable is downgraded and paste inserts plain text", async () => {
-  bindings.__setPlaintextOnlyForTest(false)
+  fallbackEngine()
   const { $ } = await mount(MULTI)
+  await settle()
   const stub = stubInsertText()
   try {
     const event = paste($("p"), "line 1\nline 2")
@@ -248,8 +259,9 @@ test("where plaintext-only is missing, the editable is downgraded and paste inse
 })
 
 test("a drop of text is inserted as plain text in the fallback engine", async () => {
-  bindings.__setPlaintextOnlyForTest(false)
+  fallbackEngine()
   const { $ } = await mount(MULTI)
+  await settle()
   const stub = stubInsertText()
   try {
     expect(paste($("p"), "dropped", "drop").defaultPrevented).toBe(true)
@@ -346,6 +358,78 @@ test("a nested root's editable is its own: the parent does not handle its keys",
   const { $ } = await mount(`<div data-controller="reactive" id="inner">${SINGLE}</div>`)
   // Only the parent is connected here; the nested editable is not its to handle.
   expect(key($("h3"), "Enter").defaultPrevented).toBe(false)
+})
+
+// --- the plaintext-only fallback, wherever an editable comes from (issue #355) ----
+
+test("in an engine without plaintext-only, an editable already on the page is switched to true", async () => {
+  document.body.innerHTML = `<div data-controller="reactive">${SINGLE}</div>`
+  fallbackEngine()
+  expect(document.querySelector("h3").getAttribute("contenteditable")).toBe("true")
+})
+
+test("an editable appended later into a root without bindings is switched to true", async () => {
+  fallbackEngine()
+  const { root } = await mount(`<p>no bindings</p>`)
+  root.insertAdjacentHTML("beforeend", `<section>${SINGLE}</section>`)
+  await settle()
+  expect(root.querySelector("h3").getAttribute("contenteditable")).toBe("true")
+})
+
+test("an appended editable that is itself the inserted node is switched to true", async () => {
+  fallbackEngine()
+  const { root } = await mount(`<p>no bindings</p>`)
+  root.insertAdjacentHTML("beforeend", SINGLE)
+  await settle()
+  expect(root.querySelector("h3").getAttribute("contenteditable")).toBe("true")
+})
+
+test("plaintext-only written back by an unfocused morph is switched to true again", async () => {
+  fallbackEngine()
+  const { $ } = await mount(SINGLE)
+  await settle()
+  morph($("h3"), SINGLE.replace("Hello", "Server"))
+  await settle()
+  expect($("h3").getAttribute("contenteditable")).toBe("true")
+  expect($("h3").textContent).toBe("Server")
+})
+
+test("a plaintext-only element a morph makes a reactive editable is switched to true", async () => {
+  fallbackEngine()
+  const { root } = await mount(`<h3 contenteditable="plaintext-only">raw</h3>`)
+  await settle()
+  root.querySelector("h3").setAttribute("data-reactive-editable", "single")
+  await settle()
+  expect(root.querySelector("h3").getAttribute("contenteditable")).toBe("true")
+})
+
+test("a bare [contenteditable=plaintext-only] without the helper is left alone", async () => {
+  fallbackEngine()
+  const { root } = await mount(`<p>x</p>`)
+  root.insertAdjacentHTML("beforeend", `<div contenteditable="plaintext-only">raw</div>`)
+  await settle()
+  expect(root.querySelector("div").getAttribute("contenteditable")).toBe("plaintext-only")
+})
+
+test("an engine with plaintext-only installs no observer and leaves editables alone", async () => {
+  const Real = globalThis.MutationObserver
+  let built = 0
+  globalThis.MutationObserver = class extends Real {
+    constructor(...args) {
+      super(...args)
+      built++
+    }
+  }
+  try {
+    mod.registerReactivePlaintext() // the probe says supported (beforeEach)
+    expect(built).toBe(0)
+  } finally {
+    globalThis.MutationObserver = Real
+  }
+  const { root } = await mount(`<p>x</p>`)
+  root.insertAdjacentHTML("beforeend", SINGLE)
+  await settle()
+  expect(root.querySelector("h3").getAttribute("contenteditable")).toBe("plaintext-only")
 })
 
 // --- an editable a stream adds later ----------------------------------------------
