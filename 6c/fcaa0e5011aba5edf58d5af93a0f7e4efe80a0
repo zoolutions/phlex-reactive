@@ -1,0 +1,106 @@
+Rakefile
+  s_fb38037c533860::t_61421dca00eda0 38
+app/javascript/phlex/reactive/features/form.min.js.map
+  ai_agent 5,7-8
+app/javascript/phlex/reactive/features/persist.min.js
+  ai_agent 1,3
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 2
+docs/spec/system/editable_text_spec.rb
+  s_fb38037c533860::t_1565f16b835583 1-36
+spec/dummy/public/vendor/core.js
+  ai_agent 2-4
+app/javascript/phlex/reactive/core.min.js
+  ai_agent 2-4
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 2
+spec/javascript/reactive_editable.test.js
+  s_fb38037c533860::t_e13fe238e4b201 1-28,30-37,39-52,54-57,59-115,117-121,123-127,129-133,153-174,176-231,233-244,246-401
+  s_fb38037c533860::t_0e63169acbb75a 29,38,53,58,175,232,245
+  s_fb38037c533860::t_88bb3f27ae1890 116,122,128,134-152
+spec/dummy/app/controllers/demos_controller.rb
+  s_fb38037c533860::t_2bba93f8650a2e 345-348
+app/javascript/phlex/reactive/features/persist.min.js.map
+  ai_agent 5,7-8
+spec/javascript/reactive_features.test.js
+  s_fb38037c533860::t_5144acabfeac2b 611-612
+spec/system/editable_text_spec.rb
+  s_fb38037c533860::t_0f17bbefbdf850 1-66,68,71-80,83-86
+  s_fb38037c533860::t_509c8e80f685ad 67,69-70,81-82
+app/javascript/phlex/reactive/runtime.js
+  s_fb38037c533860::t_eda2fd0025d122 242-249,253,266-275,277-278,283-285,650-657,660,666-668,672-694,1256-1258,1268,1524-1526,1819-1822,2072-2074,3393-3394
+  s_fb38037c533860::t_3b9ce30c039389 276
+  s_fb38037c533860::t_195bf3bdacec99 658-659,661-665,669-671
+  s_fb38037c533860::t_5144acabfeac2b 3392
+README.md
+  s_fb38037c533860::t_2a44833abda2bd 684,1144-1146
+app/javascript/phlex/reactive/features/bindings.min.js.map
+  ai_agent 5,7-8
+docs/app/views/docs/pages/editable_text.rb
+  s_fb38037c533860::t_8864761d43f166 1-28,30-44,46-86,88-104,106-124,126-142
+  s_fb38037c533860::t_24ae2afc8fd7a8 29,45,105,125
+app/javascript/phlex/reactive/features/form.js
+  s_fb38037c533860::t_62fd332a2a0dee 119-120,126-135
+spec/dummy/config/routes.rb
+  s_fb38037c533860::t_2bba93f8650a2e 64
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 6,8-9
+CHANGELOG.md
+  s_fb38037c533860::t_2a44833abda2bd 28-43
+spec/phlex/reactive/editable_helpers_spec.rb
+  s_fb38037c533860::t_54763438b4c7b8 1-96,98,101-108,110-113,120-145
+  s_fb38037c533860::t_f978df06d98d56 97,99-100,109
+  s_fb38037c533860::t_196a248dc42a45 114-119
+app/javascript/phlex/reactive/features/bindings.js
+  s_fb38037c533860::t_ad5b164644bb33 177-187
+  s_fb38037c533860::t_af4b43ecd6f6bb 1602-1686
+app/javascript/phlex/reactive/features/bindings.min.js
+  ai_agent 1,3
+docs/app/views/docs/pages/example_inline_edit.rb
+  s_fb38037c533860::t_9dffc34494be20 98-104
+docs/app/views/docs/pages/example_todo_list.rb
+  s_fb38037c533860::t_9dffc34494be20 164-166
+app/javascript/phlex/reactive/features/form.min.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/features/persist.js
+  s_fb38037c533860::t_4cbf3236e7353c 209-215,310,406,629-631
+spec/dummy/public/vendor/features/persist.js
+  ai_agent 1,3
+spec/dummy/app/components/editable_title_component.rb
+  s_fb38037c533860::t_973a68473b0469 1-8,11-17,19-30,36-46,48-50
+  s_fb38037c533860::t_509c8e80f685ad 9-10,18,31-35,47
+spec/dummy/public/vendor/features/form.js
+  ai_agent 1,3
+docs/app/models/doc.rb
+  s_fb38037c533860::t_746a7150190d1c 20
+spec/javascript/reactive_morph_focus.test.js
+  s_fb38037c533860::t_5144acabfeac2b 231,246-247
+spec/dummy/public/vendor/features/bindings.js
+  ai_agent 1,3
+docs/app/reactive_components/editable_card_component.rb
+  s_fb38037c533860::t_3bff2363734cf4 1-70
+lib/phlex/reactive/component/helpers.rb
+  s_fb38037c533860::t_0947eacebbacff 17
+spec/javascript/bundle_budget.test.js
+  s_fb38037c533860::t_d984b53841c36f 111-112,139,149-151,157-160,187
+lib/phlex/reactive/component/editable.rb
+  s_fb38037c533860::t_184b37c368736a 1-45,53-78
+  s_fb38037c533860::t_196a248dc42a45 46-48
+  s_fb38037c533860::t_0947eacebbacff 49-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "6cfcaa0e5011aba5edf58d5af93a0f7e4efe80a0",
+  "prompts": {},
+  "sessions": {
+    "s_fb38037c533860": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9f689cc-9812-4ee9-89c0-dfa4c5e4b757",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
