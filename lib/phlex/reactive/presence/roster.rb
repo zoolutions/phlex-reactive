@@ -59,8 +59,12 @@ module Phlex
 
         def matches?(peer, state) = state.all? { |key, value| peer.state[key] == value }
 
+        # A row without a seat (a connection that sent no ?seat=: an app's own
+        # turbo_stream_from of the stream, a source without `presence`, a stale
+        # client) is no peer: no client can mark it "me", and keying it by its
+        # connection id would render that id — the bearer key for its row.
         def build_peers(rows, keys)
-          rows.group_by { it["seat"] || it["connection_id"] }.map do |seat, seat_rows|
+          rows.select { it["seat"].present? }.group_by { it["seat"] }.map do |seat, seat_rows|
             first = seat_rows.first
             @connections[seat] = seat_rows.map { it["connection_id"] }
             Peer.new(

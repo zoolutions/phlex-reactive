@@ -9,7 +9,7 @@ require_relative "../support/fake_pgbus_presence"
 # on the row of the connection the X-Reactive-Presence header names.
 RSpec.describe "presence_set (issue #358)", type: :request do
   let(:todo) { Todo.create!(title: "Ship it") }
-  let(:stream_name) { Pgbus.stream_key(todo, :presence, :viewers) }
+  let(:stream_name) { Phlex::Reactive::Presence::Transport.stream_name([todo, :presence, :viewers]) }
   let(:presence) { Pgbus.stream(stream_name).presence }
 
   before do

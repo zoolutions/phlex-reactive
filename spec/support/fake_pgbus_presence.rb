@@ -106,6 +106,13 @@ module FakePgbusPresence
 
       Stream.new(name, presence_class.new(store, name))
     end
+    # Like pgbus: a pre-built key, accepted verbatim within the budget.
+    pgbus.define_singleton_method(:stream_key!) do
+      raise ArgumentError, "stream_key #{it.inspect} is #{it.length} chars, over #{BUDGET}" if it.length > BUDGET
+
+      it
+    end
+    pgbus.define_singleton_method(:stream_name_budget) { BUDGET }
     # Like pgbus's Streams::Key: a record becomes "<param_key>_<digest>".
     pgbus.define_singleton_method(:stream_key) do |*parts|
       parts.flatten.map do

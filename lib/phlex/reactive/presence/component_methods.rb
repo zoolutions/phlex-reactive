@@ -52,6 +52,12 @@ module Phlex
 
         def reactive_presence_stream_name
           @reactive_presence_stream_name ||= Transport.stream_name(reactive_presence_stream_parts)
+        rescue ::ArgumentError => e # pgbus raises the core one; Phlex defines its own
+          name = self.class.reactive_presence_declaration.name
+          raise ConfigurationError,
+            "#{self.class.name}: the presence stream for reactive_presence :#{name} does not fit pgbus's " \
+            "stream-name budget of #{Transport.stream_name_budget} chars (a 16-char digest of the record, " \
+            "\":presence:\" and the name). Use a shorter presence name. (#{e.message})"
         end
 
         # The root's subscription marker (reactive_attrs): the signed SSE src of

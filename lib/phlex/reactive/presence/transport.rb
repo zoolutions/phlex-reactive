@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "digest"
+
 module Phlex
   module Reactive
     module Presence
@@ -75,11 +77,22 @@ module Phlex
 
           # The stream name the transport (and every Turbo broadcast) uses for
           # these parts.
-          # pgbus's stream key: a record becomes a fixed-length digest, so the
-          # name fits pgbus's queue-name budget whatever the record's id (the raw
-          # "<gid param>:presence:<name>" overflows it); ":presence:<name>" stays
-          # the suffix the presence patterns match.
-          def stream_name(parts) = ::Pgbus.stream_key(*parts)
+          # "<16 hex of the subject>:presence:<name>": the subject (the record,
+          # or a record-less roster's key) becomes a fixed-length digest of its
+          # stream name, so the key fits pgbus's queue-name budget (41 chars by
+          # default) whatever the model is called — the raw gid form, or pgbus's
+          # own "<param_key>_<digest>" fragment, overflows it for Document,
+          # Conversation, ProjectBoard, …. Leaves 15 chars for the presence
+          # name; ":presence:<name>" stays the suffix the patterns match. Not
+          # reversible: the render job finds the record through the row's note.
+          # pgbus raises ArgumentError when it still does not fit.
+          def stream_name(parts)
+            *subject, presence, name = parts
+            digest = Digest::SHA256.hexdigest(::Pgbus::Streams::Stream.name_from(subject))[0, 16]
+            ::Pgbus.stream_key!("#{digest}:#{presence}:#{name}")
+          end
+
+          def stream_name_budget = ::Pgbus.stream_name_budget
 
           # The signed SSE URL a <pgbus-stream-source> subscribes with.
           def source_src(stream_name) = Phlex::Reactive::Defer.stream_src(stream_name)

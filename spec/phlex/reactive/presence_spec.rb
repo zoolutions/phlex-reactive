@@ -9,7 +9,7 @@ require_relative "../../support/fake_pgbus_presence"
 # default suite has no pgbus; FakePgbusPresence stubs the #515 transport shape.
 RSpec.describe Phlex::Reactive::Presence, "reactive_presence (issue #358)" do
   let(:todo) { Todo.create!(title: "Ship it") }
-  let(:stream_name) { Pgbus.stream_key(todo, :presence, :viewers) }
+  let(:stream_name) { Phlex::Reactive::Presence::Transport.stream_name([todo, :presence, :viewers]) }
 
   def render_html(component) = Phlex::Reactive.render(component)
 
@@ -22,6 +22,12 @@ RSpec.describe Phlex::Reactive::Presence, "reactive_presence (issue #358)" do
       presence.join(member_id: 1, connection_id: "c2", seat: "seat-b", metadata: { name: "Ada" })
       presence.join(member_id: 2, connection_id: "c3", seat: "seat-c", metadata: { name: "Bob" })
       presence.set_state(connection_id: "c3", state: { "selected" => 2, "_rp" => { "c" => "X" } })
+      # A seatless row: pgbus joins every connection on a presence stream, and
+      # one without ?seat= (an app's own turbo_stream_from of the stream, a
+      # source without `presence`, a stale client) has no seat. Its connection
+      # id is the bearer key for writing its row: it must never be a peer.
+      presence.join(member_id: 3, connection_id: "secret-conn-7f3a", seat: nil, metadata: { name: "Cy" })
+      presence.set_state(connection_id: "secret-conn-7f3a", state: { "selected" => 2 })
     end
 
     it "declares presence_set with the state schema and skips verify_authorized for it" do
@@ -35,20 +41,67 @@ RSpec.describe Phlex::Reactive::Presence, "reactive_presence (issue #358)" do
     # stream-name budget (41 chars) once the record's id has two digits —
     # StreamNameTooLong on render. pgbus's stream_key digests the record to a
     # fixed length and keeps the ":presence:<name>" suffix the patterns match.
+    # The key is "<16 hex of the record's global id>:presence:<name>": a fixed
+    # length whatever the model is called (a digest per model name, like
+    # pgbus's own record fragment, overflows for Document, Conversation, …).
     context "with a record whose global id is long" do
       let(:todo) { Todo.create!(id: 987_654_321, title: "Ship it") }
 
-      it "keys the stream with pgbus's stream_key and renders, writes and broadcasts on it" do
+      it "keys the stream by a digest of the record and uses that one key everywhere" do
         component = TodoViewersComponent.new(todo:)
-        expect(component.reactive_presence_stream_name).to eq(Pgbus.stream_key(todo, :presence, :viewers))
-        expect(component.reactive_presence_stream_name).to end_with(":presence:viewers")
+        expect(stream_name).to eq("#{Digest::SHA256.hexdigest(todo.to_gid_param)[0, 16]}:presence:viewers")
+        expect(component.reactive_presence_stream_name).to eq(stream_name)
         expect(render_html(component)).to include(%(data-reactive-presence="/pgbus/streams/signed-#{stream_name}"))
 
         allow(Phlex::Reactive::Streamable).to receive(:broadcast_component)
         presence.join(member_id: 1, connection_id: "c9", seat: "seat-z", metadata: {})
         described_class.with_connection_id("c9") { component.presence.set(selected: 1) }
+        expect(presence.members.find { it["connection_id"] == "c9" }["state"]).to include("selected" => 1)
         expect(Phlex::Reactive::Streamable).to have_received(:broadcast_component)
           .with(TodoViewersComponent, :replace, anything, anything, [stream_name], anything)
+
+        described_class.render_roster(stream_name)
+        expect(Phlex::Reactive::Streamable).to have_received(:broadcast_component)
+          .with(TodoViewersComponent, :replace, anything, anything, [stream_name], hash_including(exclude: nil))
+      end
+    end
+
+    context "with a long model name" do
+      it "renders a :viewers roster within pgbus's stream-name budget" do
+        stub_const("ProjectBoardConversation", Class.new(Todo))
+        stub_const("ProjectBoardConversationViewers", Class.new(ApplicationComponent) do
+          include Phlex::Reactive::Component
+
+          reactive_record :board
+          reactive_presence :viewers
+
+          def initialize(board:) = @board = board
+          def id = "board-viewers-#{@board.id}"
+          def view_template = div(**reactive_root)
+        end)
+        board = ProjectBoardConversation.new(id: 123_456_789, title: "Roadmap")
+
+        component = ProjectBoardConversationViewers.new(board:)
+        expect { render_html(component) }.not_to raise_error
+        expect(component.reactive_presence_stream_name.length).to be <= Pgbus.stream_name_budget
+      end
+    end
+
+    context "with a presence name too long for the budget" do
+      it "raises a ConfigurationError naming the presence name and the budget" do
+        stub_const("OversizedViewers", Class.new(ApplicationComponent) do
+          include Phlex::Reactive::Component
+
+          reactive_record :todo
+          reactive_presence :everyone_on_this_page_right_now
+
+          def initialize(todo:) = @todo = todo
+          def id = "oversized-#{@todo.id}"
+          def view_template = div(**reactive_root)
+        end)
+
+        expect { render_html(OversizedViewers.new(todo:)) }
+          .to raise_error(Phlex::Reactive::ConfigurationError, /everyone_on_this_page_right_now.*41/m)
       end
     end
 
@@ -96,6 +149,22 @@ RSpec.describe Phlex::Reactive::Presence, "reactive_presence (issue #358)" do
       expect(peer).not_to respond_to(:connection_ids)
       expect(peer.to_h.values.flatten.map(&:to_s)).not_to include("c1")
       expect(render_html(TodoViewersComponent.new(todo:))).not_to match(/\bc[123]\b/)
+    end
+
+    it "leaves a seatless row out of the roster, so its connection id is never rendered" do
+      roster = TodoViewersComponent.new(todo:).presence
+      expect(roster.peers.map(&:seat)).to eq(%w[seat-a seat-b seat-c])
+      expect(roster.members.map(&:id)).to eq(%w[1 2])
+      expect(roster.where(selected: 2).map(&:seat)).to eq(["seat-c"])
+
+      html = render_html(TodoViewersComponent.new(todo:))
+      expect(html).not_to include("secret-conn-7f3a")
+      expect(html).to include(%(data-reactive-presence-roster="seat-a seat-b seat-c"))
+    end
+
+    it "finds no `me` for an actor whose own row has no seat" do
+      roster = described_class.with_connection_id("secret-conn-7f3a") { TodoViewersComponent.new(todo:).presence }
+      expect(roster.me).to be_nil
     end
 
     it "merges two connections of one seat into one peer" do

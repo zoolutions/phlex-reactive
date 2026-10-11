@@ -1783,8 +1783,10 @@ end
 ```
 
 - **The stream** is `[record, :presence, name]` (a record-less roster passes
-  `key: ["lobby"]`), keyed with pgbus's `stream_key` (the record becomes a
-  fixed-length digest, so any id fits pgbus's stream-name budget). The root
+  `key: ["lobby"]`), named `"<16-char digest of the record>:presence:<name>"`,
+  so any model name and id fit pgbus's stream-name budget (41 chars with the
+  default queue prefix). That leaves 15 characters for the presence name; a
+  longer one raises `Phlex::Reactive::ConfigurationError` at render. The root
   subscribes to it by itself: the client mints a
   `<pgbus-stream-source>` from the root's signed src, so the page must load the
   pgbus client element (`import "pgbus/stream_source_element"`, which any

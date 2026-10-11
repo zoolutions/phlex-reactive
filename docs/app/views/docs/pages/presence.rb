@@ -80,7 +80,11 @@ module Views
               to it by itself: the client mints a hidden
               `<pgbus-stream-source presence>` for it, which sends the tab's
               seat, and a tab joins when that connects. A record-less roster
-              names its stream with `key: ["lobby"]`.
+              names its stream with `key: ["lobby"]`. The stream's name is
+              `"<16-char digest of the record>:presence:<name>"`, so any model
+              fits pgbus's stream-name budget (41 chars with the default queue
+              prefix); that leaves 15 characters for the presence name, and a
+              longer one raises `Phlex::Reactive::ConfigurationError`.
 
               `presence` is the roster as this render reads it:
 

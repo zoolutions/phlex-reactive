@@ -16,7 +16,7 @@ RSpec.describe "the presence page (issue #358)", type: :request do
   it "renders the root with its presence src when the transport is capable" do
     FakePgbusPresence.install!(self)
     get "/presence"
-    key = Pgbus.stream_key(Todo.first, :presence, :viewers)
+    key = Phlex::Reactive::Presence::Transport.stream_name([Todo.first, :presence, :viewers])
     expect(response.body).to include(%(data-reactive-presence="/pgbus/streams/signed-#{key}"))
     expect(response.body).to include('import "pgbus/stream_source_element"')
   end
