@@ -24,8 +24,9 @@ Rails.application.config.after_initialize do
   Phlex::Reactive.authorization_errors << PresenceDemoComponent::Denied
 
   # Presence needs a member per SSE connection; the docs have no sign-in, so
-  # every visitor is a guest. Only on a pgbus with per-connection presence.
-  if Phlex::Reactive::Presence.capable? && Pgbus.configuration.respond_to?(:streams_presence_member=)
+  # every visitor is a guest. Only on a pgbus with per-connection presence —
+  # the signature probe, never capable? (a query; boot may have no database).
+  if Phlex::Reactive::Presence::Transport.wired? && Pgbus.configuration.respond_to?(:streams_presence_member=)
     Pgbus.configuration.streams_presence_member = ->(_context) { { id: 'guest', metadata: { name: 'Guest' } } }
   end
 

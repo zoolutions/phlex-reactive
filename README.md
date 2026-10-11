@@ -1750,7 +1750,15 @@ end
   proves the actor rendered this root, and the write is typed, ephemeral, and
   lands only on the actor's own row, keyed by its SSE connection id, which
   only that tab knows. To check the value (the card must belong to the board),
-  define `authorize_presence_state!(**state)` and raise; it runs first.
+  define `authorize_presence_state!(**state)` and raise; it runs first. The
+  client also sends `presence_set` with no state on every connect (the
+  announce): that writes no value, so the hook is not called for it.
+- **`presence.me`** is the acting tab, and during an action it stays the actor
+  while the roster renders for the other viewers too. Never branch the shared
+  output on it; the client's `-me` marks are per tab. (Likewise
+  `reactive_connection_id` is the first `<pgbus-stream-source>` on the page, so
+  one loaded later, ahead of it in the DOM, can change it; presence writes use
+  their own connection and are unaffected.)
 - **"Me"**: the roster renders once for everyone, so the client marks this
   tab's element `data-reactive-presence-me` and the same person's other
   elements `data-reactive-presence-same-member` after every morph. Style them.
@@ -1759,7 +1767,14 @@ end
   there; a replayed frame that changes nothing fires nothing.
 - **Leaving**: closing the tab leaves at once; a tab that goes silent (sleep, a
   lost network) expires after `ttl:` seconds. A reconnect keeps the tab's seat
-  and re-sends its state.
+  id and re-sends its state, but pgbus drops the row on the disconnect, so
+  unless the reconnect lands within one coalesce window (150 ms) peers see that
+  seat leave and join again (`reactive:presence` reports both). A tab that left
+  never comes back by itself; only a connection still open whose row expired
+  (it missed its beats) is re-joined by the heartbeat, with no state until its
+  next `js.presence`. `ttl:` must be above the transport's heartbeat interval
+  (`streams_heartbeat_interval`, 15 s by default), or a live tab would expire
+  between two beats: `reactive_presence` raises otherwise.
 - **Transport**: needs pgbus with presence keyed by SSE connection
   (zoolutions/pgbus#515; upgrade the table with
   `rails g pgbus:add_presence_seats`) and ActiveJob. `ttl:` (45 by default) is

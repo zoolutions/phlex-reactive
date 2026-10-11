@@ -21,8 +21,14 @@ module Phlex
         # The generated action js.presence sends. Runs authorize_presence_state!
         # first when the component defines it (raise to refuse), writes the
         # actor's tab state, and morphs the actor's own view.
+        #
+        # The client also sends it EMPTY on every connect (the announce). That
+        # writes no value — only the reverse note (this class and the record of
+        # the token the actor already holds) on the actor's own row — so there
+        # is nothing to authorize, and the hook is skipped: its keywords may be
+        # required, and calling it with none would raise.
         def presence_set(**state)
-          authorize_presence_state!(**state) if respond_to?(:authorize_presence_state!, true)
+          authorize_presence_state!(**state) if state.any? && respond_to?(:authorize_presence_state!, true)
           presence.set(**state)
           reply.morph
         end

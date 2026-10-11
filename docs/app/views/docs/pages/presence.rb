@@ -142,6 +142,16 @@ module Views
 
               Register the error in `Phlex::Reactive.authorization_errors` and a
               refused write is a 403 that changes nothing.
+
+              The client also sends `presence_set` with no state each time the
+              tab connects (the announce, which puts the tab on the roster).
+              It writes no value, so `authorize_presence_state!` is not called
+              for it — its keywords can be required.
+
+              `presence.me` is the acting tab, and it stays the actor while the
+              roster renders for the other viewers during that action. Don't
+              branch the shared output on it; style "you" with the client's
+              `data-reactive-presence-me` instead.
             MD
           end
         end
@@ -190,6 +200,20 @@ module Views
               expiry renders the roster once, in a job on `defer_job_queue`,
               from the table as it is then, so a page reload (a leave and a
               join within milliseconds) is one morph with the tab still there.
+
+              A reconnect keeps the tab's seat id and re-sends its state, but
+              the transport drops the row on the disconnect: unless the
+              reconnect lands within one coalesce window (150 ms), the other
+              tabs see that seat leave and join again, and `reactive:presence`
+              reports both. A tab that left never comes back by itself; only a
+              connection still open whose row expired (it missed its beats) is
+              re-joined by the transport's heartbeat, without its state until
+              its next `js.presence`.
+
+              `ttl:` must be above the transport's heartbeat interval
+              (`streams_heartbeat_interval`, 15 s by default) — at or below it a
+              live tab would expire between two beats, so `reactive_presence`
+              raises. Two missed beats (the default 45) is a good floor.
             MD
           end
         end
@@ -207,6 +231,11 @@ module Views
               connection identity, so there is no fallback. The page must load
               pgbus's client element (`import "pgbus/stream_source_element"`;
               any `pgbus_stream_from` on the page already does).
+
+              `reactive_connection_id` (for `exclude:` on your own broadcasts)
+              is the first `<pgbus-stream-source>` on the page, so a source
+              loaded later but placed ahead of it changes it. Presence writes
+              send their own connection and are unaffected.
             MD
           end
         end
@@ -224,8 +253,8 @@ module Views
 
               `reactive_presence` raises an `ArgumentError` for a name that is
               not a lowercase identifier, a `ttl:` that is not a positive
-              Integer, the reserved state key `_rp`, or a dormant component (a
-              dormant root never connects). The client is the `presence`
+              Integer above the heartbeat interval, the reserved state key
+              `_rp`, or a dormant component (a dormant root never connects). The client is the `presence`
               feature module (1.1 KB gzipped); the split client loads it only
               for a page with a presence root.
             MD

@@ -58,8 +58,9 @@ module Phlex
 
       # One tab on the stream. `seat` is the tab's id (opaque; rendered by
       # reactive_presence_peer so the client can find "me"), `state` the
-      # declared keys only.
-      Peer = Data.define(:seat, :member_id, :metadata, :state, :joined_at, :connection_ids)
+      # declared keys only. No connection id: it is the bearer key for writing
+      # the tab's row, so it stays inside the Roster.
+      Peer = Data.define(:seat, :member_id, :metadata, :state, :joined_at)
 
       # One person: their seats, the newest one's metadata and state.
       Member = Data.define(:id, :metadata, :seats) do
@@ -67,6 +68,7 @@ module Phlex
       end
 
       class << self
+        # Wired and migrated (a query: render time only). See Transport.
         def capable? = Transport.capable?
 
         # The actor's presence connection during an action (the HEADER), or nil.
@@ -96,10 +98,11 @@ module Phlex
         end
 
         # Boot (the engine's after_initialize): register the presence stream
-        # pattern and the change hook. Nothing is touched without the
-        # capability — an app on Action Cable boots exactly as before.
+        # pattern and the change hook. Gated on the signatures alone, never a
+        # query — boot runs before a database exists. Nothing is touched
+        # without them: an app on Action Cable boots exactly as before.
         def install!
-          Transport.install!(method(:changed)) if capable?
+          Transport.install!(method(:changed)) if Transport.wired?
         end
 
         # The transport's change hook (it runs on the SSE dispatcher thread):
@@ -115,6 +118,8 @@ module Phlex
         # tab (the joiner included: its first paint ran before its connection
         # existed). Nobody left, or a gone record, renders nothing.
         def render_roster(stream_name)
+          return unless capable?
+
           notes = Transport.members(stream_name).filter_map { it["state"]&.[](NOTE_KEY) }.uniq
           notes.each do
             component = build(it)

@@ -36,8 +36,11 @@ module FakePgbusPresence
       table.delete_if { |_, row| row["id"] == member_id.to_s }
     end
 
-    # Shallow-merges into the row's state (#515); the row, or nil.
+    # Shallow-merges into the row's state (#515); the row, or nil. Like
+    # pgbus, a state that is not a Hash raises.
     def set_state(connection_id:, state:)
+      raise ArgumentError, "state must be a Hash, got #{state.class}" unless state.is_a?(Hash)
+
       row = table[connection_id]
       row && (row["state"] = row["state"].merge(JSON.parse(JSON.generate(state)))) && row
     end
@@ -79,7 +82,7 @@ module FakePgbusPresence
   end
 
   Configuration = Struct.new(:streams_presence_patterns, :streams_presence_on_change, :streams_presence_ttl,
-    :streams_path)
+    :streams_path, :streams_heartbeat_interval)
 
   module_function
 
@@ -88,7 +91,7 @@ module FakePgbusPresence
   def install!(example, shape: :seats)
     store = Store.new
     presence_class = shape == :old ? OldPresence : Presence
-    config = Configuration.new([], nil, 60, "/pgbus/streams")
+    config = Configuration.new([], nil, 60, "/pgbus/streams", 15)
     pgbus = Module.new
     pgbus.define_singleton_method(:configuration) { config }
     pgbus.define_singleton_method(:stream) do |name, durable: nil|

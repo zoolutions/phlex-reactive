@@ -51,6 +51,15 @@ RSpec.describe Phlex::Reactive::Presence, "reactive_presence (issue #358)" do
       expect(TodoViewersComponent.new(todo:).presence.where(selected: 2).map(&:seat)).to eq(["seat-c"])
     end
 
+    # The connection id is the bearer key for writing a row: it stays inside
+    # the Roster (only `me` uses it) and never reaches a template.
+    it "never exposes a connection id on a peer or in the render" do
+      peer = TodoViewersComponent.new(todo:).presence.peers.first
+      expect(peer).not_to respond_to(:connection_ids)
+      expect(peer.to_h.values.flatten.map(&:to_s)).not_to include("c1")
+      expect(render_html(TodoViewersComponent.new(todo:))).not_to match(/\bc[123]\b/)
+    end
+
     it "merges two connections of one seat into one peer" do
       presence.join(member_id: 2, connection_id: "c4", seat: "seat-c", metadata: { name: "Bob" })
       roster = TodoViewersComponent.new(todo:).presence
@@ -151,6 +160,21 @@ RSpec.describe Phlex::Reactive::Presence, "reactive_presence (issue #358)" do
       expect { declare { reactive_presence :viewers, state: { _rp: :string } } }.to raise_error(ArgumentError, /_rp/)
     end
 
+    # A ttl at or below the transport's heartbeat would expire a live tab
+    # between two beats. The interval is read from configuration (no query),
+    # 15 s without pgbus.
+    it "refuses a ttl at or below the heartbeat interval" do
+      expect { declare { reactive_presence :viewers, ttl: 15 } }.to raise_error(ArgumentError, /heartbeat.*15/)
+      expect { declare { reactive_presence :viewers, ttl: 16 } }.not_to raise_error
+    end
+
+    it "reads the heartbeat interval from pgbus's configuration" do
+      _store, config = FakePgbusPresence.install!(self)
+      config.streams_heartbeat_interval = 5
+      expect { declare { reactive_presence :viewers, ttl: 10 } }.not_to raise_error
+      expect { declare { reactive_presence :viewers, ttl: 5 } }.to raise_error(ArgumentError, /heartbeat.*5/)
+    end
+
     it "refuses a dormant presence root" do
       expect { declare { reactive_dormant; reactive_presence :viewers } } # rubocop:disable Style/Semicolon
         .to raise_error(ArgumentError, /dormant/)
@@ -176,8 +200,7 @@ RSpec.describe Phlex::Reactive::Presence, "reactive_presence (issue #358)" do
 
   describe "the helpers" do
     let(:peer) do
-      Phlex::Reactive::Presence::Peer.new(seat: "s1", member_id: "7", metadata: {}, state: {}, joined_at: nil,
-        connection_ids: [])
+      Phlex::Reactive::Presence::Peer.new(seat: "s1", member_id: "7", metadata: {}, state: {}, joined_at: nil)
     end
 
     it "reactive_presence_peer marks a seat and its member" do

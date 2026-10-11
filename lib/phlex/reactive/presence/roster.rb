@@ -13,6 +13,9 @@ module Phlex
         include Enumerable
 
         def initialize(rows, keys:, connection_id: nil, writer: nil)
+          # seat => its connection ids. Private: a connection id is the bearer
+          # key for writing that row, so only `me` reads it.
+          @connections = {}
           @peers = build_peers(rows, keys)
           @connection_id = connection_id
           @writer = writer
@@ -44,7 +47,7 @@ module Phlex
         def me
           return if @connection_id.nil?
 
-          @peers.find { it.connection_ids.include?(@connection_id) }
+          @peers.find { @connections[it.seat].include?(@connection_id) }
         end
 
         # In an action: write the actor's tab state (merged into what it had),
@@ -59,10 +62,10 @@ module Phlex
         def build_peers(rows, keys)
           rows.group_by { it["seat"] || it["connection_id"] }.map do |seat, seat_rows|
             first = seat_rows.first
+            @connections[seat] = seat_rows.map { it["connection_id"] }
             Peer.new(
               seat:, member_id: first["id"].to_s, metadata: seat_rows.last["metadata"] || {},
-              state: declared_state(seat_rows, keys), joined_at: first["joined_at"],
-              connection_ids: seat_rows.map { it["connection_id"] }
+              state: declared_state(seat_rows, keys), joined_at: first["joined_at"]
             )
           end
         end

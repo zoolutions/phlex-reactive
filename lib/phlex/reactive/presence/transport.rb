@@ -19,6 +19,10 @@ module Phlex
         # on disconnect, with no controller code.
         PATTERN = /:presence:[^:]+\z/
 
+        # pgbus's default streams_heartbeat_interval (seconds), used when pgbus
+        # is absent or does not expose the setting.
+        DEFAULT_HEARTBEAT = 15
+
         # The change hook install! sets: the app's own hook (if any) first, then
         # presence's. Its class is how a second install! knows it is in place.
         ChainedHook = Data.define(:previous, :on_change) do
@@ -29,18 +33,21 @@ module Phlex
         end
 
         class << self
-          # pgbus with reactive Streams AND presence keyed by connection: a join
-          # that takes connection_id:, a set_state, a migrated seat table
-          # (Presence.seats_supported?), a change hook and a ttl setting.
-          # ActiveJob too — the roster re-renders off the hook's thread.
-          def capable?
+          # The code is there: pgbus with reactive Streams AND presence keyed by
+          # connection (a join that takes connection_id:, a set_state,
+          # seats_supported?), a change hook and a ttl setting, and ActiveJob
+          # (the roster re-renders off the hook's thread). Signatures only, no
+          # query: boot and class load gate on this, and both run before a
+          # database exists (`rails db:create`, `assets:precompile`). What it
+          # gates is configuration, harmless on an unmigrated table.
+          def wired?
             return false unless Phlex::Reactive.pgbus_streams?
             return false unless defined?(::Pgbus::Streams::Presence) && defined?(::ActiveJob::Base)
 
             presence = ::Pgbus::Streams::Presence
             join_keys = presence.instance_method(:join).parameters.map(&:last)
             return false unless join_keys.include?(:connection_id) && presence.method_defined?(:set_state)
-            return false unless presence.respond_to?(:seats_supported?) && presence.seats_supported?
+            return false unless presence.respond_to?(:seats_supported?)
 
             config = ::Pgbus.configuration
             %i[streams_presence_on_change= streams_presence_ttl streams_presence_patterns].all? do
@@ -48,6 +55,22 @@ module Phlex
             end
           rescue ::NameError
             false
+          end
+
+          # Wired AND the seat table is migrated. seats_supported? is a query
+          # (pgbus memoizes a success), so only a render and the render job ask.
+          # A database error propagates: answering false would hide it.
+          def capable?
+            wired? && ::Pgbus::Streams::Presence.seats_supported?
+          end
+
+          # How often the transport's heartbeat touches a live tab (seconds):
+          # configuration only, no query, so a declaration can read it at
+          # class load.
+          def heartbeat_interval
+            config = ::Pgbus.configuration if Phlex::Reactive.pgbus? && ::Pgbus.respond_to?(:configuration)
+            interval = config.streams_heartbeat_interval if config.respond_to?(:streams_heartbeat_interval)
+            interval.is_a?(Numeric) ? interval : DEFAULT_HEARTBEAT
           end
 
           # The stream name the transport (and every Turbo broadcast) uses for

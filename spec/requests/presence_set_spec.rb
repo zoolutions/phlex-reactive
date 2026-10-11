@@ -53,6 +53,26 @@ RSpec.describe "presence_set (issue #358)", type: :request do
     expect(state_of("conn-a")).to eq({})
   end
 
+  # The client announces with {} on every pgbus:connected. There is no value
+  # to check, so authorize_presence_state! (whose kwargs may be required) is
+  # not called; the write is the reverse note on the actor's own row.
+  it "always hands the transport a Hash (pgbus raises on anything else), the announce included" do
+    allow(Phlex::Reactive::Presence::Transport).to receive(:set_state).and_call_original
+    set_state({})
+    set_state({ selected: 1 })
+
+    expect(Phlex::Reactive::Presence::Transport).to have_received(:set_state).twice
+      .with(stream_name, connection_id: "conn-a", state: an_instance_of(Hash))
+  end
+
+  it "accepts the empty announce without calling authorize_presence_state!" do
+    allow_any_instance_of(TodoViewersComponent).to receive(:authorize_presence_state!) { |_, selected:| selected } # rubocop:disable RSpec/AnyInstance
+    set_state({})
+
+    expect(response).to have_http_status(:ok)
+    expect(state_of("conn-a")).to eq("_rp" => { "c" => "TodoViewersComponent", "gid" => todo.to_gid.to_s })
+  end
+
   it "passes verify_authorized without an authorization call (the declared exemption)" do
     Phlex::Reactive.verify_authorized = true
     set_state({ selected: 1 })

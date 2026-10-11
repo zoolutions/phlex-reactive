@@ -42,7 +42,9 @@ module Phlex
             Registry.write_scalar(self, :presence, declaration)
             include Phlex::Reactive::Presence::ComponentMethods
 
-            Phlex::Reactive::Presence::Transport.register_ttl(declaration.name, ttl) if Phlex::Reactive::Presence.capable?
+            # Class load runs before a database exists: the signatures alone gate it.
+            transport = Phlex::Reactive::Presence::Transport
+            transport.register_ttl(declaration.name, ttl) if transport.wired?
             declaration
           end
 
@@ -64,6 +66,7 @@ module Phlex
               raise ArgumentError, "#{self.name}: reactive_presence ttl: must be a positive Integer (seconds), " \
                                    "got #{ttl.inspect}"
             end
+            refuse_ttl_within_heartbeat!(ttl)
 
             state = state.transform_keys(&:to_sym)
             if state.key?(Phlex::Reactive::Presence::NOTE_KEY.to_sym)
@@ -74,6 +77,18 @@ module Phlex
             Phlex::Reactive::Presence::Declaration.new(
               name: name.to_sym, state: state.freeze, ttl:, key: key && Array(key).freeze
             )
+          end
+
+          # A ttl at or below the heartbeat would expire a live tab between two
+          # beats: its row would vanish and come back on the next one.
+          def refuse_ttl_within_heartbeat!(ttl)
+            heartbeat = Phlex::Reactive::Presence::Transport.heartbeat_interval
+            return if ttl > heartbeat
+
+            raise ArgumentError,
+              "#{name}: reactive_presence ttl: #{ttl} is at or below the transport's heartbeat interval " \
+              "(#{heartbeat} s), so a live tab would expire between two beats. Use more than #{heartbeat} " \
+              "(two missed beats is a good floor)."
           end
 
           def refuse_dormant_presence!

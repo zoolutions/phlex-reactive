@@ -77,6 +77,56 @@ RSpec.describe Phlex::Reactive::Presence::Transport do
     end
   end
 
+  # Boot and class load must never touch the database: `rails db:create` and
+  # `assets:precompile` run them before one exists. Only seats_supported? (a
+  # query) needs it, so it is reached from a render and the job alone.
+  describe "without a database" do
+    before do
+      FakePgbusPresence.install!(self)
+      allow(Pgbus::Streams::Presence).to receive(:seats_supported?)
+        .and_raise(ActiveRecord::NoDatabaseError, 'FATAL: database "app" does not exist')
+    end
+
+    it "boots: install! registers the pattern and the hook without a query" do
+      expect { Phlex::Reactive::Presence.install! }.not_to raise_error
+      expect(Pgbus.configuration.streams_presence_patterns).to eq([described_class::PATTERN])
+      expect(Pgbus::Streams::Presence).not_to have_received(:seats_supported?)
+    end
+
+    it "loads a presence component and registers its ttl without a query" do
+      expect do
+        Class.new(Phlex::HTML) do
+          include Phlex::Reactive::Component
+
+          def self.name = "BootRoster"
+
+          reactive_record :board
+          reactive_presence :lobby, ttl: 20
+        end
+      end.not_to raise_error
+      expect(Pgbus.configuration.streams_presence_ttl).to include(/:presence:lobby\z/ => 20)
+      expect(Pgbus::Streams::Presence).not_to have_received(:seats_supported?)
+    end
+
+    it "lets the error surface at render (no silent false)" do
+      expect { described_class.capable? }.to raise_error(ActiveRecord::NoDatabaseError)
+    end
+  end
+
+  describe ".wired?" do
+    it "is the signature probe alone: true on an unmigrated #515 pgbus" do
+      FakePgbusPresence.install!(self)
+      allow(Pgbus::Streams::Presence).to receive(:seats_supported?).and_return(false)
+      expect(described_class.wired?).to be(true)
+      expect(described_class.capable?).to be(false)
+    end
+
+    it "is false for the old member-keyed shape" do
+      FakePgbusPresence.install!(self, shape: :old)
+      expect(described_class.wired?).to be(false)
+    end
+  end
+
   describe ".register_ttl" do
     it "writes the seconds under the stream-name pattern, keeping an Integer setting as the default" do
       _store, config = FakePgbusPresence.install!(self)

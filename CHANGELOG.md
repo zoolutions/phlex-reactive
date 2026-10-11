@@ -26,7 +26,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   split client fetches it only for a page with a presence root (+103 B in the
   core). Needs pgbus with per-connection presence (zoolutions/pgbus#515);
   without it a presence root raises `Phlex::Reactive::ConfigurationError` at
-  render. Upgrade the seat table with `rails g pgbus:add_presence_seats`. `js.presence` is refused on a broadcast, like `focus`. Docs: "Presence".
+  render. Upgrade the seat table with `rails g pgbus:add_presence_seats`.
+  `ttl:` must be above pgbus's `streams_heartbeat_interval` (15 s by default). `js.presence` is refused on a broadcast, like `focus`. Docs: "Presence".
 
 - **Sortable lists — `reactive_sortable`, `reactive_sortable_source`,
   `reactive_sortable_item` (#350).** Rows drag to reorder a list with a mouse,
