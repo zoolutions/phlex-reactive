@@ -102,7 +102,7 @@ class Demo
       call_site: <<~RUBY
         # One shared board, three lanes. The lanes are sortable lists of one
         # group: a drop calls move_card with the card, its lane and position;
-        # the actor's board morphs, and peers get the two lanes it touched:
+        # the actor's board morphs, and peers get each lane it touched:
         render ProjectBoardComponent.new
       RUBY
     }

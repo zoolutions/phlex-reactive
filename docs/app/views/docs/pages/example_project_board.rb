@@ -12,7 +12,7 @@ module Views
 
         def lead
           'One shared board, three lanes. Drag a card to reorder it or move it to another lane — ' \
-            'one declared action, one morph, every count badge repainted — live in every open tab, ' \
+            'one declared action, a board morph plus a card morph, every count badge repainted — live in every open tab, ' \
             'with no Stimulus controller and no hand-picked Turbo target.'
         end
 
@@ -80,7 +80,7 @@ module Views
               ul(id: "lane-#{lane}-cards",
                  **reactive_sortable(:move_card, group: "cards", name: lane, params: { lane: },
                                                  handle: "[data-drag-handle]")) do
-                Card.by_lane(lane).each { render BoardCardComponent.new(card: it) }
+                Card.by_lane(lane).each { render BoardCardComponent.new(card: it, style: @style) }
               end
 
               # BoardCardComponent: the card is the sortable item, its ⠿ the handle.

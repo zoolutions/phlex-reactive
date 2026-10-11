@@ -18,10 +18,10 @@ class SortableTemplatesComponent < Phlex::HTML
       ul(**mix(reactive_sortable_source(group: 'tasks', name: 'templates'),
                class: 'flex flex-col gap-2', data: { testid: 'sortable-templates' })) do
         TEMPLATES.each do |key, title|
-          li(**mix(reactive_sortable_item(key),
-                   class: 'cursor-grab rounded-field border border-dashed border-base-300 px-3 py-2 text-sm ' \
-                          'data-[reactive-sortable-dragging]:bg-base-100 data-[reactive-sortable-dragging]:shadow-lg',
-                   data: { testid: "template-#{key}" })) { "＋ #{title}" }
+          li(**mix(reactive_sortable_item(key), tabindex: -1,
+                                                class: 'cursor-grab rounded-field border border-dashed border-base-300 px-3 py-2 text-sm ' \
+                                                       'data-[reactive-sortable-dragging]:bg-base-100 data-[reactive-sortable-dragging]:shadow-lg',
+                                                data: { testid: "template-#{key}" })) { "＋ #{title}" }
         end
       end
     end

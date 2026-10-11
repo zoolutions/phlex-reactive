@@ -1652,6 +1652,7 @@ class TaskList < Phlex::HTML
 
   def move(item:, position:)
     authorize! @list, :update?
+    # insert_at is acts_as_list's; any reorder that honours `position` works.
     @list.tasks.find(item).insert_at(position + 1)
     reply.morph
   end
@@ -1678,7 +1679,8 @@ list; a reply that morphs the list puts the rows in the server's order.
 - **Drag in from another list**: `reactive_sortable_source(group:, name:)` rows
   are copied into any sortable of the same group (the source needs no token —
   it works on a `ClientBindings` root). Route a drag-in to its own action with
-  `from: { templates: :insert }`.
+  `from: { templates: :insert }`. Source rows are pointer-only: pass
+  `tabindex: -1` (via `mix`) so they stay out of the tab order.
 - **Between lists** (a kanban): sortables of one `group:` exchange rows; `name:`
   is what a row dragged out reports as `from`, and static `params:` (e.g.
   `{ lane: "doing" }`) tell the action which list it landed in.
