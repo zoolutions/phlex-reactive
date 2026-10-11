@@ -1,0 +1,51 @@
+spec/javascript/reactive_presence.test.js
+  s_3e21f559b0ae6d::t_1c605ffbbed5c7 1-113,115-119,121-136,138-149,151-153,155-157,159-222
+lib/phlex/reactive/presence.rb
+  s_3e21f559b0ae6d::t_09279d470ed1a4 1-17,21-92,96-98,100-101,103-118,121-147
+lib/phlex/reactive/presence/transport.rb
+  s_3e21f559b0ae6d::t_8b0948d9c8af9f 1-32,36-63,66-76,80-87,92-97
+lib/phlex/reactive/presence/component_methods.rb
+  s_3e21f559b0ae6d::t_7eb5d15190bea6 1-9,12,14-16,18-105
+lib/phlex/reactive/presence/roster.rb
+  s_3e21f559b0ae6d::t_af548eeb7cd578 1-33,35-83
+spec/support/fake_pgbus_presence.rb
+  s_3e21f559b0ae6d::t_7d46a06b3f6433 1-22,26-32,38,40-41,43-90,92-107
+spec/phlex/reactive/js_presence_spec.rb
+  s_3e21f559b0ae6d::t_8bb01ddb42e6e3 1-26
+spec/phlex/reactive/presence_spec.rb
+  s_3e21f559b0ae6d::t_4c14f0db1ccf57 1-9,11-71,73-94,96-104,106-111,113-134,136-160,162-167,169-193
+lib/phlex/reactive.rb
+  s_3e21f559b0ae6d::t_bfca323bd9317b 69-74
+spec/phlex/reactive/presence_transport_spec.rb
+  s_3e21f559b0ae6d::t_5fe62a7abd900e 1-44,50,53-80,82-83,93-95
+lib/phlex/reactive/presence_render_job.rb
+  s_3e21f559b0ae6d::t_1395d2d1bb6378 1-26
+spec/requests/presence_set_spec.rb
+  s_3e21f559b0ae6d::t_9471f223f11ec9 1-63
+lib/phlex/reactive/defer.rb
+  s_3e21f559b0ae6d::t_3b603996646d7c 115-119
+lib/phlex/reactive/component/presence_declaration.rb
+  s_3e21f559b0ae6d::t_0eee38c193a5e2 1-88
+spec/phlex/reactive/presence_render_job_spec.rb
+  s_3e21f559b0ae6d::t_8485c6f0af93b4 1-63
+spec/dummy/app/components/todo_viewers_component.rb
+  s_3e21f559b0ae6d::t_608b789528eb17 1-30,32-52,54-56
+app/javascript/phlex/reactive/features/presence.js
+  s_3e21f559b0ae6d::t_a04383491f08fe 1-22,28-80,82-111,113-127,129-156,158
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "8e54ac1c22bc3c697ff2597fe999b6c0e5cca96e",
+  "prompts": {},
+  "sessions": {
+    "s_3e21f559b0ae6d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f363c29e-c9cb-4446-bf3f-d04d38769294",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
