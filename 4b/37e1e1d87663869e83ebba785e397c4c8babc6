@@ -1,0 +1,64 @@
+spec/dummy/public/vendor/core.js
+  ai_agent 5,7
+docs/app/views/docs/pages/editable_text.rb
+  s_fb38037c533860::t_2ed7f62c34ab1a 134-141
+app/javascript/phlex/reactive/features/bindings.js
+  s_fb38037c533860::t_8af690b266dbfb 178-187
+spec/dummy/app/components/late_editable_component.rb
+  s_fb38037c533860::t_99f289f55f836f 1-32
+spec/dummy/app/components/late_editable_title_component.rb
+  s_fb38037c533860::t_99f289f55f836f 1-13
+app/javascript/phlex/reactive/features/bindings.min.js.map
+  ai_agent 5,7-8
+app/javascript/phlex/reactive/core.min.js.map
+  ai_agent 5-6,8-9
+spec/javascript/reactive_editable.test.js
+  s_fb38037c533860::t_549a37315b2594 351-368
+spec/dummy/public/vendor/features/bindings.js
+  ai_agent 1,3
+spec/javascript/reactive_show_targets.test.js
+  s_fb38037c533860::t_c949d7d36947de 156-158,518
+app/javascript/phlex/reactive/core.js
+  s_fb38037c533860::t_ad861f76cac51c 148-149
+  s_fb38037c533860::t_83ba74f9621e74 157-160
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 5-6,17-18
+spec/javascript/bundle_budget.test.js
+  s_fb38037c533860::t_ff13cc0f61f3a3 115-117,143-145,193-194
+spec/dummy/config/routes.rb
+  s_fb38037c533860::t_f6aaa998131f45 65
+spec/javascript/reactive_split_final.test.js
+  s_fb38037c533860::t_710e496d899145 470-488,718-735
+spec/system/late_editable_spec.rb
+  s_fb38037c533860::t_1a1c5bac2c0fde 1-37
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,5,7
+app/javascript/phlex/reactive/core.min.js
+  ai_agent 5,7
+app/javascript/phlex/reactive/runtime.js
+  s_fb38037c533860::t_04d160ec7cf0bb 1802-1805,1808,1813,2272
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,5,7
+spec/dummy/app/controllers/demos_controller.rb
+  s_fb38037c533860::t_f6aaa998131f45 349-352
+app/javascript/phlex/reactive/features/bindings.min.js
+  ai_agent 1,3
+CHANGELOG.md
+  s_fb38037c533860::t_2ed7f62c34ab1a 42-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "4b37e1e1d87663869e83ebba785e397c4c8babc6",
+  "prompts": {},
+  "sessions": {
+    "s_fb38037c533860": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9f689cc-9812-4ee9-89c0-dfa4c5e4b757",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
