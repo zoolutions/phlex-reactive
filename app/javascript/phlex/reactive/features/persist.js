@@ -206,6 +206,13 @@ function persistControls(root, payload) {
   return out
 }
 
+// A contenteditable's text: a reactive_editable through the core's collector
+// (issue #351 — line breaks kept, as the request sends it), a bare one as its
+// textContent (#241).
+function persistText(el) {
+  return el.hasAttribute("data-reactive-editable") ? shared.text(el) : (el.textContent ?? "")
+}
+
 // The attribute first (Lexxy, a bare contenteditable — which has no `name`
 // IDL property at all), then the IDL getter (Trix resolves it through its
 // `input=`-paired hidden input, which is itself excluded as type=hidden).
@@ -300,7 +307,7 @@ function persistSnapshot(root, payload) {
         else fields[name] = el.value
       }
     } else if (kind === "contenteditable") {
-      const text = el.textContent ?? ""
+      const text = persistText(el)
       if (group) groupSlot(name).push(text)
       else fields[name] = text
     } else if (el.type === "radio") {
@@ -396,7 +403,7 @@ function persistApply(root, payload, fields) {
     if (kind === "editor") {
       persistApplyEditor(root, el, name, value, always)
     } else if (kind === "contenteditable") {
-      if (!always && (el.textContent ?? "").trim() !== "") continue
+      if (!always && persistText(el).trim() !== "") continue
       el.textContent = String(value)
     } else if (el.type === "radio") {
       if (!always && controls.some((c) => c.kind === "native" && c.el.type === "radio" && c.name === name && c.el.checked)) continue
@@ -619,7 +626,9 @@ function changedNames(root, payload) {
       kind === "editor"
         ? persistEditorReady(el) && !persistEditorBlank(el)
         : kind === "contenteditable"
-          ? (el.textContent ?? "").trim() !== ""
+          ? el.hasAttribute("data-reactive-editable")
+            ? shared.text(el) !== shared.served(el)
+            : (el.textContent ?? "").trim() !== ""
           : el.type === "checkbox" || el.type === "radio"
             ? el.checked !== el.defaultChecked
             : el.tagName === "SELECT"

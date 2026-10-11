@@ -26,6 +26,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   HTML on success, so a feature can tell an applied reply from a failure. The
   Project board demo drags its cards. Docs: "Sortable lists".
 
+- **`reactive_editable(:title)` — a contenteditable element as a first-class,
+  plain-text field (#351).** The helper renders `name` (scope-aware),
+  `contenteditable="plaintext-only"`, `role="textbox"`, `aria-multiline`,
+  `aria-placeholder` and `data-reactive-placeholder` onto your own element. Its
+  value is its text with line breaks as `\n` (folded to spaces when
+  single-line). While it is focused a `reply.morph` or broadcast morph keeps its
+  text and caret and still applies its attributes; unfocused, the server's text
+  wins, and `data-reactive-morph-value` opts out. Paste and drop insert plain
+  text (a handler, and a downgrade to `contenteditable="true"`, where the engine
+  lacks `plaintext-only`); Enter runs `on_enter:` (a `js` chain or `:submit`)
+  and is swallowed in a single-line field; Escape reverts to the last
+  server-rendered text (`on_escape: :revert`). `reactive_dirty` diffs it against
+  that text and `reactive_persist` drafts it with its line breaks. Bare named
+  `[contenteditable]` elements keep the `textContent` reading. An editable that a
+  stream appends into a root already on the page gets its keys and paste from
+  its first focus (the root loads the bindings feature then, and on the split
+  client the stream that brings it starts the import). Bundle: default
+  +977 B gzip, split core +412 B, `features/bindings` +524 B.
+
 - **`on_client(…, detail: { success: true })` — run ops only when the event's
   payload qualifies (#346).** A binding can require top-level `event.detail`
   keys to strictly equal JSON scalars, so `on_client("turbo:submit-end",

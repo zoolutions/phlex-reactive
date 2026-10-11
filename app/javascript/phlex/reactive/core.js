@@ -145,7 +145,8 @@ onReactiveStreamWithoutEffects((event, loadedEffects) => {
 })
 
 // The reactive roots a stream is about to put on the page: the roots in its
-// template (the template's own root element included).
+// template (the template's own root element included), and the content
+// itself when it brings an editable.
 function incomingRoots(streamEl) {
   const content = streamEl?.querySelector?.("template")?.content
   if (!content) return []
@@ -153,6 +154,10 @@ function incomingRoots(streamEl) {
   for (const child of content.children ?? []) {
     if (child.matches?.('[data-controller~="reactive"]') && !roots.includes(child)) roots.unshift(child)
   }
+  // An editable appended into a root already on the page (issue #351): that
+  // root loads the bindings module when the editable is first focused, so
+  // start the import now — the module is then here before anything is typed.
+  if (content.querySelector?.("[data-reactive-editable]")) roots.push(content)
   return roots
 }
 

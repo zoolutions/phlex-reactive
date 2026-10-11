@@ -239,10 +239,18 @@ export function __resetReactiveStreamRenderForTest() {
 // data-reactive-morph-value on a field lets the morph write it while focused.
 let morphFocusRegistered = false
 
+//
+// A reactive_editable (issue #351) is held the same way, but its "value" is its
+// CHILDREN: a focused one keeps them (text and caret) while every attribute
+// still morphs — copied here from the render, then the element's morph is
+// cancelled (cancelling is all-or-nothing in Idiomorph). Its contenteditable
+// stays as it is: the bindings may have downgraded it for an engine without
+// plaintext-only. Every morph of an editable, held or not, records the
+// render's text as its SERVER TEXT (the Escape revert, the dirty baseline).
 function holdsTypedValue(el) {
   return (
     el === document.activeElement &&
-    (el.localName === "input" || el.localName === "textarea") &&
+    (el.localName === "input" || el.localName === "textarea" || el.hasAttribute("data-reactive-editable")) &&
     !el.hasAttribute("data-reactive-morph-value") &&
     !!el.closest('[data-controller~="reactive"]')
   )
@@ -255,11 +263,26 @@ export function registerReactiveMorphFocus() {
   document.addEventListener("turbo:before-morph-element", (event) => {
     const el = event.target
     const next = event.detail?.newElement // absent when Turbo asks before a removal
-    if (!next || event.defaultPrevented || el.localName !== "input" || !holdsTypedValue(el)) return
+    if (!next || event.defaultPrevented) return
+    if (el.hasAttribute?.("data-reactive-editable")) {
+      serverTexts.set(el, editableValue(next))
+      if (!holdsTypedValue(el)) return
+      for (const { name } of [...el.attributes]) {
+        if (!next.hasAttribute(name) && name !== "contenteditable") el.removeAttribute(name)
+      }
+      for (const { name, value } of next.attributes) {
+        if (name !== "contenteditable" && el.getAttribute(name) !== value) el.setAttribute(name, value)
+      }
+      return event.preventDefault()
+    }
+    if (el.localName !== "input" || !holdsTypedValue(el)) return
     const value = next.getAttribute("value")
     if (value == null) el.removeAttribute("value")
     else if (el.getAttribute("value") !== value) el.setAttribute("value", value)
   })
+  // An editable a morph never reached (a stream append) records its server
+  // text when first focused — before anything can be typed into it.
+  document.addEventListener("focusin", (event) => seedServerText(event.target))
   document.addEventListener("turbo:before-morph-attribute", (event) => {
     if (event.detail?.attributeName === "value" && holdsTypedValue(event.target)) event.preventDefault()
   })
@@ -623,6 +646,51 @@ function transitionFallbackMs(el) {
 export const EDITOR_SELECTOR =
   ":is(lexxy-editor, trix-editor, [contenteditable=''], [contenteditable=true], [contenteditable=plaintext-only])"
 export const EDITOR_TAGS = new Set(["lexxy-editor", "trix-editor"])
+
+// A reactive_editable's value (issue #351): its text with line breaks — a
+// <br> is one, a block element (the <div> a contenteditable=true Enter
+// inserts) starts and ends a line — "\r\n" normalised, ONE trailing newline
+// dropped (the <br> browsers keep at the end), and folded to spaces when the
+// field is single-line. Read from the DOM, not innerText: no layout, the same
+// on a detached render and under any white-space.
+export function editableValue(el) {
+  let text = ""
+  // A block's edge asks for a line break; the next text or <br> pays it,
+  // once, unless the text already ends in one.
+  let line = false
+  const add = (s) => {
+    if (line && text && !text.endsWith("\n")) text += "\n"
+    line = false
+    text += s
+  }
+  const walk = (node) => {
+    for (const child of node.childNodes) {
+      const block = /^(div|p|li)$/.test(child.localName)
+      if (block) line = true
+      if (child.nodeType === 3) child.data && add(child.data)
+      else if (child.localName === "br") add("\n")
+      else if (child.nodeType === 1) walk(child)
+      if (block) line = true
+    }
+  }
+  walk(el)
+  text = text.replace(/\r\n?/g, "\n").replace(/\n$/, "")
+  return el.getAttribute("data-reactive-editable") === "multi" ? text : text.replace(/\n/g, " ")
+}
+
+// element -> the text of its last server render (issue #351): what Escape
+// reverts to and what dirty tracking diffs against. Seeded when the root
+// connects (or on first focus) and advanced by every morph of the element.
+const serverTexts = new WeakMap()
+
+function seedServerText(el) {
+  if (el?.hasAttribute?.("data-reactive-editable") && !serverTexts.has(el)) serverTexts.set(el, editableValue(el))
+}
+
+export function serverText(el) {
+  seedServerText(el)
+  return serverTexts.get(el)
+}
 
 // A RICH editor (lexxy/trix) is only ready once its custom element upgraded —
 // Trix defines its elements in a setTimeout after load — and exposes the
@@ -1185,8 +1253,9 @@ function formNeeded(root) {
 
 // Show bindings and cross-root show targets, completion bindings, option
 // filtering, the bulk-selection group bindings (enable, select-all, count —
-// issue #319) and their cross-root targets (#343), the tag-chip input and
-// draft nested rows: a form's client-only bindings. The root declares one, or
+// issue #319) and their cross-root targets (#343), the tag-chip input, draft
+// nested rows and editable text's keys and paste (#351): a form's client-only
+// bindings. The root declares one, or
 // owns an element that does. (The probes the connect-time gates ran before
 // the split, unchanged.)
 function bindingsNeeded(root) {
@@ -1196,7 +1265,7 @@ function bindingsNeeded(root) {
     ) ||
     (root.querySelectorAll?.("[data-reactive-show-field], [data-reactive-show]") ?? []).length > 0 ||
     root.querySelector?.(
-      "[data-reactive-nested-json], [data-reactive-nested-list], [data-reactive-confirm-when-param], [data-reactive-enable], [data-reactive-select-all], [data-reactive-count]",
+      "[data-reactive-nested-json], [data-reactive-nested-list], [data-reactive-confirm-when-param], [data-reactive-enable], [data-reactive-select-all], [data-reactive-count], [data-reactive-editable]",
     ) != null
   )
 }
@@ -1452,6 +1521,9 @@ const FEATURE_SHARED = {
   enter: enterReactiveActivity,
   exit: exitReactiveActivity,
   count: countReactiveRequest,
+  // The editable collector and server text (issue #351), for the draft.
+  text: editableValue,
+  served: serverText,
   waiting: new WeakMap(),
 }
 
@@ -1727,13 +1799,18 @@ export default class extends Controller {
     // without any marker, before and after the morph, a few attribute reads and
     // never an import. (turbo:morph-element BUBBLES: only a morph of the root
     // itself counts.) A tokenless, client-only root has no such listener.
+    // The same listener hears an editable being focused (issue #351): a stream
+    // can append a root's first reactive_editable without morphing the root,
+    // and its keys and paste need the bindings feature before anything is
+    // typed into it.
     if (this.element.getAttribute?.("data-reactive-token-value") != null || deferNeeded(this.element)) {
       this.#boundRootMorph = (event) => {
-        if (event.target !== this.element) return
+        if (event.type === "focusin" ? !event.target.hasAttribute?.("data-reactive-editable") : event.target !== this.element) return
         if (__SPLIT__) this.#loadFeatures(true)
         else this.#connectFeaturesNow(true)
       }
       this.element.addEventListener?.("turbo:morph-element", this.#boundRootMorph)
+      this.element.addEventListener?.("focusin", this.#boundRootMorph)
     }
 
     // Feature modules (issue #275): connect the ones that are here and START
@@ -1744,6 +1821,10 @@ export default class extends Controller {
     // re-runs the seeds itself (#reseed). Never awaited — connect() must reach
     // the drain at the end in the same task (issue #274: an await before it
     // runs a waking click twice).
+    // The editables' server texts (issue #351), before a draft restore
+    // writes into them.
+    this.element.querySelectorAll?.("[data-reactive-editable]").forEach(seedServerText)
+
     this.#featureEpoch++
     this.featuresReady = FEATURES_READY
     if (__SPLIT__) this.#loadFeatures()
@@ -1993,6 +2074,9 @@ export default class extends Controller {
         ),
       listnavOptions: (event) => this.#listnavOptions(event),
       collectFields: () => this.#collectFields(),
+      // A reactive_editable's value and its last server-rendered text (#351).
+      text: editableValue,
+      served: serverText,
       // The confirm gate, as dispatch() runs it: the resolver inside the chain
       // (a synchronous throw is a cancel), never a rejection out.
       confirm: (message, context) =>
@@ -2185,6 +2269,7 @@ export default class extends Controller {
     this.#clearAllThrottles()
     if (this.#boundRootMorph) {
       this.element.removeEventListener?.("turbo:morph-element", this.#boundRootMorph)
+      this.element.removeEventListener?.("focusin", this.#boundRootMorph)
     }
     // Early triggers (issue #273): a disconnected root records again.
     earlyState().connected.delete(this.element)
@@ -3310,7 +3395,9 @@ export default class extends Controller {
         // property — only the attribute — so read getAttribute, not el.name.
         const name = el.getAttribute("name")
         if (!name) return
-        const own = el.value ?? el.textContent ?? el.innerHTML ?? ""
+        const own = el.getAttribute("data-reactive-editable") != null
+          ? editableValue(el)
+          : (el.value ?? el.textContent ?? el.innerHTML ?? "")
         // A `[]` name is a group here too: the editor APPENDS its value
         // instead of replacing the slot. Assigning a scalar posted
         // `{"notes[]": "<p>x</p>"}` while the draft snapshot pushed the same
