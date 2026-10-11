@@ -12,7 +12,7 @@
 // This module never imports the core: it reaches a controller through the
 // `core` handle (core.owns — is this control this root's own, issue #15).
 
-// controller -> the removals of what connect() added, for disconnect() to run.
+// controller -> [the removals of what connect() added, its reseed].
 const wired = new WeakMap()
 // The turbo:before-visit events a warn_unsaved root already prompted for: one
 // prompt per visit, however many dirty roots guard the page (issue #298).
@@ -21,60 +21,82 @@ const askedVisits = new WeakSet()
 export function connect(controller, core) {
   const root = controller.element
   const offs = []
-  wired.set(controller, offs)
+  const seeds = []
   // Add a listener and keep its removal. Closures, not a record of named
   // handlers: the minifier renames a local, never a property (issue #310).
   const listen = (target, type, handler) => {
     target.addEventListener?.(type, handler)
     offs.push(() => target.removeEventListener?.(type, handler))
   }
+  // Each pass below is wired once, the first time its gate reads true: here,
+  // and again from reseed() — a stream can render the root's first dirty field
+  // or paste trigger into it after connect (issue #356).
+  let tracking
+  let gating
+  const wire = () => {
+    // Dirty tracking (issue #103) — ONLY when this root opts in (track_dirty: or a
+    // reactive_field(dirty:)), so a component that never uses it pays nothing (no
+    // baseline scan, no morph listener on every broadcast). A plain (outerHTML)
+    // replace re-connects the controller, so seed the baseline scan here — the root
+    // reflects current-vs-default WITHOUT waiting for the first input. An in-place
+    // morph / broadcast morph keeps the element CONNECTED and fires no Stimulus
+    // lifecycle, so ALSO listen for turbo:morph-element on the root to re-scan
+    // after the morph writes fresh default* attributes (reactive:applied is NOT a
+    // valid hook — it fires when streams are handed to Turbo, BEFORE the DOM
+    // mutation). Both listeners are torn down in disconnect().
+    if (!tracking && (tracking = dirtyTrackingEnabled(root, core))) {
+      const rescan = () => scan(controller, core)
+      listen(root, "turbo:morph-element", rescan)
+      seeds.push(rescan)
+      rescan()
 
-  // Dirty tracking (issue #103) — ONLY when this root opts in (track_dirty: or a
-  // reactive_field(dirty:)), so a component that never uses it pays nothing (no
-  // baseline scan, no morph listener on every broadcast). A plain (outerHTML)
-  // replace re-connects the controller, so seed the baseline scan here — the root
-  // reflects current-vs-default WITHOUT waiting for the first input. An in-place
-  // morph / broadcast morph keeps the element CONNECTED and fires no Stimulus
-  // lifecycle, so ALSO listen for turbo:morph-element on the root to re-scan
-  // after the morph writes fresh default* attributes (reactive:applied is NOT a
-  // valid hook — it fires when streams are handed to Turbo, BEFORE the DOM
-  // mutation). Both listeners are torn down in disconnect().
-  if (dirtyTrackingEnabled(root, core)) {
-    const rescan = () => scan(controller, core)
-    listen(root, "turbo:morph-element", rescan)
-    rescan()
+      // warn_unsaved: arm a navigate-away guard gated on a LIVE dirty-count read
+      // (never a cached snapshot — the count is re-derived from the DOM each time).
+      // beforeunload covers a real browser unload; turbo:before-visit covers a
+      // Turbo in-app navigation (it does NOT fire on restoration visits — the
+      // documented gap). Registered on window only when the marker is present.
+      if (root.getAttribute?.("data-reactive-warn-unsaved") === "true") armUnsavedGuard(root, listen)
+    }
 
-    // warn_unsaved: arm a navigate-away guard gated on a LIVE dirty-count read
-    // (never a cached snapshot — the count is re-derived from the DOM each time).
-    // beforeunload covers a real browser unload; turbo:before-visit covers a
-    // Turbo in-app navigation (it does NOT fire on restoration visits — the
-    // documented gap). Registered on window only when the marker is present.
-    if (root.getAttribute?.("data-reactive-warn-unsaved") === "true") armUnsavedGuard(root, listen)
+    // Clipboard-trigger availability gate (issue #228) — ONLY when this root
+    // owns a paste trigger (on_client marks one with data-reactive-clipboard).
+    // The Async Clipboard API is absent in insecure contexts and some webviews;
+    // a paste button that can never work must not show. The gate OWNS a marked
+    // trigger's `hidden` flag: author the trigger `hidden` and this pass reveals
+    // it where the API exists (a dead button never paints); turbo:morph-element
+    // re-syncs because a morph rewrites the trigger back to its authored hidden
+    // state. A trigger first INTRODUCED by a later morph of a root that already
+    // tracks dirtiness stays ungated (hidden) until a full replace re-connects
+    // the controller; one a stream renders into the root is gated then.
+    if (!gating && (gating = clipboardGateEnabled(root, core))) {
+      const sync = () => syncClipboardTriggers(root, core)
+      listen(root, "turbo:morph-element", sync)
+      seeds.push(sync)
+      sync()
+    }
   }
-
-  // Clipboard-trigger availability gate (issue #228) — ONLY when this root
-  // owns a paste trigger (on_client marks one with data-reactive-clipboard).
-  // The Async Clipboard API is absent in insecure contexts and some webviews;
-  // a paste button that can never work must not show. The gate OWNS a marked
-  // trigger's `hidden` flag: author the trigger `hidden` and this pass reveals
-  // it where the API exists (a dead button never paints); turbo:morph-element
-  // re-syncs because a morph rewrites the trigger back to its authored hidden
-  // state. The decision is made ONCE at connect — render the paste trigger
-  // unconditionally: a trigger first INTRODUCED by a later morph of a root
-  // that already tracks dirtiness stays ungated (hidden) until a full replace
-  // re-connects the controller.
-  if (clipboardGateEnabled(root, core)) {
-    const sync = () => syncClipboardTriggers(root, core)
-    listen(root, "turbo:morph-element", sync)
-    sync()
-  }
+  wired.set(controller, [
+    offs,
+    () => {
+      for (const run of seeds) run()
+      wire()
+    },
+  ])
+  wire()
 }
 
 // Remove the listeners on disconnect (Turbo morph/navigation) so a morph
 // re-scan or a navigate-away guard never runs against a detached root.
 export function disconnect(controller) {
-  for (const off of wired.get(controller) ?? []) off()
+  for (const off of wired.get(controller)?.[0] ?? []) off()
   wired.delete(controller)
+}
+
+// Re-run the passes wired at connect, then wire any whose gate reads true only
+// now — for content that changed after connect() ran (the draft restore, a
+// stream rendered into the root, issue #356).
+export function reseed(controller) {
+  wired.get(controller)?.[1]()
 }
 
 // Whether this root opts into dirty tracking (issue #103): track_dirty: puts the

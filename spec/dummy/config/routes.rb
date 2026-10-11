@@ -63,6 +63,7 @@ Rails.application.routes.draw do
   get "dirty_form/:id" => "demos#dirty_form"
   get "editable_title/:id" => "demos#editable_title" # issue #351: reactive_editable
   get "late_editable" => "demos#late_editable" # issue #351: a stream appends the first editable
+  get "late_show" => "demos#late_show" # issue #356: a stream appends the first show target
   get "nested_editor" => "demos#nested_editor"
   get "nested_params" => "demos#nested_params"
   get "debounce" => "demos#debounce"
