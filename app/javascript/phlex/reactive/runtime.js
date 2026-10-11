@@ -303,8 +303,8 @@ let morphFocusRegistered = false
 // CHILDREN: a focused one keeps them (text and caret) while every attribute
 // still morphs — copied here from the render, then the element's morph is
 // cancelled (cancelling is all-or-nothing in Idiomorph). Its contenteditable
-// stays as it is: the bindings may have downgraded it for an engine without
-// plaintext-only. Every morph of an editable, held or not, records the
+// stays as it is: the runtime switches it to "true" in an engine without
+// plaintext-only (registerReactivePlaintext, #355). Every morph of an editable, held or not, records the
 // render's text as its SERVER TEXT (the Escape revert, the dirty baseline).
 function holdsTypedValue(el) {
   return (
