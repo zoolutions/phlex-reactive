@@ -16,7 +16,7 @@ RSpec.describe SortableListComponent, type: :request do
     drop("bravo", 0)
 
     expect(response.body.scan("data-reactive-sortable-item").size).to eq(2)
-    expect(response.body.index("bravo")).to be < response.body.index("alpha")
+    expect(response.body.index(%(id="sortable-bravo"))).to be < response.body.index(%(id="sortable-alpha"))
   end
 
   it "ignores an unknown row instead of inserting it" do
