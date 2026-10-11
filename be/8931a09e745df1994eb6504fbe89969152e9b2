@@ -1,0 +1,79 @@
+spec/dummy/app/components/shortcut_list_component.rb
+  s_8949a695ce2ed1::t_015ea961c3cfdf 1-38
+app/javascript/phlex/reactive/early.js
+  s_8949a695ce2ed1::t_015ea961c3cfdf 38-40,86,90-93,96,140-153,157-160,162
+spec/dummy/config/routes.rb
+  s_8949a695ce2ed1::t_015ea961c3cfdf 16
+spec/javascript/reactive_inspect.test.js
+  s_8949a695ce2ed1::t_015ea961c3cfdf 146-163
+docs/app/views/docs/pages/installation.rb
+  s_8949a695ce2ed1::t_015ea961c3cfdf 125,133
+app/javascript/phlex/reactive/early.min.js
+  ai_agent 1,3
+lib/phlex/reactive/component/helpers.rb
+  s_8949a695ce2ed1::t_015ea961c3cfdf 283-293,338,340,376-380,401-403,426-428,459-460,477-478,480-482,485,1759-1799
+CHANGELOG.md
+  s_8949a695ce2ed1::t_015ea961c3cfdf 11-28
+spec/javascript/reactive_shortcut.test.js
+  s_8949a695ce2ed1::t_015ea961c3cfdf 1-324
+app/javascript/phlex/reactive/core.min.js.map
+  ai_agent 5,8-9
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 5,17-18
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,5,7
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,5,7
+app/javascript/phlex/reactive/runtime.js
+  s_8949a695ce2ed1::t_015ea961c3cfdf 1061-1077,2421,2424-2427,2474-2478,2617-2620,2628,2640-2641
+spec/dummy/app/controllers/demos_controller.rb
+  s_8949a695ce2ed1::t_015ea961c3cfdf 57-61
+app/javascript/phlex/reactive/early.min.js.map
+  ai_agent 5,7-8
+docs/app/views/docs/pages/actions_events.rb
+  s_8949a695ce2ed1::t_015ea961c3cfdf 29,298-340,357
+spec/javascript/reactive_early.test.js
+  s_8949a695ce2ed1::t_015ea961c3cfdf 230-357,644,646
+lib/phlex/reactive/shortcut.rb
+  s_8949a695ce2ed1::t_015ea961c3cfdf 1-105
+spec/dummy/public/vendor/early.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/inspect.min.js.map
+  ai_agent 5,7-8
+spec/phlex/reactive/shortcut_spec.rb
+  s_8949a695ce2ed1::t_015ea961c3cfdf 1-187
+spec/system/shortcut_spec.rb
+  s_8949a695ce2ed1::t_015ea961c3cfdf 1-77
+app/javascript/phlex/reactive/core.min.js
+  ai_agent 1,5,7
+spec/dummy/public/vendor/inspect.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/inspect.min.js
+  ai_agent 1,3
+README.md
+  s_8949a695ce2ed1::t_015ea961c3cfdf 121,165-169,944-983,1453-1456
+app/javascript/phlex/reactive/inspect.js
+  s_8949a695ce2ed1::t_015ea961c3cfdf 153,179-182
+docs/app/views/docs/pages/performance.rb
+  s_8949a695ce2ed1::t_015ea961c3cfdf 778,949,1207
+Rakefile
+  s_8949a695ce2ed1::t_015ea961c3cfdf 45
+spec/dummy/public/vendor/core.js
+  ai_agent 1,5,7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "be8931a09e745df1994eb6504fbe89969152e9b2",
+  "prompts": {},
+  "sessions": {
+    "s_8949a695ce2ed1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fbc2acdb-314b-47fb-8e6c-dc4dfe084613",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
