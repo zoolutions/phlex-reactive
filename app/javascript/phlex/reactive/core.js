@@ -26,6 +26,7 @@ registerReactiveFeatureLoader("defer", () => import("phlex/reactive/features/def
 registerReactiveFeatureLoader("form", () => import("phlex/reactive/features/form"))
 registerReactiveFeatureLoader("bindings", () => import("phlex/reactive/features/bindings"))
 registerReactiveFeatureLoader("compute", () => import("phlex/reactive/features/compute"), waitingForEdit)
+registerReactiveFeatureLoader("sortable", () => import("phlex/reactive/features/sortable"))
 registerReactiveFeatureLoader("effects", () => import("phlex/reactive/features/effects"))
 registerReactiveFeatureLoader("hints", () => import("phlex/reactive/features/hints"))
 registerReactiveFeatureLoader("devtools", () => import("phlex/reactive/features/devtools"))

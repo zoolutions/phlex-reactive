@@ -4,11 +4,10 @@ require 'rails_helper'
 require 'turbo/broadcastable/test_helper'
 
 # The Project board flagship (issue #216): a kanban with three fixed lanes.
-# Each card is its OWN nested reactive root (record + signed style state); a
-# MOVE is the money shot — one reply carries the row's remove (exit animates
-# before the element leaves), the append into the new lane, and a reactive:js
-# text-op stream repainting all three count badges — while the same delta
-# broadcasts to peers with the actor's echo excluded.
+# Each card is its OWN nested reactive root (record + signed style state). A
+# card moves by DRAG (issue #350): the lanes are sortable lists of one group,
+# and a drop calls the board's move_card with the card, its lane and its new
+# position; the board morphs (counts included) and peers get the same morph.
 RSpec.describe 'Project board actions', type: :request do
   include ActiveSupport::Testing::Assertions
   include Turbo::Broadcastable::TestHelper
@@ -34,51 +33,89 @@ RSpec.describe 'Project board actions', type: :request do
     end
   end
 
-  describe 'BoardCardComponent#move' do
-    let!(:card) { Card.create!(title: 'Ship it', lane: 'todo') }
+  describe 'ProjectBoardComponent#move_card (a drag, issue #350)' do
+    let!(:first) { Card.create!(title: 'First', lane: 'todo', position: 1) }
 
-    it 'moves the record and replies with remove + append-to-new-lane + the count repaint' do
-      post_action(BoardCardComponent, payload: card_payload(card), act: 'move', params: { to: 'doing' })
+    before do
+      Card.create!(title: 'Second', lane: 'todo', position: 2)
+      Card.create!(title: 'Doing', lane: 'doing', position: 1)
+    end
+
+    def move(item, lane, position, style: 'default')
+      post_action(ProjectBoardComponent, payload: board_payload(style:), act: 'move_card',
+                                         params: { item:, lane:, position:, after: nil, from: 'todo' })
+    end
+
+    it 'moves the card into the lane at the dropped position and morphs the board' do
+      move(first.id, 'doing', 0)
 
       expect(response).to have_http_status(:ok)
-      expect(card.reload.lane).to eq('doing')
-      body = response.body
-      expect(body).to include('action="remove"')
-      expect(body).to include(%(action="append" target="lane-doing-cards"))
-      expect(body).to include('action="reactive:js"')
-      expect(body).to include('lane-todo-count')
-      expect(body).to include('lane-doing-count')
+      expect(Card.by_lane('doing').map(&:title)).to eq(%w[First Doing])
+      expect(Card.by_lane('todo').map(&:title)).to eq(%w[Second])
+      expect(response.body).to include('method="morph"', 'target="project-board"')
     end
 
-    it 'stamps the picked style on the row streams (per-call effect override)' do
-      post_action(BoardCardComponent, payload: card_payload(card, style: 'scale'),
-                                      act: 'move', params: { to: 'doing' })
+    it 'reorders within a lane' do
+      move(first.id, 'todo', 1)
 
-      expect(response.body).to include('data-reactive-effect="scale"')
+      expect(Card.by_lane('todo').map(&:title)).to eq(%w[Second First])
     end
 
-    it 'leaves the row streams unstamped on the default style (the row declarations rule)' do
-      post_action(BoardCardComponent, payload: card_payload(card), act: 'move', params: { to: 'doing' })
+    it 'clamps a position past the end to the bottom of the lane' do
+      move(first.id, 'doing', 99)
+
+      expect(Card.by_lane('doing').map(&:title)).to eq(%w[Doing First])
+    end
+
+    it 'keeps the picked style across the move (signed state)' do
+      move(first.id, 'doing', 0, style: 'scale')
+
+      # (A turbo-stream body: parsed_body does not parse it as HTML.)
+      picker = Nokogiri::HTML5.fragment(response.body).at_css("[data-testid='style-scale']")
+      expect(picker['class']).to include('btn-active')
+    end
+
+    it 're-renders the moved card with the picked style as a per-call effect' do
+      move(first.id, 'doing', 0, style: 'scale')
+
+      expect(response.body).to include(%(target="#{BoardCardComponent.new(card: first).id}"), 'data-reactive-effect="scale"')
+    end
+
+    it "leaves the card's stream unstamped on the default style (the row's declared update effect rules)" do
+      move(first.id, 'doing', 0)
 
       expect(response.body).not_to include('data-reactive-effect=')
     end
 
-    it 'rejects an unknown lane without moving anything' do
-      post_action(BoardCardComponent, payload: card_payload(card), act: 'move', params: { to: 'trash' })
+    it 'rejects an unknown lane or card without moving anything' do
+      move(first.id, 'trash', 0)
+      move(0, 'doing', 0)
 
-      expect(card.reload.lane).to eq('todo')
+      expect(first.reload.lane).to eq('todo')
+      expect(Card.by_lane('doing').map(&:title)).to eq(%w[Doing])
     end
 
-    it 'broadcasts the move to peers: row remove + append AND the js count sync' do
+    it 'broadcasts the board to peers as a morph' do
       broadcasts = capture_turbo_stream_broadcasts(Card.stream_key) do
-        post_action(BoardCardComponent, payload: card_payload(card), act: 'move', params: { to: 'doing' })
+        move(first.id, 'doing', 0)
       end
       html = broadcasts.map(&:to_s).join # rubocop:disable Style/MapJoin
 
-      expect(html).to include('action="remove"')
-      expect(html).to include(%(target="lane-doing-cards"))
-      expect(html).to include('action="reactive:js"')
-      expect(html).to include('lane-todo-count')
+      expect(html).to include('target="project-board"', 'method="morph"')
+    end
+  end
+
+  describe 'the lanes' do
+    it 'are sortable lists of one group, each naming its lane, with a drag handle per card' do
+      Card.create!(title: 'Drag me', lane: 'todo', position: 1)
+
+      get '/demos/project-board'
+
+      body = response.body
+      expect(body).to include('data-reactive-sortable="move_card"', 'data-reactive-sortable-group="cards"')
+      expect(body).to include('data-reactive-sortable-name="doing"', 'data-reactive-sortable-handle="[data-drag-handle]"')
+      expect(body).to include('data-reactive-sortable-item=', 'data-drag-handle')
+      expect(body).not_to include('data-testid="move-doing"')
     end
   end
 

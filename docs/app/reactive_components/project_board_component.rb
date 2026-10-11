@@ -2,9 +2,12 @@
 
 # The Project board (issue #216) — the kanban flagship. Three fixed lanes on
 # ONE shared public board; each card is its own nested reactive root (see
-# BoardCardComponent) owning move/rename/archive, while the board owns the
-# per-lane composers and the effect-style picker (signed state, threaded into
-# every row so per-call effects use the visitor's pick).
+# BoardCardComponent) owning rename/archive, while the board owns the per-lane
+# composers, the effect-style picker (signed state, threaded into every row so
+# per-call effects use the visitor's pick) and the MOVE: the lanes are
+# sortable lists of one group (issue #350), so a card drags within its lane or
+# into another, and the drop calls move_card with the card, the lane and the
+# position it landed at.
 #
 # Count badges are kept live EVERYWHERE via reactive:js text ops — the actor's
 # reply chains them (reply.js) and every mutation broadcasts them — closing
@@ -26,6 +29,14 @@ class ProjectBoardComponent < Phlex::HTML
                    'empty:before:border-base-300 empty:before:py-4 empty:before:text-center ' \
                    'empty:before:text-xs empty:before:opacity-50'
 
+  # The drag's styling hooks (issue #350): the lane being dragged over, and
+  # the placeholder gap where the card would land.
+  DRAG_CSS = 'data-[reactive-sortable-active]:outline data-[reactive-sortable-active]:outline-2 ' \
+             'data-[reactive-sortable-active]:outline-offset-4 data-[reactive-sortable-active]:outline-primary/40 ' \
+             '[&>[data-reactive-sortable-placeholder]]:rounded-field ' \
+             '[&>[data-reactive-sortable-placeholder]]:border-2 [&>[data-reactive-sortable-placeholder]]:border-dashed ' \
+             '[&>[data-reactive-sortable-placeholder]]:border-primary/40'
+
   reactive_state :style
 
   # Composer inputs are named PER LANE (title_todo/…): the client's field
@@ -33,6 +44,7 @@ class ProjectBoardComponent < Phlex::HTML
   # the lane param picks the right one out of the declared trio.
   action :add_card, params: { title_todo: :string, title_doing: :string, title_done: :string, lane: :string }
   action :set_style, params: { style: :string }
+  action :move_card, params: { item: :integer, lane: :string, position: :integer }
 
   def initialize(style: 'default')
     @style = STYLES.include?(style) ? style : 'default'
@@ -74,6 +86,22 @@ class ProjectBoardComponent < Phlex::HTML
     reply.replace
   end
 
+  # A drop (issue #350): the card has already moved on the actor's screen. Save
+  # the lane and position, morph the board (the server's order and counts win;
+  # Idiomorph matches cards by id), then re-render the card itself so it lands
+  # with an update effect — the picked style, or the row's declared highlight.
+  # Every peer's board morphs the same way, in the default style: the pick is
+  # this visitor's.
+  def move_card(item:, lane:, position:)
+    card = Card.find_by(id: item)
+    return reply.morph unless card && Card::LANES.include?(lane)
+
+    card.move_to!(lane, position)
+    self.class.broadcast_to(*Card.stream_key, replace: self.class.new, morph: true,
+                                              exclude: reactive_connection_id)
+    reply.morph.stream(BoardCardComponent.replace(card, morph: true, style: @style, effect: picked_effect))
+  end
+
   # The effect-style picker: whitelisted, signed into state, and threaded into
   # every row on the re-render so subsequent moves animate with the pick.
   def set_style(style:)
@@ -98,7 +126,7 @@ class ProjectBoardComponent < Phlex::HTML
 
   def header_row
     div(class: 'flex flex-wrap items-center justify-between gap-2') do
-      span(class: 'text-sm opacity-70') { 'Move a card and watch it animate — in every open tab.' }
+      span(class: 'text-sm opacity-70') { 'Drag a card by its ⠿ handle — in every open tab.' }
       style_picker
     end
   end
@@ -113,6 +141,13 @@ class ProjectBoardComponent < Phlex::HTML
     end
   end
 
+  # 'default' defers to the row's declared effects; anything else overrides
+  # per call. 'random' rides through — the client picks a built-in per
+  # application.
+  def picked_effect
+    @style == 'default' ? nil : @style.to_sym
+  end
+
   def lane_column(lane)
     div(class: 'flex flex-col gap-3 rounded-box border border-base-300 bg-base-200/50 p-3',
         data: { testid: "lane-#{lane}" }) do
@@ -122,11 +157,20 @@ class ProjectBoardComponent < Phlex::HTML
           Card.by_lane(lane).count.to_s
         end
       end
-      ul(id: self.class.lane_target(lane), class: "flex flex-col gap-2 #{EMPTY_LANE_CSS}") do
+      ul(id: self.class.lane_target(lane), class: "flex min-h-12 flex-col gap-2 #{EMPTY_LANE_CSS} #{DRAG_CSS}",
+         **lane_sortable(lane)) do
         Card.by_lane(lane).each { |card| render BoardCardComponent.new(card:, style: @style) }
       end
       composer(lane)
     end
+  end
+
+  # Every lane is a sortable of the "cards" group: a card drags within it or
+  # into another lane. `name:` is what a card dragged OUT of this lane reports
+  # as `from`; `params:` tells move_card which lane it landed in.
+  def lane_sortable(lane)
+    reactive_sortable(:move_card, group: 'cards', name: lane, params: { lane: },
+                                  handle: '[data-drag-handle]')
   end
 
   def composer(lane)

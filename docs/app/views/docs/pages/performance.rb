@@ -1158,10 +1158,10 @@ module Views
             end
             DocsUI::Table(['Module', 'Gzipped', 'Default client', 'Split client'],
                           [
-                            [[:code, 'phlex/reactive/reactive_controller'], '24.9 KB',
+                            [[:code, 'phlex/reactive/reactive_controller'], '28.9 KB',
                              'When your controllers load (or at the first trigger, for a page whose only roots are dormant).',
                              'Never.'],
-                            [[:code, 'phlex/reactive/core'], '12.8 KB',
+                            [[:code, 'phlex/reactive/core'], '13.5 KB',
                              'Never: it is inside the one file.',
                              'When your controllers load (or at the first trigger, for a page whose only roots are dormant).'],
                             [[:code, 'phlex/reactive/features/persist'], '3.1 KB',
@@ -1190,6 +1190,10 @@ module Views
                              [:md, 'When the first `reactive_compute` root connects. Its outputs show the ' \
                                    'server\'s values until then: about 20–25 ms with the module served from ' \
                                    'the same host (measured in the browser suite), one request on a real network.']],
+                            [[:code, 'phlex/reactive/features/sortable'], '3.1 KB',
+                             'Inside the one file.',
+                             [:md, 'When the first root that is, or holds, a `reactive_sortable` or ' \
+                                   '`reactive_sortable_source` list connects.']],
                             [[:code, 'phlex/reactive/features/hints'], '1.0 KB',
                              'Inside the one file.',
                              [:md, 'When the first root whose trigger declares `optimistic:` or `busy:` ' \
@@ -1206,11 +1210,11 @@ module Views
                           ])
             DocsUI::Prose() do
               p do
-                plain 'A page that uses none of these features downloads 12.1 KB less with the split '
-                plain 'client. A page that uses every one of them downloads 7.1 KB more, in nine requests '
+                plain 'A page that uses none of these features downloads 15.4 KB less with the split '
+                plain 'client. A page that uses every one of them downloads 7.3 KB more, in ten requests '
                 plain 'instead of one. This is the whole split: everything that can leave the core has. '
                 plain 'The maintainer\'s target for the core was 10,240 B; the honest moves leave it at '
-                plain '12,831 B, which the budget test holds as its ratchet (and prints the target against).'
+                plain '13,501 B, which the budget test holds as its ratchet (and prints the target against).'
               end
               p do
                 plain 'The default file is laid out for gzip (issue #310). Gzip only matches text within '

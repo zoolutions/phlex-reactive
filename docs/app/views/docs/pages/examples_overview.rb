@@ -42,7 +42,7 @@ module Views
               | [Client-only ops](/docs/example-client-ops) | `on_client` tabs / outside-close menu / accessible drawer — zero fetches, zero custom JS. |
               | [Failure surface](/docs/example-failure) | `error_flash` + `data-reactive-error` + `dismiss_after:` — what an adopter gets for free when an action fails. |
               | [Team inbox (flagship)](/docs/example-team-inbox) | The whole toolkit in one UI: collection rows, optimistic archive that **reverts on failure**, cross-tab broadcast, an `on_client` kebab, and error flashes. |
-              | [Project board (flagship)](/docs/example-project-board) | The kanban: cards move across lanes with **enter/exit effects** (per-visitor style picker incl. `random`), live count badges in every tab via `broadcast_to(js:)`, nested reactive rows with inline rename, confirm-gated archive. |
+              | [Project board (flagship)](/docs/example-project-board) | The kanban: cards **drag** within and across lanes ([sortable lists](/docs/sortable-lists)), **enter/exit effects** (per-visitor style picker incl. `random`), live count badges in every tab via `broadcast_to(js:)`, nested reactive rows with inline rename, confirm-gated archive. |
 
               **Every headline feature now has a live page.** Pick a capability:
 

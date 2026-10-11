@@ -458,6 +458,11 @@ class DemosController < ActionController::Base
     redirect_to "/bulk_selection?result=#{CGI.escape(result)}", status: :see_other
   end
 
+  # Issue #350: sortable lists (see SortablePageComponent).
+  def sortable
+    render_component SortablePageComponent.new
+  end
+
   # Issue #346: the success reply only swaps #flash (the rows stay); op=fail
   # answers 422 with a flash, which Turbo renders but reports as unsuccessful.
   def bulk_outcome

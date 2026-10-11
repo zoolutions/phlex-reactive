@@ -35,6 +35,7 @@ import * as effectsFeature from "phlex/reactive/features/effects"
 import * as devtoolsFeature from "phlex/reactive/features/devtools"
 import * as hintsFeature from "phlex/reactive/features/hints"
 import * as deferFeature from "phlex/reactive/features/defer"
+import * as sortableFeature from "phlex/reactive/features/sortable"
 
 // phlex/reactive/runtime — the reactive controller WITHOUT its feature
 // modules (issue #275): the code both client entries share. It is not an
@@ -1205,6 +1206,14 @@ function computeNeeded(root) {
   return root.getAttribute?.("data-reactive-compute-inputs-param") != null
 }
 
+// Sortable lists (issue #350): the root is, or holds, a sortable list or a
+// source list. (A nested root's list loads the module for its parent too; the
+// module then checks ownership before it picks a row up.)
+function sortableNeeded(root) {
+  const lists = "[data-reactive-sortable],[data-reactive-sortable-source]"
+  return Boolean(root.matches?.(lists) || root.querySelector?.(lists))
+}
+
 const PRODUCTION_FEATURES = [
   // (Its `waiting` hook is the opt-in entry's: core.js.) The draft restore
   // writes what a request reads, so it gates.
@@ -1215,6 +1224,8 @@ const PRODUCTION_FEATURES = [
   ["bindings", [bindingsNeeded, null, null, true]],
   // The seed writes output fields a request collects, so it gates.
   ["compute", [computeNeeded, null, null, true]],
+  // Nothing it does at connect is read by a request: it never gates.
+  ["sortable", [sortableNeeded, null]],
   [
     // Stream effects and dismissing flashes are document-level: the module
     // has no connect. A root that DECLARES an effect only gets it fetched
@@ -1378,7 +1389,7 @@ function featureTimeoutMs() {
 export function reactiveFeatureNames() {
   return __SPLIT__
     ? [...FEATURES.keys()]
-    : ["persist", "defer", "form", "bindings", "compute", "effects", "hints", "devtools"]
+    : ["persist", "defer", "form", "bindings", "compute", "sortable", "effects", "hints", "devtools"]
 }
 
 export function __setReactiveFeatureForTest(name, needs, load, waiting, gates) {
@@ -1400,6 +1411,7 @@ export function __loadReactiveFeatureForTest(name) {
     form: formFeature,
     bindings: bindingsFeature,
     compute: computeFeature,
+    sortable: sortableFeature,
     effects: effectsFeature,
     hints: hintsFeature,
     devtools: devtoolsFeature,
@@ -1449,6 +1461,7 @@ const DEFER = 2
 const FORM = 4
 const BINDINGS = 8
 const COMPUTE = 16
+const SORTABLE = 32
 
 // The default entry's features are part of this file: install them now, as
 // the opt-in entry does when one arrives.
@@ -1670,7 +1683,7 @@ export default class extends Controller {
   #featureTurns = new Map() // name -> settles once that feature has had its turn to connect
   #featureEpoch = 0
   #featureHandle // the `core` handle features receive, built on first use
-  // The default entry (issue #305): one bit per feature, PERSIST … COMPUTE —
+  // The default entry (issue #305): one bit per feature, PERSIST … SORTABLE —
   // asked for (its marker read true) and connected on this connection.
   #featuresAsked = 0
   #featuresOn = 0
@@ -1754,6 +1767,7 @@ export default class extends Controller {
       this.#connectFeatureNow(FORM, "form", formNeeded, (core) => formFeature.connect(this, core, morphed))
       this.#connectFeatureNow(BINDINGS, "bindings", bindingsNeeded, (core) => bindingsFeature.connect(this, core, morphed))
       this.#connectFeatureNow(COMPUTE, "compute", computeNeeded, (core) => computeFeature.connect(this, core, morphed))
+      this.#connectFeatureNow(SORTABLE, "sortable", sortableNeeded, (core) => sortableFeature.connect(this, core))
     }
   }
 
@@ -1790,6 +1804,7 @@ export default class extends Controller {
       if (on & FORM) this.#disconnectFeatureNow("form", () => formFeature.disconnect(this, core))
       if (on & BINDINGS) this.#disconnectFeatureNow("bindings", () => bindingsFeature.disconnect(this, core))
       if (on & COMPUTE) this.#disconnectFeatureNow("compute", () => computeFeature.disconnect(this, core))
+      if (on & SORTABLE) this.#disconnectFeatureNow("sortable", () => sortableFeature.disconnect(this, core))
     }
   }
 
@@ -1957,7 +1972,9 @@ export default class extends Controller {
     this.#featureHandle ??= {
       emit: (name, detail, options) => this.#emit(name, detail, options),
       reseed: () => this.#reseed(),
-      proceed: (target, action, params) => this.#proceed(target, action, params),
+      // Resolves with the reply's HTML once the request has applied, or with
+      // nothing when it failed or was vetoed. `busy` is on(busy:)'s hint.
+      proceed: (target, action, params, busy) => this.#proceed(target, action, params, 0, 0, null, busy),
       forgetToken: () => {
         this.#tokenCache = undefined
       },
@@ -3068,6 +3085,9 @@ export default class extends Controller {
       // complete a tick later. Apps needing post-morph timing listen to Turbo's
       // own events; this one is for "the action round trip succeeded".
       this.#emit("reactive:applied", { action, params: allParams, html })
+      // What core.proceed resolves with: a feature can tell a reply that
+      // applied from a failure (every other exit returns nothing).
+      return html
     } catch (error) {
       // The server already processed this action successfully (we're past the
       // fetch) — a throw here is a CLIENT-side apply failure (a malformed

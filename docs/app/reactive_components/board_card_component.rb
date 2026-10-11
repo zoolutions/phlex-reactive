@@ -7,10 +7,10 @@
 # style as signed state (the inline-edit record+state pattern), so a move
 # animates with the style THIS visitor chose.
 #
-# The move is the money shot: ONE reply carries the row's own remove (exit
-# animates before the element leaves), the fresh-token append into the new
-# lane, and a reactive:js text-op stream repainting all three count badges —
-# and the same delta broadcasts to peers with the actor's echo excluded.
+# The card is a sortable item of its lane (issue #350): it drags by its ⠿
+# handle, or with the keyboard once focused (Space picks it up, the arrows move
+# it — ← → across lanes — and Space drops it). The drop is the BOARD's action
+# (move_card); the card itself owns rename and archive.
 class BoardCardComponent < Phlex::HTML
   include Phlex::Reactive::Streamable
   include Phlex::Reactive::Component
@@ -24,26 +24,12 @@ class BoardCardComponent < Phlex::HTML
   # the three-level precedence, demoed live.
   reactive_effects enter: :slide, exit: :fade, update: :highlight
 
-  action :move, params: { to: :string }
   action :rename, params: { title: :string }
   action :archive
 
   def initialize(card:, style: 'default')
     @card = card
     @style = ProjectBoardComponent::STYLES.include?(style) ? style : 'default'
-  end
-
-  # Move to an adjacent lane: remove HERE + append THERE + repaint the count
-  # badges, all in one reply; peers get the same three streams broadcast.
-  def move(to:)
-    return reply.morph unless Card::LANES.include?(to) && to != @card.lane
-
-    @card.update!(lane: to, position: Card.next_position(to))
-    broadcast_move
-    reply.remove(effect: picked_effect)
-         .stream(self.class.append(target: ProjectBoardComponent.lane_target(to), model: @card,
-                                   style: @style, effect: picked_effect))
-         .js(ProjectBoardComponent.count_ops)
   end
 
   # Enter-to-save inline rename; the morph keeps the input's focus + caret.
@@ -64,10 +50,11 @@ class BoardCardComponent < Phlex::HTML
   end
 
   def view_template
-    li(**reactive_root(class: 'flex flex-col gap-1 rounded-field border border-base-300 bg-base-100 p-3 shadow-sm',
-                       data: { testid: 'board-card', lane: @card.lane })) do
+    li(**mix(reactive_root(class: 'flex flex-col gap-1 rounded-field border border-base-300 bg-base-100 p-3 shadow-sm ' \
+                                  'data-[reactive-sortable-dragging]:rotate-1 data-[reactive-sortable-dragging]:shadow-lg',
+                           data: { testid: 'board-card', lane: @card.lane }),
+             reactive_sortable_item(@card.id))) do
       title_row
-      actions_row
     end
   end
 
@@ -75,6 +62,8 @@ class BoardCardComponent < Phlex::HTML
 
   def title_row
     div(class: 'flex items-center gap-2') do
+      span(class: 'cursor-grab touch-none select-none opacity-50', title: 'Drag to move',
+           data: { drag_handle: true, testid: 'drag-handle' }) { '⠿' }
       input(**mix(on(:rename, event: 'keydown.enter'),
                   name: 'title', value: @card.title, autocomplete: 'off',
                   class: 'input input-ghost input-sm flex-1 font-medium',
@@ -86,41 +75,5 @@ class BoardCardComponent < Phlex::HTML
                                 optimistic: { hide: true, to: "##{id}" }),
                    class: 'btn btn-ghost btn-xs text-error', data: { testid: 'archive-card' })) { '×' }
     end
-  end
-
-  # Lane moves — deliberately NOT optimistic: the exit/enter animations ARE the
-  # actor's feedback (an optimistic hide would hide the exit effect). busy:
-  # dedupes a double click instead.
-  def actions_row
-    idx = Card::LANES.index(@card.lane)
-    div(class: 'flex items-center justify-between text-xs') do
-      move_button(Card::LANES[idx - 1], '←') if idx.positive?
-      span(class: 'flex-1')
-      move_button(Card::LANES[idx + 1], '→') if idx < Card::LANES.size - 1
-    end
-  end
-
-  def move_button(to, glyph)
-    button(**mix(on(:move, to:, busy: '…'),
-                 class: 'btn btn-ghost btn-xs opacity-70', data: { testid: "move-#{to}" })) do
-      "#{glyph} #{to}"
-    end
-  end
-
-  # 'default' defers to the class-declared effects; anything else overrides
-  # per call. 'random' rides through — the client picks a built-in per
-  # application.
-  def picked_effect
-    @style == 'default' ? nil : @style.to_sym
-  end
-
-  def broadcast_move
-    # Peers see the row leave + arrive with the ROW-DECLARED effects (the
-    # picked style is the actor's preference, not the room's).
-    self.class.broadcast_to(*Card.stream_key, remove: @card, exclude: reactive_connection_id)
-    self.class.broadcast_to(*Card.stream_key, append: @card,
-                                              target: ProjectBoardComponent.lane_target(@card.lane),
-                                              exclude: reactive_connection_id)
-    ProjectBoardComponent.broadcast_counts(exclude: reactive_connection_id)
   end
 end
