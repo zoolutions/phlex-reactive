@@ -53,12 +53,17 @@ const wired = new WeakMap()
 const cores = new WeakMap()
 // The one drag on the page, by pointer or keyboard, or null.
 let drag = null
-// The page's live region (re-created after a Turbo visit replaced <body>).
+// The page's live region (re-created after a Turbo visit replaced <body>),
+// and the frame that will write its next words.
 let live
+let speaking
 
 export function connect(controller, core) {
   const root = controller.element
   cores.set(root, core)
+  // The live region is on the page, empty, before anything is announced: a
+  // screen reader often ignores a region that arrives already holding words.
+  liveRegion()
   const press = (event) => pointerDown(event, core)
   const key = (event) => keyDown(event, core)
   root.addEventListener("pointerdown", press)
@@ -315,18 +320,19 @@ function step(by) {
   const items = itemsOf(drag.target)
   // (itemsOf leaves the dragged row out: it sits before items[index].)
   const to = position() + by
-  if (to < 0 || to > items.length) return
-  insertAt(drag.target, items, to, drag.row)
+  // Past either end the row stays, and where it is is said again.
+  if (to >= 0 && to <= items.length) insertAt(drag.target, items, to, drag.row)
   moved()
 }
 
 function hop(by) {
   const lists = targetsFor(drag.origin)
   const list = lists[lists.indexOf(drag.target) + by]
-  if (!list) return
-  const index = position()
-  retarget(list)
-  insertAt(list, itemsOf(list), index, drag.row)
+  if (list) {
+    const index = position()
+    retarget(list)
+    insertAt(list, itemsOf(list), index, drag.row)
+  }
   moved()
 }
 
@@ -343,9 +349,7 @@ function position() {
   return items.filter((el) => el.compareDocumentPosition(row) & 4).length
 }
 
-function announce(name) {
-  const list = drag.target ?? drag.origin
-  const words = json(attr(list, "-messages"), {})[name] ?? ""
+function liveRegion() {
   if (!live?.isConnected) {
     live = document.createElement("div")
     live.setAttribute("aria-live", "polite")
@@ -353,9 +357,20 @@ function announce(name) {
     live.style.cssText = "position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap"
     document.body.append(live)
   }
-  live.textContent = words
+  return live
+}
+
+// Clear the region now and write the words on the next frame, so a change is
+// heard even when the words are the same as the last ones.
+function announce(name) {
+  const list = drag.target ?? drag.origin
+  const words = (json(attr(list, "-messages"), {})[name] ?? "")
     .replaceAll("{position}", position() + 1)
     .replaceAll("{count}", itemsOf(list).length + 1)
+  const region = liveRegion()
+  region.textContent = ""
+  cancelAnimationFrame(speaking)
+  speaking = requestAnimationFrame(() => (region.textContent = words))
 }
 
 // --- Drop / cancel -----------------------------------------------------------

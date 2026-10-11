@@ -95,18 +95,17 @@ module Views
               the server's order wins (Idiomorph matches cards by id) and the
               count badges repaint in the same reply. A second stream re-renders
               the card itself so it lands with an **update effect**: the style
-              you picked, or the row's declared highlight. Peers get the same
-              morph, with the actor's echo excluded. If the action fails, the
-              card goes back to where it was:
+              you picked, or the row's declared highlight. If the action fails,
+              the card goes back to where it was:
 
               ```ruby
               def move_card(item:, lane:, position:)
                 card = Card.find_by(id: item)
                 return reply.morph unless card && Card::LANES.include?(lane)
 
+                from = card.lane
                 card.move_to!(lane, position)
-                self.class.broadcast_to(*Card.stream_key, replace: self.class.new, morph: true,
-                                                          exclude: reactive_connection_id)
+                broadcast_lanes([from, lane].uniq)
                 reply.morph.stream(BoardCardComponent.replace(card, morph: true, style: @style,
                                                                     effect: picked_effect))
               end
@@ -116,6 +115,24 @@ module Views
               board's state — `default` defers to the row's declared effects,
               anything else overrides **per call** (the issue #215 three-level
               precedence, live).
+
+              Peers get **only the lanes the card left and entered**, never the
+              whole board: someone typing into a composer, or into another
+              card's title, keeps their text when you drop a card. Each lane's
+              cards are their own small Streamable (`BoardLaneComponent`, whose
+              `#id` is the lane list's id), so an `update` morphs the list's
+              children and leaves the list — and its sortable attributes — as
+              they are. The count badges follow as a `reactive:js` repaint:
+
+              ```ruby
+              def broadcast_lanes(lanes)
+                lanes.each do |lane|
+                  BoardLaneComponent.broadcast_to(*Card.stream_key, update: { lane: }, morph: true,
+                                                                    exclude: reactive_connection_id)
+                end
+                self.class.broadcast_counts(exclude: reactive_connection_id)
+              end
+              ```
             MD
           end
         end
@@ -179,7 +196,7 @@ module Views
                 it before the reply arrives, and goes back if the action fails.
                 Archive is optimistic too — the confirm gate already slowed it
                 down.
-              - Peers receive the moved board with the default effect style: the
+              - Peers receive the moved lanes with the default effect style: the
                 style picker is each visitor's own choice.
               - Cross-tab delivery runs on whatever transport the app has —
                 Action Cable here, [pgbus](/docs/transport-pgbus) in production —

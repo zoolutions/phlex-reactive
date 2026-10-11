@@ -101,8 +101,8 @@ class Demo
       build: -> { ProjectBoardComponent.new },
       call_site: <<~RUBY
         # One shared board, three lanes. The lanes are sortable lists of one
-        # group: a drop calls move_card with the card, its lane and position,
-        # and the board morphs — counts included — for the actor and every peer:
+        # group: a drop calls move_card with the card, its lane and position;
+        # the actor's board morphs, and peers get the two lanes it touched:
         render ProjectBoardComponent.new
       RUBY
     }

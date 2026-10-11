@@ -17,7 +17,7 @@ import { Window } from "happy-dom"
 const window = new Window()
 let ReactiveController
 const SAVED = {}
-const GLOBALS = ["document", "window", "Event", "CustomEvent", "MutationObserver", "fetch", "navigator"]
+const GLOBALS = ["document", "window", "Event", "CustomEvent", "MutationObserver", "fetch", "navigator", "requestAnimationFrame", "cancelAnimationFrame"]
 
 beforeAll(async () => {
   mock.module("@hotwired/stimulus", () => ({ Controller: class {} }))
@@ -35,6 +35,9 @@ beforeEach(() => {
   globalThis.Event = window.Event
   globalThis.CustomEvent = window.CustomEvent
   globalThis.MutationObserver = window.MutationObserver
+  // A frame is a macrotask here: the live region's words land on the next one.
+  globalThis.requestAnimationFrame = (callback) => setTimeout(callback, 0)
+  globalThis.cancelAnimationFrame = (id) => clearTimeout(id)
   window.Turbo = { renderStreamMessage: () => {} }
   requests = []
   reply = { body: '<turbo-stream action="replace" method="morph" target="tasks"><template></template></turbo-stream>' }
@@ -135,7 +138,12 @@ function key(el, name) {
   return event
 }
 
-const announced = () => document.querySelector("[data-reactive-sortable-live]")?.textContent
+const liveRegion = () => document.querySelector("[data-reactive-sortable-live]")
+// What the live region says once its words have landed (the frame after the step).
+const announced = async () => {
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  return liveRegion()?.textContent
+}
 
 test("a pointer drop moves the row and sends the action once with item, position, after and from: self", async () => {
   mount(list())
@@ -444,19 +452,19 @@ test("keyboard: Space picks up, arrows move, Enter drops — each step announced
   key(row, " ")
   expect(row.hasAttribute("data-reactive-sortable-dragging")).toBe(true)
   expect(document.getElementById("tasks").hasAttribute("data-reactive-sortable-active")).toBe(true)
-  expect(announced()).toBe("Picked up item 2 of 4")
+  expect(await announced()).toBe("Picked up item 2 of 4")
 
   key(row, "ArrowDown")
   expect(order()).toEqual(["t1", "t3", "t2", "t4"])
-  expect(announced()).toBe("Moved to position 3 of 4")
+  expect(await announced()).toBe("Moved to position 3 of 4")
   key(row, "ArrowDown")
   key(row, "ArrowDown") // already last: stays
   expect(order()).toEqual(["t1", "t3", "t4", "t2"])
   key(row, "ArrowUp")
-  expect(announced()).toBe("Moved to position 3 of 4")
+  expect(await announced()).toBe("Moved to position 3 of 4")
 
   key(row, "Enter")
-  expect(announced()).toBe("Dropped")
+  expect(await announced()).toBe("Dropped")
   expect(row.hasAttribute("data-reactive-sortable-dragging")).toBe(false)
   await flush()
   expect(requests[0].params).toEqual({ item: 2, position: 2, after: 3, from: "self" })
@@ -471,16 +479,16 @@ test("keyboard: Escape puts the row back, announces it, and sends nothing", asyn
   expect(order()).toEqual(["t3", "t1", "t2", "t4"])
   key(row, "Escape")
   expect(order()).toEqual(["t1", "t2", "t3", "t4"])
-  expect(announced()).toBe("Cancelled")
+  expect(await announced()).toBe("Cancelled")
   await flush()
   expect(requests).toHaveLength(0)
 })
 
-test("keyboard: the app's words are used (translations)", () => {
+test("keyboard: the app's words are used (translations)", async () => {
   const words = JSON.stringify({ picked: "Aufgenommen: {position}/{count}" }).replaceAll('"', "&quot;")
   mount(list().replace(/data-reactive-sortable-messages="[^"]*"/, `data-reactive-sortable-messages="${words}"`))
   key(document.getElementById("t1"), " ")
-  expect(announced()).toBe("Aufgenommen: 1/4")
+  expect(await announced()).toBe("Aufgenommen: 1/4")
   key(document.getElementById("t1"), "Escape")
 })
 
@@ -542,4 +550,38 @@ test("busy: the list carries the busy marker and the busy hint while the request
   release()
   await flush()
   expect(listEl.classList.contains("opacity-50")).toBe(false)
+})
+
+test("the live region exists, empty, as soon as a root with a sortable connects", () => {
+  mount(list())
+  const region = liveRegion()
+  expect(region).not.toBeNull()
+  expect(region.getAttribute("aria-live")).toBe("polite")
+  expect(region.textContent).toBe("")
+})
+
+test("an announcement clears the region first and writes the words on the next frame", async () => {
+  mount(list())
+  const row = document.getElementById("t2")
+  key(row, " ")
+  expect(liveRegion().textContent).toBe("")
+  expect(await announced()).toBe("Picked up item 2 of 4")
+  key(row, "ArrowDown")
+  expect(liveRegion().textContent).toBe("")
+  expect(await announced()).toBe("Moved to position 3 of 4")
+  key(row, "Escape")
+})
+
+test("keyboard: a move past either end of the list re-announces where the row is", async () => {
+  mount(list())
+  const row = document.getElementById("t4")
+  key(row, " ")
+  await announced()
+  key(row, "ArrowDown") // already last
+  expect(liveRegion().textContent).toBe("")
+  expect(await announced()).toBe("Moved to position 4 of 4")
+  key(row, "ArrowRight") // no other list in its group
+  expect(await announced()).toBe("Moved to position 4 of 4")
+  expect(order()).toEqual(["t1", "t2", "t3", "t4"])
+  key(row, "Escape")
 })

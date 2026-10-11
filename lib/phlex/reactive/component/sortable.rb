@@ -86,7 +86,7 @@ module Phlex
         end
 
         # A row and its key — a String or an Integer, sent as-is (JSON-typed).
-        # The row is focusable, for the keyboard model.
+        # The row is focusable, for the keyboard model (unless disabled).
         def reactive_sortable_item(key, disabled: false)
           unless (key.is_a?(String) && !key.strip.empty?) || key.is_a?(Integer)
             raise ArgumentError,
@@ -94,7 +94,9 @@ module Phlex
           end
 
           data = { reactive_sortable_item: key.to_json }
-          data[:reactive_sortable_disabled] = "true" if disabled
+          # A disabled row cannot be picked up, so it stays out of the tab order.
+          return { data: data.merge(reactive_sortable_disabled: "true") } if disabled
+
           { tabindex: 0, data: }
         end
 

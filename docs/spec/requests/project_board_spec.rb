@@ -95,13 +95,15 @@ RSpec.describe 'Project board actions', type: :request do
       expect(Card.by_lane('doing').map(&:title)).to eq(%w[Doing])
     end
 
-    it 'broadcasts the board to peers as a morph' do
+    it 'broadcasts only the two lanes it touched (a morph of their cards) and the counts — never the board' do
       broadcasts = capture_turbo_stream_broadcasts(Card.stream_key) do
         move(first.id, 'doing', 0)
       end
       html = broadcasts.map(&:to_s).join # rubocop:disable Style/MapJoin
 
-      expect(html).to include('target="project-board"', 'method="morph"')
+      expect(html).to include('action="update" target="lane-todo-cards"', 'action="update" target="lane-doing-cards"')
+      expect(html).to include('method="morph"', 'action="reactive:js"', 'lane-doing-count')
+      expect(html).not_to include('target="project-board"', 'lane-done-cards')
     end
   end
 

@@ -196,8 +196,10 @@ RSpec.describe Phlex::Reactive::Component::Sortable do
       expect(view.reactive_sortable_item("bug")).to eq(tabindex: 0, data: { reactive_sortable_item: '"bug"' })
     end
 
-    it "takes disabled:" do
-      expect(data(view.reactive_sortable_item(7, disabled: true))).to include(reactive_sortable_disabled: "true")
+    it "takes disabled: — and a disabled row is left out of the tab order" do
+      attrs = view.reactive_sortable_item(7, disabled: true)
+      expect(data(attrs)).to include(reactive_sortable_disabled: "true")
+      expect(attrs).not_to have_key(:tabindex)
     end
 
     it "raises on a key that is not a String or an Integer, or is blank" do

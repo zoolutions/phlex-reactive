@@ -105,8 +105,10 @@ const SLACK = 250
 // drags, the placeholder, auto-scroll, the live region, the rollback — plus
 // the runtime's marker and core.proceed's reply) adds 2,930 B: 28,944 B. The
 // issue's aim was 3 KB or less for the feature in the default entry; the
-// default entry has no import(), so it carries it.
-const BUNDLE_GZIP_CEILING = 28_944
+// default entry has no import(), so it carries it. Its review fixes (the live
+// region made at connect and written a frame later, boundary moves announced)
+// add 22 B: 28,966 B.
+const BUNDLE_GZIP_CEILING = 28_966
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -149,7 +151,7 @@ const FEATURE_GZIP_CEILINGS = {
   "features/persist": 3_150,
   "features/form": 1_050,
   "features/devtools": 1_600,
-  // Issue #350: sortable lists, 3,094 B.
+  // Issue #350: sortable lists, 3,094 B; its review fixes take it to 3,130 B.
   "features/sortable": 3_150,
 }
 // Phase 5: 12,383 B core + 5,360 + 2,846 + 2,084 + 1,024 + 1,693 + 3,210 + 1,015 + 1,589 B of
@@ -173,8 +175,8 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #348 (a checked-only show target decides at zero boxes, in bindings)
 // adds 31 B: 33,147 B.
 // Issue #350 (the sortable feature module, 3,094 B, plus 54 B in the core)
-// adds 3,146 B: 36,293 B.
-const SPLIT_TOTAL_GZIP_CEILING = 36_293
+// adds 3,146 B: 36,293 B; its review fixes add 36 B: 36,329 B.
+const SPLIT_TOTAL_GZIP_CEILING = 36_329
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

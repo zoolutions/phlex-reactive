@@ -90,15 +90,16 @@ class ProjectBoardComponent < Phlex::HTML
   # the lane and position, morph the board (the server's order and counts win;
   # Idiomorph matches cards by id), then re-render the card itself so it lands
   # with an update effect — the picked style, or the row's declared highlight.
-  # Every peer's board morphs the same way, in the default style: the pick is
-  # this visitor's.
+  # Peers get only the lanes the card left and entered (in the default style:
+  # the pick is this visitor's) plus the count repaint — never the whole board,
+  # so a peer's half-typed composer or rename elsewhere is left alone.
   def move_card(item:, lane:, position:)
     card = Card.find_by(id: item)
     return reply.morph unless card && Card::LANES.include?(lane)
 
+    from = card.lane
     card.move_to!(lane, position)
-    self.class.broadcast_to(*Card.stream_key, replace: self.class.new, morph: true,
-                                              exclude: reactive_connection_id)
+    broadcast_lanes([from, lane].uniq)
     reply.morph.stream(BoardCardComponent.replace(card, morph: true, style: @style, effect: picked_effect))
   end
 
@@ -123,6 +124,16 @@ class ProjectBoardComponent < Phlex::HTML
   end
 
   private
+
+  # A morph of each lane's CONTENT (the list keeps its own attributes), then
+  # the count badges.
+  def broadcast_lanes(lanes)
+    lanes.each do |lane|
+      BoardLaneComponent.broadcast_to(*Card.stream_key, update: { lane: }, morph: true,
+                                                        exclude: reactive_connection_id)
+    end
+    self.class.broadcast_counts(exclude: reactive_connection_id)
+  end
 
   def header_row
     div(class: 'flex flex-wrap items-center justify-between gap-2') do
@@ -159,7 +170,7 @@ class ProjectBoardComponent < Phlex::HTML
       end
       ul(id: self.class.lane_target(lane), class: "flex min-h-12 flex-col gap-2 #{EMPTY_LANE_CSS} #{DRAG_CSS}",
          **lane_sortable(lane)) do
-        Card.by_lane(lane).each { |card| render BoardCardComponent.new(card:, style: @style) }
+        render BoardLaneComponent.new(lane:, style: @style)
       end
       composer(lane)
     end

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'system_helper'
+require 'turbo/broadcastable/test_helper'
 
 # The Project board flagship (issue #216) in a real browser: cards dragged
 # across lanes (sortable lists, issue #350) — by mouse and by keyboard — with
@@ -10,6 +11,10 @@ require 'system_helper'
 # is asserted at the request level (broadcast specs) per the docs convention —
 # the demo site's cable adapter is in-process.
 RSpec.describe 'Project board', type: :system do
+  include ActiveSupport::Testing::Assertions
+  include ActionCable::TestHelper
+  include Turbo::Broadcastable::TestHelper
+
   # System specs hit a real server on a separate DB connection — seed
   # explicitly per example, never rely on transactional fixtures.
   before { Card.delete_all }
@@ -67,6 +72,35 @@ RSpec.describe 'Project board', type: :system do
 
     expect(Card.sole.lane).to eq('done')
     expect(page.evaluate_script('window.__noReload')).to eq('alive')
+  end
+
+  # Two sessions: a peer has typed into a lane composer (and moved on) when
+  # someone else drags a card. The test cable adapter delivers nothing to a
+  # browser, so the drop's REAL broadcasts are captured as the actor's request
+  # makes them and replayed into the peer — what a live transport would do.
+  it "keeps a peer's typed composer text when another session drags a card" do
+    Card.create!(title: 'Shared card', lane: 'todo', position: 1)
+    using_session(:peer) do
+      visit '/docs/example-project-board'
+      find("[data-testid='new-card-done']").fill_in(with: 'half-typed idea')
+      find("[data-testid='count-todo']").click # focus leaves the composer
+    end
+
+    broadcasts = capture_turbo_stream_broadcasts(Card.stream_key) do
+      visit '/docs/example-project-board'
+      within(demo) { drag_card_to('doing') }
+      expect(page).to have_css("[data-testid='count-doing']", text: '1')
+    end
+    expect(broadcasts).not_to be_empty
+
+    using_session(:peer) do
+      broadcasts.each { page.execute_script('Turbo.renderStreamMessage(arguments[0])', it.to_s) }
+      within "[data-testid='lane-doing']" do
+        expect(page).to have_field('title', with: 'Shared card')
+      end
+      expect(page).to have_css("[data-testid='count-doing']", text: '1')
+      expect(find("[data-testid='new-card-done']").value).to eq('half-typed idea')
+    end
   end
 
   it 'moves a card with the keyboard: Space picks it up, → hops a lane, Space drops it' do
