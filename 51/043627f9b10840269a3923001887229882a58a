@@ -1,0 +1,54 @@
+docs/spec/system/project_board_spec.rb
+  s_fb38037c533860::t_886655facb1829 14
+  s_fb38037c533860::t_4f5bae74b2abad 4,15-17,77-103
+docs/app/reactive_components/project_board_component.rb
+  s_fb38037c533860::t_f68aeafdcb01ad 128-136
+  s_fb38037c533860::t_af39e605158a05 93-95,100,102,173
+spec/javascript/bundle_budget.test.js
+  s_fb38037c533860::t_33b40197fc59df 108-111,154,178-179
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 14,17-18
+app/javascript/phlex/reactive/features/sortable.js
+  s_fb38037c533860::t_754efabc0134f6 56-57,59,64-66,323-324,331-335,352,360-367,370-373
+spec/javascript/reactive_sortable.test.js
+  s_fb38037c533860::t_74916ee9e8a40f 20,40
+  s_fb38037c533860::t_22ae91cb0fbf88 38-39,141-146,455,459,464,467,482,487,491,554-586
+docs/app/views/docs/pages/example_project_board.rb
+  s_fb38037c533860::t_a9c8ab85fb07de 98-99,106,108,118-135,199
+docs/spec/requests/project_board_spec.rb
+  s_fb38037c533860::t_55b85a1cc84e8b 98,104-106
+docs/app/models/demo.rb
+  s_fb38037c533860::t_f878b372554daa 104-105
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,3
+spec/phlex/reactive/sortable_helpers_spec.rb
+  s_fb38037c533860::t_882a22947a841e 199-202
+lib/phlex/reactive/component/sortable.rb
+  s_fb38037c533860::t_d37ba855bf3789 89,97-99
+app/javascript/phlex/reactive/features/sortable.min.js
+  ai_agent 1,3
+spec/dummy/public/vendor/features/sortable.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/features/sortable.min.js.map
+  ai_agent 5,7-8
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,3
+docs/app/reactive_components/board_lane_component.rb
+  s_fb38037c533860::t_a58feb518a1ba7 1-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "51043627f9b10840269a3923001887229882a58a",
+  "prompts": {},
+  "sessions": {
+    "s_fb38037c533860": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9f689cc-9812-4ee9-89c0-dfa4c5e4b757",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
