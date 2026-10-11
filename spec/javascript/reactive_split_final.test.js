@@ -767,6 +767,8 @@ describe("streams: a root a stream brings in", () => {
 
   test("a stream that appends a show target into a root starts the bindings import before its render (issue #356)", async () => {
     const bindings = slowFeature("bindings", bindingsModule)
+    const { controller } = addRoot("card", {}, `<input name="kind" value=""><div id="slot"></div>`)
+    controller.connect()
     const stream = document.createElement("turbo-stream")
     stream.setAttribute("action", "append")
     stream.setAttribute("target", "slot")
@@ -785,6 +787,7 @@ describe("streams: a root a stream brings in", () => {
     bindings.arrive()
     await done
     expect(rendered).toBe(true)
+    controller.disconnect()
   })
 
   test("a show target a stream appends into a connected root is wired once the module is here (issue #356)", async () => {

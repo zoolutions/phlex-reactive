@@ -198,7 +198,7 @@ const FEATURE_GZIP_CEILINGS = {
 // 986 B on main (34,133 B); on top of #350, 981 B: 37,310 B.
 // With #352's review fixes merged in: 37,395 B; a late editable's bindings: 37,416 B.
 // Issue #355 (the plaintext-only fallback: +240 B core, -138 B bindings) adds 102 B: 37,518 B (37,519 B with data-reactive-editable observed).
-// Issue #356 (+211 B core, +64 B form, +44 B bindings) adds 321 B: 37,840 B.
+// Issue #356 (+211 B core, +64 B form, +46 B bindings) adds 321 B: 37,840 B.
 const SPLIT_TOTAL_GZIP_CEILING = 37_840
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024

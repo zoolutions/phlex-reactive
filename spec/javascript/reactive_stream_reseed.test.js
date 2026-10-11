@@ -147,13 +147,14 @@ test("a stream into a nested root wires the nested root, not its parent", async 
 })
 
 test("a replace of a root re-reads nothing on the element it detached", async () => {
-  const { root, controller } = mount(`<p>old</p>`)
+  const { root, controller } = mount(`<input name="mode" value="a"><p ${SHOW_B}>old</p>`)
   const errors = []
   const realError = console.error
   console.error = (...args) => errors.push(args)
   try {
     await stream("replace", "r", `<div id="r"><p ${SHOW_B}>x</p></div>`, (t, html) => {
       controller.disconnect() // what Stimulus does as the element leaves
+      root.querySelector("p").hidden = false // a re-read of the detached root would hide it again
       t.outerHTML = html
     })
   } finally {
@@ -161,7 +162,7 @@ test("a replace of a root re-reads nothing on the element it detached", async ()
   }
   expect(errors).toEqual([])
   expect(root.isConnected).toBe(false)
-  expect(root.querySelector("p").hidden).toBe(false) // the detached old root was not wired
+  expect(root.querySelector("p").hidden).toBe(false) // the detached old root was not re-read
 })
 
 test("a paste trigger a stream brings into a dirty-tracking root is gated like one rendered at connect", async () => {

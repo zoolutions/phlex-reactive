@@ -70,7 +70,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   only then. As after a morph, this covers a root with an action token or a
   lazy shell; a tokenless, client-only root does not re-read. On the split
   client the stream's render waits for the module the content needs, as it
-  already did for an incoming root, so the content lands wired. A draft
+  already did for an incoming root, so the content lands wired; the wait is
+  capped at 1 s, after which Turbo renders and the root connects the module
+  when it arrives. A draft
   restore no longer marks fields `data-reactive-dirty` on a root that never
   opted into dirty tracking (one that only gates a paste trigger).
 - **An editable is editable in an engine without `contenteditable="plaintext-only"`,
