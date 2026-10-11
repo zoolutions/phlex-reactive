@@ -487,6 +487,8 @@ describe("bindings: the window before the module", () => {
   })
 
   test("in an engine without plaintext-only, a stream-appended editable becomes editable, and its focus loads the module (issue #355)", async () => {
+    const hadObserver = "MutationObserver" in globalThis
+    const savedObserver = globalThis.MutationObserver
     globalThis.MutationObserver = window.MutationObserver
     mod.__setReactivePlaintextOnlyForTest(false)
     mod.registerReactivePlaintext()
@@ -509,6 +511,8 @@ describe("bindings: the window before the module", () => {
       controller.disconnect()
     } finally {
       mod.__setReactivePlaintextOnlyForTest(undefined)
+      if (hadObserver) globalThis.MutationObserver = savedObserver
+      else delete globalThis.MutationObserver
     }
   })
 

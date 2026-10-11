@@ -244,8 +244,8 @@ export function __resetReactiveStreamRenderForTest() {
 // focused — so there every reactive editable is switched to "true" (and the
 // bindings feature does the plain-text paste itself). However it reaches the
 // page: present at load, appended by a stream into a root that is already
-// connected, loaded in a frame, or written back by a morph of an unfocused
-// editable. One observer, only in such an engine; elsewhere the probe is all
+// connected, loaded in a frame, written back by a morph of an unfocused
+// editable, or made reactive by a morph. One observer, only in such an engine; elsewhere the probe is all
 // that runs. Detected once per page.
 let plaintextOnly
 let plaintextObserver = null
@@ -284,7 +284,8 @@ export function registerReactivePlaintext() {
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ["contenteditable"],
+    // (a morph can also make an existing plaintext-only element reactive)
+    attributeFilter: ["contenteditable", "data-reactive-editable"],
   })
 }
 

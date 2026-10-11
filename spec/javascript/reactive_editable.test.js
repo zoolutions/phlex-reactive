@@ -394,6 +394,15 @@ test("plaintext-only written back by an unfocused morph is switched to true agai
   expect($("h3").textContent).toBe("Server")
 })
 
+test("a plaintext-only element a morph makes a reactive editable is switched to true", async () => {
+  fallbackEngine()
+  const { root } = await mount(`<h3 contenteditable="plaintext-only">raw</h3>`)
+  await settle()
+  root.querySelector("h3").setAttribute("data-reactive-editable", "single")
+  await settle()
+  expect(root.querySelector("h3").getAttribute("contenteditable")).toBe("true")
+})
+
 test("a bare [contenteditable=plaintext-only] without the helper is left alone", async () => {
   fallbackEngine()
   const { root } = await mount(`<p>x</p>`)

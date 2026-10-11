@@ -65,7 +65,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   morph of the root, which left an editable that a stream appended, a frame
   loaded or an unfocused morph rewrote uneditable. The runtime now does the
   switch with one observer, installed only in such an engine (elsewhere the
-  probe is all that runs). Bundle: default +152 B gzip, split core +240 B,
+  probe is all that runs). Bundle: default +157 B gzip, split core +241 B,
   `features/bindings` -138 B.
 
 - **A `checked:`-only `reactive_show_targets` entry hides at zero boxes
