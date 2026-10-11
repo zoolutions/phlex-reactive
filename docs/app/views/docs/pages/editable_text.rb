@@ -84,7 +84,10 @@ module Views
                 broadcast morph leaves its text and caret alone; its attributes
                 (a validation class, `aria-invalid`) still update. Unfocused, the
                 server's text wins. `data-reactive-morph-value` on the element lets
-                the morph write it even while focused, as for inputs.
+                the morph write it even while focused, as for inputs. The client
+                copies a held field's attributes itself, so Turbo's
+                `turbo:before-morph-attribute` and `turbo:morph-element` do not
+                fire for that element while it is focused.
               - **Paste and drop** insert plain text: natively where the engine has
                 `plaintext-only` (all current ones), through a handler where it does
                 not (the client switches the element to `contenteditable="true"`
