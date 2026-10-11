@@ -1,0 +1,71 @@
+app/javascript/phlex/reactive/features/bindings.min.js.map
+  ai_agent 5,7-8
+app/javascript/phlex/reactive/features/form.min.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/features/form.min.js.map
+  ai_agent 5,7-8
+spec/dummy/config/routes.rb
+  s_8949a695ce2ed1::t_abcf131d237e62 66
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,5,7
+app/javascript/phlex/reactive/features/bindings.min.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 5-6,9,15,17-18
+spec/dummy/public/vendor/features/form.js
+  ai_agent 1,3
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,5,7
+app/javascript/phlex/reactive/runtime.js
+  s_8949a695ce2ed1::t_6844ac8d80594e 202,214-229,233-242,244-246,1900-1903,1907,1913,2194-2197,2200,2204,2377
+  s_8949a695ce2ed1::t_c6067a7519d704 230-232,243
+CHANGELOG.md
+  s_8949a695ce2ed1::t_be101a87cb7250 61-72
+app/javascript/phlex/reactive/core.min.js
+  ai_agent 1,5,7
+spec/dummy/app/components/late_show_panel_component.rb
+  s_8949a695ce2ed1::t_abcf131d237e62 1-14
+app/javascript/phlex/reactive/reactive_controller.js
+  s_8949a695ce2ed1::t_47bbefc4614d41 52
+app/javascript/phlex/reactive/features/bindings.js
+  s_8949a695ce2ed1::t_e59a5bad2a2350 67-103,105-106,109-129,131-143,145-158,160-169,171-184,207-210,212-215
+spec/dummy/app/components/late_show_component.rb
+  s_8949a695ce2ed1::t_abcf131d237e62 1-37
+spec/dummy/app/controllers/demos_controller.rb
+  s_8949a695ce2ed1::t_abcf131d237e62 353-356
+app/javascript/phlex/reactive/core.js
+  s_8949a695ce2ed1::t_a41db24c03201b 149-151,159
+app/javascript/phlex/reactive/core.min.js.map
+  ai_agent 5-6,8-9
+spec/dummy/public/vendor/core.js
+  ai_agent 1,5,7
+spec/dummy/public/vendor/features/bindings.js
+  ai_agent 1,3
+spec/javascript/reactive_stream_reseed.test.js
+  s_8949a695ce2ed1::t_881ff267008566 1-49,51-85,87-95,97-104,106,108-113,115-124,126-141,143-154,156-175
+  s_8949a695ce2ed1::t_9976bb53f7e7b7 50,86,96,105,107,114,125,142,155
+spec/system/late_show_spec.rb
+  s_8949a695ce2ed1::t_abcf131d237e62 1-36
+spec/javascript/bundle_budget.test.js
+  s_8949a695ce2ed1::t_96c7ab338ca9e3 118-120,149-150,169-170,201-202
+app/javascript/phlex/reactive/features/form.js
+  s_8949a695ce2ed1::t_5fb84c9f724975 15,24,31-51,53-59,61-76,78-85,91,95-99
+spec/javascript/reactive_split_final.test.js
+  s_8949a695ce2ed1::t_150cb82d9ab708 768-810
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "b4ac67da23dfcadbf66452b1988b550b057473d1",
+  "prompts": {},
+  "sessions": {
+    "s_8949a695ce2ed1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fbc2acdb-314b-47fb-8e6c-dc4dfe084613",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
