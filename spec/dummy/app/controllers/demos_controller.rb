@@ -54,6 +54,11 @@ class DemosController < ActionController::Base
     render html: html.html_safe, layout: "lazy_controller"
   end
 
+  # Issue #357: page-level shortcuts beside a textarea.
+  def shortcuts
+    render_component ShortcutListComponent.new
+  end
+
   # Issue #274 + #276: a dormant reactive_lazy(on:) event shell as the page's
   # only reactive root — no client until the panel opens, then one request.
   def dormant_lazy

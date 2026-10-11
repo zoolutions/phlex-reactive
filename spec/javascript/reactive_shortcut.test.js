@@ -1,0 +1,324 @@
+// Unit tests for shortcut: on on() and on_client() (issue #357).
+//
+// The Ruby helper renders a `mod` chord as two window descriptors, a meta twin
+// and a ctrl twin, and flags the shortcut (data-reactive-shortcut-param for
+// on(), the record's "shortcut" for on_client). Stimulus does the key
+// filtering; the client then:
+//
+//   * runs only the twin for its platform (meta on Apple, ctrl elsewhere) —
+//     the other twin is a complete no-op: no dispatch, no preventDefault;
+//   * skips an editable target (input, textarea, select, contenteditable,
+//     plaintext-only included) unless the shortcut opts in (inEditable);
+//   * prevents the chord, synchronously, before any confirm resolver runs —
+//     unlike a plain window binding, which is never prevented (#80).
+//
+// Run with: bun test spec/javascript
+import { test, expect, mock, beforeAll, afterEach } from "bun:test"
+import { Window } from "happy-dom"
+
+let ReactiveController
+let setConfirmResolver
+
+const dom = new Window()
+const doc = dom.document
+
+beforeAll(async () => {
+  mock.module("@hotwired/stimulus", () => ({
+    Controller: class {
+      constructor() {}
+    },
+  }))
+  ReactiveController = (await import("../../app/javascript/phlex/reactive/reactive_controller.js")).default
+  setConfirmResolver = (await import("../../app/javascript/phlex/reactive/confirm.js")).setConfirmResolver
+})
+
+const realNavigator = globalThis.navigator
+
+afterEach(() => {
+  Object.defineProperty(globalThis, "navigator", { value: realNavigator, configurable: true, writable: true })
+  setConfirmResolver((message) =>
+    Promise.resolve(typeof globalThis.window?.confirm === "function" ? globalThis.window.confirm(message) : true)
+  )
+})
+
+// Stub the platform the client reads (userAgentData first, then platform).
+function onPlatform(platform, userAgentData) {
+  Object.defineProperty(globalThis, "navigator", {
+    value: { platform, userAgentData },
+    configurable: true,
+    writable: true,
+  })
+}
+
+function makeRoot() {
+  const events = []
+  return {
+    events,
+    isConnected: true,
+    id: "editor",
+    contains: () => true,
+    dispatchEvent: (event) => events.push(event),
+    querySelectorAll: () => [],
+    setAttribute: () => {},
+    removeAttribute: () => {},
+    getAttribute: () => null,
+  }
+}
+
+function buildController(root = makeRoot()) {
+  const controller = new ReactiveController()
+  controller.element = root
+  controller.tokenValue = "tok"
+  let calls = 0
+  globalThis.fetch = () => {
+    calls++
+    return Promise.resolve({
+      redirected: false,
+      ok: true,
+      headers: { get: () => "text/vnd.turbo-stream.html" },
+      text: () => Promise.resolve(""),
+    })
+  }
+  globalThis.document = { querySelector: () => null, querySelectorAll: () => [], dispatchEvent: () => {} }
+  globalThis.window = { Turbo: { renderStreamMessage: () => {} } }
+  return { controller, root, calls: () => calls }
+}
+
+// A keydown as Stimulus's window listener hands it over.
+function keydown(key, { mods = {}, target = doc.body, params = {} } = {}) {
+  return {
+    type: "keydown",
+    key,
+    metaKey: false,
+    ctrlKey: false,
+    altKey: false,
+    shiftKey: false,
+    ...mods,
+    target,
+    currentTarget: globalThis.window,
+    params,
+    defaultPrevented: false,
+    preventDefault() {
+      this.defaultPrevented = true
+    },
+  }
+}
+
+const undo = (extra = {}) => ({ action: "undo", params: "{}", window: true, shortcut: "mod+z", ...extra })
+const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+function editable(html) {
+  doc.body.innerHTML = html
+  return doc.querySelector("[data-focus]")
+}
+
+// --- on(): platform twins ------------------------------------------------------
+
+test("on a Mac, meta+z dispatches once and prevents; ctrl+z is a complete no-op", async () => {
+  onPlatform("MacIntel")
+  const { controller, root, calls } = buildController()
+
+  const ctrl = keydown("z", { mods: { ctrlKey: true }, params: undo() })
+  await controller.dispatch(ctrl)
+  expect(calls()).toBe(0)
+  expect(ctrl.defaultPrevented).toBe(false)
+  expect(root.events).toHaveLength(0)
+
+  const meta = keydown("z", { mods: { metaKey: true }, params: undo() })
+  await controller.dispatch(meta)
+  await flush()
+  expect(meta.defaultPrevented).toBe(true)
+  expect(calls()).toBe(1)
+})
+
+test("on Windows, ctrl+z dispatches and meta+z does nothing", async () => {
+  onPlatform("Win32")
+  const { controller, calls } = buildController()
+
+  const meta = keydown("z", { mods: { metaKey: true }, params: undo() })
+  await controller.dispatch(meta)
+  expect(meta.defaultPrevented).toBe(false)
+  expect(calls()).toBe(0)
+
+  const ctrl = keydown("z", { mods: { ctrlKey: true }, params: undo() })
+  await controller.dispatch(ctrl)
+  await flush()
+  expect(ctrl.defaultPrevented).toBe(true)
+  expect(calls()).toBe(1)
+})
+
+test("userAgentData.platform wins over navigator.platform", async () => {
+  onPlatform("Win32", { platform: "macOS" })
+  const { controller, calls } = buildController()
+
+  const meta = keydown("z", { mods: { metaKey: true }, params: undo() })
+  await controller.dispatch(meta)
+  await flush()
+  expect(calls()).toBe(1)
+})
+
+test("an iPad counts as Apple", async () => {
+  onPlatform("iPad")
+  const { controller, calls } = buildController()
+
+  await controller.dispatch(keydown("z", { mods: { metaKey: true }, params: undo() }))
+  await flush()
+  expect(calls()).toBe(1)
+})
+
+test("a shortcut without mod runs on every platform", async () => {
+  onPlatform("Linux x86_64")
+  const { controller, calls } = buildController()
+
+  const esc = keydown("Escape", { params: undo({ action: "close", shortcut: "esc" }) })
+  await controller.dispatch(esc)
+  await flush()
+  expect(esc.defaultPrevented).toBe(true)
+  expect(calls()).toBe(1)
+})
+
+test("a digit shortcut (typecast to a number by Stimulus) still matches", async () => {
+  onPlatform("Linux x86_64")
+  const { controller, calls } = buildController()
+
+  await controller.dispatch(keydown("1", { params: undo({ action: "pick", shortcut: 1 }) }))
+  await flush()
+  expect(calls()).toBe(1)
+})
+
+// --- on(): the editable guard ----------------------------------------------------
+
+for (const [label, html] of [
+  ["an input", `<input data-focus>`],
+  ["a textarea", `<textarea data-focus></textarea>`],
+  ["a select", `<select data-focus><option>a</option></select>`],
+  ["a child of [contenteditable=true]", `<div contenteditable="true"><p data-focus>x</p></div>`],
+  ["a [contenteditable=plaintext-only]", `<div contenteditable="plaintext-only" data-focus></div>`],
+]) {
+  test(`inside ${label}, the chord dispatches nothing and is not prevented`, async () => {
+    onPlatform("MacIntel")
+    const target = editable(html)
+    const { controller, root, calls } = buildController()
+
+    const event = keydown("z", { mods: { metaKey: true }, target, params: undo() })
+    await controller.dispatch(event)
+    await flush()
+    expect(event.defaultPrevented).toBe(false)
+    expect(calls()).toBe(0)
+    expect(root.events).toHaveLength(0)
+  })
+}
+
+test("the Hash form with inEditable dispatches from inside a textarea", async () => {
+  onPlatform("MacIntel")
+  const target = editable(`<textarea data-focus></textarea>`)
+  const { controller, calls } = buildController()
+
+  const event = keydown("Escape", { target, params: undo({ action: "close", shortcut: { keys: "esc", inEditable: true } }) })
+  await controller.dispatch(event)
+  await flush()
+  expect(event.defaultPrevented).toBe(true)
+  expect(calls()).toBe(1)
+})
+
+test("the chord is prevented before the confirm resolver runs", async () => {
+  onPlatform("MacIntel")
+  let preventedWhenAsked = null
+  const event = keydown("z", { mods: { metaKey: true }, params: undo({ confirm: "Undo?" }) })
+  setConfirmResolver(() => {
+    preventedWhenAsked = event.defaultPrevented
+    return Promise.resolve(false)
+  })
+  const { controller } = buildController()
+
+  await controller.dispatch(event)
+  await flush()
+  expect(preventedWhenAsked).toBe(true)
+})
+
+test("a plain window keydown binding without shortcut is neither prevented nor guarded (0.14.4 behaviour)", async () => {
+  onPlatform("MacIntel")
+  const target = editable(`<textarea data-focus></textarea>`)
+  const { controller, calls } = buildController()
+
+  const event = keydown("z", { mods: { metaKey: true }, target, params: { action: "undo", params: "{}", window: true } })
+  await controller.dispatch(event)
+  await flush()
+  expect(event.defaultPrevented).toBe(false)
+  expect(calls()).toBe(1)
+})
+
+// --- on_client --------------------------------------------------------------------
+
+function opsRoot(panel) {
+  return {
+    ...makeRoot(),
+    querySelectorAll: (sel) => (sel === "#palette" ? [panel] : []),
+  }
+}
+
+const palette = (extra = {}) => ({ on: "keydown", window: true, shortcut: "mod+k", ops: [["toggle", { to: "#palette" }]], ...extra })
+
+function paletteController() {
+  const panel = { hidden: true, closest: () => null }
+  const root = opsRoot(panel)
+  panel.closest = () => root
+  const { controller } = buildController(root)
+  return { controller, panel }
+}
+
+test("on_client: the platform twin runs the ops once and prevents; the other twin is a no-op", () => {
+  onPlatform("MacIntel")
+  const { controller, panel } = paletteController()
+
+  const ctrl = keydown("k", { mods: { ctrlKey: true }, params: { ops: palette() } })
+  controller.runOps(ctrl)
+  expect(panel.hidden).toBe(true)
+  expect(ctrl.defaultPrevented).toBe(false)
+
+  const meta = keydown("k", { mods: { metaKey: true }, params: { ops: palette() } })
+  controller.runOps(meta)
+  expect(panel.hidden).toBe(false)
+  expect(meta.defaultPrevented).toBe(true)
+})
+
+test("on_client: an editable target is skipped unless inEditable", () => {
+  onPlatform("Win32")
+  const target = editable(`<input data-focus>`)
+  const { controller, panel } = paletteController()
+
+  const event = keydown("k", { mods: { ctrlKey: true }, target, params: { ops: palette() } })
+  controller.runOps(event)
+  expect(panel.hidden).toBe(true)
+  expect(event.defaultPrevented).toBe(false)
+
+  const opted = keydown("k", { mods: { ctrlKey: true }, target, params: { ops: palette({ shortcut: { keys: "mod+k", inEditable: true } }) } })
+  controller.runOps(opted)
+  expect(panel.hidden).toBe(false)
+})
+
+test("on_client: two shortcut records on one element — only the record whose chord fired runs", () => {
+  onPlatform("MacIntel")
+  const panel = { hidden: true, closest: () => null }
+  const dialog = { hidden: false, closest: () => null }
+  const root = {
+    ...makeRoot(),
+    querySelectorAll: (sel) => (sel === "#palette" ? [panel] : sel === "#dialog" ? [dialog] : []),
+  }
+  panel.closest = () => root
+  dialog.closest = () => root
+  const { controller } = buildController(root)
+  const records = [palette(), { on: "keydown", window: true, shortcut: "esc", ops: [["hide", { to: "#dialog" }]] }]
+  const wire = records.map((r) => JSON.stringify(r)).join(" ")
+
+  controller.runOps(keydown("Escape", { params: { ops: wire } }))
+  expect(dialog.hidden).toBe(true)
+  expect(panel.hidden).toBe(true)
+
+  // The wrong twin of mod+k matches its record (it IS that descriptor) but is
+  // a no-op on this platform — no warning, no ops.
+  const ctrl = keydown("k", { mods: { ctrlKey: true }, params: { ops: wire } })
+  controller.runOps(ctrl)
+  expect(panel.hidden).toBe(true)
+  expect(ctrl.defaultPrevented).toBe(false)
+})

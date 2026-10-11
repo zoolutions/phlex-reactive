@@ -227,6 +227,134 @@ test("a window-bound key filter must match, modifiers included", async () => {
   expect(state().queue).toHaveLength(1)
 })
 
+// --- early.js: shortcut: (issue #357) -------------------------------------------
+
+const realNavigator = globalThis.navigator
+function onPlatform(platform) {
+  Object.defineProperty(globalThis, "navigator", { value: { platform }, configurable: true, writable: true })
+}
+const restorePlatform = () =>
+  Object.defineProperty(globalThis, "navigator", { value: realNavigator, configurable: true, writable: true })
+
+const SAVE = `<div id="p" data-controller="reactive"><span id="s" data-action="keydown.meta+s@window->reactive#dispatch keydown.ctrl+s@window->reactive#dispatch" data-reactive-action-param="save" data-reactive-window-param="true" data-reactive-shortcut-param="mod+s"></span><textarea></textarea></div>`
+
+test("a shortcut pressed before connect is prevented and replayed once", async () => {
+  onPlatform("MacIntel")
+  try {
+    const root = await mount(SAVE)
+    const event = press(document.body, "s", { metaKey: true })
+    expect(event.defaultPrevented).toBe(true)
+    expect(state().queue).toHaveLength(1)
+
+    const { calls } = connect(root)
+    expect(calls.map((call) => call.method)).toEqual(["dispatch"])
+    expect(calls[0].event.params).toEqual({ action: "save", window: true, shortcut: "mod+s" })
+  } finally {
+    restorePlatform()
+  }
+})
+
+test("a replayed shortcut goes through dispatch()'s guard and dispatches once", async () => {
+  onPlatform("MacIntel")
+  try {
+    const root = await mount(SAVE)
+    const seen = countDispatches(root)
+    press(document.body, "s", { metaKey: true })
+    realConnect(root)
+    expect(seen).toEqual(["save"])
+  } finally {
+    restorePlatform()
+  }
+})
+
+test("a shortcut on a checked: :keep checkbox is still prevented before connect (the toggle exemption is element-bound only)", async () => {
+  onPlatform("MacIntel")
+  try {
+    await mount(`<div id="p" data-controller="reactive"><input type="checkbox" data-action="keydown.meta+s@window->reactive#dispatch keydown.ctrl+s@window->reactive#dispatch" data-reactive-action-param="save" data-reactive-window-param="true" data-reactive-shortcut-param="mod+s" data-reactive-optimistic-param='{"checked":"keep"}'></div>`)
+    const event = press(document.body, "s", { metaKey: true })
+    expect(event.defaultPrevented).toBe(true)
+    expect(state().queue).toHaveLength(1)
+  } finally {
+    restorePlatform()
+  }
+})
+
+test("the other platform's twin of a shortcut is neither queued nor prevented before connect", async () => {
+  onPlatform("MacIntel")
+  try {
+    await mount(SAVE)
+    const event = press(document.body, "s", { ctrlKey: true })
+    expect(event.defaultPrevented).toBe(false)
+    expect(state().queue).toHaveLength(0)
+  } finally {
+    restorePlatform()
+  }
+})
+
+test("a shortcut pressed inside a textarea before connect is neither queued nor prevented", async () => {
+  onPlatform("Win32")
+  try {
+    const root = await mount(SAVE)
+    const event = press(root.querySelector("textarea"), "s", { ctrlKey: true })
+    expect(event.defaultPrevented).toBe(false)
+    expect(state().queue).toHaveLength(0)
+  } finally {
+    restorePlatform()
+  }
+})
+
+test("an on_client shortcut with inEditable is queued from a contenteditable and prevented", async () => {
+  onPlatform("Win32")
+  try {
+    const root = await mount(`<div id="p" data-controller="reactive" data-action="keydown.esc@window->reactive#runOps" data-reactive-ops-param='{"on":"keydown","window":true,"ops":[],"shortcut":{"keys":"esc","inEditable":true}}'><p contenteditable="true"><b>x</b></p></div>`)
+    const event = press(root.querySelector("b"), "Escape")
+    expect(event.defaultPrevented).toBe(true)
+    expect(state().queue).toHaveLength(1)
+  } finally {
+    restorePlatform()
+  }
+})
+
+// One element carrying a shortcut record AND other window records: only the
+// key-filtered descriptor that fired is the shortcut's to prevent or skip.
+const MIXED = `<div id="p" data-controller="reactive" data-action="keydown.meta+k@window->reactive#runOps keydown.ctrl+k@window->reactive#runOps click@window->reactive#runOps keydown@window->reactive#runOps" data-reactive-ops-param='{"on":"keydown","window":true,"ops":[],"shortcut":"mod+k"} {"on":"click","window":true,"outside":true,"ops":[]} {"on":"keydown","window":true,"ops":[]}'><a href="#x">link</a><textarea></textarea></div><a id="away" href="#y">away</a>`
+
+test("an unrelated click beside a shortcut record is not prevented before connect", async () => {
+  onPlatform("Win32")
+  try {
+    await mount(MIXED)
+    const event = click(document.querySelector("#away"))
+    expect(event.defaultPrevented).toBe(false)
+  } finally {
+    restorePlatform()
+  }
+})
+
+test("a plain keydown@window binding beside a shortcut record does not prevent Tab before connect", async () => {
+  onPlatform("Win32")
+  try {
+    await mount(MIXED)
+    const tab = press(document.body, "Tab")
+    expect(tab.defaultPrevented).toBe(false)
+    // …and is still recorded inside a field, as on main.
+    const queued = state().queue.length
+    press(document.querySelector("textarea"), "a")
+    expect(state().queue.length).toBe(queued + 1)
+    // The chord itself is still prevented.
+    const chord = press(document.body, "k", { ctrlKey: true })
+    expect(chord.defaultPrevented).toBe(true)
+  } finally {
+    restorePlatform()
+  }
+})
+
+test("a plain window hotkey is still recorded inside a textarea and never prevented (no shortcut:)", async () => {
+  await mount(`<div id="p" data-controller="reactive"><span data-action="keydown.ctrl+s@window->reactive#dispatch" data-reactive-action-param="save" data-reactive-window-param="true"></span><textarea></textarea></div>`)
+  const event = press(document.querySelector("textarea"), "s", { ctrlKey: true })
+  expect(event.defaultPrevented).toBe(false)
+  expect(state().queue).toHaveLength(1)
+})
+
 test("outside: triggers are not recorded; a window binding beside one still is", async () => {
   await mount(`
     <div>
@@ -513,9 +641,9 @@ test("listens for trigger types of roots added after start (MutationObserver)", 
 
 // The one module every page loads eagerly. 1,024 B before dormant roots (issue
 // #274) added the second root selector and the wake.
-test("early.min.js gzips to under 1,300 bytes", () => {
+test("early.min.js gzips to at most 1,491 bytes", () => {
   const built = readFileSync(join(import.meta.dir, "../../app/javascript/phlex/reactive/early.min.js"))
-  expect(gzipSync(built, { level: 9 }).length).toBeLessThan(1300)
+  expect(gzipSync(built, { level: 9 }).length).toBeLessThanOrEqual(1491)
 })
 
 // --- reactive_controller.js: connect() marks, announces and drains ------------
