@@ -1,0 +1,62 @@
+spec/support/fake_pgbus_presence.rb
+  s_3e21f559b0ae6d::t_577823d4c8182a 8-9,11-13
+  s_3e21f559b0ae6d::t_aa75e4b2be5062 104-106,109-110,113,115
+  s_3e21f559b0ae6d::t_77d2cf2131e4f3 111-112,114
+spec/requests/presence_page_spec.rb
+  s_3e21f559b0ae6d::t_c4cd6de44fe32f 19-20
+spec/system/presence_spec.rb
+  s_3e21f559b0ae6d::t_ee50695a27dac2 17-19,21-22,24-27
+  s_3e21f559b0ae6d::t_e98dc98f7779bb 20,23
+spec/dummy/app/components/todo_viewers_component.rb
+  s_3e21f559b0ae6d::t_667c25290a5c91 43-44
+spec/phlex/reactive/presence_spec.rb
+  s_3e21f559b0ae6d::t_4f6d1f1e1f0855 60-76
+  s_3e21f559b0ae6d::t_f12a33f827f263 34-54
+spec/support/prepare_pgbus_db.rb
+  s_3e21f559b0ae6d::t_6d3ddd7b6d0b72 20-32
+  s_3e21f559b0ae6d::t_b287afdc597c69 35
+spec/dummy/config/routes.rb
+  s_3e21f559b0ae6d::t_620ca4c2b47bb8 8-16
+spec/javascript/reactive_presence.test.js
+  s_3e21f559b0ae6d::t_4da558ed50bdbe 124-173
+  s_3e21f559b0ae6d::t_80fbd441339008 212-287
+  s_3e21f559b0ae6d::t_ea24b31ad6c9bd 331-363
+app/javascript/phlex/reactive/features/presence.js
+  s_3e21f559b0ae6d::t_53f067e86ee010 40-43
+  s_3e21f559b0ae6d::t_28f8fd0f6a03ed 51
+  s_3e21f559b0ae6d::t_d51b2a4bd4043b 134-135
+  s_3e21f559b0ae6d::t_27b03188422d42 170-178
+  s_3e21f559b0ae6d::t_0c38aabbab86aa 148
+  s_3e21f559b0ae6d::t_6e5f07da4562f7 8
+  s_3e21f559b0ae6d::t_2eff5e0da431df 136-147,149-160
+  s_3e21f559b0ae6d::t_69b77cb41f7e0a 105-117
+  s_3e21f559b0ae6d::t_02acd97040c908 186,189
+  s_3e21f559b0ae6d::t_f07c735001ae2b 126-128
+spec/requests/presence_set_spec.rb
+  s_3e21f559b0ae6d::t_baf0c4565e8827 44-55
+lib/phlex/reactive/presence/component_methods.rb
+  s_3e21f559b0ae6d::t_8b83920f12fe91 59-62,65-66
+  s_3e21f559b0ae6d::t_0c4b367fb590cf 98,101-104
+lib/phlex/reactive/presence/transport.rb
+  s_3e21f559b0ae6d::t_0295c0dc839b9e 78-82
+lib/phlex/reactive/presence.rb
+  s_3e21f559b0ae6d::t_2b56814ac80d03 133
+spec/dummy/config/initializers/pgbus.rb
+  s_3e21f559b0ae6d::t_6fe9b4258d7e0c 26-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f57b6d6fb197dcb2b6ac1933365045efe9902073",
+  "prompts": {},
+  "sessions": {
+    "s_3e21f559b0ae6d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f363c29e-c9cb-4446-bf3f-d04d38769294",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
