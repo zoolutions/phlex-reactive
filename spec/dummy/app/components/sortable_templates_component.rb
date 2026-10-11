@@ -16,6 +16,6 @@ class SortableTemplatesComponent < ApplicationComponent
   private
 
   def template_row(key)
-    li(**mix(reactive_sortable_item(key), data: { testid: "template-#{key}" })) { key }
+    li(**mix(reactive_sortable_item(key), tabindex: -1, data: { testid: "template-#{key}" })) { key }
   end
 end

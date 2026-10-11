@@ -133,10 +133,13 @@ function pointerDown(event, core) {
 
   const x0 = event.clientX
   const y0 = event.clientY
+  // Only the pointer that pressed drives the drag: a second finger is not it.
+  const mine = (e) => e.pointerId === event.pointerId
   const touch = event.pointerType === "touch"
   let ready = !touch
   const timer = touch && setTimeout(() => (ready = true), PRESS_MS)
   const move = (e) => {
+    if (!mine(e)) return
     if (drag) return follow(e.clientX, e.clientY)
     if (Math.abs(e.clientX - x0) <= THRESHOLD && Math.abs(e.clientY - y0) <= THRESHOLD) return
     // A finger that moves before the press is up is scrolling.
@@ -146,15 +149,17 @@ function pointerDown(event, core) {
   }
   // While a touch drag is on, the page must not scroll under it.
   const hold = (e) => drag && e.cancelable && e.preventDefault()
-  const up = () => {
+  const up = (e) => {
+    if (!mine(e)) return
     end()
     if (drag) suppressClick(), drop()
   }
-  const abort = () => {
+  const abort = (e) => {
+    if (e.type === "pointercancel" && !mine(e)) return
     end()
     if (drag) cancel()
   }
-  const escape = (e) => e.key === "Escape" && drag && (e.preventDefault(), abort())
+  const escape = (e) => e.key === "Escape" && drag && (e.preventDefault(), abort(e))
   const on = [
     ["pointermove", move],
     ["pointerup", up],
@@ -171,7 +176,7 @@ function pointerDown(event, core) {
 
 // The click a pointer drag ends with (over a button in the row) is not one.
 function suppressClick() {
-  const stop = (event) => event.stopPropagation()
+  const stop = (event) => (event.preventDefault(), event.stopPropagation())
   window.addEventListener("click", stop, { capture: true, once: true })
   setTimeout(() => window.removeEventListener("click", stop, { capture: true }))
 }
@@ -293,7 +298,9 @@ function scroll(x, y) {
 function keyDown(event, core) {
   const key = event.key
   if (drag?.keyboard) {
-    if (event.target !== drag.row) return
+    // (A nested root's row bubbles to every ancestor root: only the root that
+    // picked the row up answers.)
+    if (event.target !== drag.row || drag.core !== core) return
     const handled = {
       " ": drop,
       Enter: drop,
@@ -390,22 +397,34 @@ function drop() {
   const from = target === origin ? "self" : source ? attr(origin, "-source") : (attr(origin, "-name") ?? "list")
   const action = json(attr(target, "-from"), {})[from] ?? attr(target)
   const params = { ...json(attr(target, "-params"), {}), item: keyOf(record.item), position: index, after, from }
-  // The ids of the list and its ancestors: a reply stream that replaces or
-  // updates one of them rendered the list (read now — a replace detaches it).
-  const ids = []
-  for (let el = target; el; el = el.parentElement) if (el.id) ids.push(el.id)
+  // The list and its ancestors: a reply stream that replaces or updates one
+  // of them (by id, or by a `targets:` selector) rendered the list (read now —
+  // a replace detaches it).
+  const chain = []
+  for (let el = target; el; el = el.parentElement) chain.push(el)
   const sent = cores.get(rootOf(target))?.proceed(target, action, JSON.stringify(params), json(attr(target, "-busy")))
   if (source) return
-  Promise.resolve(sent).then((html) => renders(html, ids) || restore(record))
+  Promise.resolve(sent).then((html) => renders(html, chain) || restore(record))
 }
 
-function renders(html, ids) {
+function renders(html, chain) {
   if (!html) return false
   const template = document.createElement("template")
   template.innerHTML = html
   return [...template.content.querySelectorAll("turbo-stream")].some(
-    (stream) => /^(replace|update)$/.test(stream.getAttribute("action")) && ids.includes(stream.getAttribute("target")),
+    (stream) => /^(replace|update)$/.test(stream.getAttribute("action")) && hits(stream, chain),
   )
+}
+
+function hits(stream, chain) {
+  const target = stream.getAttribute("target")
+  if (target) return chain.some((el) => el.id === target)
+  const selector = stream.getAttribute("targets")
+  try {
+    return Boolean(selector) && chain.some((el) => el.matches(selector))
+  } catch {
+    return false // an invalid selector renders nothing
+  }
 }
 
 function cancel() {
