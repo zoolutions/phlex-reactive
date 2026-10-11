@@ -1,0 +1,49 @@
+app/javascript/phlex/reactive/features/sortable.js
+  s_fb38037c533860::t_9bca32a279aceb 136-137,142,152-153,157-158,162,179,301-303,400-404,407,410,415,419-427
+CHANGELOG.md
+  s_fb38037c533860::t_9bca32a279aceb 16-17
+docs/app/models/card.rb
+  s_fb38037c533860::t_9bca32a279aceb 25-28,31-35,38-50
+spec/phlex/reactive/sortable_helpers_spec.rb
+  s_fb38037c533860::t_9bca32a279aceb 158-167
+docs/app/views/docs/pages/example_project_board.rb
+  s_fb38037c533860::t_9bca32a279aceb 15,83
+docs/app/views/docs/pages/performance.rb
+  s_fb38037c533860::t_a31278bd560a80 1161,1193
+docs/app/views/docs/pages/sortable_lists.rb
+  s_fb38037c533860::t_9bca32a279aceb 43,126,135-138,230-234
+README.md
+  s_fb38037c533860::t_9bca32a279aceb 1657,1684-1685
+docs/app/models/demo.rb
+  s_fb38037c533860::t_9bca32a279aceb 105
+spec/dummy/app/components/sortable_templates_component.rb
+  s_fb38037c533860::t_9bca32a279aceb 19
+spec/requests/sortable_list_spec.rb
+  s_fb38037c533860::t_9bca32a279aceb 1-28
+docs/app/reactive_components/sortable_templates_component.rb
+  s_fb38037c533860::t_9bca32a279aceb 21-24
+lib/phlex/reactive/component/sortable.rb
+  s_fb38037c533860::t_9bca32a279aceb 186-189,191,198-204
+docs/spec/requests/project_board_spec.rb
+  s_fb38037c533860::t_9bca32a279aceb 58-66,127-128
+spec/dummy/app/components/sortable_list_component.rb
+  s_fb38037c533860::t_9bca32a279aceb 29
+spec/javascript/reactive_sortable.test.js
+  s_fb38037c533860::t_9bca32a279aceb 588-632
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e48e5896642e431f003d7d107dc3ab4f14986e78",
+  "prompts": {},
+  "sessions": {
+    "s_fb38037c533860": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9f689cc-9812-4ee9-89c0-dfa4c5e4b757",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
