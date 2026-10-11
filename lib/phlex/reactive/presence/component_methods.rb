@@ -56,9 +56,14 @@ module Phlex
 
         # The root's subscription marker (reactive_attrs): the signed SSE src of
         # the presence stream. The client mints the <pgbus-stream-source> from it.
+        # And the seats this render saw: a template need not render an element
+        # per tab, so the client diffs these for reactive:presence and checks
+        # them to know its own tab is on the roster. Seats only (pgbus limits
+        # them to [A-Za-z0-9_-]), never a member or connection id.
         def reactive_presence_data
           Presence.require_capable!(self.class)
-          { reactive_presence: Transport.source_src(reactive_presence_stream_name) }
+          { reactive_presence: Transport.source_src(reactive_presence_stream_name),
+            reactive_presence_roster: presence.peers.filter_map(&:seat).join(" ") }
         end
 
         private
@@ -90,9 +95,13 @@ module Phlex
           return if connection_id.nil?
 
           merged = (presence.me&.state || {}).merge(state.transform_keys(&:to_sym)).transform_keys(&:to_s)
-          Transport.set_state(reactive_presence_stream_name, connection_id:,
+          written = Transport.set_state(reactive_presence_stream_name, connection_id:,
             state: merged.merge(NOTE_KEY => reactive_presence_note))
           @reactive_presence_roster = nil
+          # No row yet (the announce can outrun pgbus's join): nothing changed
+          # for the peers; the client announces again until it sees itself.
+          return if written.nil?
+
           Presence.broadcast(self.class.from_identity(reactive_identity_payload), exclude: connection_id)
           presence.me
         end

@@ -130,7 +130,7 @@ module Phlex
         # Morph `component`'s roster into its stream's viewers.
         def broadcast(component, exclude:)
           Phlex::Reactive::Streamable.broadcast_component(
-            component.class, :replace, component, component, [component.reactive_presence_stream_parts],
+            component.class, :replace, component, component, [component.reactive_presence_stream_name],
             morph: true, target: nil, exclude:, visible_to: nil, coalesce: COALESCE_MS
           )
         end

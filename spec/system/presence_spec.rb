@@ -14,6 +14,17 @@ RSpec.describe "Presence (issue #358)", :pgbus, type: :system do
     skip "needs pgbus with per-connection presence (zoolutions/pgbus#515)" unless Phlex::Reactive::Presence.capable?
   end
 
+  # A join, leave or expiry re-renders the roster in PresenceRenderJob (a state
+  # change renders in the action itself). The dummy's adapter is :test, which
+  # never performs; run jobs in-process, as an app's adapter would.
+  around do
+    saved = ActiveJob::Base.queue_adapter
+    ActiveJob::Base.queue_adapter = :async
+    it.run
+  ensure
+    ActiveJob::Base.queue_adapter = saved
+  end
+
   def seats = page.all("[data-reactive-presence-peer]", visible: :all).map { it["data-reactive-presence-peer"] }.uniq
 
   def open_roster

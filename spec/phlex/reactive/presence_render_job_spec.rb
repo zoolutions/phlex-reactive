@@ -9,7 +9,7 @@ require_relative "../../support/fake_pgbus_presence"
 # leaves on each seat row and rebuilds every component class it names.
 RSpec.describe Phlex::Reactive::PresenceRenderJob do
   let(:todo) { Todo.create!(title: "Ship it") }
-  let(:stream_name) { "#{todo.to_gid_param}:presence:viewers" }
+  let(:stream_name) { Pgbus.stream_key(todo, :presence, :viewers) }
   let(:note) { { "c" => "TodoViewersComponent", "gid" => todo.to_gid.to_s } }
 
   before do
@@ -27,7 +27,7 @@ RSpec.describe Phlex::Reactive::PresenceRenderJob do
 
     expect(Phlex::Reactive::Streamable).to have_received(:broadcast_component).once
       .with(TodoViewersComponent, :replace, an_instance_of(TodoViewersComponent), anything,
-        [[todo, :presence, :viewers]],
+        [stream_name],
         hash_including(morph: true, exclude: nil, coalesce: Phlex::Reactive::Presence::COALESCE_MS))
   end
 

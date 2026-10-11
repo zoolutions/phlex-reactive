@@ -40,6 +40,8 @@ class TodoViewersComponent < ApplicationComponent
     li(**mix(reactive_presence_member(member), data: { testid: "member-#{member.id}" })) do
       plain member.metadata["name"].to_s
       span(data: { testid: "seats" }) { member.seats.size.to_s } if member.seats.size > 1
+      # One dot per tab: the client marks this tab's own -me.
+      member.seats.each { dot(it) }
     end
   end
 

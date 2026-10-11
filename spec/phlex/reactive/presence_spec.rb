@@ -9,7 +9,7 @@ require_relative "../../support/fake_pgbus_presence"
 # default suite has no pgbus; FakePgbusPresence stubs the #515 transport shape.
 RSpec.describe Phlex::Reactive::Presence, "reactive_presence (issue #358)" do
   let(:todo) { Todo.create!(title: "Ship it") }
-  let(:stream_name) { "#{todo.to_gid_param}:presence:viewers" }
+  let(:stream_name) { Pgbus.stream_key(todo, :presence, :viewers) }
 
   def render_html(component) = Phlex::Reactive.render(component)
 
@@ -31,9 +31,47 @@ RSpec.describe Phlex::Reactive::Presence, "reactive_presence (issue #358)" do
       expect(TodoViewersComponent.skip_verify_authorized?(:other)).to be(false)
     end
 
+    # Real SSE: the raw "<gid param>:presence:<name>" overflows pgbus's
+    # stream-name budget (41 chars) once the record's id has two digits —
+    # StreamNameTooLong on render. pgbus's stream_key digests the record to a
+    # fixed length and keeps the ":presence:<name>" suffix the patterns match.
+    context "with a record whose global id is long" do
+      let(:todo) { Todo.create!(id: 987_654_321, title: "Ship it") }
+
+      it "keys the stream with pgbus's stream_key and renders, writes and broadcasts on it" do
+        component = TodoViewersComponent.new(todo:)
+        expect(component.reactive_presence_stream_name).to eq(Pgbus.stream_key(todo, :presence, :viewers))
+        expect(component.reactive_presence_stream_name).to end_with(":presence:viewers")
+        expect(render_html(component)).to include(%(data-reactive-presence="/pgbus/streams/signed-#{stream_name}"))
+
+        allow(Phlex::Reactive::Streamable).to receive(:broadcast_component)
+        presence.join(member_id: 1, connection_id: "c9", seat: "seat-z", metadata: {})
+        described_class.with_connection_id("c9") { component.presence.set(selected: 1) }
+        expect(Phlex::Reactive::Streamable).to have_received(:broadcast_component)
+          .with(TodoViewersComponent, :replace, anything, anything, [stream_name], anything)
+      end
+    end
+
     it "marks the root with the signed presence stream src" do
       html = render_html(TodoViewersComponent.new(todo:))
       expect(html).to include(%(data-reactive-presence="/pgbus/streams/signed-#{stream_name}"))
+    end
+
+    # Real SSE: a roster need not render an element per tab (this one shows
+    # people, and tabs only where they selected a step), so the root itself
+    # names the seats it rendered — what the client diffs for reactive:presence
+    # and checks to know its own tab is on the roster. Seats only: no member id
+    # or connection id rides on it.
+    it "names every seat it rendered on the root, whatever the template shows" do
+      html = render_html(TodoViewersComponent.new(todo:))
+      expect(html).to include(%(data-reactive-presence-roster="seat-a seat-b seat-c"))
+    end
+
+    it "names no seats on the root of an empty roster" do
+      presence.leave(connection_id: "c1")
+      presence.leave(connection_id: "c2")
+      presence.leave(connection_id: "c3")
+      expect(render_html(TodoViewersComponent.new(todo:))).to include(%(data-reactive-presence-roster=""))
     end
 
     it "lists one peer per tab and groups them by member" do
@@ -85,7 +123,7 @@ RSpec.describe Phlex::Reactive::Presence, "reactive_presence (issue #358)" do
         row = presence.members.find { it["connection_id"] == "c1" }
         expect(row["state"]).to eq("selected" => 3, "_rp" => { "c" => "TodoViewersComponent", "gid" => todo.to_gid.to_s })
         expect(Phlex::Reactive::Streamable).to have_received(:broadcast_component)
-          .with(TodoViewersComponent, :replace, anything, anything, [[todo, :presence, :viewers]],
+          .with(TodoViewersComponent, :replace, anything, anything, [stream_name],
             hash_including(morph: true, exclude: "c1", coalesce: Phlex::Reactive::Presence::COALESCE_MS))
       end
 

@@ -9,7 +9,7 @@ require_relative "../support/fake_pgbus_presence"
 # on the row of the connection the X-Reactive-Presence header names.
 RSpec.describe "presence_set (issue #358)", type: :request do
   let(:todo) { Todo.create!(title: "Ship it") }
-  let(:stream_name) { "#{todo.to_gid_param}:presence:viewers" }
+  let(:stream_name) { Pgbus.stream_key(todo, :presence, :viewers) }
   let(:presence) { Pgbus.stream(stream_name).presence }
 
   before do
@@ -39,6 +39,18 @@ RSpec.describe "presence_set (issue #358)", type: :request do
     expect(state_of("conn-b")).to eq({})
     expect(Phlex::Reactive::Streamable).to have_received(:broadcast_component)
       .with(TodoViewersComponent, :replace, anything, anything, anything, hash_including(exclude: "conn-a"))
+  end
+
+  # Real SSE: pgbus's client hears pgbus:connected before the dispatcher has
+  # inserted the row, so the first announce can name a connection with no row.
+  # Nothing changed, so the peers get no broadcast; the actor still gets its
+  # morph (the client re-announces until it sees itself).
+  it "broadcasts nothing when the connection has no row yet, and still morphs the actor" do
+    set_state({}, connection: "conn-not-joined-yet")
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include('method="morph"')
+    expect(Phlex::Reactive::Streamable).not_to have_received(:broadcast_component)
   end
 
   it "shows the actor its own selection in the reply" do

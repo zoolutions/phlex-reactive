@@ -75,7 +75,11 @@ module Phlex
 
           # The stream name the transport (and every Turbo broadcast) uses for
           # these parts.
-          def stream_name(parts) = ::Pgbus::Streams::Stream.name_from(parts)
+          # pgbus's stream key: a record becomes a fixed-length digest, so the
+          # name fits pgbus's queue-name budget whatever the record's id (the raw
+          # "<gid param>:presence:<name>" overflows it); ":presence:<name>" stays
+          # the suffix the presence patterns match.
+          def stream_name(parts) = ::Pgbus.stream_key(*parts)
 
           # The signed SSE URL a <pgbus-stream-source> subscribes with.
           def source_src(stream_name) = Phlex::Reactive::Defer.stream_src(stream_name)

@@ -121,6 +121,56 @@ test("a presence root mints one hidden presence source in <body> (pgbus's elemen
   expect(document.querySelectorAll("pgbus-stream-source").length).toBe(1)
 })
 
+// Real SSE (found under TRANSPORT=pgbus): the pgbus client is an async module
+// script, so the reactive controller can connect BEFORE <pgbus-stream-source>
+// is defined. The source must still be minted — it upgrades when pgbus's module
+// defines the element — and the missing-client error waits for a grace period.
+test("a root that connects before pgbus defines its element still mints the source; no error yet", () => {
+  const errors = []
+  const savedError = console.error
+  const savedTimeout = globalThis.setTimeout
+  const timers = []
+  console.error = (...args) => errors.push(args.join(" "))
+  globalThis.customElements = { get: () => undefined }
+  globalThis.setTimeout = (fn, ms) => timers.push({ fn, ms })
+  try {
+    mount(roster(""))
+    const el = source()
+    expect(el).not.toBeNull()
+    expect(el.hasAttribute("presence")).toBe(true)
+    expect(el.getAttribute("src")).toBe("/pgbus/streams/signed-board")
+    expect(errors).toEqual([])
+
+    // Still undefined after the grace period: now it is a misconfiguration.
+    for (const { fn } of timers) fn()
+    expect(errors.length).toBe(1)
+    expect(errors[0]).toContain("needs the pgbus client")
+  } finally {
+    console.error = savedError
+    globalThis.setTimeout = savedTimeout
+  }
+})
+
+test("a root whose pgbus element gets defined within the grace period logs nothing", () => {
+  const errors = []
+  const savedError = console.error
+  const savedTimeout = globalThis.setTimeout
+  const timers = []
+  let defined = false
+  console.error = (...args) => errors.push(args.join(" "))
+  globalThis.customElements = { get: () => (defined ? class {} : undefined) }
+  globalThis.setTimeout = (fn, ms) => timers.push({ fn, ms })
+  try {
+    mount(roster(""))
+    defined = true
+    for (const { fn } of timers) fn()
+    expect(errors).toEqual([])
+  } finally {
+    console.error = savedError
+    globalThis.setTimeout = savedTimeout
+  }
+})
+
 test("on connect it announces the tab: presence_set with {}, sent on the presence connection", async () => {
   // The app's own stream source comes first on the page.
   document.body.innerHTML = '<pgbus-stream-source id="app" connection-id="app-conn"></pgbus-stream-source>'
@@ -158,6 +208,82 @@ test("js.presence waits for the connection, then sends the merged state; a recon
   expect(requests.at(-1).body.params).toEqual({ selected: 7, typing: true })
   expect(requests.at(-1).headers["X-Reactive-Presence"]).toBe("conn-2")
 })
+
+// Real SSE (found under TRANSPORT=pgbus): pgbus's client hears pgbus:connected
+// BEFORE the server's dispatcher has inserted the tab's presence row, so the
+// first announce can land on no row. The tab re-announces until it sees its
+// own seat on the roster, a bounded number of times.
+function withTimers(fn) {
+  const timers = []
+  const savedTimeout = globalThis.setTimeout
+  const savedClear = globalThis.clearTimeout
+  globalThis.setTimeout = (cb, ms) => {
+    if (!ms) return savedTimeout(cb, 0)
+    timers.push(cb)
+    return timers.length
+  }
+  globalThis.clearTimeout = (id) => {
+    if (typeof id === "number" && id <= timers.length && timers[id - 1]) timers[id - 1] = null
+    else savedClear(id)
+  }
+  const fire = async () => {
+    const pending = timers.splice(0).filter(Boolean)
+    for (const cb of pending) cb()
+    await flush()
+  }
+  return fn(fire).finally(() => {
+    globalThis.setTimeout = savedTimeout
+    globalThis.clearTimeout = savedClear
+  })
+}
+
+test("an announce that lands before the row exists is re-sent until the roster shows this tab", () =>
+  withTimers(async (fire) => {
+    mount(roster(""))
+    connected()
+    await flush()
+    expect(requests.length).toBe(1)
+
+    // The reply rendered a roster without this tab: send again.
+    await morph(peers([["other-seat", "u2"]]))
+    await fire()
+    expect(requests.length).toBe(2)
+    expect(requests[1].body.act).toBe("presence_set")
+
+    // Now this tab is on the roster: no more sends.
+    await morph(peers([["other-seat", "u2"], [presenceSeat(), "u1"]]))
+    await fire()
+    await fire()
+    expect(requests.length).toBe(2)
+  }))
+
+test("a roster that already shows this tab is not re-announced", () =>
+  withTimers(async (fire) => {
+    mount(roster(peers([[presenceSeat(), "u1"]])))
+    connected()
+    await flush()
+    await fire()
+    await fire()
+    expect(requests.length).toBe(1)
+  }))
+
+test("a tab that never appears stops re-announcing after the cap and warns once", () =>
+  withTimers(async (fire) => {
+    const warns = []
+    const saved = console.warn
+    console.warn = (...args) => warns.push(args.join(" "))
+    try {
+      mount(roster(""))
+      connected()
+      await flush()
+      for (let i = 0; i < 8; i++) await fire()
+      expect(requests.length).toBe(4)
+      expect(warns.length).toBe(1)
+      expect(warns[0]).toContain("authorize:")
+    } finally {
+      console.warn = saved
+    }
+  }))
 
 test("js.presence outside a presence root warns and sends nothing", async () => {
   const warn = mock(() => {})
@@ -201,6 +327,39 @@ test("after a morph it re-marks me and reports the seats that joined and left; a
   await morph(peers([[me, "2"]]))
   expect(events.at(-1)).toEqual({ joined: [], left: ["ada"], me })
 })
+
+// The root names the seats its render saw (data-reactive-presence-roster): a
+// roster that shows people, not tabs, still reports joins and leaves.
+const setRoster = (seats, id = "viewers") => document.getElementById(id).setAttribute("data-reactive-presence-roster", seats)
+
+test("joins and leaves come from the root's seat list when the template renders no element per tab", async () => {
+  mount(roster(""))
+  setRoster("")
+  const events = []
+  document.getElementById("viewers").addEventListener("reactive:presence", (event) => events.push(event.detail))
+  // Re-read the starting seats from the attribute.
+  await morph("")
+  events.length = 0
+
+  setRoster("ada bob")
+  await morph('<li data-reactive-presence-member="u1"></li>')
+  expect(events).toEqual([{ joined: ["ada", "bob"], left: [], me: presenceSeat() }])
+
+  setRoster("bob")
+  await morph('<li data-reactive-presence-member="u1"></li>')
+  expect(events.at(-1)).toEqual({ joined: [], left: ["ada"], me: presenceSeat() })
+})
+
+test("a tab named on the root's seat list is on the roster: no re-announce, even with no element for it", () =>
+  withTimers(async (fire) => {
+    mount(roster(""))
+    setRoster(presenceSeat())
+    connected()
+    await flush()
+    await fire()
+    await fire()
+    expect(requests.length).toBe(1)
+  }))
 
 test("a replace of the root keeps its source; a root that goes away removes it", async () => {
   const [first] = mount(roster(""))

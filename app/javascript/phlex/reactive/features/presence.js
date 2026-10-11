@@ -5,6 +5,7 @@
 // The markup is the Ruby side's (reactive_presence and its helpers):
 //
 //   data-reactive-presence="<signed src>"    the roster root; its stream
+//   data-reactive-presence-roster="<seats>"  on the root: the seats rendered
 //   data-reactive-presence-peer="<seat>"     a tab's element
 //   data-reactive-presence-member="<id>"     a person's (or a tab's) element
 //
@@ -36,10 +37,10 @@
 // no state, gets its state back. The runtime sends the source's connection id
 // as X-Reactive-Presence, so the write lands on this tab's row.
 //
-// Events. The module keeps the seats it last saw in the root; when a morph
-// changes them it dispatches reactive:presence on the root with
-// { joined, left, me } — from the DOM, so a replayed frame that changes
-// nothing fires nothing.
+// Events. The module keeps the seats it last saw in the root (the root's
+// data-reactive-presence-roster list); when a morph changes them it dispatches
+// reactive:presence on the root with { joined, left, me } — from the DOM, so a
+// replayed frame that changes nothing fires nothing.
 //
 // This module never imports the core: it reaches a controller through the
 // `core` handle (core.proceed, core.emit).
@@ -47,6 +48,7 @@
 const SOURCE = "reactive-presence-src-"
 const PEER = "data-reactive-presence-peer"
 const MEMBER = "data-reactive-presence-member"
+const ROSTER = "data-reactive-presence-roster"
 
 // root id -> { root, core, state, seats, removing, off }: what a root's
 // connection left behind, kept across a replace of the root.
@@ -100,12 +102,19 @@ function subscribe(root) {
   const found = document.getElementById(id)
   if (found && minted.has(found)) return
   found?.remove()
-  if (!globalThis.customElements?.get?.("pgbus-stream-source")) {
-    console.error(
-      "[phlex-reactive] reactive_presence needs the pgbus client (<pgbus-stream-source>) on this page — " +
-        `#${root.id} is not subscribed to its presence stream`,
-    )
-    return
+  // pgbus's client is an async module script, so this controller can connect
+  // before <pgbus-stream-source> is defined: mint the element anyway (it
+  // upgrades when pgbus defines it), and call a still-missing client a
+  // misconfiguration only after a grace period.
+  if (!defined()) {
+    setTimeout(() => {
+      if (!defined()) {
+        console.error(
+          "[phlex-reactive] reactive_presence needs the pgbus client (<pgbus-stream-source>) on this page — " +
+            `#${root.id} is not subscribed to its presence stream`,
+        )
+      }
+    }, 5000)
   }
   const source = document.createElement("pgbus-stream-source")
   source.id = id
@@ -114,10 +123,39 @@ function subscribe(root) {
   source.hidden = true
   source.addEventListener("pgbus:connected", () => {
     const entry = roots.get(root.id)
-    if (entry && !entry.removing) send(entry)
+    if (!entry || entry.removing) return
+    send(entry)
+    settle(entry, 0)
   })
   minted.add(source)
   document.body.appendChild(source)
+}
+
+const defined = () => !!globalThis.customElements?.get?.("pgbus-stream-source")
+
+// pgbus's client hears pgbus:connected before the server's dispatcher has
+// inserted the tab's presence row, so the announce can land on no row and
+// change nothing. Until the roster shows this tab's seat, announce again —
+// a bounded number of times, then say why it may never show.
+const SETTLE = [250, 500, 1000, 2500]
+
+function settle(entry, attempt) {
+  clearTimeout(entry.timer)
+  entry.timer = setTimeout(() => {
+    const root = entry.root
+    if (entry.removing || !root.isConnected) return
+    const mine = root.ownerDocument.getElementById(SOURCE + root.id)?.pgbusSeat
+    if (mine && seatsOf(root).has(mine)) return
+    if (attempt === SETTLE.length - 1) {
+      console.warn(
+        `[phlex-reactive] #${root.id} never appeared on its presence roster — is the pgbus stream app ` +
+          "mounted with an authorize: hook that returns the viewer's identity?",
+      )
+      return
+    }
+    send(entry)
+    settle(entry, attempt + 1)
+  }, SETTLE[attempt])
 }
 
 // Send the tab's state through presence_set — only once the source has a
@@ -129,6 +167,15 @@ function send(entry) {
   entry.core.proceed(root, "presence_set", JSON.stringify(entry.state ?? {}))
 }
 
+// The seats the root's render saw: the list the server names on the root
+// (data-reactive-presence-roster: a template need not render an element per
+// tab), or, without it, the tabs' own elements.
+function seatsOf(root) {
+  const named = root.getAttribute(ROSTER)
+  if (named != null) return new Set(named.split(" ").filter(Boolean))
+  return new Set([...root.querySelectorAll(`[${PEER}]`)].map((el) => el.getAttribute(PEER)))
+}
+
 // Mark "me" and this person's other elements, then report the seats that
 // joined or left since the last paint.
 function paint(entry) {
@@ -136,13 +183,10 @@ function paint(entry) {
   // The seat pgbus's element minted (undefined on a pgbus without seats).
   const mine = root.ownerDocument.getElementById(SOURCE + root.id)?.pgbusSeat
   const marked = root.querySelectorAll(`[${PEER}],[${MEMBER}]`)
-  const seats = new Set()
+  const seats = seatsOf(root)
   let member
   for (const el of marked) {
-    const peer = el.getAttribute(PEER)
-    if (peer == null) continue
-    seats.add(peer)
-    if (peer === mine) member = el.getAttribute(MEMBER)
+    if (el.getAttribute(PEER) === mine) member = el.getAttribute(MEMBER)
   }
   for (const el of marked) {
     const me = el.getAttribute(PEER) === mine

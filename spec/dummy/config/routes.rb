@@ -5,7 +5,15 @@ Rails.application.routes.draw do
 
   # Issue #187: under TRANSPORT=pgbus the dummy mounts pgbus so its SSE stream
   # endpoint (/pgbus/streams) is live and turbo_stream_from routes over it.
-  mount Pgbus::Engine => "/pgbus" if ENV["TRANSPORT"] == "pgbus" && defined?(Pgbus::Engine)
+  if ENV["TRANSPORT"] == "pgbus" && defined?(Pgbus::Engine)
+    # Issue #358: presence takes each connection's identity from the context
+    # the stream app's authorize: hook returns; the engine's own mount has no
+    # hook (every connection anonymous, so pgbus joins nobody). Mounted first,
+    # this stream app answers /pgbus/streams; the dummy has no sign-in, so
+    # every connection is the same guest.
+    mount Pgbus::Web::StreamApp.new(authorize: ->(_env, _stream) { { id: "guest" } }) => "/pgbus/streams"
+    mount Pgbus::Engine => "/pgbus"
+  end
 
   # Example pages exercised by system specs.
   get "counter" => "demos#counter"

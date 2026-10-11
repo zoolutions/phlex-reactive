@@ -5,7 +5,12 @@
 # its constants with these doubles. Each method mirrors one line of the
 # "Assumed pgbus #515 API" stitch list; swapping in the real pgbus means
 # deleting this file and running the specs against it.
+require "digest"
+
 module FakePgbusPresence
+  # pgbus's stream-name budget with the default queue prefix ("pgbus").
+  BUDGET = 41
+
   # One process-wide table: { stream_name => { connection_id => row } }.
   Store = Struct.new(:rows, :order) do
     def initialize = super({}, 0)
@@ -96,7 +101,18 @@ module FakePgbusPresence
     pgbus.define_singleton_method(:configuration) { config }
     pgbus.define_singleton_method(:stream) do |name, durable: nil|
       _ = durable
+      # Like pgbus: a stream name over the queue-name budget raises.
+      raise ArgumentError, "stream name #{name.inspect} is #{name.length} chars, over #{BUDGET}" if name.length > BUDGET
+
       Stream.new(name, presence_class.new(store, name))
+    end
+    # Like pgbus's Streams::Key: a record becomes "<param_key>_<digest>".
+    pgbus.define_singleton_method(:stream_key) do |*parts|
+      parts.flatten.map do
+        next it.to_s unless it.respond_to?(:model_name)
+
+        "#{it.model_name.param_key}_#{Digest::SHA256.hexdigest(it.id.to_s)[0, 16]}"
+      end.join(":")
     end
     example.stub_const("Pgbus", pgbus)
     example.stub_const("Pgbus::Streams", Module.new)
