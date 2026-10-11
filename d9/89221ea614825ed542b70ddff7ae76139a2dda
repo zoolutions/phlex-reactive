@@ -1,0 +1,108 @@
+spec/system/editable_text_spec.rb
+  s_fb38037c533860::t_0f17bbefbdf850 1-66,68,71-80,83-86
+  s_fb38037c533860::t_509c8e80f685ad 67,69-70,81-82
+Rakefile
+  s_fb38037c533860::t_61421dca00eda0 38
+app/javascript/phlex/reactive/core.min.js.map
+  ai_agent 5,8-9
+app/javascript/phlex/reactive/features/persist.js
+  s_fb38037c533860::t_4cbf3236e7353c 209-215,310,406,629-631
+docs/spec/system/editable_text_spec.rb
+  s_fb38037c533860::t_1565f16b835583 1-36
+app/javascript/phlex/reactive/features/bindings.min.js
+  ai_agent 1,3
+spec/phlex/reactive/editable_helpers_spec.rb
+  s_fb38037c533860::t_f978df06d98d56 97,99-100,109
+  s_fb38037c533860::t_196a248dc42a45 114-119
+  s_fb38037c533860::t_54763438b4c7b8 1-96,98,101-108,110-113,120-145
+CHANGELOG.md
+  s_fb38037c533860::t_2a44833abda2bd 11-26
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 5-6,8-9,16-17
+docs/app/views/docs/pages/editable_text.rb
+  s_fb38037c533860::t_24ae2afc8fd7a8 29,45,105,125
+  s_fb38037c533860::t_8864761d43f166 1-28,30-44,46-104,106-124,126-142
+spec/dummy/app/components/editable_title_component.rb
+  s_fb38037c533860::t_973a68473b0469 1-8,11-17,19-30,36-46,48-50
+  s_fb38037c533860::t_509c8e80f685ad 9-10,18,31-35,47
+app/javascript/phlex/reactive/core.min.js
+  ai_agent 1-5,7
+app/javascript/phlex/reactive/features/form.min.js
+  ai_agent 1,3
+docs/app/views/docs/pages/example_inline_edit.rb
+  s_fb38037c533860::t_9dffc34494be20 98-104
+spec/javascript/reactive_editable.test.js
+  s_fb38037c533860::t_88bb3f27ae1890 116,122,128,134-152
+  s_fb38037c533860::t_e13fe238e4b201 1-28,30-37,39-52,54-57,59-115,117-121,123-127,129-133,153-174,176-231,233-244,246-401
+  s_fb38037c533860::t_0e63169acbb75a 29,38,53,58,175,232,245
+README.md
+  s_fb38037c533860::t_2a44833abda2bd 683,1143-1145
+lib/phlex/reactive/component/editable.rb
+  s_fb38037c533860::t_0947eacebbacff 49-52
+  s_fb38037c533860::t_184b37c368736a 1-45,53-78
+  s_fb38037c533860::t_196a248dc42a45 46-48
+spec/dummy/public/vendor/core.js
+  ai_agent 1-5,7
+app/javascript/phlex/reactive/features/form.min.js.map
+  ai_agent 5,7-8
+app/javascript/phlex/reactive/features/persist.min.js
+  ai_agent 1,3
+spec/dummy/config/routes.rb
+  s_fb38037c533860::t_2bba93f8650a2e 64
+lib/phlex/reactive/component/helpers.rb
+  s_fb38037c533860::t_0947eacebbacff 16
+spec/dummy/app/controllers/demos_controller.rb
+  s_fb38037c533860::t_2bba93f8650a2e 345-348
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1-5,7
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1-5,7
+app/javascript/phlex/reactive/runtime.js
+  s_fb38037c533860::t_eda2fd0025d122 241-248,252,265-274,276-277,282-284,649-656,659,665-667,671-693,1255-1257,1267,1512-1514,1806-1809,2055-2057,3373-3374
+  s_fb38037c533860::t_195bf3bdacec99 657-658,660-664,668-670
+  s_fb38037c533860::t_3b9ce30c039389 275
+  s_fb38037c533860::t_5144acabfeac2b 3372
+spec/javascript/reactive_morph_focus.test.js
+  s_fb38037c533860::t_5144acabfeac2b 231,246-247
+spec/dummy/public/vendor/features/form.js
+  ai_agent 1,3
+spec/javascript/reactive_features.test.js
+  s_fb38037c533860::t_5144acabfeac2b 611-612
+spec/dummy/public/vendor/features/persist.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/features/bindings.js
+  s_fb38037c533860::t_ad5b164644bb33 177-187
+  s_fb38037c533860::t_af4b43ecd6f6bb 1602-1686
+docs/app/reactive_components/editable_card_component.rb
+  s_fb38037c533860::t_3bff2363734cf4 1-70
+app/javascript/phlex/reactive/features/persist.min.js.map
+  ai_agent 5,7-8
+app/javascript/phlex/reactive/features/form.js
+  s_fb38037c533860::t_62fd332a2a0dee 119-120,126-135
+docs/app/models/doc.rb
+  s_fb38037c533860::t_746a7150190d1c 19
+spec/javascript/bundle_budget.test.js
+  s_fb38037c533860::t_d984b53841c36f 104-107,130-132,140-142,148-151,174-176
+docs/app/views/docs/pages/example_todo_list.rb
+  s_fb38037c533860::t_9dffc34494be20 164-166
+app/javascript/phlex/reactive/features/bindings.min.js.map
+  ai_agent 5,7-8
+spec/dummy/public/vendor/features/bindings.js
+  ai_agent 1,3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d989221ea614825ed542b70ddff7ae76139a2dda",
+  "prompts": {},
+  "sessions": {
+    "s_fb38037c533860": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9f689cc-9812-4ee9-89c0-dfa4c5e4b757",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
