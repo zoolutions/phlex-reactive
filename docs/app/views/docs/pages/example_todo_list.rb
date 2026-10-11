@@ -163,7 +163,7 @@ module Views
               writing the fresh server value as the new default (issue #338);
               every other field takes the server's value. A focused
               [`reactive_editable`](/docs/editable-text) is held the same way:
-              its text and caret stay, its attributes morph (issue #351).
+              its text and caret stay, its other attributes morph (issue #351).
             MD
             DocsUI::Callout(:warning, title: 'Don’t render list items without a stable id') do
               md <<~MD

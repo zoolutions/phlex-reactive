@@ -36,6 +36,7 @@ beforeAll(async () => {
   mod = await import("../../app/javascript/phlex/reactive/reactive_controller.js")
   ReactiveController = mod.default
   bindings = await import("../../app/javascript/phlex/reactive/features/bindings.js")
+  mod.__resetReactiveMorphFocusForTest() // once: beforeEach registers on the shared window, no accumulation
 })
 
 beforeEach(() => {
@@ -48,8 +49,7 @@ beforeEach(() => {
   globalThis.CustomEvent = window.CustomEvent
   globalThis.MutationObserver = window.MutationObserver
   document.body.innerHTML = ""
-  mod.__resetReactiveMorphFocusForTest()
-  mod.registerReactiveMorphFocus()
+  mod.registerReactiveMorphFocus() // idempotent: the listener is added once (beforeAll)
   bindings.__setPlaintextOnlyForTest(true)
 })
 
@@ -114,6 +114,12 @@ test("a multiline editable posts its line breaks as \\n, minus one trailing newl
   const { controller, $ } = await mount(MULTI)
   $("p").innerHTML = "one<br>two<div>three</div><div><br></div>"
   expect(await collect(controller)).toEqual({ summary: "one\ntwo\nthree\n" })
+})
+
+test("a blank line the browser makes (<div><br></div> between blocks) survives", async () => {
+  const { controller, $ } = await mount(MULTI)
+  $("p").innerHTML = "<div>a</div><div><br></div><div>b</div>"
+  expect(await collect(controller)).toEqual({ summary: "a\n\nb" })
 })
 
 test("text nodes keep their own newlines and \\r\\n is normalised", async () => {

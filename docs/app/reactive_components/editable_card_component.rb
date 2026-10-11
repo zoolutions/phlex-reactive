@@ -29,7 +29,14 @@ class EditableCardComponent < Phlex::HTML
   def id = dom_id(@todo, 'editable_card')
 
   def rename(title:)
-    @todo.update!(title: title.squish) if title.present?
+    # A blank title is never saved; the card says so (the focused field keeps
+    # what was typed, so Escape is the way back to the saved title).
+    title = title.strip
+    if title.empty?
+      @blank_title = true
+    else
+      @todo.update!(title:)
+    end
     reply.morph
   end
 
@@ -64,6 +71,12 @@ class EditableCardComponent < Phlex::HTML
           @note
         end
         p(class: 'text-xs opacity-60') { "Saved title: #{@todo.title}" }
+        p(class: 'text-xs opacity-60') { 'The note is demo state: it lives in the card, not in the database.' }
+        if @blank_title
+          p(class: 'text-xs text-warning', data: { testid: 'editable-blank' }) do
+            'A title can’t be blank — not saved. Press Escape to restore it.'
+          end
+        end
       end
     end
   end

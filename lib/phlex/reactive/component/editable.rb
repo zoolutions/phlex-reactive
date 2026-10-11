@@ -36,7 +36,7 @@ module Phlex
           data = { reactive_editable: multiline ? "multi" : "single" }
           data[:reactive_editable_enter] = editable_enter(on_enter) unless on_enter.nil?
           data[:reactive_editable_escape] = editable_escape(on_escape) unless on_escape.nil?
-          aria = { multiline: multiline.to_s }
+          aria = { multiline: multiline ? "true" : "false" }
           if placeholder
             aria[:placeholder] = placeholder
             data[:reactive_placeholder] = placeholder

@@ -1183,8 +1183,8 @@ module Views
                             [[:code, 'phlex/reactive/features/bindings'], '6.7 KB',
                              'Inside the one file.',
                              [:md, 'When the first root with a `reactive_show` / show targets / ' \
-                                   '`reactive_on_complete` / `reactive_filter` / `reactive_tags` / nested-rows ' \
-                                   'binding, or a conditional `confirm:`, connects.']],
+                                   '`reactive_on_complete` / `reactive_filter` / `reactive_tags` / `reactive_editable` / ' \
+                                   'nested-rows binding, or a conditional `confirm:`, connects.']],
                             [[:code, 'phlex/reactive/features/compute'], '2.1 KB',
                              'Inside the one file.',
                              [:md, 'When the first `reactive_compute` root connects. Its outputs show the ' \
