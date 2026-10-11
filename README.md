@@ -118,7 +118,7 @@ instead, import `phlex/reactive/early` eagerly (the engine pins it with
 import "phlex/reactive/early"
 ```
 
-It gzips to under 1.3 KB and has no Stimulus import. A trigger (`on(...)` or
+It gzips to under 1.5 KB and has no Stimulus import. A trigger (`on(...)` or
 `on_client(...)`) that fires before the controller connects — a click while a
 lazily loaded controller is still downloading, a custom event dispatched as soon
 as the page is interactive — is queued, its native default is stopped exactly
@@ -162,6 +162,11 @@ Good to know:
   root until it disconnects — keep its trigger element stable across replies
   (a reply that morphs the root but swaps that element leaves the hotkey
   dead until the next disconnect), or bind the hotkey without `once:`.
+- A `shortcut:` (below) is the exception to "never prevented": the chord the
+  page claims is prevented before connect too (so `mod+s` cannot open the
+  browser's save dialog in the first moments), and a chord pressed inside a
+  field the user is typing in, or the other platform's `mod` twin, is neither
+  queued nor prevented.
 - Not captured, so still lost before connect: `outside:` triggers (an outside
   click before connect has nothing to close, and recording it would wake a
   dormant dropdown on every click); key filters beyond Stimulus's default key
@@ -936,6 +941,46 @@ div(**mix(reactive_root, on(:track, event: "scroll", window: true, throttle: 500
 These four (like `debounce:`/`confirm:`/`listnav:`) are **reserved keyword
 names** on `on(...)` — no longer usable as free action params.
 
+**Page-level shortcuts — `shortcut:`.** Undo, redo, save and a command palette
+bind with one keyword on `on(...)` or `on_client(:keydown, …)`:
+
+```ruby
+div(**mix(reactive_root, on_client(:keydown, js.toggle("#palette"), shortcut: "mod+k"))) do
+  span(**on(:undo, shortcut: "mod+z"))         # one reactive action per element
+  span(**on(:redo, shortcut: "mod+shift+z"))
+  textarea(name: "notes")
+end
+```
+
+A shortcut is a window `keydown` binding with three rules a plain
+`event: "keydown.meta+z", window: true` does not have:
+
+- **`mod` is ⌘ on Apple platforms and Ctrl elsewhere.** The helper renders a
+  meta twin and a ctrl twin; the client runs the one for its platform (from
+  `navigator.userAgentData.platform`, else `navigator.platform`), and the other
+  is a complete no-op, so Ctrl+Z on a Mac stays the browser's. A chord without
+  `mod` (`"esc"`, `"alt+n"`) renders one descriptor.
+- **Typing is left alone.** With focus in an `input`, `textarea`, `select` or
+  anything `contenteditable` (including `reactive_editable`), the shortcut does
+  nothing and the browser's own handling (text undo) runs. Opt in with the Hash
+  form: `shortcut: { keys: "esc", in_editable: true }`.
+- **The chord is prevented.** A matching shortcut calls `preventDefault`
+  synchronously, before any `confirm:` dialog, so `mod+s` does not also open
+  the save dialog. (Other window bindings are still never prevented.)
+
+`shortcut:` decides the event and the window binding: passing it with
+`event:`, `window:` or `outside:` raises `ArgumentError`, as does a key outside
+Stimulus's default key map (a letter, a digit, `enter`, `tab`, `esc`, `space`,
+the arrows, `home`, `end`, `page_up`, `page_down`; bind a custom `keyMappings`
+key with `event:` and `window:`). On `on_client` the event must be `:keydown`.
+`shortcut` is now a **reserved keyword** on `on(...)`.
+
+`once: true` on a shortcut unbinds the Stimulus descriptor after its first
+firing, and a press inside a field counts: the guard leaves the chord to the
+browser, but the `:once` listener is already spent. Keep `once:` off a
+shortcut that can be pressed while the user types, or pair it with
+`in_editable: true`.
+
 ### Optimistic visual hints (`optimistic:`)
 
 Every reactive action waits a full round trip for its visual change — and it's
@@ -1404,6 +1449,11 @@ free as an ordinary action-param name (`on(:switch, key: "pgbus")` still passes
 > input — the second would overwrite the first's action name. Bind each key
 > trigger to its own element (the field saves on Enter; a Cancel button — or the
 > field's own blur — handles Escape), as above.
+
+A page-level chord (undo on ⌘Z/Ctrl+Z, save on `mod+s`) is a `shortcut:`
+rather than `event:` with `window: true`: it resolves `mod` per platform,
+leaves fields the user is typing in alone and prevents the chord (see
+*Page-level shortcuts* above).
 
 ### Value-conditional visibility (`reactive_show`)
 

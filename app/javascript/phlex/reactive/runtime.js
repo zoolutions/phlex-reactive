@@ -1024,6 +1024,23 @@ function keyFilterMatches(filter, event, keyMappings) {
   return typeof key === "string" && key.toLowerCase() === event.key.toLowerCase()
 }
 
+// Issue #357: a shortcut: ("mod+z", or { keys, inEditable }) is a window
+// keydown whose `mod` is meta on Apple platforms and ctrl elsewhere. Ruby
+// renders a meta twin and a ctrl twin; Stimulus filters the key, and this
+// decides whether the twin that fired is this platform's and whether the
+// target is one the user is typing in. Either miss is a complete no-op.
+// (Stimulus typecasts a digit shortcut, "1", to a number: hence String().)
+const shortcutKeys = (spec) => (spec && typeof spec === "object" ? spec.keys : String(spec))
+// A shortcut record keeps a bare `on: "keydown"`, so bindingMatches lets every
+// keydown through and this check, per record, picks the chord that fired.
+function shortcutApplies(spec, event, keyMappings) {
+  const target = event.target
+  if (spec?.inEditable !== true && (target?.isContentEditable || /^(input|textarea|select)$/.test(target?.localName)))
+    return false
+  const mod = /[Mm]ac|iP/.test(navigator.userAgentData?.platform ?? navigator.platform) ? "meta" : "ctrl"
+  return keyFilterMatches(shortcutKeys(spec).replace(/^mod\+/, `${mod}+`), event, keyMappings)
+}
+
 // Parse data-reactive-ops-param into binding records. Stimulus typecasts a
 // lone record to an object; several records stay a string (JSON.parse fails on
 // the join) and are split here. A LEGACY [[op, args]] list (array or JSON
@@ -2359,9 +2376,13 @@ export default class extends Controller {
     // modifier params (issue #80). The client decides preventDefault behavior
     // from event.params — set by the Ruby on() — never by sniffing the
     // Stimulus descriptor.
-    const { action, params, debounce, throttle, confirm, confirmWhen, outside, window: windowBound, optimistic } =
+    const { action, params, debounce, throttle, confirm, confirmWhen, outside, window: windowBound, optimistic, shortcut } =
       event.params
     if (!action) return
+    // A shortcut (issue #357) that is the other platform's twin, or pressed
+    // in a field the user is typing in, is a complete no-op: the native
+    // default (text undo) proceeds and nothing is announced.
+    if (shortcut != null && !shortcutApplies(shortcut, event, this.application?.schema?.keyMappings)) return
 
     // The pending-state hint (issue #181): data-reactive-busy-param. During a
     // deploy overlap a page rendered by the PREVIOUS gem still emits the old
@@ -2408,7 +2429,11 @@ export default class extends Controller {
     // (which has no form-navigation default to lose) skips it and flips now, and
     // the failure revert snaps it back. A `change`-bound trigger is unaffected —
     // `change` isn't cancelable, so preventDefault was already a no-op there.
-    if (!windowBound && !this.#keepsNativeToggle(optimistic, target)) event.preventDefault()
+    //
+    // A shortcut (issue #357) IS prevented: its key filter has already narrowed
+    // the window binding to one chord the page claims (mod+s must not also open
+    // the browser's save dialog).
+    if ((shortcut != null || !windowBound) && !this.#keepsNativeToggle(optimistic, target)) event.preventDefault()
 
     // A reactive_lazy(on:) shell's trigger (issue #276) goes through the one
     // materialize entry point, which dedupes it against the observer, the
@@ -2547,6 +2572,10 @@ export default class extends Controller {
       // A detail miss (issue #346) is a complete no-op — checked before the
       // once record is spent, preventDefault and the confirm gate.
       if (!detailMatches(record, event)) continue
+      // So is a shortcut that is not this platform's twin or fired in an
+      // editable target (issue #357).
+      if (record.shortcut != null && !shortcutApplies(record.shortcut, event, this.application?.schema?.keyMappings))
+        continue
       if (onceBindingSpent(this, event, record)) continue
       this.#runBinding(record.legacy ? { ...params, ops: record.ops } : record, event, trigger)
     }
@@ -2554,7 +2583,7 @@ export default class extends Controller {
 
   // One on_client binding (issue #95): its outside guard, preventDefault rule,
   // confirm gate, then its ops — every flag read from the binding itself.
-  #runBinding({ ops, confirm, confirmWhen, outside, window: windowBound }, event, trigger) {
+  #runBinding({ ops, confirm, confirmWhen, outside, window: windowBound, shortcut }, event, trigger) {
     // Outside guard FIRST — identical semantics to dispatch() (issue #80): an
     // outside: trigger is a COMPLETE no-op for events inside this root, before
     // preventDefault and before any op runs.
@@ -2566,7 +2595,8 @@ export default class extends Controller {
     // would kill native clicks site-wide (issue #80 rationale). Runs BEFORE the
     // (possibly async) confirm gate below — a native default can't wait for a
     // pending dialog (same ordering as dispatch()).
-    if (!windowBound) event.preventDefault()
+    // A shortcut (issue #357) is prevented: it is one chord the page claims.
+    if (shortcut != null || !windowBound) event.preventDefault()
 
     // Resolve the effective confirm message — static string, or the conditional
     // Hash form (issue #179) evaluated over collected fields (a promise of it

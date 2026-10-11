@@ -8,6 +8,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`shortcut:` on `on()` and `on_client(:keydown, …)` — page-level keyboard
+  shortcuts (#357).** `on(:undo, shortcut: "mod+z")` binds a window keydown
+  where `mod` is ⌘ on Apple platforms and Ctrl elsewhere (rendered as a meta
+  twin and a ctrl twin; the client runs its platform's, the other is a no-op).
+  The shortcut does nothing while focus is in an `input`, `textarea`, `select`
+  or anything `contenteditable`, so native text undo keeps working
+  (`shortcut: { keys: "esc", in_editable: true }` opts in), and a matching
+  chord is `preventDefault`-ed before any `confirm:` dialog, also when pressed
+  before the controller connects (`phlex/reactive/early`). `shortcut:` with
+  `event:`, `window:` or `outside:`, a key outside Stimulus's default key map,
+  or an `on_client` event other than `:keydown` raises `ArgumentError` at
+  render. The inspector shows `keydown@window shortcut=mod+z`. `early.min.js`
+  grows 195 B gzipped (1,491 B); the default client 177 B.
+  **Compatibility:** `shortcut` is now a reserved keyword on `on(...)` and no
+  longer passes through as an action param. `event: "keydown.meta+z", window:
+  true` without `shortcut:` behaves exactly as before (never prevented, no
+  editable guard).
+
 - **Sortable lists — `reactive_sortable`, `reactive_sortable_source`,
   `reactive_sortable_item` (#350).** Rows drag to reorder a list with a mouse,
   a finger (a 200 ms press) or the keyboard (Space picks up, arrows move,
