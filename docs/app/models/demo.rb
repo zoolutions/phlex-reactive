@@ -94,16 +94,15 @@ class Demo
       slug: 'project-board',
       title: 'Project board',
       group: 'Records',
-      blurb: 'The kanban flagship — cards move across lanes with enter/exit effects, ' \
+      blurb: 'The kanban flagship — drag cards within and across lanes (mouse, touch or keyboard), ' \
              'live in every open tab, with inline rename, confirm-gated archive, and ' \
              'a per-visitor effect-style picker.',
       component: 'ProjectBoardComponent',
       build: -> { ProjectBoardComponent.new },
       call_site: <<~RUBY
-        # One shared board, three lanes. A move is one reply: the row's remove
-        # (its exit animates before the element leaves), the append into the new
-        # lane, and a reactive:js repaint of every count badge — broadcast to
-        # peers with the actor's echo excluded:
+        # One shared board, three lanes. The lanes are sortable lists of one
+        # group: a drop calls move_card with the card, its lane and position;
+        # the actor's board morphs, and peers get each lane it touched:
         render ProjectBoardComponent.new
       RUBY
     }

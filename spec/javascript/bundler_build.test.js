@@ -34,6 +34,7 @@ const FEATURE_MARKS = {
   compute: "data-reactive-compute-reducer-param",
   hints: "optimistic: { hide: true } was undone",
   devtools: "latency simulator ACTIVE",
+  sortable: "data-reactive-sortable-placeholder",
 }
 const DYNAMIC_IMPORT = /import\(\s*["'][^"']+["']\s*\)/g
 
@@ -120,7 +121,9 @@ test("the shipped default bundle itself has no dynamic import and imports only t
   // Its only imports are Stimulus and the three override seams, by bare name:
   // no core, no feature. (The feature specifier still appears as TEXT, in the
   // loader's failure message — a message this build can never log.)
-  expect([...text.matchAll(/from"([^"]+)"/g)].map(([, specifier]) => specifier).sort()).toEqual([
+  // (An import statement's `from"…"`, not any `from"` in the code: the sortable
+  // feature reads a data-reactive-sortable-from attribute.)
+  expect([...text.matchAll(/\bimport\b[^;"]*?from"([^"]+)"/g)].map(([, specifier]) => specifier).sort()).toEqual([
     "@hotwired/stimulus",
     "phlex/reactive/compute",
     "phlex/reactive/confirm",

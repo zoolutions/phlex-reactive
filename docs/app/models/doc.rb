@@ -16,6 +16,7 @@ class Doc
       view: 'DeferredRendering' },
     { slug: 'async-actions',         title: 'Async actions',           group: 'Guide',    view: 'AsyncActions' },
     { slug: 'effects',               title: 'Effects',                 group: 'Guide',    view: 'Effects' },
+    { slug: 'sortable-lists',        title: 'Sortable lists',          group: 'Guide',    view: 'SortableLists' },
     { slug: 'testing',               title: 'Testing',                 group: 'Guide',    view: 'Testing' },
     { slug: 'performance',           title: 'Performance',             group: 'Guide',    view: 'Performance' },
     { slug: 'observability',         title: 'Observability & APM',     group: 'Guide',    view: 'Observability' },

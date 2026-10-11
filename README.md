@@ -288,14 +288,15 @@ imports one the first time a root on the page needs it:
 
 | Module | Gzipped | Default client | Split client |
 |---|---:|---|---|
-| `phlex/reactive/reactive_controller` | 26.1 KB | loaded with your controllers | not loaded |
-| `phlex/reactive/core` | 12.4 KB | not loaded (it is inside the file above) | loaded with your controllers |
+| `phlex/reactive/reactive_controller` | 28.9 KB | loaded with your controllers | not loaded |
+| `phlex/reactive/core` | 13.5 KB | not loaded (it is inside the file above) | loaded with your controllers |
 | `phlex/reactive/features/persist` (`reactive_persist` drafts) | 3.2 KB | inside the one file | fetched when a root declares `reactive_persist`, or a `persist_state` / `persist_clear` op runs |
 | `phlex/reactive/features/defer` (`reply.defer`, `reactive_lazy`) | 2.8 KB | inside the one file | fetched when a root is a `reactive_lazy` shell, a morph turns one into a shell, or a `reply.defer` arrives |
 | `phlex/reactive/features/form` (dirty tracking, `warn_unsaved`, the paste-trigger gate) | 1.0 KB | inside the one file | fetched when a root tracks dirty fields or holds a `paste_into` trigger |
 | `phlex/reactive/features/effects` (`reactive_effects`, `dismiss_after`) | 1.7 KB | inside the one file | fetched when a root declares an effect, or when the first stream that needs it arrives: one with an effect, or with a dismissing flash |
 | `phlex/reactive/features/bindings` (`reactive_show`, show targets, `reactive_on_complete`, `reactive_filter`, `reactive_tags`, nested rows, the conditional `confirm:`) | 5.4 KB | inside the one file | fetched when a root declares one of them, or holds a trigger with a conditional confirm |
 | `phlex/reactive/features/compute` (`reactive_compute`, `reactive_text`) | 2.1 KB | inside the one file | fetched when a root carries a compute binding |
+| `phlex/reactive/features/sortable` (`reactive_sortable` drag and drop) | 3.1 KB | inside the one file | fetched when a root is or holds a sortable or source list |
 | `phlex/reactive/features/hints` (`optimistic:`, `busy:`) | 1.0 KB | inside the one file | fetched when a root holds a trigger that declares a hint |
 | `phlex/reactive/features/devtools` (the latency simulator, the zero-target warnings, the debug trace) | 1.6 KB | inside the one file | fetched with the core on a page that carries `<meta name="phlex-reactive-env" content="development">` or while a delay is stored for the tab; at connect for a root in debug mode; otherwise the first time a verbose root has something to warn about. In production with none of these, never |
 | `phlex/reactive/early` | 1.2 KB | on every page, if you import it | the same |
@@ -1634,6 +1635,66 @@ button(id: "bulk-archive", **reactive_group_target_attrs("ids[]", :enable, 1..))
 - `reactive_group_target_attrs(group, :count)` is the Integer seed;
   `(group, :enable, condition)` is `{ disabled: }` (or `{}` when
   `reactive_values` does not cover the group, and the client seeds it).
+
+### Sortable lists (`reactive_sortable`)
+
+Drag rows to reorder a list — with a mouse, a finger or the keyboard — and one
+declared action receives the row and where it landed. No Stimulus controller,
+no endpoint of your own: the drop goes through the action pipeline (signed
+token, request queue, `busy:`, the reply).
+
+```ruby
+class TaskList < Phlex::HTML
+  include Phlex::Reactive::Component
+
+  reactive_record :list
+  action :move, params: { item: :integer, position: :integer }
+
+  def move(item:, position:)
+    authorize! @list, :update?
+    # insert_at is acts_as_list's; any reorder that honours `position` works.
+    @list.tasks.find(item).insert_at(position + 1)
+    reply.morph
+  end
+
+  def view_template
+    ul(**mix(reactive_root, reactive_sortable(:move, handle: "[data-drag-handle]"))) do
+      @list.tasks.each do |task|
+        li(id: dom_id(task), **reactive_sortable_item(task.id)) do
+          span(data: { drag_handle: true }) { "⠿" }
+          plain task.title
+        end
+      end
+    end
+  end
+end
+```
+
+On drop the action gets `item` (the row's key), `position` (its 0-based index
+after the drop), `after` (the key of the row it now follows, `nil` when first)
+and `from` (`"self"` for a reorder) — declare the ones you want. The row moves
+at once and goes back if the action fails or its reply does not render the
+list; a reply that morphs the list puts the rows in the server's order.
+
+- **Drag in from another list**: `reactive_sortable_source(group:, name:)` rows
+  are copied into any sortable of the same group (the source needs no token —
+  it works on a `ClientBindings` root). Route a drag-in to its own action with
+  `from: { templates: :insert }`. Source rows are pointer-only: pass
+  `tabindex: -1` (via `mix`) so they stay out of the tab order.
+- **Between lists** (a kanban): sortables of one `group:` exchange rows; `name:`
+  is what a row dragged out reports as `from`, and static `params:` (e.g.
+  `{ lane: "doing" }`) tell the action which list it landed in.
+- **Keyboard**: a row is focusable; Space/Enter picks it up, the arrows move it
+  (← → into the previous/next list of the group), Space/Enter drops it,
+  Escape puts it back. Each step is announced through a live region; translate
+  the words with `messages:` (`{position}`, `{count}`).
+- **Styling**: `data-reactive-sortable-active` (the list), `-dragging` (the
+  row) and `-placeholder` (the gap) are yours to style.
+- **Guards**: `disabled: true` on the list or a row, and a request in flight on
+  the root, refuse a drag. A drag starts after a 4 px move, or a 200 ms touch
+  press, so clicks, taps and scrolling still work.
+
+Full guide: [Sortable lists](https://phlex-reactive.zoolutions.llc/docs/sortable-lists).
 
 ### Client-only drafts (`reactive_persist`)
 

@@ -16,8 +16,37 @@ class Card < ApplicationRecord
   # (subscribe) and broadcast_to (publish), so the key can never drift.
   def self.stream_key = %w[project-board all]
 
-  # New/moved cards land at the bottom of their lane.
+  # New cards land at the bottom of their lane.
   def self.next_position(lane)
     (by_lane(lane).maximum(:position) || 0) + 1
+  end
+
+  # A drop (issue #350): into `lane` at the 0-based `index` among its other
+  # cards, renumbering the lane it enters (and the one it leaves) 1..n so
+  # positions stay dense. The rows of both lanes are locked first (SELECT ...
+  # FOR UPDATE on PostgreSQL; SQLite, which the dev/demo DB may be, serializes
+  # writers itself), so two concurrent drops cannot read the same ordering.
+  def move_to!(lane, index)
+    transaction do
+      Card.where(lane: [self.lane, lane].uniq).lock.load
+      reload
+      source = self.lane
+      renumber(insert_into(lane, index))
+      renumber(Card.by_lane(source)) unless source == lane
+    end
+  end
+
+  private
+
+  # The cards of `lane` with this one at `index` among the others (now in `lane`).
+  def insert_into(lane, index)
+    cards = Card.by_lane(lane).where.not(id:).to_a
+    cards.insert(index.clamp(0, cards.size), self)
+    update!(lane:)
+    cards
+  end
+
+  def renumber(cards)
+    cards.each.with_index(1) { |card, position| card.update!(position:) unless card.position == position }
   end
 end

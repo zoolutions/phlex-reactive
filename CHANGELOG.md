@@ -8,6 +8,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Sortable lists — `reactive_sortable`, `reactive_sortable_source`,
+  `reactive_sortable_item` (#350).** Rows drag to reorder a list with a mouse,
+  a finger (a 200 ms press) or the keyboard (Space picks up, arrows move,
+  Space drops, Escape cancels, each step announced in the list's own
+  translatable words), and one declared action receives `item`, `position`,
+  `after` and `from` through the normal action pipeline (declare the ones you
+  want in `params:`; undeclared ones are dropped). The row moves at once
+  and goes back when the action fails or its reply does not render the list.
+  Sortables of one `group:` exchange rows (`name:` and static `params:` for a
+  kanban), and a `reactive_sortable_source` list's rows are copied in, routed
+  to their own action with `from:`. `handle:`, `disabled:`, `busy:` and the
+  `data-reactive-sortable-active` / `-dragging` / `-placeholder` styling hooks
+  round it out. The client is a new `sortable` feature module, about 3.1 KB
+  gzipped: the default client bundles it, and the split client fetches it only
+  for a page with a sortable. `core.proceed` now resolves with the reply's
+  HTML on success, so a feature can tell an applied reply from a failure. The
+  Project board demo drags its cards. Docs: "Sortable lists".
+
 - **`on_client(…, detail: { success: true })` — run ops only when the event's
   payload qualifies (#346).** A binding can require top-level `event.detail`
   keys to strictly equal JSON scalars, so `on_client("turbo:submit-end",
