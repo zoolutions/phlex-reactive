@@ -157,7 +157,7 @@ describe("scan(document)", () => {
     expect(root.triggers[0].shortcut).toBe("mod+z")
     expect(root.clientOps.map((op) => op.event)).toEqual([
       "keydown@window shortcut=mod+k",
-      "keydown@window shortcut=esc",
+      "keydown@window shortcut=esc editable",
     ])
   })
 

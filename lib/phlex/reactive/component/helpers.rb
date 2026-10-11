@@ -374,7 +374,7 @@ module Phlex
           end
 
           # Guarded here, not inside: building the caller label allocates (on() is a hot path).
-          shortcut = shortcut_for!("on(#{action_name.inspect})", shortcut, event:, window:, outside:) if shortcut
+          shortcut = shortcut_for!("on(#{action_name.inspect})", shortcut, event:, window:, outside:) unless shortcut.nil?
           event ||= "click"
           window_bound = window || outside || !shortcut.nil?
           action = trigger_descriptors(event, shortcut, window_bound, "dispatch", once)

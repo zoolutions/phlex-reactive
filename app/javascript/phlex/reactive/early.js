@@ -88,11 +88,12 @@ function enqueue(event, el, descs, win, shortcut) {
   if (!root || state.connected.has(root)) return
   // dispatch() keeps the native flip of a checked: :keep checkbox/radio and
   // never prevents a window binding — but a shortcut (issue #357), the chord
-  // the page claims (mod+s must not open the save dialog before connect);
-  // everything else is prevented now, as the controller would.
+  // the page claims (mod+s must not open the save dialog before connect), is
+  // always prevented: the keepsToggle exemption is for element-bound clicks
+  // only. Everything else is prevented now, as the controller would.
   const keepsToggle =
     /^(checkbox|radio)$/.test(el.type) && /"checked":"keep"/.test(el.dataset.reactiveOptimisticParam)
-  if ((!win || shortcut) && (!keepsToggle || descs.some((d) => d.method === "runOps"))) event.preventDefault()
+  if (win ? shortcut : !keepsToggle || descs.some((d) => d.method === "runOps")) event.preventDefault()
   // Every firing is queued — a `:once` repeat included: the replay skips a
   // descriptor already consumed (reactive_controller.js #replayEarly).
   const { queue } = state

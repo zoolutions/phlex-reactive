@@ -177,8 +177,8 @@ function ownedClientOps(root, allRoots) {
     const records = (raw ?? "").split(" ").map(parseJson).filter((r) => r && typeof r === "object" && !Array.isArray(r))
     if (records.length === 0) return [{ event, ops: raw }]
     // A shortcut record (issue #357) reads as "keydown@window shortcut=mod+z".
-    const summary = (r) =>
-      `${r.on}${r.window ? "@window" : ""}${r.shortcut == null ? "" : ` shortcut=${r.shortcut.keys ?? r.shortcut}`}`
+    const shortcutOf = (s) => (typeof s === "object" ? `${s.keys}${s.inEditable ? " editable" : ""}` : s)
+    const summary = (r) => `${r.on}${r.window ? "@window" : ""}${r.shortcut == null ? "" : ` shortcut=${shortcutOf(r.shortcut)}`}`
     return records.map((r) => ({ event: r.on ? summary(r) : event, ops: r.ops }))
   })
 }

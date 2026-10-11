@@ -267,6 +267,18 @@ test("a replayed shortcut goes through dispatch()'s guard and dispatches once", 
   }
 })
 
+test("a shortcut on a checked: :keep checkbox is still prevented before connect (the toggle exemption is element-bound only)", async () => {
+  onPlatform("MacIntel")
+  try {
+    await mount(`<div id="p" data-controller="reactive"><input type="checkbox" data-action="keydown.meta+s@window->reactive#dispatch keydown.ctrl+s@window->reactive#dispatch" data-reactive-action-param="save" data-reactive-window-param="true" data-reactive-shortcut-param="mod+s" data-reactive-optimistic-param='{"checked":"keep"}'></div>`)
+    const event = press(document.body, "s", { metaKey: true })
+    expect(event.defaultPrevented).toBe(true)
+    expect(state().queue).toHaveLength(1)
+  } finally {
+    restorePlatform()
+  }
+})
+
 test("the other platform's twin of a shortcut is neither queued nor prevented before connect", async () => {
   onPlatform("MacIntel")
   try {

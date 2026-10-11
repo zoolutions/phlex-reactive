@@ -25,6 +25,10 @@ RSpec.describe Phlex::Reactive::Shortcut do
   let(:instance) { klass.new }
   let(:js) { Phlex::Reactive::JS.new }
 
+  it "exposes a frozen canonical keys String" do
+    expect(described_class.parse("Shift+Mod+z").keys).to be_frozen
+  end
+
   describe "on(..., shortcut:)" do
     it "renders the meta and ctrl twins on the window for a mod chord" do
       data = instance.send(:on, :undo, shortcut: "mod+z")[:data]
@@ -104,6 +108,10 @@ RSpec.describe Phlex::Reactive::Shortcut do
     it "raises on a key outside Stimulus's default key map" do
       expect { instance.send(:on, :save, shortcut: "mod+/") }
         .to raise_error(ArgumentError, %r{unknown key "/".*keyMappings}m)
+    end
+
+    it "raises on shortcut: false instead of binding a global click" do
+      expect { instance.send(:on, :save, shortcut: false) }.to raise_error(ArgumentError, /shortcut:/)
     end
 
     it "raises on a chord without a key" do

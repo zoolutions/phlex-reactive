@@ -57,7 +57,7 @@ module Phlex
       def initialize(keys, in_editable:)
         tokens = keys.downcase.split("+").map(&:strip)
         @in_editable = in_editable
-        @keys = canonical(keys, tokens)
+        @keys = canonical(keys, tokens).freeze
         freeze
       end
 

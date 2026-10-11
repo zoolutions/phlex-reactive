@@ -329,10 +329,11 @@ module Views
                 prevented.
 
               `shortcut:` decides the event and the window binding: with `event:`,
-              `window:` or `outside:` it raises `ArgumentError`, as does a key
-              outside Stimulus's default key map (a letter, a digit, `enter`, `tab`,
-              `esc`, `space`, the arrows, `home`, `end`, `page_up`, `page_down`).
-              On `on_client` the event must be `:keydown`.
+              `window:` or `outside:` it raises `ArgumentError`. The key must be in
+              Stimulus's default key map (a letter, a digit, `enter`, `tab`, `esc`,
+              `space`, the arrows, `home`, `end`, `page_up`, `page_down`); an unknown
+              key raises `ArgumentError`. On `on_client`, the event must be bare
+              `keydown` (`:keydown` or `"keydown"`).
             MD
           end
         end

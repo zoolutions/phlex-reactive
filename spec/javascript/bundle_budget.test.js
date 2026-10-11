@@ -54,7 +54,7 @@ const FEATURES = ENTRIES.filter((name) => name.startsWith("features/"))
 // (a shortcut: is prevented before connect; the other platform's twin and a
 // press in an editable field are skipped, for key-filtered descriptors
 // only) adds 195 B: 1,296 → 1,491 B.
-const EARLY_GZIP_BUDGET = 1491
+const EARLY_GZIP_BUDGET = 1487
 // How far a ceiling may sit above the real size: the rounding it is set with.
 const SLACK = 250
 
