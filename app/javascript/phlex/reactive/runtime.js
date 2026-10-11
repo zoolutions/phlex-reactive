@@ -1799,13 +1799,18 @@ export default class extends Controller {
     // without any marker, before and after the morph, a few attribute reads and
     // never an import. (turbo:morph-element BUBBLES: only a morph of the root
     // itself counts.) A tokenless, client-only root has no such listener.
+    // The same listener hears an editable being focused (issue #351): a stream
+    // can append a root's first reactive_editable without morphing the root,
+    // and its keys and paste need the bindings feature before anything is
+    // typed into it.
     if (this.element.getAttribute?.("data-reactive-token-value") != null || deferNeeded(this.element)) {
       this.#boundRootMorph = (event) => {
-        if (event.target !== this.element) return
+        if (event.type === "focusin" ? !event.target.hasAttribute?.("data-reactive-editable") : event.target !== this.element) return
         if (__SPLIT__) this.#loadFeatures(true)
         else this.#connectFeaturesNow(true)
       }
       this.element.addEventListener?.("turbo:morph-element", this.#boundRootMorph)
+      this.element.addEventListener?.("focusin", this.#boundRootMorph)
     }
 
     // Feature modules (issue #275): connect the ones that are here and START
@@ -2264,6 +2269,7 @@ export default class extends Controller {
     this.#clearAllThrottles()
     if (this.#boundRootMorph) {
       this.element.removeEventListener?.("turbo:morph-element", this.#boundRootMorph)
+      this.element.removeEventListener?.("focusin", this.#boundRootMorph)
     }
     // Early triggers (issue #273): a disconnected root records again.
     earlyState().connected.delete(this.element)

@@ -39,8 +39,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and is swallowed in a single-line field; Escape reverts to the last
   server-rendered text (`on_escape: :revert`). `reactive_dirty` diffs it against
   that text and `reactive_persist` drafts it with its line breaks. Bare named
-  `[contenteditable]` elements keep the `textContent` reading. Bundle: default
-  +963 B gzip, split core +376 B, `features/bindings` +539 B.
+  `[contenteditable]` elements keep the `textContent` reading. An editable a
+  stream appends into a root already on the page gets its keys and paste from
+  its first focus (the root loads the bindings feature then, and on the split
+  client the stream that brings it starts the import). Bundle: default
+  +977 B gzip, split core +412 B, `features/bindings` +524 B.
 
 - **`on_client(…, detail: { success: true })` — run ops only when the event's
   payload qualifies (#346).** A binding can require top-level `event.detail`

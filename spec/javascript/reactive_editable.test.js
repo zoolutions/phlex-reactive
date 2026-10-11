@@ -348,6 +348,24 @@ test("a nested root's editable is its own: the parent does not handle its keys",
   expect(key($("h3"), "Enter").defaultPrevented).toBe(false)
 })
 
+// --- an editable a stream adds later ----------------------------------------------
+
+test("a root without bindings loads them when a stream-appended editable is first focused", async () => {
+  const { root, controller } = await mount(`<p>no bindings yet</p>`, { attrs: 'data-reactive-token-value="t"' })
+  root.insertAdjacentHTML("beforeend", SINGLE)
+  const h3 = root.querySelector("h3")
+  h3.dispatchEvent(new window.FocusEvent("focusin", { bubbles: true }))
+  await controller.featuresReady
+  expect(key(h3, "Enter").defaultPrevented).toBe(true)
+})
+
+test("a root whose bindings connected for another marker handles a later editable's keys", async () => {
+  const show = JSON.stringify({ field: "mode", op: "eq", value: "a" })
+  const { root } = await mount(`<input name="mode" value="a"><p data-reactive-show='${show}'>x</p>`)
+  root.insertAdjacentHTML("beforeend", SINGLE)
+  expect(key(root.querySelector("h3"), "Enter").defaultPrevented).toBe(true)
+})
+
 // --- dirty --------------------------------------------------------------------
 
 test("reactive_dirty marks an editable whose text differs from its server text", async () => {

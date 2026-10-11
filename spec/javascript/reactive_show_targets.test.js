@@ -153,7 +153,9 @@ test("connect() seeds an OUTSIDE target from the owned field's value (gate: targ
   buildController(root, { "#badge": badge }).connect()
 
   expect(badge.hidden).toBe(true) // "off" fails not:"off"
-  expect((root.listeners.input ?? []).length).toBe(1) // listener installed by the targets gate
+  // The targets gate's sync, plus the emptied-editable handler every bindings
+  // root carries (#351: a stream can append its first editable later).
+  expect((root.listeners.input ?? []).length).toBe(2)
 })
 
 test("an input event re-evaluates the outside target both ways", () => {
@@ -513,5 +515,5 @@ test("the targets-attr gate alone enables the sync for a target-keyed-only map",
 
   buildController(root, { "#warn": warn }).connect()
   expect(warn.hidden).toBe(false)
-  expect((root.listeners.input ?? []).length).toBe(1)
+  expect((root.listeners.input ?? []).length).toBe(2) // the sync + the editable handler
 })

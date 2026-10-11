@@ -175,16 +175,16 @@ export function connect(controller, core) {
     seed(c, () => syncAllNestedJson(c))
   }
 
-  // Editable text (issue #351) — ONLY when the root owns a reactive_editable
-  // (one probe otherwise). Delegated keys, paste and drop on the root; the
-  // seed downgrades plaintext-only where the engine lacks it, again after a
-  // morph (which writes the server's attribute back).
-  if (c.root.querySelector?.("[data-reactive-editable]")) {
-    seed(c, () => downgradeEditables(c))
-    listen(c, "keydown", (event) => editableKey(c, event))
-    listen(c, "paste drop", (event) => editablePaste(c, event))
-    listen(c, "input", (event) => editableEmptied(c, event))
-  }
+  // Editable text (issue #351). Delegated keys, paste and drop on the root,
+  // whether or not it owns an editable yet: a stream can append the first one
+  // into a root whose bindings connected for another marker (each handler
+  // returns at once for an event that is not an owned editable's). The seed
+  // downgrades plaintext-only where the engine lacks it, again after a morph
+  // (which writes the server's attribute back).
+  seed(c, () => downgradeEditables(c))
+  listen(c, "keydown", (event) => editableKey(c, event))
+  listen(c, "paste drop", (event) => editablePaste(c, event))
+  listen(c, "input", (event) => editableEmptied(c, event))
 }
 
 // Remove every listener connect() added, so a stray event after a Turbo

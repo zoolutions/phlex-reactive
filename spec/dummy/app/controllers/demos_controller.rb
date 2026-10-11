@@ -346,6 +346,10 @@ class DemosController < ActionController::Base
     render_component EditableTitleComponent.new(todo: Todo.find(params[:id]))
   end
 
+  def late_editable
+    render_component LateEditableComponent.new
+  end
+
   def nested_editor
     render_component NestedEditorComponent.new
   end

@@ -131,6 +131,14 @@ module Views
                 `on()` or `on_enter: :submit` on a form whose submit a reactive
                 action intercepts. For rich text (bold, links) use an editor such as
                 Lexxy or Trix, which the collector reads by its `.value`.
+
+                An editable can arrive later: a stream can append it into a root
+                that is already on the page. Its keys and paste work from its
+                first focus. On the split client a stream that brings one starts
+                loading the bindings module before it renders. (In a browser
+                without `contenteditable="plaintext-only"`, such an editable only
+                becomes editable once something else in its root has loaded that
+                module. Every current browser has it.)
               MD
             end
           end

@@ -467,6 +467,25 @@ describe("bindings: the window before the module", () => {
     controller.disconnect()
   })
 
+  test("a root's first editable, appended by a stream, loads the module when it is focused (issue #351)", async () => {
+    const bindings = slowFeature("bindings", bindingsModule)
+    const { root, controller } = addRoot("card", {}, `<p>no bindings yet</p>`)
+    controller.connect()
+    expect(bindings.loads()).toBe(0)
+    root.insertAdjacentHTML("beforeend", `<h3 name="title" contenteditable="plaintext-only" data-reactive-editable="single">Hi</h3>`)
+    const h3 = root.querySelector("h3")
+
+    h3.dispatchEvent(new window.FocusEvent("focusin", { bubbles: true }))
+    expect(bindings.loads()).toBe(1)
+    bindings.arrive()
+    await controller.featuresReady
+
+    const enter = new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })
+    h3.dispatchEvent(enter)
+    expect(enter.defaultPrevented).toBe(true)
+    controller.disconnect()
+  })
+
   test("a root that only declares group targets (issue #343) loads the module and drives them on arrival", async () => {
     const bindings = slowFeature("bindings", bindingsModule)
     document.body.insertAdjacentHTML("beforeend", '<span id="outside-count">0</span>')
@@ -694,6 +713,26 @@ describe("streams: a root a stream brings in", () => {
     row.dispatchEvent(new window.Event("animationend"))
     await doneTwo
     expect(removed).toBe(true)
+  })
+
+  test("a stream that appends an editable into a root starts the bindings import, so its first focus finds the module (issue #351)", async () => {
+    const bindings = slowFeature("bindings", bindingsModule)
+    const stream = document.createElement("turbo-stream")
+    stream.setAttribute("action", "append")
+    stream.setAttribute("target", "card")
+    const template = document.createElement("template")
+    template.innerHTML = `<h3 name="title" contenteditable="plaintext-only" data-reactive-editable="single">Hi</h3>`
+    stream.appendChild(template)
+    let rendered = false
+    const detail = fire(stream, async () => {
+      rendered = true
+    })
+    expect(bindings.loads()).toBe(1)
+
+    const done = detail.render(stream)
+    bindings.arrive()
+    await done
+    expect(rendered).toBe(true)
   })
 
   test("a stream whose content needs nothing renders at once", async () => {
