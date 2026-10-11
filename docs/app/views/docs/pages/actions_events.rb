@@ -26,6 +26,7 @@ module Views
           keyboard
           timing
           modifiers
+          shortcuts
           reserved
           client_only
         end
@@ -294,6 +295,48 @@ module Views
           end
         end
 
+        def shortcuts
+          DocsUI::Section('Page-level shortcuts — shortcut:') do
+            md <<~MD
+              Undo, redo, save and a command palette bind with one keyword on
+              `on(...)` or `on_client(:keydown, …)` (issue #357):
+
+              ```ruby
+              div(**mix(reactive_root, on_client(:keydown, js.toggle("#palette"), shortcut: "mod+k"))) do
+                span(**on(:undo, shortcut: "mod+z"))         # one reactive action per element
+                span(**on(:redo, shortcut: "mod+shift+z"))
+                textarea(name: "notes")
+              end
+              ```
+
+              A shortcut is a window `keydown` binding with three rules a plain
+              `event: "keydown.meta+z", window: true` does not have:
+
+              - **`mod` is ⌘ on Apple platforms and Ctrl elsewhere.** The helper
+                renders a meta twin and a ctrl twin; the client runs the one for its
+                platform and the other does nothing, so Ctrl+Z on a Mac stays the
+                browser's. A chord without `mod` (`"esc"`, `"alt+n"`) renders one
+                descriptor.
+              - **Typing is left alone.** With focus in an `input`, `textarea`,
+                `select` or anything `contenteditable` (including
+                `reactive_editable`), the shortcut does nothing and the browser's own
+                handling (text undo) runs. Opt in with the Hash form:
+                `shortcut: { keys: "esc", in_editable: true }`.
+              - **The chord is prevented**, synchronously and before any `confirm:`
+                dialog, so `mod+s` does not also open the save dialog — including a
+                chord pressed before the controller connects, with
+                `phlex/reactive/early`. Other window bindings are still never
+                prevented.
+
+              `shortcut:` decides the event and the window binding: with `event:`,
+              `window:` or `outside:` it raises `ArgumentError`, as does a key
+              outside Stimulus's default key map (a letter, a digit, `enter`, `tab`,
+              `esc`, `space`, the arrows, `home`, `end`, `page_up`, `page_down`).
+              On `on_client` the event must be `:keydown`.
+            MD
+          end
+        end
+
         def reserved
           DocsUI::Section('Reserved keyword names') do
             md <<~MD
@@ -310,6 +353,7 @@ module Views
               | `window:` | bind to the window |
               | `outside:` | fire only outside the root (implies `window:`) |
               | `once:` | fire at most once |
+              | `shortcut:` | a page-level keyboard chord (`"mod+z"`): platform `mod`, skips typing, prevented |
               | `confirm:` | gate behind a confirmation dialog — a String (always), or a Hash (conditional, #179) |
               | `optimistic:` | reversible cosmetic hint applied before the round trip |
               | `busy:` | declarative pending state on the trigger |

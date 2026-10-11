@@ -143,6 +143,24 @@ describe("scan(document)", () => {
     ])
   })
 
+  test("reports a shortcut on on() triggers and on_client records (issue #357)", () => {
+    const record = { on: "keydown", window: true, ops: [["toggle", { to: "#palette" }]], shortcut: "mod+k" }
+    const editableRecord = { ...record, shortcut: { keys: "esc", inEditable: true } }
+    const attr = [record, editableRecord].map((r) => JSON.stringify(r)).join(" ").replaceAll('"', "&quot;")
+    document.body.innerHTML = `
+      <div id="s" data-controller="reactive" data-reactive-token-value="${signedToken({ c: "ShortcutComponent", v: 1 })}">
+        <span data-reactive-action-param="undo" data-action="keydown.meta+z@window->reactive#dispatch keydown.ctrl+z@window->reactive#dispatch" data-reactive-shortcut-param="mod+z"></span>
+        <span data-reactive-ops-param="${attr}" data-action="keydown.meta+k@window->reactive#runOps keydown.ctrl+k@window->reactive#runOps"></span>
+      </div>`
+
+    const [root] = scan(document)
+    expect(root.triggers[0].shortcut).toBe("mod+z")
+    expect(root.clientOps.map((op) => op.event)).toEqual([
+      "keydown@window shortcut=mod+k",
+      "keydown@window shortcut=esc",
+    ])
+  })
+
   test("scopes triggers to the NEAREST root (nested roots aren't double-attributed)", () => {
     document.body.innerHTML = `
       <div id="outer" data-controller="reactive" data-reactive-token-value="${signedToken({ c: "OuterComponent", v: 1 })}">

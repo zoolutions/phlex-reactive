@@ -150,6 +150,7 @@ function ownedTriggers(root, allRoots) {
     confirm: el.getAttribute("data-reactive-confirm-param"),
     optimistic: el.getAttribute("data-reactive-optimistic-param"),
     loading: el.getAttribute("data-reactive-loading-param"),
+    shortcut: el.getAttribute("data-reactive-shortcut-param"),
   }))
 }
 
@@ -175,7 +176,10 @@ function ownedClientOps(root, allRoots) {
     if (Array.isArray(legacy)) return [{ event, ops: legacy }]
     const records = (raw ?? "").split(" ").map(parseJson).filter((r) => r && typeof r === "object" && !Array.isArray(r))
     if (records.length === 0) return [{ event, ops: raw }]
-    return records.map((r) => ({ event: r.on ? `${r.on}${r.window ? "@window" : ""}` : event, ops: r.ops }))
+    // A shortcut record (issue #357) reads as "keydown@window shortcut=mod+z".
+    const summary = (r) =>
+      `${r.on}${r.window ? "@window" : ""}${r.shortcut == null ? "" : ` shortcut=${r.shortcut.keys ?? r.shortcut}`}`
+    return records.map((r) => ({ event: r.on ? summary(r) : event, ops: r.ops }))
   })
 }
 

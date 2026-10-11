@@ -42,6 +42,7 @@ namespace :spec do
     spec/system/lazy_on_spec.rb
     spec/system/lazy_cache_spec.rb
     spec/system/early_triggers_spec.rb
+    spec/system/shortcut_spec.rb
     spec/system/dormant_root_spec.rb
     spec/system/dormant_cache_spec.rb
     spec/system/reactive_request_count_spec.rb

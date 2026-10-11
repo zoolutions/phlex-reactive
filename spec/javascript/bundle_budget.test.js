@@ -50,8 +50,10 @@ const SPLIT = buildScript.match(/const SPLIT = "([^"]+)"/)[1]
 const MODULES = [BUNDLE, SPLIT, ...ENTRIES]
 const FEATURES = ENTRIES.filter((name) => name.startsWith("features/"))
 
-// Raised from 1,100 for window-bound (hotkey) capture, issue #303.
-const EARLY_GZIP_BUDGET = 1300
+// Raised from 1,100 for window-bound (hotkey) capture, issue #303. Issue #357
+// (a shortcut: is prevented before connect; the other platform's twin and a
+// press in an editable field are skipped) adds 179 B: 1,296 → 1,475 B.
+const EARLY_GZIP_BUDGET = 1479
 // How far a ceiling may sit above the real size: the rounding it is set with.
 const SLACK = 250
 
@@ -115,7 +117,8 @@ const SLACK = 250
 // With #352's review fixes merged in: 29,964 B. A first editable a stream
 // appends loads bindings on its focus (#351): 29,978 B. Issue #355 (the plaintext-only
 // fallback moves from bindings into one runtime observer) adds 152 B: 30,130 B; observing data-reactive-editable too, 30,135 B.
-const BUNDLE_GZIP_CEILING = 30_135
+// Issue #357 (shortcut: — the platform twin, the editable guard, the prevent) adds 177 B: 30,312 B.
+const BUNDLE_GZIP_CEILING = 30_312
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -144,7 +147,8 @@ const TARGET_BUNDLE_GZIP = 22_700
 // and the bindings marker) adds 376 B on main (13,823 B); on top of #350, 369 B: 13,870 B. A stream bringing
 // an editable starts the bindings import, and its focus loads it: 13,906 B.
 // Issue #355 (the plaintext-only probe and observer, from bindings) adds 240 B: 14,146 B; observing data-reactive-editable too, 14,147 B.
-const CORE_GZIP_CEILING = 14_147
+// Issue #357 (shortcut:) adds 192 B: 14,339 B.
+const CORE_GZIP_CEILING = 14_339
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -194,7 +198,8 @@ const FEATURE_GZIP_CEILINGS = {
 // 986 B on main (34,133 B); on top of #350, 981 B: 37,310 B.
 // With #352's review fixes merged in: 37,395 B; a late editable's bindings: 37,416 B.
 // Issue #355 (the plaintext-only fallback: +240 B core, -138 B bindings) adds 102 B: 37,518 B (37,519 B with data-reactive-editable observed).
-const SPLIT_TOTAL_GZIP_CEILING = 37_519
+// Issue #357 (shortcut:, in the core) adds 192 B: 37,711 B.
+const SPLIT_TOTAL_GZIP_CEILING = 37_711
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 
