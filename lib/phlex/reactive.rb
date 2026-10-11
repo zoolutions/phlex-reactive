@@ -66,6 +66,12 @@ module Phlex
     # authorization method / mark_authorized! / declare skip_verify_authorized).
     class AuthorizationNotVerified < Error; end
 
+    # Raised when a feature needs a transport capability the app does not have
+    # (issue #358: reactive_presence without a pgbus that keys presence by
+    # connection). Loud at first render, with the requirement in the message —
+    # there is no degraded mode to fall back to.
+    class ConfigurationError < Error; end
+
     # Purpose string bound into every identity token's signature so a token
     # minted for phlex-reactive can't be replayed against another verifier use.
     IDENTITY_PURPOSE = "phlex-reactive/identity"
@@ -1283,6 +1289,10 @@ loader.do_not_eager_load("#{__dir__}/reactive/engine.rb")
 # boot. The constant autoloads on first reference, which only happens behind
 # Phlex::Reactive.defer_push_capable? (that gate requires ActiveJob::Base).
 loader.do_not_eager_load("#{__dir__}/reactive/deferred_render_job.rb")
+# The presence roster's render job (issue #358), for the same reason: it is
+# only referenced behind Phlex::Reactive::Presence.capable? (which requires
+# ActiveJob::Base).
+loader.do_not_eager_load("#{__dir__}/reactive/presence_render_job.rb")
 loader.setup
 
 require "phlex/reactive/engine" if defined?(Rails::Engine)

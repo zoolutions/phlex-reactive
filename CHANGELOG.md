@@ -8,6 +8,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Presence — `reactive_presence`, `presence`, `js.presence` (#358).** A
+  roster component declares the presence stream it shows
+  (`reactive_presence :viewers, state: { selected: :integer }, ttl: 45`) and
+  reads it with `presence`: one peer per browser tab (`seat`, `member_id`,
+  `metadata`, `state`), grouped by person with `members`, filtered with
+  `where(selected: id)`. Tabs join on SSE connect, leave on disconnect and
+  expire after `ttl:` seconds of silence; each change re-renders the roster for
+  every viewer (one coalesced morph). Each tab's declared state is set with
+  `js.presence(**state)` (through the generated `presence_set` action, typed,
+  default-deny, and exempt from `verify_authorized` unless the component defines
+  `authorize_presence_state!`) or `presence.set(**state)` from an action. The
+  client marks this tab's element `data-reactive-presence-me` and the same
+  person's other elements `data-reactive-presence-same-member`, and fires
+  `reactive:presence` with the seats that joined and left. A new `presence`
+  feature module (1.1 KB gzipped): the default client bundles it (+769 B), the
+  split client fetches it only for a page with a presence root (+103 B in the
+  core). Needs pgbus with per-connection presence (zoolutions/pgbus#515);
+  without it a presence root raises `Phlex::Reactive::ConfigurationError` at
+  render. Upgrade the seat table with `rails g pgbus:add_presence_seats`. `js.presence` is refused on a broadcast, like `focus`. Docs: "Presence".
+
 - **Sortable lists — `reactive_sortable`, `reactive_sortable_source`,
   `reactive_sortable_item` (#350).** Rows drag to reorder a list with a mouse,
   a finger (a 200 ms press) or the keyboard (Space picks up, arrows move,

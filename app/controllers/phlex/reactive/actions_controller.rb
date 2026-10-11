@@ -347,24 +347,34 @@ module Phlex
       # Phlex::Reactive::Response survives to response_streams.
       def run_action(component, action_def, coerced)
         Phlex::Reactive.with_connection_id(request.headers["X-Pgbus-Connection"]) do
-          with_around_actions(component, action_def, coerced) do
-            transaction_wrapper do
-              # verify_authorized (issue #168): open the tracking window, run the
-              # action, then verify INSIDE the transaction so an unverified action
-              # rolls its mutation back (fail-closed). with_tracking is a bare
-              # yield's-worth of overhead; verify! is a no-op when the feature is
-              # off / the action is skipped / something marked. The interceptor
-              # (create_action's instrument!) marks the window on a real
-              # authorization call.
-              Phlex::Reactive::Authorization.with_tracking do
-                result = if coerced.any?
-                           component.public_send(action_def.name, **coerced)
-                         else
-                           component.public_send(action_def.name)
-                         end
-                Phlex::Reactive::Authorization.verify!(component.class, action_def)
-                result
-              end
+          # Issue #358: a presence root also sends its presence connection, the
+          # row a presence write lands on.
+          Phlex::Reactive::Presence.with_connection_id(request.headers[Phlex::Reactive::Presence::HEADER]) do
+            run_action_wrapped(component, action_def, coerced)
+          end
+        end
+      end
+
+      # The action inside the around_action stack, the transaction and the
+      # verify_authorized window (see run_action).
+      def run_action_wrapped(component, action_def, coerced)
+        with_around_actions(component, action_def, coerced) do
+          transaction_wrapper do
+            # verify_authorized (issue #168): open the tracking window, run the
+            # action, then verify INSIDE the transaction so an unverified action
+            # rolls its mutation back (fail-closed). with_tracking is a bare
+            # yield's-worth of overhead; verify! is a no-op when the feature is
+            # off / the action is skipped / something marked. The interceptor
+            # (create_action's instrument!) marks the window on a real
+            # authorization call.
+            Phlex::Reactive::Authorization.with_tracking do
+              result = if coerced.any?
+                         component.public_send(action_def.name, **coerced)
+                       else
+                         component.public_send(action_def.name)
+                       end
+              Phlex::Reactive::Authorization.verify!(component.class, action_def)
+              result
             end
           end
         end

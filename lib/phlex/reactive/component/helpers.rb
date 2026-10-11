@@ -127,6 +127,10 @@ module Phlex
              (on_complete = self.class.reactive_on_complete_attr)
             data[:reactive_on_complete] = on_complete
           end
+          # Presence (issue #358): the signed src of the roster's presence
+          # stream, from which the client mints its subscription. Only a class
+          # that declares reactive_presence has the method.
+          data.merge!(reactive_presence_data) if respond_to?(:reactive_presence_data)
           { data: }
         end
 

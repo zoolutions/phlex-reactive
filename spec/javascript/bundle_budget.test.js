@@ -115,7 +115,10 @@ const SLACK = 250
 // With #352's review fixes merged in: 29,964 B. A first editable a stream
 // appends loads bindings on its focus (#351): 29,978 B. Issue #355 (the plaintext-only
 // fallback moves from bindings into one runtime observer) adds 152 B: 30,130 B; observing data-reactive-editable too, 30,135 B.
-const BUNDLE_GZIP_CEILING = 30_135
+// Issue #358 (presence: a NEW feature module — the minted source, the announce,
+// the me / same-member marks, the joined/left diff — plus the runtime's marker,
+// the presence op and the X-Reactive-Presence header) adds 769 B: 30,904 B.
+const BUNDLE_GZIP_CEILING = 30_904
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -144,7 +147,9 @@ const TARGET_BUNDLE_GZIP = 22_700
 // and the bindings marker) adds 376 B on main (13,823 B); on top of #350, 369 B: 13,870 B. A stream bringing
 // an editable starts the bindings import, and its focus loads it: 13,906 B.
 // Issue #355 (the plaintext-only probe and observer, from bindings) adds 240 B: 14,146 B; observing data-reactive-editable too, 14,147 B.
-const CORE_GZIP_CEILING = 14_147
+// Issue #358 (the presence marker and table entry, the presence op, the
+// X-Reactive-Presence header) adds 103 B: 14,250 B.
+const CORE_GZIP_CEILING = 14_250
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -167,6 +172,8 @@ const FEATURE_GZIP_CEILINGS = {
   "features/devtools": 1_600,
   // Issue #350: sortable lists, 3,094 B; its review fixes take it to 3,130 B; PR #352 review to 3,215 B.
   "features/sortable": 3_215,
+  // Issue #358: presence, 1,084 B (the issue's aim was 1.5 KB or less).
+  "features/presence": 1_084,
 }
 // Phase 5: 12,383 B core + 5,360 + 2,846 + 2,084 + 1,024 + 1,693 + 3,210 + 1,015 + 1,589 B of
 // features = 31,204 B. Issue #305 (the default entry's static path) costs the
@@ -194,7 +201,8 @@ const FEATURE_GZIP_CEILINGS = {
 // 986 B on main (34,133 B); on top of #350, 981 B: 37,310 B.
 // With #352's review fixes merged in: 37,395 B; a late editable's bindings: 37,416 B.
 // Issue #355 (the plaintext-only fallback: +240 B core, -138 B bindings) adds 102 B: 37,518 B (37,519 B with data-reactive-editable observed).
-const SPLIT_TOTAL_GZIP_CEILING = 37_519
+// Issue #358 (the presence feature module, 1,084 B, plus 103 B in the core) adds 1,187 B: 38,706 B.
+const SPLIT_TOTAL_GZIP_CEILING = 38_706
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

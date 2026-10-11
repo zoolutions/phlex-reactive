@@ -146,6 +146,7 @@ module Phlex
       include ClientBindings
       include Identity
       include Lazy
+      include PresenceDeclaration
     end
   end
 end

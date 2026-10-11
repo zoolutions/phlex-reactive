@@ -112,6 +112,11 @@ module Phlex
             "got #{placeholder.class}"
         end
 
+        # The signed SSE URL a <pgbus-stream-source> subscribes to `key` with —
+        # minted off-view, as pgbus_stream_from would. Shared with presence
+        # (issue #358), whose roster subscribes to its stream the same way.
+        def stream_src(key) = signed_stream_src(key)
+
         private
 
         # The delivery directive: `<turbo-stream action="reactive:defer">`

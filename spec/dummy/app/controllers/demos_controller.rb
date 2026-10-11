@@ -471,6 +471,11 @@ class DemosController < ActionController::Base
     render_component SortablePageComponent.new
   end
 
+  # Issue #358: a presence roster of the first todo (see PresencePageComponent).
+  def presence
+    render_component PresencePageComponent.new(todo: Todo.first || Todo.create!(title: "Presence"))
+  end
+
   # Issue #346: the success reply only swaps #flash (the rows stay); op=fail
   # answers 422 with a flash, which Turbo renders but reports as unsuccessful.
   def bulk_outcome

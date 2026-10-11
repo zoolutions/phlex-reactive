@@ -117,6 +117,9 @@ class ProjectBoardComponent < Phlex::HTML
       # archive toast and the blank-title error append here.
       div(id: 'flash', class: 'flex flex-col gap-1', data: { testid: 'flash' })
       header_row
+      # Who has the board open (issue #358) — only on a transport with
+      # per-connection presence; elsewhere the strip is simply absent.
+      render BoardViewersComponent.new if Phlex::Reactive::Presence.capable?
       div(class: 'grid gap-4 sm:grid-cols-3') do
         Card::LANES.each { |lane| lane_column(lane) }
       end

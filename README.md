@@ -1698,6 +1698,75 @@ list; a reply that morphs the list puts the rows in the server's order.
 
 Full guide: [Sortable lists](https://phlex-reactive.zoolutions.llc/docs/sortable-lists).
 
+### Presence (`reactive_presence`)
+
+Who is viewing a stream, one entry per browser tab, each tab with a small
+declared state (the item it has selected), on a roster component that
+re-renders itself in every viewer's tab when a tab joins, leaves, goes silent
+or changes its state. No controller code, no Stimulus controller.
+
+```ruby
+class Boards::Viewers < Phlex::HTML
+  include Phlex::Reactive::Component
+
+  reactive_record :board
+  reactive_presence :viewers, state: { selected: :integer }, ttl: 45
+
+  def initialize(board:) = @board = board
+
+  def view_template
+    div(**reactive_root) do
+      presence.members.each do |member|                 # one per person
+        span(**reactive_presence_member(member)) { member.metadata["name"] }
+      end
+      @board.cards.each do |card|
+        li(**on_client(:click, js.presence(selected: card.id))) do
+          plain card.title
+          presence.where(selected: card.id).each do |peer| # who is on this card
+            span(**reactive_presence_peer(peer), class: "dot")
+          end
+        end
+      end
+    end
+  end
+end
+```
+
+- **The stream** is `[record, :presence, name]` (a record-less roster passes
+  `key: ["lobby"]`). The root subscribes to it by itself: the client mints a
+  `<pgbus-stream-source>` from the root's signed src, so the page must load the
+  pgbus client element (`import "pgbus/stream_source_element"`, which any
+  `pgbus_stream_from` on the page already does).
+- **`presence`** is the roster as this render reads it: `peers` (one per tab:
+  `seat`, `member_id`, `metadata`, `state`, `joined_at`), `members` (grouped by
+  person: `id`, `metadata`, `seats`, `state`), `where(**state)`, `count`,
+  `empty?`, and in an action `me` and `set(**state)`.
+- **State** is declared like action params; undeclared keys are dropped.
+  `js.presence(selected: 7)` sends it from the browser through the generated
+  `presence_set` action; `presence.set(selected: 7)` writes it from an action of
+  your own. Either way only this tab's row changes, the other viewers get a
+  morph, and the actor gets `reply.morph`.
+- **Authorization**: `presence_set` skips `verify_authorized`. The signed token
+  proves the actor rendered this root, and the write is typed, ephemeral, and
+  lands only on the actor's own row, keyed by its SSE connection id, which
+  only that tab knows. To check the value (the card must belong to the board),
+  define `authorize_presence_state!(**state)` and raise; it runs first.
+- **"Me"**: the roster renders once for everyone, so the client marks this
+  tab's element `data-reactive-presence-me` and the same person's other
+  elements `data-reactive-presence-same-member` after every morph. Style them.
+- **Events**: `reactive:presence` fires on the root with
+  `{ joined: [seat…], left: [seat…], me: seat }` when a morph changes who is
+  there; a replayed frame that changes nothing fires nothing.
+- **Leaving**: closing the tab leaves at once; a tab that goes silent (sleep, a
+  lost network) expires after `ttl:` seconds. A reconnect keeps the tab's seat
+  and re-sends its state.
+- **Transport**: needs pgbus with presence keyed by SSE connection
+  (zoolutions/pgbus#515; upgrade the table with
+  `rails g pgbus:add_presence_seats`) and ActiveJob. `ttl:` (45 by default) is
+  written into pgbus's `streams_presence_ttl` under the stream's pattern. Action Cable has no connection
+  identity: rendering a presence root without it raises
+  `Phlex::Reactive::ConfigurationError`. Every other component is unaffected.
+
 ### Client-only drafts (`reactive_persist`)
 
 "Don't make me start over": a public application form, a multi-step wizard,

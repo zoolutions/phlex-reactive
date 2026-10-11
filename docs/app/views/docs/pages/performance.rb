@@ -1158,10 +1158,10 @@ module Views
             end
             DocsUI::Table(['Module', 'Gzipped', 'Default client', 'Split client'],
                           [
-                            [[:code, 'phlex/reactive/reactive_controller'], '29.9 KB',
+                            [[:code, 'phlex/reactive/reactive_controller'], '30.9 KB',
                              'When your controllers load (or at the first trigger, for a page whose only roots are dormant).',
                              'Never.'],
-                            [[:code, 'phlex/reactive/core'], '13.8 KB',
+                            [[:code, 'phlex/reactive/core'], '14.3 KB',
                              'Never: it is inside the one file.',
                              'When your controllers load (or at the first trigger, for a page whose only roots are dormant).'],
                             [[:code, 'phlex/reactive/features/persist'], '3.1 KB',
@@ -1194,6 +1194,9 @@ module Views
                              'Inside the one file.',
                              [:md, 'When the first root that is, or holds, a `reactive_sortable` or ' \
                                    '`reactive_sortable_source` list connects.']],
+                            [[:code, 'phlex/reactive/features/presence'], '1.1 KB',
+                             'Inside the one file.',
+                             [:md, 'When the first `reactive_presence` root connects.']],
                             [[:code, 'phlex/reactive/features/hints'], '1.0 KB',
                              'Inside the one file.',
                              [:md, 'When the first root whose trigger declares `optimistic:` or `busy:` ' \

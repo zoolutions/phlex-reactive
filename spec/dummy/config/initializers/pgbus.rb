@@ -23,5 +23,10 @@ if ENV["TRANSPORT"] == "pgbus"
     # phlex-reactive's broadcast_*_to calls Pgbus.stream(...).broadcast(...) inline,
     # so no worker/supervisor is needed for a single-process Capybara server.
     it.streams_test_mode = false
+    # Issue #358: every SSE connection is the same guest, so the presence
+    # roster has someone to show (the dummy has no sign-in).
+    if it.respond_to?(:streams_presence_member=)
+      it.streams_presence_member = ->(_context) { { id: "guest", metadata: { name: "Guest" } } }
+    end
   end
 end

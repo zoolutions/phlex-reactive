@@ -66,7 +66,9 @@ module Phlex
           # verify_authorized opt-out (issue #168): a scalar bare flag (skip the
           # WHOLE component) plus a list of named actions.
           skip_all: :@reactive_own_skip_all,
-          skip_actions: :@reactive_own_skip_actions
+          skip_actions: :@reactive_own_skip_actions,
+          # Presence roster — reactive_presence (issue #358).
+          presence: :@reactive_own_presence
         }.freeze
 
         # The identity-side hot-path memos swept by bump! (see the contract

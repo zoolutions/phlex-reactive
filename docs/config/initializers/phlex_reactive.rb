@@ -20,6 +20,15 @@ Rails.application.config.after_initialize do
   # error maps the denial to a clean 403 so the client reverts the optimistic hide.
   Phlex::Reactive.authorization_errors << TeamInboxComponent::Locked
 
+  # The Presence demo (issue #358) refuses an unknown colour.
+  Phlex::Reactive.authorization_errors << PresenceDemoComponent::Denied
+
+  # Presence needs a member per SSE connection; the docs have no sign-in, so
+  # every visitor is a guest. Only on a pgbus with per-connection presence.
+  if Phlex::Reactive::Presence.capable? && Pgbus.configuration.respond_to?(:streams_presence_member=)
+    Pgbus.configuration.streams_presence_member = ->(_context) { { id: 'guest', metadata: { name: 'Guest' } } }
+  end
+
   # With error_flash set, the endpoint renders a turbo-stream flash the browser
   # SHOWS on a failed action, and the client marks the root data-reactive-error.
   Phlex::Reactive.error_flash = ->(kind) { "Something went wrong (#{kind})." }
