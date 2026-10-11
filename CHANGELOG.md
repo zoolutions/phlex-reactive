@@ -39,7 +39,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and is swallowed in a single-line field; Escape reverts to the last
   server-rendered text (`on_escape: :revert`). `reactive_dirty` diffs it against
   that text and `reactive_persist` drafts it with its line breaks. Bare named
-  `[contenteditable]` elements keep the `textContent` reading. An editable a
+  `[contenteditable]` elements keep the `textContent` reading. An editable that a
   stream appends into a root already on the page gets its keys and paste from
   its first focus (the root loads the bindings feature then, and on the split
   client the stream that brings it starts the import). Bundle: default
