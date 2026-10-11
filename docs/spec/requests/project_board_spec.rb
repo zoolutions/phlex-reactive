@@ -55,6 +55,15 @@ RSpec.describe 'Project board actions', type: :request do
       expect(response.body).to include('method="morph"', 'target="project-board"')
     end
 
+    it 'renumbers the lane the card left, so its positions stay dense' do
+      Card.create!(title: 'Third', lane: 'todo', position: 3)
+
+      move(Card.find_by!(title: 'Second').id, 'doing', 0)
+
+      expect(Card.by_lane('todo').pluck(:title, :position)).to eq([['First', 1], ['Third', 2]])
+      expect(Card.by_lane('doing').pluck(:title, :position)).to eq([['Second', 1], ['Doing', 2]])
+    end
+
     it 'reorders within a lane' do
       move(first.id, 'todo', 1)
 
@@ -115,7 +124,8 @@ RSpec.describe 'Project board actions', type: :request do
 
       body = response.body
       expect(body).to include('data-reactive-sortable="move_card"', 'data-reactive-sortable-group="cards"')
-      expect(body).to include('data-reactive-sortable-name="doing"', 'data-reactive-sortable-handle="[data-drag-handle]"')
+      expect(body).to include(*Card::LANES.map { %(data-reactive-sortable-name="#{it}") })
+      expect(body).to include('data-reactive-sortable-handle="[data-drag-handle]"')
       expect(body).to include('data-reactive-sortable-item=', 'data-drag-handle')
       expect(body).not_to include('data-testid="move-doing"')
     end

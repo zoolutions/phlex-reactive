@@ -26,6 +26,7 @@ class SortableListComponent < ApplicationComponent
 
   def move(item:, position:, after: nil, from: nil)
     raise Denied, "move refused" if @fail
+    return reply.morph unless @tasks.include?(item) # a stale or forged drop adds nothing
 
     @tasks -= [item]
     @tasks.insert(position.clamp(0, @tasks.size), item)

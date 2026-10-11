@@ -13,7 +13,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   a finger (a 200 ms press) or the keyboard (Space picks up, arrows move,
   Space drops, Escape cancels, each step announced in the list's own
   translatable words), and one declared action receives `item`, `position`,
-  `after` and `from` through the normal action pipeline. The row moves at once
+  `after` and `from` through the normal action pipeline (declare the ones you
+  want in `params:`; undeclared ones are dropped). The row moves at once
   and goes back when the action fails or its reply does not render the list.
   Sortables of one `group:` exchange rows (`name:` and static `params:` for a
   kanban), and a `reactive_sortable_source` list's rows are copied in, routed

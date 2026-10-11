@@ -1158,7 +1158,7 @@ module Views
             end
             DocsUI::Table(['Module', 'Gzipped', 'Default client', 'Split client'],
                           [
-                            [[:code, 'phlex/reactive/reactive_controller'], '29.8 KB',
+                            [[:code, 'phlex/reactive/reactive_controller'], '29.9 KB',
                              'When your controllers load (or at the first trigger, for a page whose only roots are dormant).',
                              'Never.'],
                             [[:code, 'phlex/reactive/core'], '13.8 KB',
@@ -1190,7 +1190,7 @@ module Views
                              [:md, 'When the first `reactive_compute` root connects. Its outputs show the ' \
                                    'server\'s values until then: about 20–25 ms with the module served from ' \
                                    'the same host (measured in the browser suite), one request on a real network.']],
-                            [[:code, 'phlex/reactive/features/sortable'], '3.1 KB',
+                            [[:code, 'phlex/reactive/features/sortable'], '3.2 KB',
                              'Inside the one file.',
                              [:md, 'When the first root that is, or holds, a `reactive_sortable` or ' \
                                    '`reactive_sortable_source` list connects.']],

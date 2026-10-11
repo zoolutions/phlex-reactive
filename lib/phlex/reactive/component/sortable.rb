@@ -183,15 +183,25 @@ module Phlex
 
         def sortable_messages!(messages)
           return SORTABLE_MESSAGES_JSON if messages.nil?
+          unless messages.is_a?(Hash)
+            raise ArgumentError,
+              "reactive_sortable messages: must be a Hash, got #{messages.inspect}"
+          end
 
-          unknown = messages.keys.map(&:to_sym) - SORTABLE_MESSAGES.keys
+          unknown = messages.keys.map { it.to_s.to_sym } - SORTABLE_MESSAGES.keys
           unless unknown.empty?
             raise ArgumentError,
               "reactive_sortable got an unknown messages: key #{unknown.first.inspect} — " \
               "supported: #{SORTABLE_MESSAGES.keys.map(&:inspect).join(", ")}"
           end
 
-          SORTABLE_MESSAGES.merge(messages.transform_keys(&:to_sym)).to_json
+          messages.each do |name, words|
+            next if words.is_a?(String)
+
+            raise ArgumentError, "reactive_sortable messages: #{name} must be a String, got #{words.inspect}"
+          end
+
+          SORTABLE_MESSAGES.merge(messages.transform_keys { it.to_s.to_sym }).to_json
         end
 
         SORTABLE_MESSAGES_JSON = SORTABLE_MESSAGES.to_json

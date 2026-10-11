@@ -40,7 +40,7 @@ module Views
             MD
             render Views::Examples::LatencyToggle.new(delay_ms: 600)
             render Views::Examples::LiveExample.new(component: SortableDemoComponent.new, source: demo_source,
-                                                    filename: 'app/components/sortable_tasks_component.rb')
+                                                    filename: 'app/reactive_components/sortable_tasks_component.rb')
           end
         end
 
@@ -123,7 +123,7 @@ module Views
 
               ```ruby
               ul(**reactive_sortable_source(group: "tasks", name: "templates")) do
-                TEMPLATES.each { |key, title| li(**reactive_sortable_item(key)) { title } }
+                TEMPLATES.each { |key, title| li(**mix(reactive_sortable_item(key), tabindex: -1)) { title } }
               end
 
               # The target joins the group, and maps the source's name to an action:
@@ -131,6 +131,10 @@ module Views
 
               action :insert, params: { item: :string, position: :integer }
               ```
+
+              A source's rows are drag-only (the keyboard moves rows of a
+              sortable, not copies), so `tabindex: -1` keeps them out of the
+              tab order.
 
               While you drag, a copy of the row follows the pointer and the
               placeholder shows where it would land. On drop nothing is inserted
@@ -223,9 +227,11 @@ module Views
             md <<~MD
               The row moves at once and the request goes out. If the request
               fails — an HTTP error, a network error, a `reactive:before-dispatch`
-              veto — or the reply does not render the list (no replace or update
-              of the list or an element around it), the row goes back to where it
-              was, and `reactive:error` fires as for any failed action. A reply
+              veto — the row goes back to where it was, and `reactive:error`
+              fires as for any failed action. If the request succeeds but the
+              reply does not render the list (no replace or update of the list
+              or an element around it), the row also goes back, but no event
+              fires: nothing failed. A reply
               that renders the list puts the rows in the server's order: Idiomorph
               matches them by id, so give every row a stable `id`.
 

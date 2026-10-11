@@ -107,11 +107,13 @@ const SLACK = 250
 // issue's aim was 3 KB or less for the feature in the default entry; the
 // default entry has no import(), so it carries it. Its review fixes (the live
 // region made at connect and written a frame later, boundary moves announced)
-// add 22 B: 28,966 B.
+// add 22 B: 28,966 B. PR #352 review (one pointer drives a drag, a cancelled
+// click, targets: selectors, nested-root keys) adds 87 B: 29,053 B.
 // Issue #351 (editable text: the collector, the server text and the morph hold
 // in the core; keys, paste and the plaintext-only fallback in bindings; dirty
 // and drafts) adds 963 B on main (26,977 B); merged on top of #350, 921 B: 29,887 B.
-const BUNDLE_GZIP_CEILING = 29_887
+// With #352's review fixes merged in: 29,964 B.
+const BUNDLE_GZIP_CEILING = 29_964
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -159,8 +161,8 @@ const FEATURE_GZIP_CEILINGS = {
   // Issue #351 (an editable's dirty diff against its server text) takes it to 1,088 B.
   "features/form": 1_100,
   "features/devtools": 1_600,
-  // Issue #350: sortable lists, 3,094 B; its review fixes take it to 3,130 B.
-  "features/sortable": 3_150,
+  // Issue #350: sortable lists, 3,094 B; its review fixes take it to 3,130 B; PR #352 review to 3,215 B.
+  "features/sortable": 3_215,
 }
 // Phase 5: 12,383 B core + 5,360 + 2,846 + 2,084 + 1,024 + 1,693 + 3,210 + 1,015 + 1,589 B of
 // features = 31,204 B. Issue #305 (the default entry's static path) costs the
@@ -183,10 +185,11 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #348 (a checked-only show target decides at zero boxes, in bindings)
 // adds 31 B: 33,147 B.
 // Issue #350 (the sortable feature module, 3,094 B, plus 54 B in the core)
-// adds 3,146 B: 36,293 B; its review fixes add 36 B: 36,329 B.
+// adds 3,146 B: 36,293 B; its review fixes add 36 B: 36,329 B; PR #352 review adds 85 B: 36,414 B.
 // Issue #351 (editable text, in the core, bindings, form and persist) adds
 // 986 B on main (34,133 B); on top of #350, 981 B: 37,310 B.
-const SPLIT_TOTAL_GZIP_CEILING = 37_310
+// With #352's review fixes merged in: 37,395 B.
+const SPLIT_TOTAL_GZIP_CEILING = 37_395
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

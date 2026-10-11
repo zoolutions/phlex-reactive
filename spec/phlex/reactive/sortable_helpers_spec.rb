@@ -155,6 +155,16 @@ RSpec.describe Phlex::Reactive::Component::Sortable do
         .to raise_error(ArgumentError, /params: cannot set :position/)
     end
 
+    it "raises on messages: that is not a Hash" do
+      expect { view.reactive_sortable(:move, messages: "Dropped") }
+        .to raise_error(ArgumentError, /messages: must be a Hash/)
+    end
+
+    it "raises on a messages: value that is not a String" do
+      expect { view.reactive_sortable(:move, messages: { dropped: 1 }) }
+        .to raise_error(ArgumentError, /messages: dropped must be a String/)
+    end
+
     it "raises on an unknown messages: key" do
       expect { view.reactive_sortable(:move, messages: { grabbed: "x" }) }
         .to raise_error(ArgumentError, /unknown messages: key :grabbed/)

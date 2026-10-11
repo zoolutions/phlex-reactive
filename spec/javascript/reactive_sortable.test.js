@@ -585,3 +585,48 @@ test("keyboard: a move past either end of the list re-announces where the row is
   expect(order()).toEqual(["t1", "t2", "t3", "t4"])
   key(row, "Escape")
 })
+
+test("a second pointer landing mid-drag does not move or drop the row", async () => {
+  mount(list())
+  layout(document.getElementById("tasks"))
+  const row = document.getElementById("t1")
+  pointer("pointerdown", row, 10, 110, { pointerId: 1 })
+  pointer("pointermove", document, 10, 120, { pointerId: 1 })
+  pointer("pointermove", document, 10, 225, { pointerId: 2 }) // another finger: ignored
+  expect(row.style.top).toBe("100px")
+  pointer("pointerup", document, 10, 225, { pointerId: 2 })
+  expect(row.hasAttribute("data-reactive-sortable-dragging")).toBe(true)
+  pointer("pointermove", document, 10, 225, { pointerId: 1 })
+  pointer("pointerup", document, 10, 225, { pointerId: 1 })
+  await flush()
+  expect(requests).toHaveLength(1)
+})
+
+test("the click a drag ends with is cancelled, not just stopped", () => {
+  mount(list())
+  layout(document.getElementById("tasks"))
+  dragTo(document.getElementById("t1"), 10, 225)
+  const click = new window.MouseEvent("click", { bubbles: true, cancelable: true })
+  document.getElementById("t2").dispatchEvent(click)
+  expect(click.defaultPrevented).toBe(true)
+})
+
+test("the row stays when the reply renders the list through a targets: selector", async () => {
+  mount(list())
+  layout(document.getElementById("tasks"))
+  reply = { body: '<turbo-stream action="replace" targets=".sortable-lists"><template></template></turbo-stream>' }
+  document.getElementById("tasks").classList.add("sortable-lists")
+  dragTo(document.getElementById("t1"), 10, 225)
+  await flush()
+  expect(order()).toEqual(["t2", "t3", "t1", "t4"])
+})
+
+test("nested roots: Space on a nested list's row picks it up once (the outer root does not drop it)", () => {
+  mount(`<div id="outer" data-controller="reactive" data-reactive-token-value="tok-outer">
+    ${list({ id: "outer-list", root: false, keys: [1, 2] })}
+    ${list({ id: "inner", keys: [3, 4, 5] })}
+  </div>`)
+  const row = document.getElementById("t3")
+  key(row, " ")
+  expect(row.hasAttribute("data-reactive-sortable-dragging")).toBe(true)
+})
