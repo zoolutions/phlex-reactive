@@ -975,6 +975,12 @@ the arrows, `home`, `end`, `page_up`, `page_down`; bind a custom `keyMappings`
 key with `event:` and `window:`). On `on_client` the event must be `:keydown`.
 `shortcut` is now a **reserved keyword** on `on(...)`.
 
+`once: true` on a shortcut unbinds the Stimulus descriptor after its first
+firing, and a press inside a field counts: the guard leaves the chord to the
+browser, but the `:once` listener is already spent. Keep `once:` off a
+shortcut that can be pressed while the user types, or pair it with
+`in_editable: true`.
+
 ### Optimistic visual hints (`optimistic:`)
 
 Every reactive action waits a full round trip for its visual change — and it's

@@ -52,8 +52,9 @@ const FEATURES = ENTRIES.filter((name) => name.startsWith("features/"))
 
 // Raised from 1,100 for window-bound (hotkey) capture, issue #303. Issue #357
 // (a shortcut: is prevented before connect; the other platform's twin and a
-// press in an editable field are skipped) adds 179 B: 1,296 → 1,475 B.
-const EARLY_GZIP_BUDGET = 1479
+// press in an editable field are skipped, for key-filtered descriptors
+// only) adds 195 B: 1,296 → 1,491 B.
+const EARLY_GZIP_BUDGET = 1491
 // How far a ceiling may sit above the real size: the rounding it is set with.
 const SLACK = 250
 

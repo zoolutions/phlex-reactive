@@ -303,6 +303,39 @@ test("an on_client shortcut with inEditable is queued from a contenteditable and
   }
 })
 
+// One element carrying a shortcut record AND other window records: only the
+// key-filtered descriptor that fired is the shortcut's to prevent or skip.
+const MIXED = `<div id="p" data-controller="reactive" data-action="keydown.meta+k@window->reactive#runOps keydown.ctrl+k@window->reactive#runOps click@window->reactive#runOps keydown@window->reactive#runOps" data-reactive-ops-param='{"on":"keydown","window":true,"ops":[],"shortcut":"mod+k"} {"on":"click","window":true,"outside":true,"ops":[]} {"on":"keydown","window":true,"ops":[]}'><a href="#x">link</a><textarea></textarea></div><a id="away" href="#y">away</a>`
+
+test("an unrelated click beside a shortcut record is not prevented before connect", async () => {
+  onPlatform("Win32")
+  try {
+    await mount(MIXED)
+    const event = click(document.querySelector("#away"))
+    expect(event.defaultPrevented).toBe(false)
+  } finally {
+    restorePlatform()
+  }
+})
+
+test("a plain keydown@window binding beside a shortcut record does not prevent Tab before connect", async () => {
+  onPlatform("Win32")
+  try {
+    await mount(MIXED)
+    const tab = press(document.body, "Tab")
+    expect(tab.defaultPrevented).toBe(false)
+    // …and is still recorded inside a field, as on main.
+    const queued = state().queue.length
+    press(document.querySelector("textarea"), "a")
+    expect(state().queue.length).toBe(queued + 1)
+    // The chord itself is still prevented.
+    const chord = press(document.body, "k", { ctrlKey: true })
+    expect(chord.defaultPrevented).toBe(true)
+  } finally {
+    restorePlatform()
+  }
+})
+
 test("a plain window hotkey is still recorded inside a textarea and never prevented (no shortcut:)", async () => {
   await mount(`<div id="p" data-controller="reactive"><span data-action="keydown.ctrl+s@window->reactive#dispatch" data-reactive-action-param="save" data-reactive-window-param="true"></span><textarea></textarea></div>`)
   const event = press(document.querySelector("textarea"), "s", { ctrlKey: true })
@@ -596,9 +629,9 @@ test("listens for trigger types of roots added after start (MutationObserver)", 
 
 // The one module every page loads eagerly. 1,024 B before dormant roots (issue
 // #274) added the second root selector and the wake.
-test("early.min.js gzips to at most 1,479 bytes", () => {
+test("early.min.js gzips to at most 1,491 bytes", () => {
   const built = readFileSync(join(import.meta.dir, "../../app/javascript/phlex/reactive/early.min.js"))
-  expect(gzipSync(built, { level: 9 }).length).toBeLessThanOrEqual(1479)
+  expect(gzipSync(built, { level: 9 }).length).toBeLessThanOrEqual(1491)
 })
 
 // --- reactive_controller.js: connect() marks, announces and drains ------------

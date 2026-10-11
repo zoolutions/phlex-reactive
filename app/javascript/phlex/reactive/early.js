@@ -138,11 +138,15 @@ function recordWindow(event) {
     if (state.connected.has(el.closest(ROOT_SELECTOR))) continue
     // A shortcut (issue #357): on() flags it on the element, on_client in its
     // record (read off the raw attribute: the element's records share one
-    // guard here, and the replay re-checks each).
+    // guard here, and the replay re-checks each). The guard covers only a
+    // key-filtered descriptor — a shortcut's twins always carry a filter — so
+    // the element's other window bindings (a click, a bare keydown) behave
+    // as they do without a shortcut.
     const ops = el.dataset.reactiveOpsParam ?? ""
-    const shortcut = el.dataset.reactiveShortcutParam ?? (/"shortcut"/.test(ops) && ops)
+    const shortcut = el.dataset.reactiveShortcutParam ?? (/"shortcut":/.test(ops) && ops)
     const { target } = event
-    if (shortcut && !/inEditable":true/.test(shortcut) && (target.isContentEditable || /^(input|textarea|select)$/.test(target.localName))) continue
+    const typing =
+      shortcut && !/inEditable":true/.test(shortcut) && (target.isContentEditable || /^(input|textarea|select)$/.test(target.localName))
     // Apple platforms run the meta twin of a `mod` chord, the rest the ctrl
     // one: `skip` is the other platform's.
     const skip = /mod\+/.test(shortcut) && (/[Mm]ac|iP/.test(navigator.userAgentData?.platform ?? navigator.platform) ? "ctrl" : "meta")
@@ -151,10 +155,10 @@ function recordWindow(event) {
     // the replay skips the outside ones).
     const descs = matching(el, event, true).filter(
       (d) =>
-        !(skip && d.filter?.includes(skip)) &&
+        !(d.filter && (typing || (skip && d.filter.includes(skip)))) &&
         (d.method === "runOps" ? /"window":true(?!,"outside")/.test(ops) : el.dataset.reactiveOutsideParam !== "true"),
     )
-    if (descs.length) enqueue(event, el, descs, true, shortcut)
+    if (descs.length) enqueue(event, el, descs, true, shortcut && descs.some((d) => d.filter))
   }
 }
 

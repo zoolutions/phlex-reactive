@@ -373,7 +373,8 @@ module Phlex
               "exclusive (debounce is trailing-edge, throttle is leading-edge); pick one"
           end
 
-          shortcut = shortcut_for!("on(#{action_name.inspect})", shortcut, event:, window:, outside:)
+          # Guarded here, not inside: building the caller label allocates (on() is a hot path).
+          shortcut = shortcut_for!("on(#{action_name.inspect})", shortcut, event:, window:, outside:) if shortcut
           event ||= "click"
           window_bound = window || outside || !shortcut.nil?
           action = trigger_descriptors(event, shortcut, window_bound, "dispatch", once)
@@ -1759,8 +1760,6 @@ module Phlex
         # decides the event, the window binding and the containment rule, so
         # an explicit event:/window:/outside: next to it is a mistake.
         def shortcut_for!(caller, shortcut, event:, window:, outside:)
-          return if shortcut.nil?
-
           { "event:" => event, "window:" => window, "outside:" => outside }.each do |name, value|
             next unless value
 
@@ -1786,11 +1785,11 @@ module Phlex
 
         # The data-action descriptors of an on()/on_client trigger: one, or a
         # shortcut's meta and ctrl twins (space-joined, as mix joins them).
+        # The common, shortcut-less path is ONE interpolation (on() is a hot path).
         def trigger_descriptors(event, shortcut, window_bound, method, once)
-          suffix = "#{"@window" if window_bound}->reactive##{method}#{":once" if once}"
-          return "#{event}#{suffix}" unless shortcut
+          return "#{event}#{"@window" if window_bound}->reactive##{method}#{":once" if once}" unless shortcut
 
-          shortcut.filters.map { "keydown.#{it}#{suffix}" }.join(" ")
+          shortcut.filters.map { "keydown.#{it}@window->reactive##{method}#{":once" if once}" }.join(" ")
         end
 
         # A Hash param is JSON (Stimulus's param reader parses it back into an

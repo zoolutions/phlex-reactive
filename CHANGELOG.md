@@ -20,7 +20,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `event:`, `window:` or `outside:`, a key outside Stimulus's default key map,
   or an `on_client` event other than `:keydown` raises `ArgumentError` at
   render. The inspector shows `keydown@window shortcut=mod+z`. `early.min.js`
-  grows 179 B gzipped (1,475 B); the default client 177 B.
+  grows 195 B gzipped (1,491 B); the default client 177 B.
   **Compatibility:** `shortcut` is now a reserved keyword on `on(...)` and no
   longer passes through as an action param. `event: "keydown.meta+z", window:
   true` without `shortcut:` behaves exactly as before (never prevented, no
