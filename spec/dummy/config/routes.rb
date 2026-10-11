@@ -13,6 +13,7 @@ Rails.application.routes.draw do
   get "dormant" => "demos#dormant" # issue #274: a dormant root, controller loaded on first use
   get "hinted" => "demos#hinted" # issue #275: a hinted trigger under the lazy layout, dormant on request
   get "hotkey_pair" => "demos#hotkey_pair" # issue #303: two roots sharing a window-bound hotkey
+  get "shortcuts" => "demos#shortcuts" # issue #357: shortcut: on on()/on_client()
   get "dormant_lazy" => "demos#dormant_lazy"
   get "dormant_cached" => "demos#dormant_cached" # issues #274 + #276 + #277
   get "dormant_stream" => "demos#dormant_stream"
@@ -63,6 +64,7 @@ Rails.application.routes.draw do
   get "dirty_form/:id" => "demos#dirty_form"
   get "editable_title/:id" => "demos#editable_title" # issue #351: reactive_editable
   get "late_editable" => "demos#late_editable" # issue #351: a stream appends the first editable
+  get "late_show" => "demos#late_show" # issue #356: a stream appends the first show target
   get "nested_editor" => "demos#nested_editor"
   get "nested_params" => "demos#nested_params"
   get "debounce" => "demos#debounce"

@@ -200,6 +200,7 @@ export function registerReactiveStreamRender() {
   if (typeof document === "undefined" || typeof document.addEventListener !== "function") return
   streamRenderRegistered = true
   document.addEventListener("turbo:before-stream-render", (event) => {
+    streamIntoRoots(event)
     // The opt-in entry sees every stream (it may hold one for a module the
     // incoming content needs); with no entry hook, a loaded effects module
     // wraps the stream directly — in the default entry, always.
@@ -210,6 +211,39 @@ export function registerReactiveStreamRender() {
 }
 // The names this registration had while it was two listeners.
 export { registerReactiveStreamRender as registerReactiveDismiss, registerReactiveStreamRender as registerReactiveEffects }
+
+// --- A stream into a connected root (issue #356) ---
+// A morph of a root makes it re-read its feature markers (#boundRootMorph); a
+// stream that renders INTO it — append, prepend or update of the root or a
+// child, before, after or replace of a child — fires neither a lifecycle nor
+// a morph of the root, so a marker it brings was never connected. The roots
+// a stream renders into are resolved here, before anything (effects, the opt-in
+// entry's hold) wraps Turbo's render; once that render has run, each one still
+// connected is told (STREAMED, not bubbling: an outer root's content is not
+// its own). The root re-runs its connected features' seeds and connects what
+// the new content needs, in both entries.
+const STREAMED = "reactive:streamed"
+
+function streamIntoRoots(event) {
+  const detail = event.detail
+  const render = detail?.render
+  const stream = detail?.newStream ?? event.target
+  const action = stream?.getAttribute?.("action")
+  const into = /^(append|prepend|update)$/.test(action)
+  if (typeof render !== "function" || !(into || /^(before|after|replace)$/.test(action))) return
+  const id = stream.getAttribute("target")
+  const selector = stream.getAttribute("targets")
+  const roots = new Set()
+  for (const target of id ? [document.getElementById(id)] : selector ? document.querySelectorAll(selector) : []) {
+    const root = (into ? target : target?.parentElement)?.closest?.('[data-controller~="reactive"]')
+    if (root) roots.add(root)
+  }
+  if (roots.size === 0) return
+  detail.render = async (el) => {
+    await render(el)
+    for (const root of roots) if (root.isConnected) root.dispatchEvent(new Event(STREAMED))
+  }
+}
 
 // For the opt-in entry: what to do with a stream before its render — hold it
 // for a module the incoming content needs. `handle(event, effects)` gets the
@@ -1030,6 +1064,23 @@ function keyFilterMatches(filter, event, keyMappings) {
           ? token
           : null
   return typeof key === "string" && key.toLowerCase() === event.key.toLowerCase()
+}
+
+// Issue #357: a shortcut: ("mod+z", or { keys, inEditable }) is a window
+// keydown whose `mod` is meta on Apple platforms and ctrl elsewhere. Ruby
+// renders a meta twin and a ctrl twin; Stimulus filters the key, and this
+// decides whether the twin that fired is this platform's and whether the
+// target is one the user is typing in. Either miss is a complete no-op.
+// (Stimulus typecasts a digit shortcut, "1", to a number: hence String().)
+const shortcutKeys = (spec) => (spec && typeof spec === "object" ? spec.keys : String(spec))
+// A shortcut record keeps a bare `on: "keydown"`, so bindingMatches lets every
+// keydown through and this check, per record, picks the chord that fired.
+function shortcutApplies(spec, event, keyMappings) {
+  const target = event.target
+  if (spec?.inEditable !== true && (target?.isContentEditable || /^(input|textarea|select)$/.test(target?.localName)))
+    return false
+  const mod = /[Mm]ac|iP/.test(navigator.userAgentData?.platform ?? navigator.platform) ? "meta" : "ctrl"
+  return keyFilterMatches(shortcutKeys(spec).replace(/^mod\+/, `${mod}+`), event, keyMappings)
 }
 
 // Parse data-reactive-ops-param into binding records. Stimulus typecasts a
@@ -1881,15 +1932,20 @@ export default class extends Controller {
     // The same listener hears an editable being focused (issue #351): a stream
     // can append a root's first reactive_editable without morphing the root,
     // and its keys and paste need the bindings feature before anything is
-    // typed into it.
+    // typed into it. And it hears a stream that rendered into the root
+    // (STREAMED, issue #356): the features already connected re-run their
+    // seeds first (a morph's own listeners do that for a morph), then what the
+    // new content needs connects.
     if (this.element.getAttribute?.("data-reactive-token-value") != null || deferNeeded(this.element)) {
       this.#boundRootMorph = (event) => {
         if (event.type === "focusin" ? !event.target.hasAttribute?.("data-reactive-editable") : event.target !== this.element) return
+        if (event.type === STREAMED) this.#reseed()
         if (__SPLIT__) this.#loadFeatures(true)
         else this.#connectFeaturesNow(true)
       }
       this.element.addEventListener?.("turbo:morph-element", this.#boundRootMorph)
       this.element.addEventListener?.("focusin", this.#boundRootMorph)
+      this.element.addEventListener?.(STREAMED, this.#boundRootMorph)
     }
 
     // Feature modules (issue #275): connect the ones that are here and START
@@ -2172,15 +2228,17 @@ export default class extends Controller {
 
   // Re-run the connect-time seeds that read field values, in connect() order
   // — for a feature that changed those values after connect() ran (the draft
-  // restore). Each is the same re-sync its feature runs after a morph; a root
-  // that did not opt into one skips it. on-complete re-ARMS without firing.
+  // restore), or content a stream rendered into the root (issue #356). Each is
+  // the same re-sync its feature runs after a morph; a root that did not opt
+  // into one skips it. on-complete re-ARMS without firing. Form and bindings
+  // also wire a binding whose gate reads true only now (a stream's content).
   #reseed() {
     if (!__SPLIT__) {
-      if (this.#featuresOn & FORM) formFeature.scan(this, this.#featureCore())
+      if (this.#featuresOn & FORM) formFeature.reseed(this)
       if (this.#featuresOn & BINDINGS) bindingsFeature.reseed(this)
       if (this.#featuresOn & COMPUTE) computeFeature.seed(this)
     } else {
-      this.#features.get("form")?.scan(this, this.#featureCore())
+      this.#features.get("form")?.reseed(this)
       this.#features.get("bindings")?.reseed(this)
       this.#features.get("compute")?.seed(this)
     }
@@ -2353,6 +2411,7 @@ export default class extends Controller {
     if (this.#boundRootMorph) {
       this.element.removeEventListener?.("turbo:morph-element", this.#boundRootMorph)
       this.element.removeEventListener?.("focusin", this.#boundRootMorph)
+      this.element.removeEventListener?.(STREAMED, this.#boundRootMorph)
     }
     // Early triggers (issue #273): a disconnected root records again.
     earlyState().connected.delete(this.element)
@@ -2379,9 +2438,13 @@ export default class extends Controller {
     // modifier params (issue #80). The client decides preventDefault behavior
     // from event.params — set by the Ruby on() — never by sniffing the
     // Stimulus descriptor.
-    const { action, params, debounce, throttle, confirm, confirmWhen, outside, window: windowBound, optimistic } =
+    const { action, params, debounce, throttle, confirm, confirmWhen, outside, window: windowBound, optimistic, shortcut } =
       event.params
     if (!action) return
+    // A shortcut (issue #357) that is the other platform's twin, or pressed
+    // in a field the user is typing in, is a complete no-op: the native
+    // default (text undo) proceeds and nothing is announced.
+    if (shortcut != null && !shortcutApplies(shortcut, event, this.application?.schema?.keyMappings)) return
 
     // The pending-state hint (issue #181): data-reactive-busy-param. During a
     // deploy overlap a page rendered by the PREVIOUS gem still emits the old
@@ -2428,7 +2491,11 @@ export default class extends Controller {
     // (which has no form-navigation default to lose) skips it and flips now, and
     // the failure revert snaps it back. A `change`-bound trigger is unaffected —
     // `change` isn't cancelable, so preventDefault was already a no-op there.
-    if (!windowBound && !this.#keepsNativeToggle(optimistic, target)) event.preventDefault()
+    //
+    // A shortcut (issue #357) IS prevented: its key filter has already narrowed
+    // the window binding to one chord the page claims (mod+s must not also open
+    // the browser's save dialog).
+    if ((shortcut != null || !windowBound) && !this.#keepsNativeToggle(optimistic, target)) event.preventDefault()
 
     // A reactive_lazy(on:) shell's trigger (issue #276) goes through the one
     // materialize entry point, which dedupes it against the observer, the
@@ -2567,6 +2634,10 @@ export default class extends Controller {
       // A detail miss (issue #346) is a complete no-op — checked before the
       // once record is spent, preventDefault and the confirm gate.
       if (!detailMatches(record, event)) continue
+      // So is a shortcut that is not this platform's twin or fired in an
+      // editable target (issue #357).
+      if (record.shortcut != null && !shortcutApplies(record.shortcut, event, this.application?.schema?.keyMappings))
+        continue
       if (onceBindingSpent(this, event, record)) continue
       this.#runBinding(record.legacy ? { ...params, ops: record.ops } : record, event, trigger)
     }
@@ -2574,7 +2645,7 @@ export default class extends Controller {
 
   // One on_client binding (issue #95): its outside guard, preventDefault rule,
   // confirm gate, then its ops — every flag read from the binding itself.
-  #runBinding({ ops, confirm, confirmWhen, outside, window: windowBound }, event, trigger) {
+  #runBinding({ ops, confirm, confirmWhen, outside, window: windowBound, shortcut }, event, trigger) {
     // Outside guard FIRST — identical semantics to dispatch() (issue #80): an
     // outside: trigger is a COMPLETE no-op for events inside this root, before
     // preventDefault and before any op runs.
@@ -2586,7 +2657,8 @@ export default class extends Controller {
     // would kill native clicks site-wide (issue #80 rationale). Runs BEFORE the
     // (possibly async) confirm gate below — a native default can't wait for a
     // pending dialog (same ordering as dispatch()).
-    if (!windowBound) event.preventDefault()
+    // A shortcut (issue #357) is prevented: it is one chord the page claims.
+    if (shortcut != null || !windowBound) event.preventDefault()
 
     // Resolve the effective confirm message — static string, or the conditional
     // Hash form (issue #179) evaluated over collected fields (a promise of it

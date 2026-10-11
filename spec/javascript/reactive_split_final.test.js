@@ -765,6 +765,52 @@ describe("streams: a root a stream brings in", () => {
     expect(rendered).toBe(true)
   })
 
+  test("a stream that appends a show target into a root starts the bindings import before its render (issue #356)", async () => {
+    const bindings = slowFeature("bindings", bindingsModule)
+    const { controller } = addRoot("card", {}, `<input name="kind" value=""><div id="slot"></div>`)
+    controller.connect()
+    const stream = document.createElement("turbo-stream")
+    stream.setAttribute("action", "append")
+    stream.setAttribute("target", "slot")
+    const template = document.createElement("template")
+    template.innerHTML = `<p data-reactive-show-field="kind" data-reactive-show-equals="x">x</p>`
+    stream.appendChild(template)
+    let rendered = false
+    const detail = fire(stream, async () => {
+      rendered = true
+    })
+    expect(bindings.loads()).toBe(1)
+
+    const done = detail.render(stream)
+    await settle()
+    expect(rendered).toBe(false) // held: the root re-reads its markers with the module here
+    bindings.arrive()
+    await done
+    expect(rendered).toBe(true)
+    controller.disconnect()
+  })
+
+  test("a show target a stream appends into a connected root is wired once the module is here (issue #356)", async () => {
+    const bindings = slowFeature("bindings", bindingsModule)
+    const { root, controller } = addRoot("card", {}, `<input name="kind" value=""><div id="slot"></div>`)
+    controller.connect()
+    const html = `<p data-reactive-show-field="kind" data-reactive-show-equals="x">x</p>`
+    const stream = document.createElement("turbo-stream")
+    stream.setAttribute("action", "append")
+    stream.setAttribute("target", "slot")
+    const template = document.createElement("template")
+    template.innerHTML = html
+    stream.appendChild(template)
+    const detail = fire(stream, async () => document.getElementById("slot").insertAdjacentHTML("beforeend", html))
+
+    const done = detail.render(stream)
+    bindings.arrive()
+    await done
+    await controller.featuresReady
+    expect(root.querySelector("p").hidden).toBe(true)
+    controller.disconnect()
+  })
+
   test("a stream whose content needs nothing renders at once", async () => {
     const bindings = slowFeature("bindings", bindingsModule)
     const stream = document.createElement("turbo-stream")

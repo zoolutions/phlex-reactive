@@ -284,6 +284,17 @@ module Phlex
         # (trailing-edge) — passing both raises ArgumentError.
         #   div(**mix(reactive_root, on(:track, event: "scroll", window: true, throttle: 250)))
         #
+        # `shortcut:` (issue #357, also RESERVED) binds a page-level keyboard
+        # chord: a window keydown whose `mod` is meta on Apple platforms and
+        # ctrl elsewhere (rendered as a meta twin and a ctrl twin; the client
+        # runs the one for its platform). Unlike a plain window binding, the
+        # client prevents the chord's native default, and it skips the chord
+        # while focus is in an input, textarea, select or contenteditable
+        # (native text undo keeps working) unless the Hash form opts in. It
+        # decides event:, window: and outside:, so passing one raises.
+        #   span(**on(:undo, shortcut: "mod+z"))
+        #   span(**on(:close, shortcut: { keys: "esc", in_editable: true }))
+        #
         # `optimistic:` (issue #98) — a small, ALWAYS-REVERSIBLE vocabulary of
         # COSMETIC hints the client applies the instant the trigger fires and
         # REVERTS if the round trip fails, so a click/toggle gives instant feedback
@@ -328,9 +339,9 @@ module Phlex
         # busy_on for scoped indicators.
         #   button(**on(:save, busy: "Saving…")) { "Save" }
         #   button(**on(:destroy, confirm: "Sure?", busy: { add_class: "opacity-50" })) { "Delete" }
-        def on(action_name, event: "click", debounce: nil, throttle: nil, confirm: nil,
+        def on(action_name, event: nil, debounce: nil, throttle: nil, confirm: nil,
                window: false, once: false, outside: false, optimistic: nil, busy: nil,
-               **params)
+               shortcut: nil, **params)
           reject_removed_on_kwargs!(action_name, params)
           # A typo'd or forgotten action renders fine and only surfaces as an
           # opaque 403 at CLICK time (the endpoint's default-deny). Under
@@ -366,8 +377,11 @@ module Phlex
               "exclusive (debounce is trailing-edge, throttle is leading-edge); pick one"
           end
 
-          window_bound = window || outside
-          action = "#{event}#{"@window" if window_bound}->reactive#dispatch#{":once" if once}"
+          # Guarded here, not inside: building the caller label allocates (on() is a hot path).
+          shortcut = shortcut_for!("on(#{action_name.inspect})", shortcut, event:, window:, outside:) unless shortcut.nil?
+          event ||= "click"
+          window_bound = window || outside || !shortcut.nil?
+          action = trigger_descriptors(event, shortcut, window_bound, "dispatch", once)
           attrs = {
             data: {
               action:,
@@ -388,6 +402,9 @@ module Phlex
           # The client decides preventDefault behavior from event.params (never by
           # sniffing the descriptor), so EVERY window binding flags the param.
           attrs[:data][:reactive_window_param] = "true" if window_bound
+          # Issue #357: the client reads the shortcut to pick the twin for its
+          # platform, skip editable targets and prevent the chord.
+          attrs[:data][:reactive_shortcut_param] = shortcut_param_attr(shortcut) if shortcut
           # Force type="button" for click triggers so a bare button inside a <form>
           # can't submit it — EXCEPT when checked: :keep is declared: that hint's
           # whole point is to let a click-bound checkbox/radio flip natively, and a
@@ -410,7 +427,9 @@ module Phlex
         # modifiers (#80): outside-click-to-close a dropdown is
         #   div(**mix(reactive_root, on_client(:click, js.hide("#menu"), outside: true)))
         # Window-bound triggers are never preventDefault-ed by the client and skip
-        # the forced type="button".
+        # the forced type="button". `shortcut:` (issue #357) works as on()'s, on
+        # a bare :keydown only:
+        #   div(**mix(reactive_root, on_client(:keydown, js.toggle("#palette"), shortcut: "mod+k")))
         #
         # Issue #271: each call emits ONE self-describing binding record —
         #   data-reactive-ops-param='{"on":"click","window":true,"outside":true,"ops":[…]}'
@@ -441,7 +460,8 @@ module Phlex
         # Validation is loud: only a non-empty Phlex::Reactive::JS chain is
         # accepted — a dead trigger should fail at render, not no-op in the
         # browser.
-        def on_client(event, ops, window: false, once: false, outside: false, confirm: nil, detail: nil)
+        def on_client(event, ops, window: false, once: false, outside: false, confirm: nil, detail: nil,
+                      shortcut: nil)
           unless ops.is_a?(Phlex::Reactive::JS)
             raise ArgumentError,
               "on_client expects a Phlex::Reactive::JS chain (e.g. js.toggle(\"#menu\")), " \
@@ -458,11 +478,15 @@ module Phlex
               "submit event this trigger is bound to. Bind the submit op to another event " \
               "(change/input), or gate it behind a reducer's $ops / reactive_on_complete."
           end
-          window_bound = window || outside
+          shortcut = client_shortcut!(event, shortcut, window:, outside:)
+          window_bound = window || outside || !shortcut.nil?
           record = client_binding_record(event, ops, window_bound:, outside:, once:, confirm:, detail:)
+          # The record's `on` stays the bare keydown: the client reads a key
+          # filter from `on`, and `mod` is not a key.
+          record["shortcut"] = shortcut.param if shortcut
           attrs = {
             data: {
-              action: "#{event}#{"@window" if window_bound}->reactive#runOps#{":once" if once}",
+              action: trigger_descriptors(event, shortcut, window_bound, "runOps", once),
               # Space-free (issue #271): compact JSON has no structural
               # whitespace, so every space is inside a string, where \u0020
               # parses to the same string — and mix's space-join stays splittable.
@@ -1734,6 +1758,49 @@ module Phlex
           key = removed.first
           raise ArgumentError,
             "on(#{action_name.inspect}) #{key}: was removed in issue #181 — use #{REMOVED_ON_KWARGS[key]}"
+        end
+
+        # Issue #357: parse on()'s shortcut: (nil when absent). A shortcut
+        # decides the event, the window binding and the containment rule, so
+        # an explicit event:/window:/outside: next to it is a mistake.
+        def shortcut_for!(caller, shortcut, event:, window:, outside:)
+          { "event:" => event, "window:" => window, "outside:" => outside }.each do |name, value|
+            next unless value
+
+            raise ArgumentError,
+              "#{caller} got shortcut: with #{name} — a shortcut is always a window keydown " \
+              "binding; drop #{name}"
+          end
+          Phlex::Reactive::Shortcut.parse(shortcut)
+        end
+
+        # on_client's event is positional: with shortcut: it must be the bare
+        # keydown (the key filter comes from the shortcut).
+        def client_shortcut!(event, shortcut, window:, outside:)
+          return if shortcut.nil?
+
+          unless event == "keydown"
+            raise ArgumentError,
+              "on_client(#{event.inspect}) got shortcut: — bind it to :keydown " \
+              "(on_client(:keydown, ops, shortcut: \"mod+k\")); the key comes from the shortcut"
+          end
+          shortcut_for!("on_client(:keydown)", shortcut, event: nil, window:, outside:)
+        end
+
+        # The data-action descriptors of an on()/on_client trigger: one, or a
+        # shortcut's meta and ctrl twins (space-joined, as mix joins them).
+        # The common, shortcut-less path is ONE interpolation (on() is a hot path).
+        def trigger_descriptors(event, shortcut, window_bound, method, once)
+          return "#{event}#{"@window" if window_bound}->reactive##{method}#{":once" if once}" unless shortcut
+
+          shortcut.filters.map { "keydown.#{it}@window->reactive##{method}#{":once" if once}" }.join(" ")
+        end
+
+        # A Hash param is JSON (Stimulus's param reader parses it back into an
+        # object); the String form stays a plain string.
+        def shortcut_param_attr(shortcut)
+          param = shortcut.param
+          param.is_a?(Hash) ? param.to_json : param
         end
 
         # Normalize + validate a pending-state hint (issue #181), returning its

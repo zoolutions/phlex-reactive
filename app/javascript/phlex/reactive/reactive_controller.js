@@ -50,7 +50,7 @@ if (__SPLIT__) {
   // namespace object itself).
   registerReactiveFeature("persist", { install: persist.install, connect: persist.connect, disconnect: persist.disconnect, abandon: persist.abandon, writeState: persist.writeState, clearRoot: persist.clearRoot })
   registerReactiveFeature("defer", { install: defer.install, connect: defer.connect, disconnect: defer.disconnect, streamAction: defer.streamAction, materialize: defer.materialize })
-  registerReactiveFeature("form", { connect: form.connect, disconnect: form.disconnect, scan: form.scan })
+  registerReactiveFeature("form", { connect: form.connect, disconnect: form.disconnect, scan: form.scan, reseed: form.reseed })
   registerReactiveFeature("bindings", {
     connect: bindings.connect,
     disconnect: bindings.disconnect,

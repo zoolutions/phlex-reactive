@@ -35,6 +35,9 @@
 // `@window` descriptor instead of walking up from the target. They are never
 // prevented (dispatch() does not prevent a window binding either) and live a
 // short TTL in the controller (a hotkey replayed seconds late is wrong).
+// A shortcut: (issue #357) is the exception: the chord is prevented, as
+// dispatch() prevents it, and the other platform's `mod` twin or a press in an
+// editable field is neither queued nor prevented.
 //
 // Limits: outside: triggers and @document bindings are not recorded (an
 // outside click before connect has nothing to close); a key filter is matched
@@ -80,15 +83,17 @@ const matching = (el, event, win) =>
   descriptors(el).filter((d) => d.win === win && d.type === event.type && keyMatches(d.filter, event))
 
 // Queue one firing for `el`'s root, unless that root has connected.
-function enqueue(event, el, descs, win) {
+function enqueue(event, el, descs, win, shortcut) {
   const root = el.closest(ROOT_SELECTOR)
   if (!root || state.connected.has(root)) return
   // dispatch() keeps the native flip of a checked: :keep checkbox/radio and
-  // never prevents a window binding; everything else is prevented now, as the
-  // controller would.
+  // never prevents a window binding — but a shortcut (issue #357), the chord
+  // the page claims (mod+s must not open the save dialog before connect), is
+  // always prevented: the keepsToggle exemption is for element-bound clicks
+  // only. Everything else is prevented now, as the controller would.
   const keepsToggle =
     /^(checkbox|radio)$/.test(el.type) && /"checked":"keep"/.test(el.dataset.reactiveOptimisticParam)
-  if (!win && (!keepsToggle || descs.some((d) => d.method === "runOps"))) event.preventDefault()
+  if (win ? shortcut : !keepsToggle || descs.some((d) => d.method === "runOps")) event.preventDefault()
   // Every firing is queued — a `:once` repeat included: the replay skips a
   // descriptor already consumed (reactive_controller.js #replayEarly).
   const { queue } = state
@@ -132,15 +137,29 @@ function recordWindow(event) {
     }
     // Cheapest check first: once its root connects, Stimulus hears it.
     if (state.connected.has(el.closest(ROOT_SELECTOR))) continue
+    // A shortcut (issue #357): on() flags it on the element, on_client in its
+    // record (read off the raw attribute: the element's records share one
+    // guard here, and the replay re-checks each). The guard covers only a
+    // key-filtered descriptor — a shortcut's twins always carry a filter — so
+    // the element's other window bindings (a click, a bare keydown) behave
+    // as they do without a shortcut.
+    const ops = el.dataset.reactiveOpsParam ?? ""
+    const shortcut = el.dataset.reactiveShortcutParam ?? (/"shortcut":/.test(ops) && ops)
+    const { target } = event
+    const typing =
+      shortcut && !/inEditable":true/.test(shortcut) && (target.isContentEditable || /^(input|textarea|select)$/.test(target.localName))
+    // Apple platforms run the meta twin of a `mod` chord, the rest the ctrl
+    // one: `skip` is the other platform's.
+    const skip = /mod\+/.test(shortcut) && (/[Mm]ac|iP/.test(navigator.userAgentData?.platform ?? navigator.platform) ? "ctrl" : "meta")
     // outside: is not recorded — on() flags it on the element, on_client in
     // the binding record (one window record without it is enough to queue;
     // the replay skips the outside ones).
-    const descs = matching(el, event, true).filter((d) =>
-      d.method === "runOps"
-        ? /"window":true(?!,"outside")/.test(el.dataset.reactiveOpsParam)
-        : el.dataset.reactiveOutsideParam !== "true",
+    const descs = matching(el, event, true).filter(
+      (d) =>
+        !(d.filter && (typing || (skip && d.filter.includes(skip)))) &&
+        (d.method === "runOps" ? /"window":true(?!,"outside")/.test(ops) : el.dataset.reactiveOutsideParam !== "true"),
     )
-    if (descs.length) enqueue(event, el, descs, true)
+    if (descs.length) enqueue(event, el, descs, true, shortcut && descs.some((d) => d.filter))
   }
 }
 

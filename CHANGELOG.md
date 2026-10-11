@@ -29,6 +29,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   render. Upgrade the seat table with `rails g pgbus:add_presence_seats`.
   `ttl:` must be above pgbus's `streams_heartbeat_interval` (15 s by default). `js.presence` is refused on a broadcast, like `focus`. Docs: "Presence".
 
+- **`shortcut:` on `on()` and `on_client(:keydown, …)` — page-level keyboard
+  shortcuts (#357).** `on(:undo, shortcut: "mod+z")` binds a window keydown
+  where `mod` is ⌘ on Apple platforms and Ctrl elsewhere (rendered as a meta
+  twin and a ctrl twin; the client runs its platform's, the other is a no-op).
+  The shortcut does nothing while focus is in an `input`, `textarea`, `select`
+  or anything `contenteditable`, so native text undo keeps working
+  (`shortcut: { keys: "esc", in_editable: true }` opts in), and a matching
+  chord is `preventDefault`-ed before any `confirm:` dialog, also when pressed
+  before the controller connects (`phlex/reactive/early`). `shortcut:` with
+  `event:`, `window:` or `outside:`, a key outside Stimulus's default key map,
+  or an `on_client` event other than `:keydown` raises `ArgumentError` at
+  render. The inspector shows `keydown@window shortcut=mod+z`. `early.min.js`
+  grows 195 B gzipped (1,491 B); the default client 177 B.
+  **Compatibility:** `shortcut` is now a reserved keyword on `on(...)` and no
+  longer passes through as an action param. `event: "keydown.meta+z", window:
+  true` without `shortcut:` behaves exactly as before (never prevented, no
+  editable guard).
+
 - **Sortable lists — `reactive_sortable`, `reactive_sortable_source`,
   `reactive_sortable_item` (#350).** Rows drag to reorder a list with a mouse,
   a finger (a 200 ms press) or the keyboard (Space picks up, arrows move,
@@ -79,6 +97,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A stream that renders into a connected root wires what its content needs
+  (#356).** A root read its feature markers only at connect and after a morph
+  of itself, so a `reactive_show` target, select-all/count group, filter,
+  nested list, dirty field or paste trigger that an `append`, `prepend`,
+  `update`, `before`, `after` or child `replace` brought into it stayed dead
+  until the root reconnected. Now, once such a stream has rendered, the root
+  re-runs the seeds of the features it has (a new show target takes the
+  field's current value) and connects any feature its new content needs, in
+  both clients; bindings and form also wire a binding whose gate reads true
+  only then. As after a morph, this covers a root with an action token or a
+  lazy shell; a tokenless, client-only root does not re-read. On the split
+  client the stream's render waits for the module the content needs, as it
+  already did for an incoming root, so the content lands wired; the wait is
+  capped at 1 s, after which Turbo renders and the root connects the module
+  when it arrives. A draft
+  restore no longer marks fields `data-reactive-dirty` on a root that never
+  opted into dirty tracking (one that only gates a paste trigger).
 - **An editable is editable in an engine without `contenteditable="plaintext-only"`,
   however it reaches the page (#355).** Such an engine reads the server's
   `plaintext-only` as invalid, so the element cannot even be focused. The

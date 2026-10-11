@@ -775,7 +775,7 @@ module Views
                 code { 'preload: false' }
                 plain ' pin). The reactive controller can load that way too, as long as '
                 code { 'phlex/reactive/early' }
-                plain ' is imported eagerly (issue #273). It is under 1.3 KB gzipped (a test asserts '
+                plain ' is imported eagerly (issue #273). It is under 1.5 KB gzipped (a test asserts '
                 plain 'it) and has no Stimulus import. Until a root connects, it queues the trigger events '
                 plain 'that reach it and stops their native default where the controller would; the '
                 plain 'controller replays them when it connects. Without it, a click in the load window '
@@ -946,7 +946,7 @@ module Views
                   plain 'Waking costs '
                   code { 'early.js' }
                   plain ' 53 bytes: 1,007 B → 1,060 B gzipped (bun, level 9). Recording hotkeys (issue #303) '
-                  plain 'took it to 1,296 B, under a 1,300 B test budget.'
+                  plain 'took it to 1,296 B; page-level shortcuts (issue #357) to 1,491 B, its test budget.'
                 end
               end
             end
@@ -1207,7 +1207,7 @@ module Views
                                    '`phlex-reactive-env` development meta or while a latency delay is stored; ' \
                                    'at connect for a root in debug mode; otherwise the first time a verbose root ' \
                                    'has something to warn about. In production with none of these, never.']],
-                            [[:code, 'phlex/reactive/early'], '1.3 KB',
+                            [[:code, 'phlex/reactive/early'], '1.5 KB',
                              'On every page, if you import it.',
                              'The same.']
                           ])
