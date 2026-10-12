@@ -60,9 +60,13 @@ class ModalPickerComponent < Phlex::HTML
     end
   end
 
+  # Escape fires the dialog's `cancel` event: bound to the cancel action, the
+  # server clears @confirming and its morph closes the dialog, so a later
+  # re-render never brings it back open.
   def confirmation
-    dialog(id: 'mp-confirm', class: 'modal', open: @confirming, aria_labelledby: 'mp-confirm-title',
-           data: { reactive_modal: true }) do
+    attrs = { id: 'mp-confirm', class: 'modal', open: @confirming, aria_labelledby: 'mp-confirm-title',
+              data: { reactive_modal: true } }
+    dialog(**mix(on(:cancel, event: 'cancel'), attrs)) do
       div(class: 'modal-box flex flex-col gap-3') do
         p(id: 'mp-confirm-title', class: 'text-lg font-semibold') { 'Rendered open by the server' }
         p { 'The reply morphed this dialog in with open and data-reactive-modal; the client made it modal.' }

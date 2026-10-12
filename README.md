@@ -1265,7 +1265,7 @@ button(**on_client(:click, js
   with `data: { reactive_modal: true }` (a full page, a reply, a broadcast) is
   made modal as soon as the client sees it, and closed with `close()` when a
   morph renders it without `open`. **Actor-only like focus**: refused in
-  `broadcast_to(js:)` — render the dialog open with the marker instead.
+  `broadcast_to(js:)` — render the dialog open or closed, with the marker, instead.
 - **`text(to, value)`** sets the target's `textContent` (stringified; `nil`
   clears) — **XSS-safe by construction**, never `innerHTML`, strictly less
   powerful than `set_attr`. With `global: true` it is the **cross-root text

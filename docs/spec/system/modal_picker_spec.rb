@@ -30,4 +30,20 @@ RSpec.describe 'Modal dialog demo', type: :system do
     expect(page).to have_no_css('#mp-confirm[open]', visible: :all)
     expect(modal?('mp-confirm')).to be(false)
   end
+
+  it 'closes the server-rendered dialog through the server on Escape' do
+    click_button 'Delete (asks the server)'
+    expect(page).to have_css('#mp-confirm[open]')
+    confirming_token = find_by_id('modal-picker')['data-reactive-token-value']
+
+    page.driver.with_playwright_page { it.keyboard.press('Escape') }
+    expect(page).to have_no_css('#mp-confirm[open]', visible: :all)
+    expect(modal?('mp-confirm')).to be(false)
+    # The server re-rendered with @confirming cleared: the root carries a new token.
+    expect(page).to have_no_css("#modal-picker[data-reactive-token-value='#{confirming_token}']")
+
+    click_button 'Delete (asks the server)'
+    expect(page).to have_css('#mp-confirm[open]')
+    expect(modal?('mp-confirm')).to be(true)
+  end
 end

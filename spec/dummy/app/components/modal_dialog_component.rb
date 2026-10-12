@@ -72,7 +72,8 @@ class ModalDialogComponent < ApplicationComponent
   end
 
   def server_dialog
-    dialog(id: "server-dialog", open: @open, data: { reactive_modal: true, testid: "server-dialog" }) do
+    dialog(id: "server-dialog", aria_label: "Rendered open by the server", open: @open,
+      data: { reactive_modal: true, testid: "server-dialog" }) do
       p { "Rendered open by the server" }
       p(data: { testid: "refreshes" }) { "Refreshed #{@refreshes}" }
       button(**mix(on(:refresh_morph), data: { testid: "refresh-morph" })) { "Refresh (morph)" }

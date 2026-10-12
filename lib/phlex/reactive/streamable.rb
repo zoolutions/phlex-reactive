@@ -202,7 +202,7 @@ module Phlex
               "broadcasting check_group ticks or clears every subscriber's selection; " \
               "broadcasting presence writes every subscriber's presence state; " \
               "broadcasting show_modal or close_dialog opens or closes a modal (and moves focus) on " \
-              "every screen — render the dialog open with data: { reactive_modal: true } instead. " \
+              "every screen — render the dialog open or closed, with data: { reactive_modal: true }, instead." \
               "These are actor concerns (reply.js / on_client / $ops)."
           end
 

@@ -136,7 +136,9 @@ module Views
               end
 
               # "Is it open?" as server state, rendered open by a reply or a broadcast:
-              dialog(id: "confirm", open: @confirming, data: { reactive_modal: true }) { … }
+              # Escape fires `cancel`: bind it to an action so the server closes it too.
+              dialog(**mix(on(:cancel, event: "cancel"), id: "confirm", open: @confirming,
+                           data: { reactive_modal: true })) { … }
               ```
 
               Both ops are **actor-only**, like `focus`: `on_client`, `reply.js` and a
@@ -151,8 +153,8 @@ module Views
                 resets it like any other op: a morph of a root whose render has the
                 dialog **closed** closes it. When an action inside the dialog re-renders
                 its root, keep "open" on the server instead (`open: @open` plus the
-                marker), and close it with an action — or listen for the dialog's
-                `close` event (Escape) to keep the server in step.
+                marker), and close it with an action — and bind the dialog's `cancel`
+                event (Escape) to that action to keep the server in step.
               MD
             end
             render Views::Examples::LiveExample.new(

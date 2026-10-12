@@ -288,9 +288,13 @@ function closeDialog(el) {
   if (isDialog(el) && el.open) el.close()
 }
 
-// Make every open dialog[data-reactive-modal] in `scope` modal.
+// Make every open dialog[data-reactive-modal] in `scope` modal — `scope` itself
+// too, for a root that is the dialog.
 function upgradeModals(scope) {
-  for (const dialog of scope?.querySelectorAll?.("dialog[data-reactive-modal]") ?? []) {
+  const sel = "dialog[data-reactive-modal]"
+  const dialogs = [...(scope?.querySelectorAll?.(sel) ?? [])]
+  if (scope?.matches?.(sel)) dialogs.push(scope)
+  for (const dialog of dialogs) {
     if (dialog.open && !isModal(dialog)) showModal(dialog)
   }
 }

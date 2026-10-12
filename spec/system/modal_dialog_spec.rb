@@ -16,9 +16,21 @@ RSpec.describe "Modal dialogs (issue #365)", type: :system do
     page.evaluate_script("document.activeElement?.dataset?.testid ?? null")
   end
 
-  def focus_inside?(testid)
+  # Where focus lands after each of `times` presses of `key`.
+  def focus_places_after(key, testid, times: 6)
+    Array.new(times) do
+      page.driver.with_playwright_page { it.keyboard.press(key) }
+      focus_place(testid)
+    end
+  end
+
+  # Where focus is relative to the dialog: "inside", "outside" (a page element
+  # behind the modal), or "chrome" — a modal dialog lets Tab leave for the
+  # browser's own UI, which reads as document.body from the page.
+  def focus_place(testid)
     page.evaluate_script(<<~JS)
-      document.activeElement === document.body || !!document.activeElement?.closest("[data-testid=#{testid}]")
+      document.activeElement === document.body ? "chrome" :
+        (document.activeElement?.closest("[data-testid=#{testid}]") ? "inside" : "outside")
     JS
   end
 
@@ -39,13 +51,11 @@ RSpec.describe "Modal dialogs (issue #365)", type: :system do
       find("[data-testid='choose']").click
       expect(page).to have_css("[data-testid='picker'][open]")
 
-      6.times do
-        page.driver.with_playwright_page { it.keyboard.press("Tab") }
-        expect(focus_inside?("picker")).to be(true)
-      end
-      6.times do
-        page.driver.with_playwright_page { it.keyboard.press("Shift+Tab") }
-        expect(focus_inside?("picker")).to be(true)
+      # Never on the page behind the modal, and back inside after every wrap.
+      %w[Tab Shift+Tab].each do
+        places = focus_places_after(it, "picker")
+        expect(places).not_to include("outside")
+        expect(places.count("inside")).to be >= 3
       end
     end
 

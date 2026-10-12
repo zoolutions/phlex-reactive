@@ -151,6 +151,35 @@ test("connect upgrades an open dialog[data-reactive-modal] and leaves an unmarke
   expect(plain).toEqual([])
 })
 
+test("connect upgrades a root that is itself an open dialog[data-reactive-modal]", () => {
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    `<dialog id="r" open data-reactive-modal data-controller="reactive" data-reactive-token-value="t"></dialog>`,
+  )
+  const root = document.getElementById("r")
+  const calls = spy(root)
+  const controller = new ReactiveController()
+  controller.element = root
+
+  controller.connect()
+
+  expect(calls).toEqual(["close", "showModal"])
+})
+
+test("a morph of a root that is itself a marked dialog upgrades it", () => {
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    `<dialog id="r" data-reactive-modal data-controller="reactive" data-reactive-token-value="t"></dialog>`,
+  )
+  const root = document.getElementById("r")
+  const calls = spy(root)
+  root.setAttribute("open", "")
+
+  root.dispatchEvent(new window.CustomEvent("turbo:morph-element", { bubbles: true }))
+
+  expect(calls).toEqual(["close", "showModal"])
+})
+
 test("connect leaves a closed marked dialog closed", () => {
   const { root, controller } = mount(`<dialog id="m" data-reactive-modal></dialog>`)
   const calls = spy(root.querySelector("#m"))
