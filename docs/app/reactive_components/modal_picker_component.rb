@@ -46,10 +46,11 @@ class ModalPickerComponent < Phlex::HTML
 
   private
 
+  # The titles are not headings: a heading would land in the page's table of contents.
   def picker
     dialog(id: 'mp-picker', class: 'modal', aria_labelledby: 'mp-title') do
       div(class: 'modal-box flex flex-col gap-3') do
-        h3(id: 'mp-title', class: 'text-lg font-semibold') { 'Choose a fruit' }
+        p(id: 'mp-title', class: 'text-lg font-semibold') { 'Choose a fruit' }
         ITEMS.each do |item|
           button(**mix(on_client(:click, js.text('#mp-status', item).close_dialog('#mp-picker')),
                        class: 'btn btn-ghost justify-start')) { item }
@@ -63,7 +64,7 @@ class ModalPickerComponent < Phlex::HTML
     dialog(id: 'mp-confirm', class: 'modal', open: @confirming, aria_labelledby: 'mp-confirm-title',
            data: { reactive_modal: true }) do
       div(class: 'modal-box flex flex-col gap-3') do
-        h3(id: 'mp-confirm-title', class: 'text-lg font-semibold') { 'Rendered open by the server' }
+        p(id: 'mp-confirm-title', class: 'text-lg font-semibold') { 'Rendered open by the server' }
         p { 'The reply morphed this dialog in with open and data-reactive-modal; the client made it modal.' }
         button(**mix(on(:cancel), class: 'btn btn-sm')) { 'Cancel (the server closes it)' }
       end
