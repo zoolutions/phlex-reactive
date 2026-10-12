@@ -90,7 +90,7 @@ module Phlex
           return if capable?
 
           raise Phlex::Reactive::ConfigurationError,
-            "#{klass.name} declares reactive_presence, which needs pgbus >= 0.18.0 (presence keyed by " \
+            "#{klass.name} declares reactive_presence, which needs pgbus >= 0.18.1 (presence keyed by " \
             "SSE connection, config.streams_authorize) with its presence table created or migrated " \
             "(`rails g pgbus:add_presence`, `rails g pgbus:add_presence_seats`, or `rails pgbus:update`), " \
             "and ActiveJob. Action Cable has no connection identity, so there is no fallback."

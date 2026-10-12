@@ -24,7 +24,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `reactive:presence` with the seats that joined and left. A new `presence`
   feature module (1.3 KB gzipped): the default client bundles it (+992 B), the
   split client fetches it only for a page with a presence root (+100 B in the
-  core). Needs pgbus 0.18.0 or later; without it a presence root raises
+  core). Needs pgbus 0.18.1 or later; without it a presence root raises
   `Phlex::Reactive::ConfigurationError` at render. Create the table with
   `rails g pgbus:add_presence` (or upgrade it with
   `rails g pgbus:add_presence_seats`), return each viewer's identity from

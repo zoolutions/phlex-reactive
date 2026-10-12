@@ -10,7 +10,7 @@ require_relative "../support/fake_pgbus_presence"
 RSpec.describe "the presence page (issue #358)", type: :request do
   it "raises a configuration error without per-connection presence" do
     skip "pgbus is loaded in this process" if defined?(Pgbus)
-    expect { get "/presence" }.to raise_error(Phlex::Reactive::ConfigurationError, /pgbus >= 0\.18\.0/)
+    expect { get "/presence" }.to raise_error(Phlex::Reactive::ConfigurationError, /pgbus >= 0\.18\.1/)
   end
 
   it "renders the root with its presence src when the transport is capable" do

@@ -1842,7 +1842,7 @@ end
   without its state, until the tab's next `js.presence`. `ttl:` must be above the
   transport's heartbeat interval, or a live tab would expire between two
   beats: `reactive_presence` raises otherwise.
-- **Transport**: needs pgbus 0.18.0 or later (presence keyed by SSE
+- **Transport**: needs pgbus 0.18.1 or later (presence keyed by SSE
   connection, `pgbus:connected` only after the tab's seat joined,
   `config.streams_authorize`). Create the table with
   `rails g pgbus:add_presence`, or upgrade an older one with

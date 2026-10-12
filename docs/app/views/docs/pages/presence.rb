@@ -239,7 +239,7 @@ module Views
         def transport
           DocsUI::Section('Transport') do
             md <<~MD
-              Presence needs pgbus 0.18.0 or later (presence keyed by SSE
+              Presence needs pgbus 0.18.1 or later (presence keyed by SSE
               connection, `pgbus:connected` only after the tab's seat joined,
               `config.streams_authorize`), its table created (`rails g pgbus:add_presence`) or
               upgraded (`rails g pgbus:add_presence_seats`, which
