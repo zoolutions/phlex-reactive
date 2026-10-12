@@ -343,6 +343,27 @@ RSpec.describe Phlex::Reactive::Presence, "reactive_presence (issue #358)" do
         .to raise_error(ArgumentError, /dormant/)
     end
 
+    it "lets a client-only component declare reactive_dormant (it has no presence to refuse)" do
+      expect do
+        Class.new(Phlex::HTML) do
+          include Phlex::Reactive::ClientBindings
+
+          reactive_dormant
+        end
+      end.not_to raise_error
+    end
+
+    it "reports a non-boolean reactive_dormant on a presence component as such" do
+      expect { declare { reactive_presence :viewers; reactive_dormant(:nope) } } # rubocop:disable Style/Semicolon
+        .to raise_error(ArgumentError, /true or false/)
+    end
+
+    it "does not freeze the caller's key array" do
+      key = ["lobby"]
+      declare { reactive_presence :viewers, key: }
+      expect(key).not_to be_frozen
+    end
+
     it "is not on a client-only component (presence needs the signed token)" do
       expect do
         Class.new(Phlex::HTML) do

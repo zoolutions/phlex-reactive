@@ -90,7 +90,7 @@ module Phlex
             end
 
             Phlex::Reactive::Presence::Declaration.new(
-              name: name.to_sym, state: state.freeze, ttl:, key: key && Array(key).freeze
+              name: name.to_sym, state: state.freeze, ttl:, key: key && Array(key).dup.freeze
             )
           end
 

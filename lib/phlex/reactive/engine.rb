@@ -21,9 +21,9 @@ module Phlex
       # default entry name the same features —
       # spec/phlex/engine_client_pin_spec.rb fails when they disagree.
       CLIENT_FEATURES = %w[persist defer form bindings compute sortable presence effects hints devtools].freeze
-      # (Gzipped, bun zlib level 9: the default file 30.9 KB; the core 14.3 KB;
-      # persist 3.2, defer 3.0, form 1.1, bindings 6.8, compute 2.1, sortable
-      # 3.2, presence 1.1, effects 1.7, hints 1.0, devtools 1.6 KB. spec/javascript/bundle_budget.test.js
+      # (Gzipped, bun zlib level 9, KB = 1,024 B: the default file 30.9 KB; the core 14.3 KB;
+      # persist 3.1, defer 2.9, form 1.1, bindings 6.5, compute 2.0, sortable
+      # 3.1, presence 1.3, effects 1.7, hints 0.9, devtools 1.5 KB. spec/javascript/bundle_budget.test.js
       # is the source of truth and holds a ratchet on each.)
 
       # Mount POST /reactive/actions -> Phlex::Reactive::ActionsController#create

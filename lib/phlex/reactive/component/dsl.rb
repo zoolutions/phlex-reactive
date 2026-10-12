@@ -352,11 +352,14 @@ module Phlex
           # A plain reactive_lazy shell ignores it: it fetches on connect, so it
           # always mounts. reactive_lazy(on: "event") shells do go dormant.
           def reactive_dormant(dormant = true) # rubocop:disable Style/OptionalBooleanParameter
-            # Issue #358: a dormant root never connects, so it could never join.
-            refuse_dormant_presence! if dormant && reactive_presence_declaration
             unless [true, false].include?(dormant)
               raise ArgumentError, "#{self}: reactive_dormant takes true or false, got #{dormant.inspect}"
             end
+
+            # Issue #358: a dormant root never connects, so it could never join.
+            # A ClientBindings-only class has no presence declaration to refuse.
+            refuse_dormant_presence! if dormant && respond_to?(:reactive_presence_declaration) &&
+                                        reactive_presence_declaration
 
             Phlex::Reactive::Dormant.reject_visible_lazy!(self) if dormant
 

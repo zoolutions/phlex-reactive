@@ -81,7 +81,7 @@ module Views
               `<pgbus-stream-source presence>` for it, which sends the tab's
               seat, and a tab joins when that connects. A record-less roster
               names its stream with `key: ["lobby"]`. The stream's name is
-              `"<16-char digest of the record>:presence:<name>"`, so any model
+              `"<16-char digest of the record (or the key:)>:presence:<name>"`, so any model
               fits pgbus's stream-name budget (41 chars with the default queue
               prefix); that leaves 15 characters for the presence name, and a
               longer one raises `Phlex::Reactive::ConfigurationError`.
@@ -124,7 +124,7 @@ module Views
               token, the typed params, the request queue. Only this tab's row
               changes; the other tabs get a morph and this tab gets
               `reply.morph`. From an action of your own, `presence.set(selected: id)`
-              does the same. A tab that reconnects sends its state again.
+              does the same, but the action returns `reply.morph` itself. A tab that reconnects sends its state again.
             MD
           end
         end
@@ -136,7 +136,9 @@ module Views
               proves the actor rendered this root; the write is typed,
               ephemeral, and lands only on the actor's own row, keyed by the
               tab's SSE connection id, which no other tab knows. When the value
-              needs a check, define `authorize_presence_state!` and raise:
+              needs a check, define `authorize_presence_state!` and raise. It guards only the
+              generated `presence_set`; an action of your own that calls `presence.set`
+              authorizes its state itself:
 
               ```ruby
               def authorize_presence_state!(selected: nil)
@@ -174,6 +176,8 @@ module Views
               `reactive_presence_peer(peer)` and `reactive_presence_member(member)`
               render the attributes the client reads (`-peer`, `-member`,
               `-seats`). Combine them with your own attributes through `mix`.
+              Both marks need this tab's `reactive_presence_peer` element: a roster
+              of members only has none, so nothing is marked.
             MD
           end
         end
@@ -262,6 +266,7 @@ module Views
                 config.streams_authorize = ->(env, stream_name) {
                   user = env["warden"]&.user
                   next unless user&.active?
+                  next unless user.may_stream?(stream_name) # keep your app's own check for every stream
 
                   if stream_name.end_with?(":presence:viewers")
                     next unless user.boards.any? { Boards::Viewers.reactive_presence_stream_name_for(it) == stream_name }

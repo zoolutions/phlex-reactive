@@ -32,4 +32,5 @@ end
 
 # This is a rake-invoked setup SCRIPT, not an example — the status line is for
 # the CI log, not a spec expectation.
-puts "pgbus test DB ready (app schema + PGMQ + presence)" # rubocop:disable RSpec/Output
+presence_note = " + presence" if conn.table_exists?(:pgbus_presence_members)
+puts "pgbus test DB ready (app schema + PGMQ#{presence_note})" # rubocop:disable RSpec/Output

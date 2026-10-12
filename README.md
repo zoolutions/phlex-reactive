@@ -1783,7 +1783,7 @@ end
 ```
 
 - **The stream** is `[record, :presence, name]` (a record-less roster passes
-  `key: ["lobby"]`), named `"<16-char digest of the record>:presence:<name>"`,
+  `key: ["lobby"]`), named `"<16-char digest of the record (or the `key:`)>:presence:<name>"`,
   so any model name and id fit pgbus's stream-name budget (41 chars with the
   default queue prefix). That leaves 15 characters for the presence name; a
   longer one raises `Phlex::Reactive::ConfigurationError` at render. The root
@@ -1798,14 +1798,16 @@ end
 - **State** is declared like action params; undeclared keys are dropped.
   `js.presence(selected: 7)` sends it from the browser through the generated
   `presence_set` action; `presence.set(selected: 7)` writes it from an action of
-  your own. Either way only this tab's row changes, the other viewers get a
-  morph, and the actor gets `reply.morph`.
+  your own. Either way only this tab's row changes and the other viewers get a
+  morph. The generated action replies `reply.morph` for the actor; an action of
+  your own must return `reply.morph` itself.
 - **Authorization**: `presence_set` skips `verify_authorized`. The signed token
   proves the actor rendered this root, and the write is typed, ephemeral, and
   lands only on the actor's own row, keyed by its SSE connection id, which
   only that tab knows. To check the value (the card must belong to the board),
-  define `authorize_presence_state!(**state)` and raise; it runs first. The
-  client also sends `presence_set` with no state on every connect (the
+  define `authorize_presence_state!(**state)` and raise; it runs first. That hook
+  guards only the generated `presence_set`: an action of your own that calls
+  `presence.set` authorizes its state itself. The client also sends `presence_set` with no state on every connect (the
   announce): that writes no value, so the hook is not called for it.
 - **`presence.me`** is the acting tab, and during an action it stays the actor
   while the roster renders for the other viewers too. Never branch the shared
@@ -1816,6 +1818,8 @@ end
 - **"Me"**: the roster renders once for everyone, so the client marks this
   tab's element `data-reactive-presence-me` and the same person's other
   elements `data-reactive-presence-same-member` after every morph. Style them.
+  Both need this tab's `reactive_presence_peer` element on the roster: a roster
+  of members only has none, so nothing is marked.
 - **Events**: `reactive:presence` fires on the root with
   `{ joined: [seat…], left: [seat…], me: seat }` when a morph changes who is
   there; a replayed frame that changes nothing fires nothing. The root names
@@ -1860,6 +1864,7 @@ end
     config.streams_authorize = ->(env, stream_name) {
       user = env["warden"]&.user
       next unless user&.active?
+      next unless user.may_stream?(stream_name) # keep your app's own check for every stream
 
       if stream_name.end_with?(":presence:viewers")
         next unless user.boards.any? { Boards::Viewers.reactive_presence_stream_name_for(it) == stream_name }

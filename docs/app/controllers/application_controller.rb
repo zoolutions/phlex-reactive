@@ -13,7 +13,7 @@ class ApplicationController < ActionController::Base
   # random id in the session (which csrf_meta_tags already sets). The stream
   # endpoint's authorize hook reads it back as the visitor's identity — an SSE
   # request cannot set a cookie itself.
-  before_action { session[:presence_visitor] ||= SecureRandom.hex(3) }
+  before_action { session[:presence_visitor] ||= SecureRandom.hex(8) }
 
   # render_page comes from DocsKit::Controller (included above) — it renders the
   # Phlex view with layout: false (DocsUI::Shell IS the whole document) AND

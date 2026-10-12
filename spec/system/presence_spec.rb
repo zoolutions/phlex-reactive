@@ -77,14 +77,17 @@ RSpec.describe "Presence (issue #358)", :pgbus, type: :system do
       open_roster
       page.execute_script(<<~JS)
         const root = document.querySelector("[data-testid='viewers']")
-        root.addEventListener("reactive:presence", (e) => root.setAttribute("data-joined", e.detail.joined.length))
+        root.addEventListener("reactive:presence", (e) => root.setAttribute("data-joined", e.detail.joined.join(" ")))
       JS
     end
 
-    Capybara.using_session(:b) { open_roster }
+    b_seat = Capybara.using_session(:b) do
+      open_roster
+      first("[data-reactive-presence-me]", visible: :all)["data-reactive-presence-peer"]
+    end
 
     Capybara.using_session(:a) do
-      expect(page).to have_css("[data-testid='viewers'][data-joined='1']", wait: 10)
+      expect(page).to have_css("[data-testid='viewers'][data-joined='#{b_seat}']", wait: 10)
     end
   end
 end

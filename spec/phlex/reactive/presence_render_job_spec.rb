@@ -60,4 +60,40 @@ RSpec.describe Phlex::Reactive::PresenceRenderJob do
     expect { described_class.perform_now(stream_name) }.not_to raise_error
     expect(Phlex::Reactive::Streamable).not_to have_received(:broadcast_component)
   end
+
+  # A gid-less note (a record-less announce, a draft) for a component that
+  # needs its record cannot be rebuilt: render nothing, never a retry loop.
+  it "renders nothing for a gid-less note of a record component" do
+    presence.join(member_id: 1, connection_id: "c1", seat: "a", metadata: {})
+    presence.set_state(connection_id: "c1", state: { "_rp" => { "c" => "TodoViewersComponent" } })
+    expect { described_class.perform_now(stream_name) }.not_to raise_error
+    expect(Phlex::Reactive::Streamable).not_to have_received(:broadcast_component)
+  end
+
+  # The note is the component's identity payload, so a roster that declares
+  # reactive_state is rebuilt with it, not with the initializer's defaults.
+  it "rebuilds a roster component with the state its note carries" do
+    klass = Class.new(TodoViewersComponent) do
+      reactive_state :tab
+
+      def self.name = "StatefulViewersComponent"
+
+      def initialize(todo:, tab: "info")
+        super(todo:)
+        @tab = tab
+      end
+    end
+    stub_const("StatefulViewersComponent", klass)
+    presence.join(member_id: 1, connection_id: "c1", seat: "a", metadata: {})
+    component = klass.new(todo:, tab: "history")
+    expect(component.send(:reactive_presence_note))
+      .to eq("c" => "StatefulViewersComponent", "gid" => todo.to_gid.to_s, "s" => { "tab" => "history" })
+
+    presence.set_state(connection_id: "c1", state: { "_rp" => component.send(:reactive_presence_note) })
+    described_class.perform_now(stream_name)
+
+    expect(Phlex::Reactive::Streamable).to have_received(:broadcast_component) do |_klass, _op, rebuilt, *|
+      expect(rebuilt.instance_variable_get(:@tab)).to eq("history")
+    end
+  end
 end

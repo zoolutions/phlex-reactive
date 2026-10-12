@@ -120,14 +120,10 @@ module Phlex
           me
         end
 
-        # Which component wrote the row, and its record: how the render job
-        # rebuilds it from the stream (see Presence::NOTE_KEY).
-        def reactive_presence_note
-          record = reactive_presence_subject.first unless self.class.reactive_presence_declaration.key
-          note = { "c" => self.class.name }
-          note["gid"] = record.to_gid.to_s if record
-          note
-        end
+        # Which component wrote the row: its identity payload (class, record gid,
+        # declared reactive_state), which is how the render job rebuilds it from
+        # the stream (see Presence::NOTE_KEY) — the same shape a token carries.
+        def reactive_presence_note = reactive_identity_payload
       end
     end
   end

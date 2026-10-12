@@ -140,9 +140,10 @@ module Phlex
           klass = note["c"].to_s.safe_constantize
           return unless klass.respond_to?(:reactive_presence_declaration) && klass.reactive_presence_declaration
 
-          payload = note["gid"] ? { "gid" => note["gid"] } : {}
-          klass.from_identity(payload)
-        rescue ::ActiveRecord::RecordNotFound
+          klass.from_identity(note.slice("gid", "s"))
+        rescue ::ActiveRecord::RecordNotFound, Phlex::Reactive::Error
+          # The record is gone, or the note has no gid for a component that
+          # needs one: render nothing rather than fail the job on every retry.
           nil
         end
       end

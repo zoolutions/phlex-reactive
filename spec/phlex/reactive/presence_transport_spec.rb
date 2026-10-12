@@ -30,8 +30,12 @@ RSpec.describe Phlex::Reactive::Presence::Transport do
 
     it "is false when the configuration has no change hook" do
       FakePgbusPresence.install!(self)
-      stub_const("FakePgbusPresence::Configuration", Struct.new(:streams_presence_patterns))
-      allow(Pgbus).to receive(:configuration).and_return(Struct.new(:streams_presence_patterns).new([]))
+      # Everything else wired? reads is present: only the hook WRITER is missing.
+      no_writer = Class.new do
+        attr_accessor :streams_presence_patterns, :streams_presence_ttl, :streams_authorize
+        attr_reader :streams_presence_on_change
+      end
+      allow(Pgbus).to receive(:configuration).and_return(no_writer.new)
       expect(described_class.capable?).to be(false)
     end
 

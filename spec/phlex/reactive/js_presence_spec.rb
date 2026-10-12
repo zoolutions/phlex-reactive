@@ -19,6 +19,12 @@ RSpec.describe Phlex::Reactive::JS do
     expect(JSON.parse(js.presence(selected: nil).to_json).dig(0, 1, "state")).to eq("selected" => nil)
   end
 
+  it "refuses NaN and infinities (no JSON form), keeps finite floats" do
+    expect { js.presence(selected: Float::NAN) }.to raise_error(ArgumentError, /finite|scalar/)
+    expect { js.presence(selected: Float::INFINITY) }.to raise_error(ArgumentError, /finite|scalar/)
+    expect(JSON.parse(js.presence(selected: 1.5).to_json).dig(0, 1, "state")).to eq("selected" => 1.5)
+  end
+
   it "is refused on a broadcast" do
     expect { TodoItemComponent.broadcast_to("alerts", js: js.presence(selected: 1)) }
       .to raise_error(ArgumentError, /presence/)

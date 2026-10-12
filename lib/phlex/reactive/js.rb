@@ -317,10 +317,11 @@ module Phlex
         raise ArgumentError, "#{self.class}: presence needs at least one state key (e.g. selected: 7)" if state.empty?
 
         state.each do |name, value|
-          next if value.nil? || [String, Numeric, TrueClass, FalseClass].any? { value.is_a?(it) }
+          next if value.nil? || [String, Integer, TrueClass, FalseClass].any? { value.is_a?(it) }
+          next if value.is_a?(Float) && value.finite? # NaN and Infinity have no JSON form
 
           raise ArgumentError,
-            "#{self.class}: presence state values must be scalar (String/Numeric/true/false/nil) — " \
+            "#{self.class}: presence state values must be scalar (String/Integer/finite Float/true/false/nil) — " \
             "#{name.inspect} is #{value.class}"
         end
 

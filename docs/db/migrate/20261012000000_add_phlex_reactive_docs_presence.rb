@@ -34,7 +34,8 @@ class AddPhlexReactiveDocsPresence < ActiveRecord::Migration[8.1]
               where: 'connection_id IS NOT NULL', name: 'idx_pgbus_presence_members_seat_expiry'
   end
 
-  def down
-    drop_table :pgbus_presence_members if table_exists?(:pgbus_presence_members)
-  end
+  # The table may be pgbus's own (its AddPgbusPresence, or `up` found it
+  # already there), so rolling this back never drops it: roll back pgbus's
+  # migration for that.
+  def down; end
 end
