@@ -18,8 +18,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   full page, a reply, a broadcast) is made modal at connect, after a morph and
   after a stream that brings a dialog; a morph that renders it without `open`
   closes it with `close()`, so the page behind is interactive again. Both ops
-  are actor-only, refused by `broadcast_to(js:)` like `focus`. Client: +421 B
-  gzipped in the default bundle, +359 B in the split core. Docs: "Modal
+  are actor-only, refused by `broadcast_to(js:)` like `focus`. Client: +499 B
+  gzipped in the default bundle, +425 B in the split core. Docs: "Modal
   dialogs" on the client-ops example.
 
 - **Presence — `reactive_presence`, `presence`, `js.presence` (#358).** A

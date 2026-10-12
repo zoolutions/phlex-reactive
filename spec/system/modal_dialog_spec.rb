@@ -85,6 +85,18 @@ RSpec.describe "Modal dialogs (issue #365)", type: :system do
       expect(modal?("server-dialog")).to be(true)
     end
 
+    it "keeps the dialog modal when a morph renders it open again" do
+      visit "/modal_dialog"
+      find("[data-testid='open-morph']").click
+      expect(page).to have_css("[data-testid='server-dialog'][open]")
+
+      find("[data-testid='refresh-morph']").click
+
+      expect(page).to have_css("[data-testid='refreshes']", text: "Refreshed 1")
+      expect(page).to have_css("[data-testid='server-dialog'][open]")
+      expect(modal?("server-dialog")).to be(true)
+    end
+
     it "closes the modal when a morph renders it closed, and the page takes clicks again" do
       visit "/modal_dialog"
       find("[data-testid='open-morph']").click
@@ -94,6 +106,19 @@ RSpec.describe "Modal dialogs (issue #365)", type: :system do
 
       expect(page).to have_no_css("[data-testid='server-dialog'][open]", visible: :all)
       expect(modal?("server-dialog")).to be(false)
+      find("[data-testid='behind']").click
+      expect(page).to have_css("[data-testid='behind-clicks']", text: "clicked")
+    end
+
+    it "leaves no modal behind when a replace reply renders it closed" do
+      visit "/modal_dialog"
+      find("[data-testid='open-morph']").click
+      expect(page).to have_css("[data-testid='server-dialog'][open]")
+
+      find("[data-testid='close-replace']").click
+
+      expect(page).to have_no_css("[data-testid='server-dialog'][open]", visible: :all)
+      expect(page.evaluate_script("document.querySelectorAll(':modal').length")).to eq(0)
       find("[data-testid='behind']").click
       expect(page).to have_css("[data-testid='behind-clicks']", text: "clicked")
     end

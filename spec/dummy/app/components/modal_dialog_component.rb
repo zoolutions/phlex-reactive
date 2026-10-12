@@ -8,13 +8,16 @@ class ModalDialogComponent < ApplicationComponent
   include Phlex::Reactive::Streamable
   include Phlex::Reactive::Component
 
-  reactive_state :open
+  reactive_state :open, :refreshes
   action :open_morph
   action :open_replace
   action :close_morph
+  action :refresh_morph
+  action :close_replace
 
-  def initialize(open: false)
+  def initialize(open: false, refreshes: 0)
     @open = open
+    @refreshes = refreshes
   end
 
   def id = "modal-dialog"
@@ -31,6 +34,18 @@ class ModalDialogComponent < ApplicationComponent
 
   def close_morph
     @open = false
+    reply.morph
+  end
+
+  def close_replace
+    @open = false
+    reply.replace
+  end
+
+  # Re-renders the root with the dialog still open — a form inside the dialog
+  # posting back with errors.
+  def refresh_morph
+    @refreshes += 1
     reply.morph
   end
 
@@ -59,7 +74,10 @@ class ModalDialogComponent < ApplicationComponent
   def server_dialog
     dialog(id: "server-dialog", open: @open, data: { reactive_modal: true, testid: "server-dialog" }) do
       p { "Rendered open by the server" }
+      p(data: { testid: "refreshes" }) { "Refreshed #{@refreshes}" }
+      button(**mix(on(:refresh_morph), data: { testid: "refresh-morph" })) { "Refresh (morph)" }
       button(**mix(on(:close_morph), data: { testid: "close-morph" })) { "Close (morph)" }
+      button(**mix(on(:close_replace), data: { testid: "close-replace" })) { "Close (replace)" }
     end
   end
 end

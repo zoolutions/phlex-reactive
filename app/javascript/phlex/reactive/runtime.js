@@ -325,12 +325,24 @@ export function registerReactiveModals() {
   // closed): close() it instead, which leaves the top layer, ends the page's
   // inertness and restores focus. Removing the attribute alone left all that
   // in place under the older spec text, and close() is a no-op once `open` is
-  // gone — so the removal is cancelled and close() removes it.
+  // gone — so the removal is cancelled and close() removes it. Idiomorph asks
+  // "remove" for EVERY attribute of the old element, kept or not, and that ask
+  // carries no new element: whether `open` is really leaving is read from the
+  // element morph's new render, which comes first.
+  const closing = new WeakSet()
+  document.addEventListener("turbo:before-morph-element", (event) => {
+    const el = event.target
+    const next = event.detail?.newElement
+    if (!isDialog(el) || !next) return
+    if (next.hasAttribute?.("open")) closing.delete(el)
+    else closing.add(el)
+  })
   document.addEventListener("turbo:before-morph-attribute", (event) => {
     const el = event.target
     const detail = event.detail
     if (detail?.attributeName !== "open" || detail.mutationType !== "remove") return
-    if (!isDialog(el) || !el.open || !isModal(el)) return
+    if (!closing.has(el) || !el.open || !isModal(el)) return
+    closing.delete(el)
     event.preventDefault()
     el.close()
   })

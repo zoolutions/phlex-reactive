@@ -217,7 +217,20 @@ test("a page morph upgrades every marked dialog on the page", () => {
 
 // --- a morph that removes `open` ----------------------------------------------
 
-function removeOpen(dialog) {
+// What Idiomorph does to one dialog, as Turbo drives it: the cancelable
+// before-morph-element with the new render, then — for EVERY attribute of the
+// old element, whether or not the new one still has it — a "remove" ask.
+function removeOpen(dialog, nextHtml = `<dialog id="m"></dialog>`) {
+  const holder = document.createElement("div")
+  holder.innerHTML = nextHtml
+  const newElement = holder.firstElementChild
+  dialog.dispatchEvent(
+    new window.CustomEvent("turbo:before-morph-element", {
+      bubbles: true,
+      cancelable: true,
+      detail: { currentElement: dialog, newElement },
+    }),
+  )
   const event = new window.CustomEvent("turbo:before-morph-attribute", {
     bubbles: true,
     cancelable: true,
@@ -235,6 +248,16 @@ test("a morph that removes `open` from a modal dialog closes it with close()", (
   expect(removeOpen(dialog)).toBe(true)
   expect(calls).toEqual(["close"])
   expect(dialog.open).toBe(false)
+})
+
+test("a morph that renders a modal dialog open again leaves it modal", () => {
+  const { root } = mount(`<dialog id="m" open data-reactive-modal></dialog>`)
+  const dialog = root.querySelector("#m")
+  const calls = spy(dialog, { modal: true })
+
+  expect(removeOpen(dialog, `<dialog id="m" open data-reactive-modal><p>errors</p></dialog>`)).toBe(false)
+  expect(calls).toEqual([])
+  expect(dialog.open).toBe(true)
 })
 
 test("a morph that removes `open` from a non-modal dialog is left to Idiomorph", () => {
