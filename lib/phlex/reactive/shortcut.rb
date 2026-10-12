@@ -13,17 +13,24 @@ module Phlex
     # exactly), so a `mod` chord renders TWO descriptors, a meta twin and a ctrl
     # twin, and the client runs only the twin for its platform. Stimulus keeps
     # the key filtering; the client adds the platform check, the editable-target
-    # guard and preventDefault.
+    # guard and preventDefault. The exception is a key Stimulus's default map
+    # lacks (delete, backspace — issue #366): it binds a bare window keydown,
+    # no twins, and the client matches the whole chord.
     #
     # Validation is loud, at render: Stimulus reports an unknown key token by
     # throwing at keypress time, which is too late to notice.
     class Shortcut
       MODIFIERS = %w[mod meta ctrl alt shift].freeze
       # Stimulus's default keyMappings: the named keys plus a-z and 0-9.
-      NAMED_KEYS = %w[enter tab esc space up down left right home end page_up page_down].freeze
+      STIMULUS_KEYS = %w[enter tab esc space up down left right home end page_up page_down].freeze
+      # Keys Stimulus's default map lacks (issue #366): a key filter naming one
+      # makes Stimulus throw at keypress, so such a chord renders a bare
+      # `keydown@window` and the client alone matches it.
+      LIBRARY_KEYS = %w[delete backspace].freeze
+      NAMED_KEYS = (STIMULUS_KEYS + LIBRARY_KEYS).freeze
       HASH_KEYS = %i[keys in_editable].freeze
 
-      private_constant :MODIFIERS, :NAMED_KEYS, :HASH_KEYS
+      private_constant :MODIFIERS, :STIMULUS_KEYS, :LIBRARY_KEYS, :NAMED_KEYS, :HASH_KEYS
 
       attr_reader :keys
 
@@ -61,6 +68,11 @@ module Phlex
         freeze
       end
 
+      # False for a chord whose key Stimulus's default map lacks (delete,
+      # backspace): it binds without a key filter and without twins — the
+      # client's shortcut check matches the key and picks the platform's `mod`.
+      def stimulus_filterable? = !LIBRARY_KEYS.include?(@keys.split("+").last)
+
       # The Stimulus key filters to bind: the meta and ctrl twins for a `mod`
       # chord, else the chord itself.
       def filters
@@ -95,8 +107,9 @@ module Phlex
 
         raise ArgumentError,
           "shortcut: #{source.inspect} has an unknown key #{key.first.inspect} — use a letter, a digit, " \
-          "or one of #{NAMED_KEYS.join(", ")} (Stimulus's default key map; custom keyMappings are not " \
-          "known on the server, bind those with event: and window: instead)"
+          "or one of #{NAMED_KEYS.join(", ")} (Stimulus's default key map, plus delete and backspace, " \
+          "which the library matches itself; custom keyMappings are not known on the server, bind " \
+          "those with event: and window: instead)"
       end
 
       def known_key?(key) = NAMED_KEYS.include?(key) || key.match?(/\A[a-z0-9]\z/)

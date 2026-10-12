@@ -1790,10 +1790,25 @@ module Phlex
         # The data-action descriptors of an on()/on_client trigger: one, or a
         # shortcut's meta and ctrl twins (space-joined, as mix joins them).
         # The common, shortcut-less path is ONE interpolation (on() is a hot path).
+        # A chord whose key Stimulus lacks (issue #366: delete, backspace) binds a
+        # bare window keydown: the client's shortcut check matches it alone.
         def trigger_descriptors(event, shortcut, window_bound, method, once)
           return "#{event}#{"@window" if window_bound}->reactive##{method}#{":once" if once}" unless shortcut
+          return bare_shortcut_descriptor(shortcut, method, once) unless shortcut.stimulus_filterable?
 
           shortcut.filters.map { "keydown.#{it}@window->reactive##{method}#{":once" if once}" }.join(" ")
+        end
+
+        # Stimulus removes a `:once` listener after its FIRST event, and a bare
+        # keydown hears every key, so the first keypress of any kind would spend it.
+        def bare_shortcut_descriptor(shortcut, method, once)
+          if once
+            raise ArgumentError,
+              "shortcut: #{shortcut.keys.inspect} cannot take once: — its key is matched by the " \
+              "library, not Stimulus, so the first key pressed of any kind would spend the binding"
+          end
+
+          "keydown@window->reactive##{method}"
         end
 
         # A Hash param is JSON (Stimulus's param reader parses it back into an

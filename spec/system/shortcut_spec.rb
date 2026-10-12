@@ -74,4 +74,82 @@ RSpec.describe "Page-level keyboard shortcuts (issue #357)", type: :system do
     expect(reactive_request_count).to eq(action: 0, defer: 0)
     expect(prevented).to eq([true])
   end
+
+  # Issue #366: delete and backspace are not in Stimulus's default key map. The
+  # helper binds a bare window keydown and the client matches the chord, so
+  # Stimulus never sees an "unknown key filter" (it would throw at keypress).
+  describe "keys Stimulus does not know (issue #366)" do
+    before do
+      page.execute_script(<<~JS)
+        window.__errors = []
+        const error = console.error
+        console.error = (...args) => { window.__errors.push(args.map(String).join(" ")); error(...args) }
+        window.addEventListener("error", (e) => window.__errors.push(String(e.message)))
+      JS
+    end
+
+    # Stimulus reports an unknown key filter by throwing from its listener.
+    def expect_no_page_errors = expect(page.evaluate_script("window.__errors")).to be_empty
+
+    def select_beta
+      find("[data-testid='row-beta']").click
+      expect(page).to have_css("li[aria-current='true']", text: "beta")
+      reset_reactive_requests!
+      # The select re-rendered the root, so its window listeners were re-added
+      # after the recorder: record again from a listener added after them.
+      page.execute_script(<<~JS)
+        window.__preventedAfterSelect = []
+        window.addEventListener("keydown", (e) => window.__preventedAfterSelect.push(e.defaultPrevented))
+      JS
+    end
+
+    def prevented_after_select = page.evaluate_script("window.__preventedAfterSelect")
+
+    it "removes the selected row on Delete, prevented, with one request" do
+      select_beta
+      find("body").send_keys(:delete)
+
+      expect(page).to have_no_css("[data-testid='row-beta']")
+      expect(page).to have_css("[data-testid='row-alpha']")
+      expect(page).to have_reactive_requests(1, kind: :action)
+      expect(prevented_after_select).to eq([true])
+      expect_no_page_errors
+    end
+
+    it "leaves Delete typed in the search box to the field" do
+      select_beta
+      search = find("[data-testid='search']")
+      search.fill_in(with: "abc")
+      search.send_keys(:home, :delete)
+
+      expect(search.value).to eq("bc")
+      expect { expect(page).to have_reactive_requests(1, wait: 0.5) }
+        .to raise_error(RSpec::Expectations::ExpectationNotMetError)
+      expect(page).to have_css("[data-testid='row-beta']")
+      expect_no_page_errors
+    end
+
+    it "ignores other keys on the page (not prevented, no request)" do
+      select_beta
+      find("body").send_keys("x", :backspace)
+
+      expect { expect(page).to have_reactive_requests(1, wait: 0.5) }
+        .to raise_error(RSpec::Expectations::ExpectationNotMetError)
+      expect(page).to have_css("[data-testid='row-beta']")
+      expect(page).to have_css("[data-testid='preview']", visible: :visible)
+      expect(prevented_after_select).to eq([false, false])
+      expect_no_page_errors
+    end
+
+    it "hides the preview on this platform's mod+Backspace only" do
+      find("body").send_keys([other_mod, :backspace])
+      expect(page).to have_css("[data-testid='preview']", visible: :visible)
+
+      find("body").send_keys([mod, :backspace])
+      expect(page).to have_css("[data-testid='preview']", visible: :hidden)
+      expect(reactive_request_count).to eq(action: 0, defer: 0)
+      expect(prevented).to eq([false, true])
+      expect_no_page_errors
+    end
+  end
 end

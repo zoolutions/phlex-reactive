@@ -1142,9 +1142,13 @@ function parseOps(raw) {
 // record(s) whose descriptor matches the firing event: event.type, the key
 // filter, and window-boundness.
 
-// Stimulus's default keyMappings (letters and digits map to themselves). A
+// Stimulus's default keyMappings (letters and digits map to themselves), plus
+// delete and backspace (issue #366): Stimulus lacks those two, so a shortcut
+// naming one binds a bare keydown and only shortcutApplies matches it. A
 // custom Stimulus schema is not mirrored — an unknown filter never matches.
 const KEY_FILTER_MAP = Object.freeze({
+  backspace: "Backspace",
+  delete: "Delete",
   enter: "Enter",
   tab: "Tab",
   esc: "Escape",
@@ -1187,7 +1191,9 @@ function keyFilterMatches(filter, event, keyMappings) {
 // keydown whose `mod` is meta on Apple platforms and ctrl elsewhere. Ruby
 // renders a meta twin and a ctrl twin; Stimulus filters the key, and this
 // decides whether the twin that fired is this platform's and whether the
-// target is one the user is typing in. Either miss is a complete no-op.
+// target is one the user is typing in. Either miss is a complete no-op. A
+// delete/backspace chord (issue #366) has no twins and no Stimulus filter:
+// its bare keydown hears every key, and this check alone picks the chord.
 // (Stimulus typecasts a digit shortcut, "1", to a number: hence String().)
 const shortcutKeys = (spec) => (spec && typeof spec === "object" ? spec.keys : String(spec))
 // A shortcut record keeps a bare `on: "keydown"`, so bindingMatches lets every
@@ -2552,19 +2558,22 @@ export default class extends Controller {
   // a per-controller promise makes each dispatch wait for the previous one, so
   // it always uses the freshest token.
   dispatch(event) {
+    // A shortcut (issue #357) that is the other platform's twin, or pressed
+    // in a field the user is typing in, is a complete no-op: the native
+    // default (text undo) proceeds and nothing is announced. Checked FIRST: a
+    // delete/backspace shortcut (issue #366) binds a bare window keydown, so
+    // every key the user presses lands here.
+    const shortcut = event.params?.shortcut
+    if (shortcut != null && !shortcutApplies(shortcut, event, this.application?.schema?.keyMappings)) return
     // A :once trigger already replayed on connect (issue #273) is spent.
     if (earlyOnceSwallows(event, "dispatch", this.application?.schema?.keyMappings, this.element)) return
     // `window` (renamed: never shadow the global) and `outside` are the event-
     // modifier params (issue #80). The client decides preventDefault behavior
     // from event.params — set by the Ruby on() — never by sniffing the
     // Stimulus descriptor.
-    const { action, params, debounce, throttle, confirm, confirmWhen, outside, window: windowBound, optimistic, shortcut } =
+    const { action, params, debounce, throttle, confirm, confirmWhen, outside, window: windowBound, optimistic } =
       event.params
     if (!action) return
-    // A shortcut (issue #357) that is the other platform's twin, or pressed
-    // in a field the user is typing in, is a complete no-op: the native
-    // default (text undo) proceeds and nothing is announced.
-    if (shortcut != null && !shortcutApplies(shortcut, event, this.application?.schema?.keyMappings)) return
 
     // The pending-state hint (issue #181): data-reactive-busy-param. During a
     // deploy overlap a page rendered by the PREVIOUS gem still emits the old
@@ -2720,6 +2729,12 @@ export default class extends Controller {
   // the component resets whatever they toggled (by design — a signed action
   // owns state that must survive re-renders).
   runOps(event) {
+    // A lone shortcut record (Stimulus typecasts it to an object) whose chord
+    // did not fire bails before any bookkeeping: a delete/backspace shortcut
+    // (issue #366) binds a bare window keydown that hears every key. Several
+    // records are checked one by one below.
+    const lone = event.params?.ops
+    if (lone?.shortcut != null && !shortcutApplies(lone.shortcut, event, this.application?.schema?.keyMappings)) return
     if (earlyOnceSwallows(event, "runOps", this.application?.schema?.keyMappings, this.element)) return
     if (bindingsAlreadyRan(event, this)) return
     const params = event.params ?? {}

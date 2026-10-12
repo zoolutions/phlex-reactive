@@ -22,6 +22,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   gzipped in the default bundle, +425 B in the split core. Docs: "Modal
   dialogs" on the client-ops example.
 
+- **`shortcut: "delete"` / `"backspace"` (#366).** `on(:remove_selected,
+  shortcut: "delete")`, `"backspace"` and `"mod+backspace"` are accepted, on
+  `on(...)` and `on_client(:keydown, ...)`. Stimulus's default key map lacks
+  these keys (a `keydown.delete` filter throws "unknown key filter" at
+  keypress), so such a shortcut renders a bare `keydown@window` descriptor and
+  the client matches the chord itself, with the usual rules: prevented, this
+  platform's `mod`, skipped while typing unless `in_editable: true`.
+  `phlex/reactive/early` queues and prevents the chord before connect and leaves
+  every other key alone (+134 B gzipped). `once:` raises on these keys. Existing
+  chords render unchanged.
+
 - **Presence — `reactive_presence`, `presence`, `js.presence` (#358).** A
   roster component declares the presence stream it shows
   (`reactive_presence :viewers, state: { selected: :integer }, ttl: 45`) and

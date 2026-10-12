@@ -147,6 +147,71 @@ RSpec.describe Phlex::Reactive::Shortcut do
     end
   end
 
+  # Issue #366: delete and backspace are keys Stimulus's default key map lacks,
+  # so the descriptor is rendered WITHOUT a key filter (Stimulus would throw
+  # "unknown key filter" at keypress) and the client matches the chord alone.
+  describe "keys Stimulus does not know (delete, backspace)" do
+    it "parses delete, backspace and mod+backspace" do
+      expect(described_class.parse("delete").keys).to eq("delete")
+      expect(described_class.parse("Backspace").keys).to eq("backspace")
+      expect(described_class.parse("mod+backspace").keys).to eq("mod+backspace")
+    end
+
+    it "is not Stimulus-filterable for delete/backspace, and is for a Stimulus key" do
+      expect(described_class.parse("delete")).not_to be_stimulus_filterable
+      expect(described_class.parse("mod+backspace")).not_to be_stimulus_filterable
+      expect(described_class.parse("mod+z")).to be_stimulus_filterable
+      expect(described_class.parse("esc")).to be_stimulus_filterable
+    end
+
+    it "still raises on another unknown key, naming delete and backspace" do
+      expect { described_class.parse("insert") }
+        .to raise_error(ArgumentError, /unknown key "insert".*delete.*backspace/m)
+    end
+
+    it "renders on() as ONE bare window keydown, the chord in the param" do
+      data = instance.send(:on, :close, shortcut: "delete")[:data]
+
+      expect(data[:action]).to eq("keydown@window->reactive#dispatch")
+      expect(data[:reactive_shortcut_param]).to eq("delete")
+      expect(data[:reactive_window_param]).to eq("true")
+    end
+
+    it "renders a mod chord bare too, with no twin (the client picks the platform)" do
+      data = instance.send(:on, :close, shortcut: "mod+backspace")[:data]
+
+      expect(data[:action]).to eq("keydown@window->reactive#dispatch")
+      expect(data[:reactive_shortcut_param]).to eq("mod+backspace")
+    end
+
+    it "keeps the Hash form on a bare descriptor" do
+      data = instance.send(:on, :close, shortcut: { keys: "delete", in_editable: true })[:data]
+
+      expect(data[:action]).to eq("keydown@window->reactive#dispatch")
+      expect(JSON.parse(data[:reactive_shortcut_param])).to eq("keys" => "delete", "inEditable" => true)
+    end
+
+    it "renders on_client bare, the chord in the record" do
+      data = instance.send(:on_client, :keydown, js.hide("#preview"), shortcut: "mod+backspace")[:data]
+
+      expect(data[:action]).to eq("keydown@window->reactive#runOps")
+      expect(JSON.parse(data[:reactive_ops_param])).to include("on" => "keydown", "shortcut" => "mod+backspace")
+    end
+
+    it "raises with once: (Stimulus would spend the bare listener on the first key of any kind)" do
+      expect { instance.send(:on, :close, shortcut: "delete", once: true) }
+        .to raise_error(ArgumentError, /"delete".*once:/m)
+      expect { instance.send(:on_client, :keydown, js.hide("#p"), shortcut: "backspace", once: true) }
+        .to raise_error(ArgumentError, /once:/)
+    end
+
+    it "leaves a Stimulus chord's rendering unchanged" do
+      expect(instance.send(:on, :undo, shortcut: "mod+z")[:data][:action]).to eq(
+        "keydown.meta+z@window->reactive#dispatch keydown.ctrl+z@window->reactive#dispatch"
+      )
+    end
+  end
+
   describe "on_client(:keydown, ops, shortcut:)" do
     it "renders the twins and a record carrying the bare keydown and the shortcut" do
       data = instance.send(:on_client, :keydown, js.toggle("#palette"), shortcut: "mod+k")[:data]
