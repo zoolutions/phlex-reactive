@@ -36,6 +36,7 @@ import * as devtoolsFeature from "phlex/reactive/features/devtools"
 import * as hintsFeature from "phlex/reactive/features/hints"
 import * as deferFeature from "phlex/reactive/features/defer"
 import * as sortableFeature from "phlex/reactive/features/sortable"
+import * as presenceFeature from "phlex/reactive/features/presence"
 
 // phlex/reactive/runtime — the reactive controller WITHOUT its feature
 // modules (issue #275): the code both client entries share. It is not an
@@ -861,6 +862,13 @@ const CLIENT_OPS = Object.freeze({
     }
   },
 
+  // Write this tab's presence state (issue #358) through the root's
+  // presence_set action. The feature warns outside a reactive_presence root.
+  presence: (el, args) =>
+    __SPLIT__
+      ? withFeature("presence", (presence) => presence.set(el, args.state))
+      : presenceFeature.set(el, args.state),
+
   // Dispatch a bubbling CustomEvent (issue #96). RAW element.dispatchEvent — the
   // controller SHADOWS Stimulus's this.dispatch helper, so it must not be used.
   dispatch: (el, args) => {
@@ -1395,6 +1403,11 @@ function sortableNeeded(root) {
   return Boolean(root.matches?.(lists) || root.querySelector?.(lists))
 }
 
+// Presence (issue #358): the root is a reactive_presence roster.
+function presenceNeeded(root) {
+  return root.getAttribute?.("data-reactive-presence") != null
+}
+
 const PRODUCTION_FEATURES = [
   // (Its `waiting` hook is the opt-in entry's: core.js.) The draft restore
   // writes what a request reads, so it gates.
@@ -1407,6 +1420,9 @@ const PRODUCTION_FEATURES = [
   ["compute", [computeNeeded, null, null, true]],
   // Nothing it does at connect is read by a request: it never gates.
   ["sortable", [sortableNeeded, null]],
+  // Its announce is a request of its own; nothing it does at connect is read
+  // by another request: it never gates.
+  ["presence", [presenceNeeded, null]],
   [
     // Stream effects and dismissing flashes are document-level: the module
     // has no connect. A root that DECLARES an effect only gets it fetched
@@ -1570,7 +1586,7 @@ function featureTimeoutMs() {
 export function reactiveFeatureNames() {
   return __SPLIT__
     ? [...FEATURES.keys()]
-    : ["persist", "defer", "form", "bindings", "compute", "sortable", "effects", "hints", "devtools"]
+    : ["persist", "defer", "form", "bindings", "compute", "sortable", "presence", "effects", "hints", "devtools"]
 }
 
 export function __setReactiveFeatureForTest(name, needs, load, waiting, gates) {
@@ -1593,6 +1609,7 @@ export function __loadReactiveFeatureForTest(name) {
     bindings: bindingsFeature,
     compute: computeFeature,
     sortable: sortableFeature,
+    presence: presenceFeature,
     effects: effectsFeature,
     hints: hintsFeature,
     devtools: devtoolsFeature,
@@ -1646,6 +1663,7 @@ const FORM = 4
 const BINDINGS = 8
 const COMPUTE = 16
 const SORTABLE = 32
+const PRESENCE = 64
 
 // The default entry's features are part of this file: install them now, as
 // the opt-in entry does when one arrives.
@@ -1867,7 +1885,7 @@ export default class extends Controller {
   #featureTurns = new Map() // name -> settles once that feature has had its turn to connect
   #featureEpoch = 0
   #featureHandle // the `core` handle features receive, built on first use
-  // The default entry (issue #305): one bit per feature, PERSIST … SORTABLE —
+  // The default entry (issue #305): one bit per feature, PERSIST … PRESENCE —
   // asked for (its marker read true) and connected on this connection.
   #featuresAsked = 0
   #featuresOn = 0
@@ -1966,6 +1984,7 @@ export default class extends Controller {
       this.#connectFeatureNow(BINDINGS, "bindings", bindingsNeeded, (core) => bindingsFeature.connect(this, core, morphed))
       this.#connectFeatureNow(COMPUTE, "compute", computeNeeded, (core) => computeFeature.connect(this, core, morphed))
       this.#connectFeatureNow(SORTABLE, "sortable", sortableNeeded, (core) => sortableFeature.connect(this, core))
+      this.#connectFeatureNow(PRESENCE, "presence", presenceNeeded, (core) => presenceFeature.connect(this, core))
     }
   }
 
@@ -2003,6 +2022,7 @@ export default class extends Controller {
       if (on & BINDINGS) this.#disconnectFeatureNow("bindings", () => bindingsFeature.disconnect(this, core))
       if (on & COMPUTE) this.#disconnectFeatureNow("compute", () => computeFeature.disconnect(this, core))
       if (on & SORTABLE) this.#disconnectFeatureNow("sortable", () => sortableFeature.disconnect(this, core))
+      if (on & PRESENCE) this.#disconnectFeatureNow("presence", () => presenceFeature.disconnect(this, core))
     }
   }
 
@@ -3179,6 +3199,12 @@ export default class extends Controller {
         // already gets the action's HTTP response. Harmless without pgbus.
         const connectionId = this.#connectionId()
         if (connectionId) headers["X-Pgbus-Connection"] = connectionId
+        // A presence root's own connection (issue #358): the row its presence
+        // writes land on, whatever source comes first on the page.
+        const presence =
+          presenceNeeded(this.element) &&
+          document.getElementById(`reactive-presence-src-${this.element.id}`)?.getAttribute("connection-id")
+        if (presence) headers["X-Reactive-Presence"] = presence
 
         // ONLY `fetch` itself is the network boundary — offline, DNS, a reset
         // connection. Everything below this inner try (reading the body,

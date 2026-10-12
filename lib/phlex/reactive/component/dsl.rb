@@ -356,6 +356,11 @@ module Phlex
               raise ArgumentError, "#{self}: reactive_dormant takes true or false, got #{dormant.inspect}"
             end
 
+            # Issue #358: a dormant root never connects, so it could never join.
+            # A ClientBindings-only class has no presence declaration to refuse.
+            refuse_dormant_presence! if dormant && respond_to?(:reactive_presence_declaration) &&
+                                        reactive_presence_declaration
+
             Phlex::Reactive::Dormant.reject_visible_lazy!(self) if dormant
 
             Registry.write_scalar(self, :dormant, dormant)

@@ -1748,6 +1748,146 @@ list; a reply that morphs the list puts the rows in the server's order.
 
 Full guide: [Sortable lists](https://phlex-reactive.zoolutions.llc/docs/sortable-lists).
 
+### Presence (`reactive_presence`)
+
+Who is viewing a stream, one entry per browser tab, each tab with a small
+declared state (the item it has selected), on a roster component that
+re-renders itself in every viewer's tab when a tab joins, leaves, goes silent
+or changes its state. No controller code, no Stimulus controller.
+
+```ruby
+class Boards::Viewers < Phlex::HTML
+  include Phlex::Reactive::Component
+
+  reactive_record :board
+  reactive_presence :viewers, state: { selected: :integer }, ttl: 45
+
+  def initialize(board:) = @board = board
+
+  def view_template
+    div(**reactive_root) do
+      presence.members.each do |member|                 # one per person
+        span(**reactive_presence_member(member)) { member.metadata["name"] }
+      end
+      @board.cards.each do |card|
+        li(**on_client(:click, js.presence(selected: card.id))) do
+          plain card.title
+          presence.where(selected: card.id).each do |peer| # who is on this card
+            span(**reactive_presence_peer(peer), class: "dot")
+          end
+        end
+      end
+    end
+  end
+end
+```
+
+- **The stream** is `[record, :presence, name]` (a record-less roster passes
+  `key: ["lobby"]`), named `"<16-char digest of the record (or the key: value)>:presence:<name>"`,
+  so any model name and id fit pgbus's stream-name budget (41 chars with the
+  default queue prefix). That leaves 15 characters for the presence name; a
+  longer one raises `Phlex::Reactive::ConfigurationError` at render. The root
+  subscribes to it by itself: the client mints a
+  `<pgbus-stream-source>` from the root's signed src, so the page must load the
+  pgbus client element (`import "pgbus/stream_source_element"`, which any
+  `pgbus_stream_from` on the page already does).
+- **`presence`** is the roster as this render reads it: `peers` (one per tab:
+  `seat`, `member_id`, `metadata`, `state`, `joined_at`), `members` (grouped by
+  person: `id`, `metadata`, `seats`, `state`), `where(**state)`, `count`,
+  `empty?`, and in an action `me` and `set(**state)`.
+- **State** is declared like action params; undeclared keys are dropped.
+  `js.presence(selected: 7)` sends it from the browser through the generated
+  `presence_set` action; `presence.set(selected: 7)` writes it from an action of
+  your own. Either way only this tab's row changes and the other viewers get a
+  morph. The generated action replies `reply.morph` for the actor; an action of
+  your own must return `reply.morph` itself.
+- **A state-backed roster** (`reactive_state`): its state is stored on each
+  seat row in `pgbus_presence_members` (in the note the re-render reads), and
+  the roster renders as one piece of markup under one id for every viewer. So
+  its `reactive_state` must be the same for every viewer; per-viewer state
+  belongs in presence state (`state:`).
+- **Authorization**: `presence_set` skips `verify_authorized`. The signed token
+  proves the actor rendered this root, and the write is typed, ephemeral, and
+  lands only on the actor's own row, keyed by its SSE connection id, which
+  only that tab knows. To check the value (the card must belong to the board),
+  define `authorize_presence_state!(**state)` and raise; it runs first. That hook
+  guards only the generated `presence_set`: an action of your own that calls
+  `presence.set` authorizes its state itself. The client also sends `presence_set` with no state on every connect (the
+  announce): that writes no value, so the hook is not called for it.
+- **`presence.me`** is the acting tab, and during an action it stays the actor
+  while the roster renders for the other viewers too. Never branch the shared
+  output on it; the client's `-me` marks are per tab. (Likewise
+  `reactive_connection_id` is the first `<pgbus-stream-source>` on the page, so
+  one loaded later, ahead of it in the DOM, can change it; presence writes use
+  their own connection and are unaffected.)
+- **"Me"**: the roster renders once for everyone, so the client marks this
+  tab's element `data-reactive-presence-me` and the same person's other
+  elements `data-reactive-presence-same-member` after every morph. Style them.
+  Both need this tab's `reactive_presence_peer` element on the roster: a roster
+  of members only has none, so nothing is marked.
+- **Events**: `reactive:presence` fires on the root with
+  `{ joined: [seat…], left: [seat…], me: seat }` when a morph changes who is
+  there; a replayed frame that changes nothing fires nothing. The root names
+  the seats its render saw (`data-reactive-presence-roster`), so this works for
+  a roster that renders people, not tabs.
+- **Leaving**: a closed tab leaves within about a second (pgbus watches each
+  SSE socket for the browser closing it). A tab that crashes or loses its
+  network, so nothing closes the socket cleanly, leaves on the next failed
+  heartbeat write (`streams_heartbeat_interval`, 15 s by default) or expires
+  after `ttl:` seconds. A reconnect keeps the tab's seat id and re-sends its
+  state, but pgbus drops the row on the disconnect, so unless the reconnect
+  lands within one coalesce window (150 ms) peers see that seat leave and
+  join again (`reactive:presence` reports both). A row that expires while its
+  socket stays open (the tab missed its beats) is re-joined by the heartbeat
+  without its state, until the tab's next `js.presence`. `ttl:` must be above the
+  transport's heartbeat interval, or a live tab would expire between two
+  beats: `reactive_presence` raises otherwise.
+- **Transport**: needs pgbus 0.18.1 or later (presence keyed by SSE
+  connection, `pgbus:connected` only after the tab's seat joined,
+  `config.streams_authorize`). Create the table with
+  `rails g pgbus:add_presence`, or upgrade an older one with
+  `rails g pgbus:add_presence_seats`. `ttl:` (45 by default) is written into
+  pgbus's `streams_presence_ttl` under the stream's pattern. Action Cable has
+  no connection identity: rendering a presence root without it raises
+  `Phlex::Reactive::ConfigurationError`. Every other component is unaffected.
+- **Identity**: pgbus takes each tab's person from what
+  `config.streams_authorize` returns for the stream. `nil` or `false` answers
+  403; `true` authorizes with no identity, and pgbus joins such a connection
+  to no roster (the tab then warns in the console that it never appeared).
+  Per-record authorization already happens at render: the signed src is
+  minted only into a roster root your app chose to render for this user.
+  `streams_authorize` is the revocation layer (the signed name proves pgbus
+  minted it, not that this viewer may still read it: a removed member keeps a
+  working name until the secret rotates). For a strict per-record check at
+  connect time, compare `stream_name` with the presence key of each record the
+  user may view (or give a record-less roster a `key:` with a prefix you can
+  parse):
+
+  ```ruby
+  # config/initializers/pgbus.rb
+  Pgbus.configure do |config|
+    config.streams_authorize = ->(env, stream_name) {
+      user = env["warden"]&.user
+      next unless user&.active?
+      next unless user.may_stream?(stream_name) # keep your app's own check for every stream
+
+      if stream_name.end_with?(":presence:viewers")
+        next unless user.boards.any? { Boards::Viewers.reactive_presence_stream_name_for(it) == stream_name }
+      end
+      { id: user.id, metadata: { name: user.name } }
+    }
+  end
+  ```
+
+  A presence stream's name is a digest (`"<16 hex>:presence:<name>"`), so the
+  record cannot be read back from it: `reactive_presence_stream_name_for`
+  computes it from the record. A User works too (pgbus reads its `#id`); shape
+  the member from it with
+  `config.streams_presence_member = ->(user) { { id: user.id, metadata: { name: user.name } } }`.
+- **Jobs**: a join, a leave and an expiry re-render the roster in
+  `Phlex::Reactive::PresenceRenderJob` (on `defer_job_queue`), so the app needs
+  an ActiveJob adapter that runs jobs. A state change renders in the action.
+
 ### Client-only drafts (`reactive_persist`)
 
 "Don't make me start over": a public application form, a multi-step wizard,

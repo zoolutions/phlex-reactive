@@ -15,6 +15,9 @@
 //                         by this element because the signed name is
 //                         already in the URL path
 //   channel             — compatibility shim; ignored
+//   presence            — boolean; when present the element sends this
+//                         document's presence seat as ?seat= on every
+//                         connect (issue #515)
 //
 // Events (dispatched on the element):
 //   message            (MessageEvent) data = turbo-stream HTML;
@@ -34,8 +37,9 @@
 //   pgbus:close        { code, reason }
 //
 // Connection id (issue #165 — actor-echo suppression): the server sends a
-// `pgbus:connected` frame right after the open handshake carrying the
-// server-minted connection id. This element captures it, reflects it onto
+// `pgbus:connected` frame carrying the server-minted connection id once the
+// streamer has registered the connection and joined its presence seat
+// (issue #521), after the connect replay. This element captures it, reflects it onto
 // the `connection-id` attribute, and re-dispatches it as `pgbus:connected`.
 // A page reads it (from the element or a `<meta name="pgbus-connection-id">`
 // the app mirrors it to) and sends it back as the `X-Pgbus-Connection`
@@ -47,6 +51,14 @@
 // disconnectStreamSource + dispatching MessageEvent("message") so Turbo
 // Stream HTML is automatically consumed by the existing StreamObserver.
 //
+// Presence seat (issue #515): with the `presence` attribute, the element
+// appends `?seat=<id>` to the SSE request. The seat is minted once per
+// document (shared by every presence element on the page and kept across
+// Turbo Drive visits, so it names the browser tab) and stays the same across
+// reconnects. The server stores it on the connection's presence row, which
+// lets a page tell its own tab apart from the member's other tabs. Read it
+// from `element.pgbusSeat`.
+//
 // Transport strategy:
 //   - FIRST connect: use fetch() + ReadableStream to include ?since=
 //     in the URL. Native EventSource cannot send Last-Event-ID on the
@@ -57,6 +69,18 @@
 
 import { Turbo } from "@hotwired/turbo-rails"
 const { connectStreamSource, disconnectStreamSource } = Turbo
+
+let documentSeat = null
+
+// One seat per document, minted on first use (see "Presence seat" above).
+function seatForDocument() {
+  if (!documentSeat) {
+    documentSeat = globalThis.crypto && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
+  }
+  return documentSeat
+}
 
 class PgbusStreamSourceElement extends HTMLElement {
   static get observedAttributes() {
@@ -77,6 +101,12 @@ class PgbusStreamSourceElement extends HTMLElement {
   // a reactive runtime can grab it without poking at attributes.
   get pgbusConnectionId() {
     return this.connectionId
+  }
+
+  // This document's presence seat when the element has the `presence`
+  // attribute, otherwise null.
+  get pgbusSeat() {
+    return this.hasAttribute("presence") ? seatForDocument() : null
   }
 
   connectedCallback() {
@@ -225,13 +255,17 @@ class PgbusStreamSourceElement extends HTMLElement {
 
     let id = null
     let event = "message"
-    let data = ""
+    const dataLines = []
 
     for (const line of block.split("\n")) {
       if (line.startsWith("id:")) id = line.slice(3).trim()
       else if (line.startsWith("event:")) event = line.slice(6).trim()
-      else if (line.startsWith("data:")) data += line.slice(5).trim()
+      // Per the SSE spec: strip only a single leading space after the colon
+      // (never trim — payload whitespace is significant, issue #392) and
+      // rejoin consecutive data: lines with \n, matching native EventSource.
+      else if (line.startsWith("data:")) dataLines.push(line.slice(5).replace(/^ /, ""))
     }
+    const data = dataLines.join("\n")
 
     if (id !== null) this.lastEventId = id
 
@@ -344,10 +378,13 @@ class PgbusStreamSourceElement extends HTMLElement {
 
   buildUrl({ includeSince }) {
     const src = this.getAttribute("src")
-    if (!includeSince || !this.lastEventId) return src
+    const since = includeSince && this.lastEventId ? this.lastEventId : null
+    const seat = this.pgbusSeat
+    if (!since && !seat) return src
 
     const url = new URL(src, window.location.origin)
-    url.searchParams.set("since", this.lastEventId)
+    if (since) url.searchParams.set("since", since)
+    if (seat) url.searchParams.set("seat", seat)
     return url.toString()
   }
 

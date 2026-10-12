@@ -33,6 +33,7 @@ import * as form from "phlex/reactive/features/form"
 import * as bindings from "phlex/reactive/features/bindings"
 import * as compute from "phlex/reactive/features/compute"
 import * as sortable from "phlex/reactive/features/sortable"
+import * as presence from "phlex/reactive/features/presence"
 import * as effects from "phlex/reactive/features/effects"
 import * as hints from "phlex/reactive/features/hints"
 import * as devtools from "phlex/reactive/features/devtools"
@@ -65,6 +66,7 @@ if (__SPLIT__) {
   })
   registerReactiveFeature("compute", { connect: compute.connect, disconnect: compute.disconnect, seed: compute.seed, recompute: compute.recompute })
   registerReactiveFeature("sortable", { connect: sortable.connect, disconnect: sortable.disconnect })
+  registerReactiveFeature("presence", { connect: presence.connect, disconnect: presence.disconnect, set: presence.set })
   registerReactiveFeature("effects", { wrap: effects.wrap, sweep: effects.sweep })
   registerReactiveFeature("hints", { optimistic: hints.optimistic, busy: hints.busy, resurrection: hints.resurrection })
   registerReactiveFeature("devtools", {

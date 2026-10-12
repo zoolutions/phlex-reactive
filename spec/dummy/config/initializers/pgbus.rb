@@ -23,5 +23,10 @@ if ENV["TRANSPORT"] == "pgbus"
     # phlex-reactive's broadcast_*_to calls Pgbus.stream(...).broadcast(...) inline,
     # so no worker/supervisor is needed for a single-process Capybara server.
     it.streams_test_mode = false
+    # Issue #358: presence takes each connection's identity from what
+    # streams_authorize returns (pgbus >= 0.18, the engine mount's hook). The
+    # dummy has no sign-in, so every connection is the same guest; an app
+    # returns its user, and only when that user may read the stream.
+    it.streams_authorize = ->(_env, _stream_name) { { id: "guest", metadata: { name: "Guest" } } }
   end
 end

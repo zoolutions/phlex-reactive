@@ -30,6 +30,9 @@ Rails.application.config.after_initialize do
   # Issue #350: the failing sortable list's :move denies, so the rollback spec
   # sees a clean 403 rather than a raised server error.
   Phlex::Reactive.authorization_errors << SortableListComponent::Denied
+  # Issue #358: the presence roster's authorize_presence_state! refuses an
+  # unknown step with this error, which the endpoint maps to a 403.
+  Phlex::Reactive.authorization_errors << TodoViewersComponent::Denied
 
   # verify_authorized fixture (issue #168): AuthorizedTodoComponent#rename_denied
   # raises this so the request spec proves a genuine denial still 403s through

@@ -304,6 +304,30 @@ module Phlex
         append("dispatch", args.freeze)
       end
 
+      # --- Presence (issue #358) ---
+      #
+      # presence(**state) — write this tab's presence state through the root's
+      # generated presence_set action (reactive_presence): only the declared
+      # keys reach the server, typed like action params. Always targets the
+      # ROOT, which must declare reactive_presence (the client warns and does
+      # nothing otherwise). ACTOR-ONLY like focus/submit: a broadcast that set
+      # every subscriber's selection would be hostile (BROADCAST_REFUSED_OPS).
+      #   li(**on_client(:click, js.presence(selected: item.id))) { item.title }
+      def presence(**state)
+        raise ArgumentError, "#{self.class}: presence needs at least one state key (e.g. selected: 7)" if state.empty?
+
+        state.each do |name, value|
+          next if value.nil? || [String, Integer, TrueClass, FalseClass].any? { value.is_a?(it) }
+          next if value.is_a?(Float) && value.finite? # NaN and Infinity have no JSON form
+
+          raise ArgumentError,
+            "#{self.class}: presence state values must be scalar (String/Integer/finite Float/true/false/nil) — " \
+            "#{name.inspect} is #{value.class}"
+        end
+
+        append("presence", { "to" => ROOT_SENTINEL, "state" => state.transform_keys(&:to_s).freeze }.freeze)
+      end
+
       # The wire format: a JSON array of [op, args] pairs, applied in order.
       def to_json(*)
         @ops.to_json

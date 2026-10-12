@@ -92,6 +92,8 @@ Rails.application.routes.draw do
   get "bulk_outcome" => "demos#bulk_outcome"
   # Issue #350: sortable lists — reorder, drag-in from a source, a failing list.
   get "sortable" => "demos#sortable"
+  # Issue #358: a presence roster (needs pgbus with per-connection presence).
+  get "presence" => "demos#presence"
   post "bulk_outcome" => "demos#bulk_outcome_submit"
   # Issue #241: reactive_persist over rich editors (real Trix + Lexxy + a bare
   # contenteditable); ?late=1 defers the editor definitions past connect.

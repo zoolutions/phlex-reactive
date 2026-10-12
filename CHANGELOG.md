@@ -8,6 +8,31 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Presence — `reactive_presence`, `presence`, `js.presence` (#358).** A
+  roster component declares the presence stream it shows
+  (`reactive_presence :viewers, state: { selected: :integer }, ttl: 45`) and
+  reads it with `presence`: one peer per browser tab (`seat`, `member_id`,
+  `metadata`, `state`), grouped by person with `members`, filtered with
+  `where(selected: id)`. Tabs join on SSE connect, leave on disconnect and
+  expire after `ttl:` seconds of silence; each change re-renders the roster for
+  every viewer (one coalesced morph). Each tab's declared state is set with
+  `js.presence(**state)` (through the generated `presence_set` action, typed,
+  default-deny, and exempt from `verify_authorized` unless the component defines
+  `authorize_presence_state!`) or `presence.set(**state)` from an action. The
+  client marks this tab's element `data-reactive-presence-me` and the same
+  person's other elements `data-reactive-presence-same-member`, and fires
+  `reactive:presence` with the seats that joined and left. A new `presence`
+  feature module (1.3 KB gzipped): the default client bundles it (+992 B), the
+  split client fetches it only for a page with a presence root (+100 B in the
+  core). Needs pgbus 0.18.1 or later; without it a presence root raises
+  `Phlex::Reactive::ConfigurationError` at render. Create the table with
+  `rails g pgbus:add_presence` (or upgrade it with
+  `rails g pgbus:add_presence_seats`), return each viewer's identity from
+  `config.streams_authorize` (with none, pgbus joins the connection to no
+  roster), and run an ActiveJob adapter (joins, leaves and expiries render in
+  `PresenceRenderJob`). A closed tab leaves within about a second.
+  `ttl:` must be above pgbus's `streams_heartbeat_interval` (15 s by default). `js.presence` is refused on a broadcast, like `focus`. `reactive_presence_stream_name_for(record)` on the class gives a record's stream name, for a per-record check in `streams_authorize`. Docs: "Presence".
+
 - **`shortcut:` on `on()` and `on_client(:keydown, …)` — page-level keyboard
   shortcuts (#357).** `on(:undo, shortcut: "mod+z")` binds a window keydown
   where `mod` is ⌘ on Apple platforms and Ctrl elsewhere (rendered as a meta
