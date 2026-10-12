@@ -1,0 +1,26 @@
+docs/app/views/docs/pages/presence.rb
+  s_3e21f559b0ae6d::t_9a8f17b077b7c3 128-132
+lib/phlex/reactive/presence.rb
+  s_3e21f559b0ae6d::t_101159d968c53b 142,147-156
+  s_3e21f559b0ae6d::t_365320b051aa79 122-127
+README.md
+  s_3e21f559b0ae6d::t_3717e0854198f2 1804-1808
+spec/phlex/reactive/presence_render_job_spec.rb
+  s_3e21f559b0ae6d::t_07e69d35f68d48 99-134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "b3eab79f375a39d504fc7675da0ad7684d3776c0",
+  "prompts": {},
+  "sessions": {
+    "s_3e21f559b0ae6d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f363c29e-c9cb-4446-bf3f-d04d38769294",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
