@@ -93,7 +93,7 @@ RSpec.describe "Page-level keyboard shortcuts (issue #357)", type: :system do
 
     def select_beta
       find("[data-testid='row-beta']").click
-      expect(page).to have_css("li[aria-selected='true']", text: "beta")
+      expect(page).to have_css("li[aria-current='true']", text: "beta")
       reset_reactive_requests!
       # The select re-rendered the root, so its window listeners were re-added
       # after the recorder: record again from a listener added after them.

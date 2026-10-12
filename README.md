@@ -973,7 +973,7 @@ A shortcut is a window `keydown` binding with three rules a plain
 Stimulus's default key map (a letter, a digit, `enter`, `tab`, `esc`, `space`,
 the arrows, `home`, `end`, `page_up`, `page_down`; bind a custom `keyMappings`
 key with `event:` and `window:`) other than `delete` and `backspace`. On
-`on_client` the event must be `:keydown`.
+`on_client` the event must be bare `:keydown` or `"keydown"`.
 
 `delete` and `backspace` are matched by the library rather than Stimulus (its
 default key map lacks them, and a `keydown.delete` filter makes Stimulus throw

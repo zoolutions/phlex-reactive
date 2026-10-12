@@ -64,7 +64,7 @@ class ShortcutListComponent < ApplicationComponent
   def rows_list
     ul(data: { testid: "rows" }) do
       @rows.each_with_index do |row, i|
-        li(aria_selected: (i == @selected).to_s) do
+        li(aria_current: (i == @selected).to_s) do
           button(**mix(on(:select, index: i), data: { testid: "row-#{row}" })) { row }
         end
       end
