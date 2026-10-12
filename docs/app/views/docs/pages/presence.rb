@@ -125,6 +125,11 @@ module Views
               changes; the other tabs get a morph and this tab gets
               `reply.morph`. From an action of your own, `presence.set(selected: id)`
               does the same, but the action returns `reply.morph` itself. A tab that reconnects sends its state again.
+
+              A state-backed roster (`reactive_state`) stores that state on each
+              seat row in `pgbus_presence_members`, and renders as one piece of
+              markup under one id for every viewer: its `reactive_state` must be
+              the same for every viewer. Per-viewer state belongs in `state:`.
             MD
           end
         end

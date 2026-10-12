@@ -119,9 +119,12 @@ module Phlex
         def render_roster(stream_name)
           return unless capable?
 
-          notes = Transport.members(stream_name).filter_map { it["state"]&.[](NOTE_KEY) }.uniq
-          notes.each do
-            component = build(it)
+          # One render per class and record. A roster's reactive_state is shared
+          # markup under one id, the same for every viewer, so the state any
+          # note carries will do; per-viewer state belongs in presence state.
+          notes = Transport.members(stream_name).filter_map { it["state"]&.[](NOTE_KEY) }
+          notes.uniq { [it["c"], it["gid"]] }.each do
+            component = build(it, stream_name)
             broadcast(component, exclude: nil) if component
           end
         end
@@ -136,14 +139,21 @@ module Phlex
 
         # A roster component rebuilt from a note: the named class, only when it
         # declares presence, with its record re-found (nil when it is gone).
-        def build(note)
+        def build(note, stream_name)
           klass = note["c"].to_s.safe_constantize
           return unless klass.respond_to?(:reactive_presence_declaration) && klass.reactive_presence_declaration
 
           klass.from_identity(note.slice("gid", "s"))
-        rescue ::ActiveRecord::RecordNotFound, Phlex::Reactive::Error
-          # The record is gone, or the note has no gid for a component that
-          # needs one: render nothing rather than fail the job on every retry.
+        rescue ::ActiveRecord::RecordNotFound
+          # The record is gone: there is nothing left to render.
+          nil
+        rescue Phlex::Reactive::Error => e
+          # The note cannot rebuild the component (no gid for one that needs
+          # its record): render nothing rather than fail the job on every retry.
+          Phlex::Reactive.send(:default_logger)&.warn(
+            "[phlex-reactive] presence stream #{stream_name}: cannot rebuild #{note["c"]} from its note " \
+            "(#{e.message}); its roster is not re-rendered"
+          )
           nil
         end
       end

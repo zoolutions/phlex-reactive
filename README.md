@@ -1801,6 +1801,11 @@ end
   your own. Either way only this tab's row changes and the other viewers get a
   morph. The generated action replies `reply.morph` for the actor; an action of
   your own must return `reply.morph` itself.
+- **A state-backed roster** (`reactive_state`): its state is stored on each
+  seat row in `pgbus_presence_members` (in the note the re-render reads), and
+  the roster renders as one piece of markup under one id for every viewer. So
+  its `reactive_state` must be the same for every viewer; per-viewer state
+  belongs in presence state (`state:`).
 - **Authorization**: `presence_set` skips `verify_authorized`. The signed token
   proves the actor rendered this root, and the write is typed, ephemeral, and
   lands only on the actor's own row, keyed by its SSE connection id, which

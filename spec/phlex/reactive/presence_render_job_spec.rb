@@ -96,4 +96,40 @@ RSpec.describe Phlex::Reactive::PresenceRenderJob do
       expect(rebuilt.instance_variable_get(:@tab)).to eq("history")
     end
   end
+
+  # A roster's reactive_state is shared markup under one id: N viewers with N
+  # different states must not be N renders and N broadcasts of the same #id
+  # (the last would win for everyone). One render per class and record.
+  it "renders a stateful roster once per class and record, whatever states its seats' notes carry" do
+    klass = Class.new(TodoViewersComponent) do
+      reactive_state :tab
+
+      def self.name = "StatefulViewersComponent"
+
+      def initialize(todo:, tab: "info")
+        super(todo:)
+        @tab = tab
+      end
+    end
+    stub_const("StatefulViewersComponent", klass)
+    %w[a b c].each_with_index do |seat, i|
+      presence.join(member_id: i, connection_id: "c#{i}", seat:, metadata: {})
+      note = klass.new(todo:, tab: "tab-#{i}").send(:reactive_presence_note)
+      presence.set_state(connection_id: "c#{i}", state: { "_rp" => note })
+    end
+
+    described_class.perform_now(stream_name)
+
+    expect(Phlex::Reactive::Streamable).to have_received(:broadcast_component).once
+  end
+
+  it "logs a gid-less note it cannot rebuild, naming the stream and the class" do
+    allow(Rails.logger).to receive(:warn)
+    presence.join(member_id: 1, connection_id: "c1", seat: "a", metadata: {})
+    presence.set_state(connection_id: "c1", state: { "_rp" => { "c" => "TodoViewersComponent" } })
+
+    described_class.perform_now(stream_name)
+
+    expect(Rails.logger).to have_received(:warn).with(/#{Regexp.escape(stream_name)}.*TodoViewersComponent/m)
+  end
 end
