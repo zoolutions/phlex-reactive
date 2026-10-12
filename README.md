@@ -972,7 +972,15 @@ A shortcut is a window `keydown` binding with three rules a plain
 `event:`, `window:` or `outside:` raises `ArgumentError`, as does a key outside
 Stimulus's default key map (a letter, a digit, `enter`, `tab`, `esc`, `space`,
 the arrows, `home`, `end`, `page_up`, `page_down`; bind a custom `keyMappings`
-key with `event:` and `window:`). On `on_client` the event must be `:keydown`.
+key with `event:` and `window:`) other than `delete` and `backspace`. On
+`on_client` the event must be `:keydown`.
+
+`delete` and `backspace` are matched by the library rather than Stimulus (its
+default key map lacks them, and a `keydown.delete` filter makes Stimulus throw
+at keypress): the shortcut binds a bare `keydown@window` and the client matches
+the chord, with every rule above — `on(:remove_selected, shortcut: "delete")`
+never fires while typing in a field. They cannot take `once:` (the first key
+pressed of any kind would spend the bare binding).
 `shortcut` is now a **reserved keyword** on `on(...)`.
 
 `once: true` on a shortcut unbinds the Stimulus descriptor after its first
