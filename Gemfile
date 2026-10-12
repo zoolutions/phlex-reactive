@@ -66,9 +66,14 @@ group :development, :test do
   # lane (issue #165) additionally wants pgbus >= 0.9.10 for the age-based
   # orphan-stream sweep that reclaims its durable one-shot queues; on older
   # pgbus those queues leak (the docs steer to defer_transport = :fetch). We
-  # don't raise the floor here — phlex-reactive still works on 0.9.4+, and the
-  # push-lane queue lifecycle is an operational (Dispatcher) concern, not a
-  # code dependency.
+  # don't raise the floor for that — the push-lane queue lifecycle is an
+  # operational (Dispatcher) concern, not a code dependency.
+  #
+  # The DEV floor is 0.18.0: presence (issue #358) needs per-connection seats,
+  # pgbus:connected after the join, the close watcher and streams_authorize
+  # (zoolutions/pgbus#516, #520, #523, #524), and the browser suite exercises it.
+  # An app without presence components still works on any pgbus with the
+  # Streams primitives (the gem capability-detects at runtime).
   #
   # For fast local iteration against your own checkout, set PGBUS_PATH:
   #   PGBUS_PATH=~/Code/mhenrixon/pgbus bundle install
@@ -77,7 +82,7 @@ group :development, :test do
   if (pgbus_path = ENV.fetch("PGBUS_PATH", nil))
     gem "pgbus", path: pgbus_path, require: false
   else
-    gem "pgbus", ">= 0.9.4", require: false
+    gem "pgbus", ">= 0.18.0", require: false
   end
   gem "pg", "~> 1.5", require: false # pgbus needs PostgreSQL
 
