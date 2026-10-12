@@ -265,7 +265,7 @@ test("a tab on its roster after connect logs nothing", () =>
     }
   }))
 
-test("a tab that never appears on its roster warns once that it has no identity", () =>
+test("a tab that never appears on its roster warns once, naming both causes", () =>
   withTimers(async (fire) => {
     const warns = []
     const saved = console.warn
@@ -278,10 +278,32 @@ test("a tab that never appears on its roster warns once that it has no identity"
       expect(requests.length).toBe(1)
       expect(warns.length).toBe(1)
       expect(warns[0]).toContain("streams_authorize")
+      expect(warns[0]).toContain("presence_set request failed")
     } finally {
       console.warn = saved
     }
   }))
+
+// A failed announce (a network error, a 5xx) leaves the tab's row without its
+// note and state. No retry (an accepted risk); the module logs it.
+test("a failed presence_set is logged; other failed actions are not", async () => {
+  const errors = []
+  const saved = console.error
+  console.error = (...args) => errors.push(args)
+  try {
+    mount(roster(""))
+    const root = document.getElementById("viewers")
+    root.dispatchEvent(new CustomEvent("reactive:error", { bubbles: true, detail: { action: "rename", kind: "http" } }))
+    expect(errors).toEqual([])
+
+    root.dispatchEvent(new CustomEvent("reactive:error", { bubbles: true, detail: { action: "presence_set", kind: "network" } }))
+    expect(errors.length).toBe(1)
+    expect(String(errors[0][0])).toContain("presence_set request failed")
+    expect(errors[0][1]).toEqual({ action: "presence_set", kind: "network" })
+  } finally {
+    console.error = saved
+  }
+})
 
 test("js.presence outside a presence root warns and sends nothing", async () => {
   const warn = mock(() => {})

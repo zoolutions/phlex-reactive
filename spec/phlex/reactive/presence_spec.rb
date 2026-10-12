@@ -137,6 +137,15 @@ RSpec.describe Phlex::Reactive::Presence, "reactive_presence (issue #358)" do
       end
     end
 
+    # For a strict per-record check in streams_authorize: the key of each
+    # record the user may view, compared with the stream name pgbus asks about.
+    it "computes a record's presence stream name from the class, the same key the roster uses" do
+      expect(TodoViewersComponent.reactive_presence_stream_name_for(todo))
+        .to eq(TodoViewersComponent.new(todo:).reactive_presence_stream_name)
+      other = Todo.create!(title: "Other")
+      expect(TodoViewersComponent.reactive_presence_stream_name_for(other)).not_to eq(stream_name)
+    end
+
     it "marks the root with the signed presence stream src" do
       html = render_html(TodoViewersComponent.new(todo:))
       expect(html).to include(%(data-reactive-presence="/pgbus/streams/signed-#{stream_name}"))

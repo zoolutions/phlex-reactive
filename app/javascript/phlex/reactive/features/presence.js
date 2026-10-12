@@ -66,8 +66,18 @@ export function connect(controller, core) {
   entry.removing = false
   subscribe(root)
   const morphed = (event) => event.target === root && queueMicrotask(() => paint(entry))
+  // A failed announce (a network error, a 5xx) leaves the tab's row without
+  // its note and state until the next js.presence or reconnect: say so.
+  const failed = (event) =>
+    event.target === root &&
+    event.detail?.action === "presence_set" &&
+    console.error(`[phlex-reactive] #${root.id}: its presence_set request failed`, event.detail)
   root.addEventListener("turbo:morph-element", morphed)
-  entry.off = () => root.removeEventListener("turbo:morph-element", morphed)
+  root.addEventListener("reactive:error", failed)
+  entry.off = () => {
+    root.removeEventListener("turbo:morph-element", morphed)
+    root.removeEventListener("reactive:error", failed)
+  }
   paint(entry)
 }
 
@@ -135,7 +145,8 @@ const defined = () => !!globalThis.customElements?.get?.("pgbus-stream-source")
 
 // pgbus fires pgbus:connected only after the tab's seat has joined, so the
 // announce lands on its row. A tab still off its roster a moment later has no
-// identity (pgbus joins an anonymous connection to nothing): say so once.
+// identity (pgbus joins an anonymous connection to nothing), or its announce
+// failed: say so once. No retry (an accepted risk).
 function check(entry) {
   clearTimeout(entry.timer)
   entry.timer = setTimeout(() => {
@@ -144,8 +155,8 @@ function check(entry) {
     const mine = root.ownerDocument.getElementById(SOURCE + root.id)?.pgbusSeat
     if (mine && seatsOf(root).has(mine)) return
     console.warn(
-      `[phlex-reactive] #${root.id} never appeared on its presence roster — does config.streams_authorize ` +
-        "return the viewer's identity for this stream?",
+      `[phlex-reactive] #${root.id} never appeared on its presence roster: config.streams_authorize ` +
+        "returned no identity for this stream, or its presence_set request failed (logged above)",
     )
   }, 2500)
 }

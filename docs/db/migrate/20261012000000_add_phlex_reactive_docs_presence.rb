@@ -4,7 +4,11 @@
 # `rails g pgbus:add_presence` template. Production only — the deployed site
 # runs pgbus on Postgres; dev and test run SQLite without pgbus, where this
 # migration does nothing (the presence demo stays behind Presence.capable?).
-class AddPgbusPresence < ActiveRecord::Migration[8.1]
+# Named for this app so it cannot collide with pgbus's own AddPgbusPresence.
+# A FRESH production database is built by db:prepare from the SQLite-dumped
+# schema.rb, which has no presence table, and this migration is then marked as
+# run: there, run `rails g pgbus:add_presence` (or the demo stays hidden).
+class AddPhlexReactiveDocsPresence < ActiveRecord::Migration[8.1]
   def up
     return unless connection.adapter_name.match?(/postg/i)
     return if table_exists?(:pgbus_presence_members)
@@ -31,6 +35,6 @@ class AddPgbusPresence < ActiveRecord::Migration[8.1]
   end
 
   def down
-    drop_table :pgbus_presence_members, if_exists: true
+    drop_table :pgbus_presence_members if table_exists?(:pgbus_presence_members)
   end
 end

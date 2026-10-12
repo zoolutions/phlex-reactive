@@ -22,7 +22,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   client marks this tab's element `data-reactive-presence-me` and the same
   person's other elements `data-reactive-presence-same-member`, and fires
   `reactive:presence` with the seats that joined and left. A new `presence`
-  feature module (1.3 KB gzipped): the default client bundles it (+943 B), the
+  feature module (1.3 KB gzipped): the default client bundles it (+992 B), the
   split client fetches it only for a page with a presence root (+100 B in the
   core). Needs pgbus 0.18.0 or later; without it a presence root raises
   `Phlex::Reactive::ConfigurationError` at render. Create the table with
@@ -31,7 +31,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `config.streams_authorize` (with none, pgbus joins the connection to no
   roster), and run an ActiveJob adapter (joins, leaves and expiries render in
   `PresenceRenderJob`). A closed tab leaves within about a second.
-  `ttl:` must be above pgbus's `streams_heartbeat_interval` (15 s by default). `js.presence` is refused on a broadcast, like `focus`. Docs: "Presence".
+  `ttl:` must be above pgbus's `streams_heartbeat_interval` (15 s by default). `js.presence` is refused on a broadcast, like `focus`. `reactive_presence_stream_name_for(record)` on the class gives a record's stream name, for a per-record check in `streams_authorize`. Docs: "Presence".
 
 - **`shortcut:` on `on()` and `on_client(:keydown, …)` — page-level keyboard
   shortcuts (#357).** `on(:undo, shortcut: "mod+z")` binds a window keydown

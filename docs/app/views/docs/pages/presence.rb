@@ -215,7 +215,9 @@ module Views
               the transport drops the row on the disconnect: unless the
               reconnect lands within one coalesce window (150 ms), the other
               tabs see that seat leave and join again, and `reactive:presence`
-              reports both.
+              reports both. A row that expires while its socket stays open (the tab
+              missed its beats) is re-joined by the heartbeat without its state,
+              until the tab's next `js.presence`.
 
               `ttl:` must be above the transport's heartbeat interval
               (`streams_heartbeat_interval`, 15 s by default) — at or below it a
@@ -245,9 +247,14 @@ module Views
               returns for the stream. `nil` or `false` answers 403; `true`
               authorizes with no identity, and pgbus joins such a connection to no
               roster (the tab warns in the console that it never appeared on its
-              roster). The signed stream name proves pgbus minted it, not that this
-              viewer may still read it (a removed member keeps a working name until
-              the secret rotates), so authorize here too:
+              roster). Per-record authorization already happens at render: the signed
+              src is minted only into a roster root your app chose to render for this
+              user. `streams_authorize` is the revocation layer (the signed name proves
+              pgbus minted it, not that this viewer may still read it: a removed member
+              keeps a working name until the secret rotates). For a strict per-record
+              check at connect time, compare `stream_name` with the presence key of each
+              record the user may view (or give a record-less roster a `key:` with a
+              prefix you can parse):
 
               ```ruby
               # config/initializers/pgbus.rb
@@ -256,14 +263,17 @@ module Views
                   user = env["warden"]&.user
                   next unless user&.active?
 
-                  { id: user.id, metadata: { name: user.name } } if user.may_stream?(stream_name)
+                  if stream_name.end_with?(":presence:viewers")
+                    next unless user.boards.any? { Boards::Viewers.reactive_presence_stream_name_for(it) == stream_name }
+                  end
+                  { id: user.id, metadata: { name: user.name } }
                 }
               end
               ```
 
-              A presence stream's name is a digest of the record, so the record cannot
-              be looked up from it: check what your app can (the user's standing, an
-              account-named stream). `config.streams_presence_member = ->(user) { { id: user.id, metadata: { name: user.name } } }`
+              A presence stream's name is a digest, so the record cannot be read back
+              from it: `reactive_presence_stream_name_for` computes it from the record.
+              `config.streams_presence_member = ->(user) { { id: user.id, metadata: { name: user.name } } }`
               shapes the member from a User. This site has no sign-in: each visitor
               gets a random id in the session, and the hook returns it.
 

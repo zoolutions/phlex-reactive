@@ -58,6 +58,16 @@ module Phlex
             Registry.resolve_scalar(self, :presence, :reactive_presence_declaration)
           end
 
+          # The presence stream name a roster of `record` subscribes to — what
+          # streams_authorize sees. For a strict per-record check at connect
+          # time: compare it with the key of each record the user may view.
+          # A record-less roster (key:) ignores `record`.
+          def reactive_presence_stream_name_for(record = nil)
+            declaration = reactive_presence_declaration
+            subject = declaration.key || [record]
+            Phlex::Reactive::Presence::Transport.stream_name([*subject, :presence, declaration.name])
+          end
+
           private
 
           def build_presence_declaration(name, state, ttl, key)

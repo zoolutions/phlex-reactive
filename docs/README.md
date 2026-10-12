@@ -30,6 +30,15 @@ bun install && bunx playwright install chromium   # browser suite
 bin/rails server                                   # http://localhost:3000
 ```
 
+## Presence demo (production)
+
+The Presence guide's live demo and the Project board's viewers strip need
+pgbus's `pgbus_presence_members` table, created on deploy by the
+`AddPhlexReactiveDocsPresence` migration (Postgres only). On a **fresh**
+Postgres, `db:prepare` loads the SQLite-dumped `schema.rb` (no presence table)
+and marks that migration as run, so run `rails g pgbus:add_presence` and
+migrate, or the demo stays hidden.
+
 ## Tests
 
 ```bash
