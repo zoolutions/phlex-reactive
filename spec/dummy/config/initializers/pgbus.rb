@@ -23,15 +23,10 @@ if ENV["TRANSPORT"] == "pgbus"
     # phlex-reactive's broadcast_*_to calls Pgbus.stream(...).broadcast(...) inline,
     # so no worker/supervisor is needed for a single-process Capybara server.
     it.streams_test_mode = false
-    # Issue #358: a closed tab is noticed when the next heartbeat write to it
-    # fails (pgbus has no read side on a hijacked SSE socket), so its presence
-    # leave lands one heartbeat later — 15 s by default. A short beat lets the
-    # browser suite see a leave in seconds.
-    it.streams_heartbeat_interval = 2
-    # Issue #358: every SSE connection is the same guest, so the presence
-    # roster has someone to show (the dummy has no sign-in).
-    if it.respond_to?(:streams_presence_member=)
-      it.streams_presence_member = ->(_context) { { id: "guest", metadata: { name: "Guest" } } }
-    end
+    # Issue #358: presence takes each connection's identity from what
+    # streams_authorize returns (pgbus >= 0.18, the engine mount's hook). The
+    # dummy has no sign-in, so every connection is the same guest; an app
+    # returns its user, and only when that user may read the stream.
+    it.streams_authorize = ->(_env, _stream_name) { { id: "guest", metadata: { name: "Guest" } } }
   end
 end

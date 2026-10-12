@@ -41,11 +41,10 @@ RSpec.describe "presence_set (issue #358)", type: :request do
       .with(TodoViewersComponent, :replace, anything, anything, anything, hash_including(exclude: "conn-a"))
   end
 
-  # Real SSE: pgbus's client hears pgbus:connected before the dispatcher has
-  # inserted the row, so the first announce can name a connection with no row.
-  # Nothing changed, so the peers get no broadcast; the actor still gets its
-  # morph (the client re-announces until it sees itself).
-  it "broadcasts nothing when the connection has no row yet, and still morphs the actor" do
+  # A connection with no row (its row expired, or pgbus never joined it: no
+  # identity). Nothing changed, so the peers get no broadcast; the actor still
+  # gets its morph.
+  it "broadcasts nothing when the connection has no row, and still morphs the actor" do
     set_state({}, connection: "conn-not-joined-yet")
 
     expect(response).to have_http_status(:ok)

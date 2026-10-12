@@ -90,11 +90,10 @@ module Phlex
           return if capable?
 
           raise Phlex::Reactive::ConfigurationError,
-            "#{klass.name} declares reactive_presence, which needs pgbus with reactive Streams and " \
-            "presence keyed by SSE connection (zoolutions/pgbus#515: Presence#join(connection_id:), " \
-            "#set_state, config.streams_presence_on_change) with its seat table migrated " \
-            "(`rails g pgbus:add_presence_seats`, or `rails pgbus:update`), and ActiveJob. Action Cable " \
-            "has no connection identity, so there is no fallback."
+            "#{klass.name} declares reactive_presence, which needs pgbus >= 0.18.0 (presence keyed by " \
+            "SSE connection, config.streams_authorize) with its presence table created or migrated " \
+            "(`rails g pgbus:add_presence`, `rails g pgbus:add_presence_seats`, or `rails pgbus:update`), " \
+            "and ActiveJob. Action Cable has no connection identity, so there is no fallback."
         end
 
         # Boot (the engine's after_initialize): register the presence stream

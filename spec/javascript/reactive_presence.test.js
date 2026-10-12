@@ -209,10 +209,10 @@ test("js.presence waits for the connection, then sends the merged state; a recon
   expect(requests.at(-1).headers["X-Reactive-Presence"]).toBe("conn-2")
 })
 
-// Real SSE (found under TRANSPORT=pgbus): pgbus's client hears pgbus:connected
-// BEFORE the server's dispatcher has inserted the tab's presence row, so the
-// first announce can land on no row. The tab re-announces until it sees its
-// own seat on the roster, a bounded number of times.
+// pgbus >= 0.18 fires pgbus:connected only after the tab's seat has joined
+// (zoolutions/pgbus#523), so ONE announce lands on the row. A tab that still
+// never appears on its roster has no identity (no streams_authorize, or one
+// that returns true): the module says so once.
 function withTimers(fn) {
   const timers = []
   const savedTimeout = globalThis.setTimeout
@@ -237,37 +237,35 @@ function withTimers(fn) {
   })
 }
 
-test("an announce that lands before the row exists is re-sent until the roster shows this tab", () =>
+test("on connect the tab announces once, even before the roster shows it", () =>
   withTimers(async (fire) => {
     mount(roster(""))
     connected()
     await flush()
     expect(requests.length).toBe(1)
 
-    // The reply rendered a roster without this tab: send again.
     await morph(peers([["other-seat", "u2"]]))
-    await fire()
-    expect(requests.length).toBe(2)
-    expect(requests[1].body.act).toBe("presence_set")
-
-    // Now this tab is on the roster: no more sends.
-    await morph(peers([["other-seat", "u2"], [presenceSeat(), "u1"]]))
-    await fire()
-    await fire()
-    expect(requests.length).toBe(2)
-  }))
-
-test("a roster that already shows this tab is not re-announced", () =>
-  withTimers(async (fire) => {
-    mount(roster(peers([[presenceSeat(), "u1"]])))
-    connected()
-    await flush()
-    await fire()
-    await fire()
+    for (let i = 0; i < 4; i++) await fire()
     expect(requests.length).toBe(1)
   }))
 
-test("a tab that never appears stops re-announcing after the cap and warns once", () =>
+test("a tab on its roster after connect logs nothing", () =>
+  withTimers(async (fire) => {
+    const warns = []
+    const saved = console.warn
+    console.warn = (...args) => warns.push(args.join(" "))
+    try {
+      mount(roster(peers([[presenceSeat(), "u1"]])))
+      connected()
+      await flush()
+      await fire()
+      expect(warns).toEqual([])
+    } finally {
+      console.warn = saved
+    }
+  }))
+
+test("a tab that never appears on its roster warns once that it has no identity", () =>
   withTimers(async (fire) => {
     const warns = []
     const saved = console.warn
@@ -276,10 +274,10 @@ test("a tab that never appears stops re-announcing after the cap and warns once"
       mount(roster(""))
       connected()
       await flush()
-      for (let i = 0; i < 8; i++) await fire()
-      expect(requests.length).toBe(4)
+      for (let i = 0; i < 4; i++) await fire()
+      expect(requests.length).toBe(1)
       expect(warns.length).toBe(1)
-      expect(warns[0]).toContain("authorize:")
+      expect(warns[0]).toContain("streams_authorize")
     } finally {
       console.warn = saved
     }
@@ -350,7 +348,7 @@ test("joins and leaves come from the root's seat list when the template renders 
   expect(events.at(-1)).toEqual({ joined: [], left: ["ada"], me: presenceSeat() })
 })
 
-test("a tab named on the root's seat list is on the roster: no re-announce, even with no element for it", () =>
+test("a tab named on the root's seat list is on the roster: no warning, even with no element for it", () =>
   withTimers(async (fire) => {
     mount(roster(""))
     setRoster(presenceSeat())

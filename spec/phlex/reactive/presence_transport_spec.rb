@@ -20,6 +20,14 @@ RSpec.describe Phlex::Reactive::Presence::Transport do
       expect(described_class.capable?).to be(false)
     end
 
+    # pgbus 0.17.3 has seats but fires pgbus:connected before the seat joins
+    # and has no streams_authorize for the engine mount: presence needs 0.18.
+    it "is false for pgbus 0.17.3 (seats, but no streams_authorize)" do
+      FakePgbusPresence.install!(self, shape: :v017)
+      expect(described_class.wired?).to be(false)
+      expect(described_class.capable?).to be(false)
+    end
+
     it "is false when the configuration has no change hook" do
       FakePgbusPresence.install!(self)
       stub_const("FakePgbusPresence::Configuration", Struct.new(:streams_presence_patterns))

@@ -55,8 +55,11 @@ module Phlex
             return false unless join_keys.include?(:connection_id) && presence.method_defined?(:set_state)
             return false unless presence.respond_to?(:seats_supported?)
 
+            # streams_authorize= marks pgbus 0.18 (#524), which also fires
+            # pgbus:connected only after the seat joined (#523) and drops a
+            # closed tab at once (#520); neither of those has a signature.
             config = ::Pgbus.configuration
-            %i[streams_presence_on_change= streams_presence_ttl streams_presence_patterns].all? do
+            %i[streams_presence_on_change= streams_presence_ttl streams_presence_patterns streams_authorize=].all? do
               config.respond_to?(it)
             end
           rescue ::NameError

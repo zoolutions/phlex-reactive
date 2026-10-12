@@ -37,8 +37,9 @@
 //   pgbus:close        { code, reason }
 //
 // Connection id (issue #165 — actor-echo suppression): the server sends a
-// `pgbus:connected` frame right after the open handshake carrying the
-// server-minted connection id. This element captures it, reflects it onto
+// `pgbus:connected` frame carrying the server-minted connection id once the
+// streamer has registered the connection and joined its presence seat
+// (issue #521), after the connect replay. This element captures it, reflects it onto
 // the `connection-id` attribute, and re-dispatches it as `pgbus:connected`.
 // A page reads it (from the element or a `<meta name="pgbus-connection-id">`
 // the app mirrors it to) and sends it back as the `X-Pgbus-Connection`

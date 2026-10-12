@@ -57,6 +57,21 @@ RSpec.describe "Presence (issue #358)", :pgbus, type: :system do
     end
   end
 
+  # pgbus >= 0.18 watches each SSE socket for the browser closing it, so a
+  # closed tab leaves at once — not on the next heartbeat (15 s by default).
+  it "drops a closed tab's seat from the other tab's roster within about 2 seconds" do
+    Capybara.using_session(:a) { open_roster }
+    Capybara.using_session(:b) { open_roster }
+    Capybara.using_session(:a) { expect(page).to have_css("[data-testid='seats']", text: "2", wait: 10) }
+
+    Capybara.using_session(:b) { visit "about:blank" }
+
+    Capybara.using_session(:a) do
+      expect(page).to have_no_css("[data-testid='seats']", wait: 2)
+      expect(seats.size).to eq(1)
+    end
+  end
+
   it "fires reactive:presence with the seat that joined" do
     Capybara.using_session(:a) do
       open_roster

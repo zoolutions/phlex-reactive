@@ -107,8 +107,8 @@ module Phlex
           written = Transport.set_state(reactive_presence_stream_name, connection_id:,
             state: merged.merge(NOTE_KEY => reactive_presence_note))
           @reactive_presence_roster = nil
-          # No row yet (the announce can outrun pgbus's join): nothing changed
-          # for the peers; the client announces again until it sees itself.
+          # No row for this connection (it expired, or pgbus never joined it:
+          # no identity): nothing changed for the peers.
           return if written.nil?
 
           # A seatless actor (no ?seat=) is on no roster: nothing any viewer

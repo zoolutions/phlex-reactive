@@ -125,7 +125,7 @@ function subscribe(root) {
     const entry = roots.get(root.id)
     if (!entry || entry.removing) return
     send(entry)
-    settle(entry, 0)
+    check(entry)
   })
   minted.add(source)
   document.body.appendChild(source)
@@ -133,29 +133,21 @@ function subscribe(root) {
 
 const defined = () => !!globalThis.customElements?.get?.("pgbus-stream-source")
 
-// pgbus's client hears pgbus:connected before the server's dispatcher has
-// inserted the tab's presence row, so the announce can land on no row and
-// change nothing. Until the roster shows this tab's seat, announce again —
-// a bounded number of times, then say why it may never show.
-const SETTLE = [250, 500, 1000, 2500]
-
-function settle(entry, attempt) {
+// pgbus fires pgbus:connected only after the tab's seat has joined, so the
+// announce lands on its row. A tab still off its roster a moment later has no
+// identity (pgbus joins an anonymous connection to nothing): say so once.
+function check(entry) {
   clearTimeout(entry.timer)
   entry.timer = setTimeout(() => {
     const root = entry.root
     if (entry.removing || !root.isConnected) return
     const mine = root.ownerDocument.getElementById(SOURCE + root.id)?.pgbusSeat
     if (mine && seatsOf(root).has(mine)) return
-    if (attempt === SETTLE.length - 1) {
-      console.warn(
-        `[phlex-reactive] #${root.id} never appeared on its presence roster — is the pgbus stream app ` +
-          "mounted with an authorize: hook that returns the viewer's identity?",
-      )
-      return
-    }
-    send(entry)
-    settle(entry, attempt + 1)
-  }, SETTLE[attempt])
+    console.warn(
+      `[phlex-reactive] #${root.id} never appeared on its presence roster — does config.streams_authorize ` +
+        "return the viewer's identity for this stream?",
+    )
+  }, 2500)
 }
 
 // Send the tab's state through presence_set — only once the source has a

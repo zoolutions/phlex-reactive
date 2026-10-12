@@ -125,8 +125,9 @@ const SLACK = 250
 // Issue #358 (presence: a NEW feature module — the minted source, the announce,
 // the me / same-member marks, the joined/left diff — plus the runtime's marker,
 // the presence op and the X-Reactive-Presence header) adds 769 B: 30,904 B; on top of #357 and #356, 763 B: 31,380 B. Its real-SSE fixes (mint the source before
-// pgbus defines it, re-announce until the roster shows the tab, the root seat list) add 242 B: 31,622 B.
-const BUNDLE_GZIP_CEILING = 31_622
+// pgbus defines it, re-announce until the roster shows the tab, the root seat list) add 242 B: 31,622 B. On pgbus 0.18 (pgbus:connected after the join) the
+// re-announce becomes one check: -62 B, 31,560 B.
+const BUNDLE_GZIP_CEILING = 31_560
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -185,8 +186,9 @@ const FEATURE_GZIP_CEILINGS = {
   // Issue #350: sortable lists, 3,094 B; its review fixes take it to 3,130 B; PR #352 review to 3,215 B.
   "features/sortable": 3_215,
   // Issue #358: presence, 1,084 B (the issue's aim was 1.5 KB or less); its real-SSE
-  // fixes (the late-defined source, the re-announce, the root seat list) take it to 1,353 B.
-  "features/presence": 1_353,
+  // fixes (the late-defined source, the re-announce, the root seat list) take it to 1,353 B;
+  // on pgbus 0.18 the re-announce becomes one check: 1,297 B.
+  "features/presence": 1_297,
 }
 // Phase 5: 12,383 B core + 5,360 + 2,846 + 2,084 + 1,024 + 1,693 + 3,210 + 1,015 + 1,589 B of
 // features = 31,204 B. Issue #305 (the default entry's static path) costs the
@@ -217,8 +219,9 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #357 (shortcut:, in the core) adds 192 B: 37,711 B.
 // Issue #356 (+215 B core, +64 B form, +46 B bindings) adds 325 B: 38,036 B.
 // Issue #358 (the presence feature module, 1,084 B, plus 103 B in the core) adds 1,187 B: 38,706 B; on top of #357 and #356 (1,084 B + 100 B core), 1,184 B: 39,220 B; its real-SSE fixes
-// (+269 B presence) take it to 39,489 B.
-const SPLIT_TOTAL_GZIP_CEILING = 39_489
+// (+269 B presence) take it to 39,489 B; on pgbus 0.18 (one check, no re-announce),
+// 39,433 B.
+const SPLIT_TOTAL_GZIP_CEILING = 39_433
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

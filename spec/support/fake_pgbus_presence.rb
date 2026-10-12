@@ -86,17 +86,23 @@ module FakePgbusPresence
     end
   end
 
+  # pgbus 0.18 (the shape presence needs): #516 seats plus streams_authorize (#524).
   Configuration = Struct.new(:streams_presence_patterns, :streams_presence_on_change, :streams_presence_ttl,
+    :streams_path, :streams_heartbeat_interval, :streams_authorize)
+  # pgbus 0.17.3: seats and the change hook, but no streams_authorize, and
+  # pgbus:connected fires before the seat joins.
+  Configuration017 = Struct.new(:streams_presence_patterns, :streams_presence_on_change, :streams_presence_ttl,
     :streams_path, :streams_heartbeat_interval)
 
   module_function
 
   # Stub the pgbus constants for one example. `shape: :old` stubs the pre-#515
-  # presence (the regression guard for the capability probe).
+  # presence and `shape: :v017` pgbus 0.17.3 (the regression guards for the
+  # capability probe).
   def install!(example, shape: :seats)
     store = Store.new
     presence_class = shape == :old ? OldPresence : Presence
-    config = Configuration.new([], nil, 60, "/pgbus/streams", 15)
+    config = (shape == :v017 ? Configuration017 : Configuration).new([], nil, 60, "/pgbus/streams", 15)
     pgbus = Module.new
     pgbus.define_singleton_method(:configuration) { config }
     pgbus.define_singleton_method(:stream) do |name, durable: nil|
