@@ -186,6 +186,26 @@ module Phlex
         append("focus_first", target_args(to, global:))
       end
 
+      # --- Modal dialogs (issue #365) ---
+      #
+      # show_modal(to)   — HTMLDialogElement#showModal(): the top layer, a
+      #                    focus trap, ::backdrop, Escape to close and focus
+      #                    restored to the opener, all the browser's own. A
+      #                    dialog already open NON-modally is closed and
+      #                    reopened as a modal; one already modal is left as is.
+      # close_dialog(to) — HTMLDialogElement#close() (a closed one is left as is).
+      # A target that is not a <dialog> is skipped. Both ACTOR-ONLY like focus:
+      # opening a modal steals focus, so a broadcast refuses them — a
+      # broadcaster renders the dialog open with data: { reactive_modal: true }.
+
+      def show_modal(to, global: false)
+        append("show_modal", target_args(to, global:))
+      end
+
+      def close_dialog(to, global: false)
+        append("close_dialog", target_args(to, global:))
+      end
+
       # --- Submit (issue #226) ---
       #
       # submit(to = :root) — requestSubmit() the TARGET'S OWN form: the target

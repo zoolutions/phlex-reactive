@@ -8,6 +8,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Modal dialogs — `js.show_modal` / `js.close_dialog` and
+  `data-reactive-modal` (#365).** `js.show_modal("#picker")` calls
+  `HTMLDialogElement#showModal()`, so an `on_client` dialog gets the browser's
+  top layer, focus trap, `::backdrop`, Escape and focus restored to the opener;
+  `js.close_dialog("#picker")` calls `close()`. A dialog already open
+  non-modally is reopened as a modal; a non-dialog target is skipped. A
+  `dialog(open: true, data: { reactive_modal: true })` the server renders (a
+  full page, a reply, a broadcast) is made modal at connect, after a morph and
+  after a stream that brings a dialog; a morph that renders it without `open`
+  closes it with `close()`, so the page behind is interactive again. Both ops
+  are actor-only, refused by `broadcast_to(js:)` like `focus`. Client: +499 B
+  gzipped in the default bundle, +425 B in the split core. Docs: "Modal
+  dialogs" on the client-ops example.
+
 - **`shortcut: "delete"` / `"backspace"` (#366).** `on(:remove_selected,
   shortcut: "delete")`, `"backspace"` and `"mod+backspace"` are accepted, on
   `on(...)` and `on_client(:keydown, ...)`. Stimulus's default key map lacks

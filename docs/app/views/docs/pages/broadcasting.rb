@@ -121,7 +121,7 @@ module Views
               - `remove: model` — remove the element with id `component.id`.
               - `js: ops` — push **client DOM ops** (class/attr toggles, `dispatch`)
                 to every subscriber. Refuses the actor-only ops —
-                `focus`/`focus_first`/`submit`/`paste_into`/`persist_state`/`persist_clear`/`check_group` (see below).
+                `focus`/`focus_first`/`show_modal`/`close_dialog`/`submit`/`paste_into`/`persist_state`/`persist_clear`/`check_group` (see below).
 
               `replace:`/`remove:` self-target via the payload's `#id` (it must be a
               `Streamable`); `update:`/`append:`/`prepend:` are container verbs and
@@ -455,6 +455,10 @@ module Views
               code { 'focus' }
               plain '/'
               code { 'focus_first' }
+              plain '/'
+              code { 'show_modal' }
+              plain '/'
+              code { 'close_dialog' }
               plain '/'
               code { 'submit' }
               plain '/'

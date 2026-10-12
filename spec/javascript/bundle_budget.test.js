@@ -131,7 +131,11 @@ const SLACK = 250
 // re-announce becomes one check: -62 B, 31,560 B; logging a failed announce adds 49 B: 31,609 B.
 // Issue #366 (delete/backspace in the key map; the shortcut check moved ahead of
 // dispatch/runOps's bookkeeping for a bare keydown) adds 31 B: 31,640 B.
-const BUNDLE_GZIP_CEILING = 31_640
+// Issue #365 (show_modal / close_dialog and the data-reactive-modal upgrade) adds 421 B: 32,030 B;
+// telling a kept `open` from a removed one adds 78 B: 32,108 B; upgrading a root
+// that is itself the dialog adds 12 B: 32,120 B.
+// #365 and #366 together: 32,147 B.
+const BUNDLE_GZIP_CEILING = 32_147
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -166,7 +170,11 @@ const TARGET_BUNDLE_GZIP = 22_700
 // Issue #358 (the presence marker and table entry, the presence op, the
 // X-Reactive-Presence header) adds 103 B: 14,250 B; on top of #357 and #356, 100 B: 14,654 B.
 // Issue #366 (delete/backspace in the key map, the early shortcut bail) adds 23 B: 14,677 B.
-const CORE_GZIP_CEILING = 14_677
+// Issue #365 (show_modal / close_dialog and the data-reactive-modal upgrade) adds 359 B: 15,013 B;
+// telling a kept `open` from a removed one adds 66 B: 15,079 B; upgrading a root
+// that is itself the dialog adds 14 B: 15,093 B.
+// #365 and #366 together: 15,112 B.
+const CORE_GZIP_CEILING = 15_112
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -227,7 +235,11 @@ const FEATURE_GZIP_CEILINGS = {
 // (+269 B presence) take it to 39,489 B; on pgbus 0.18 (one check, no re-announce),
 // 39,433 B; logging a failed announce (+65 B), 39,498 B.
 // Issue #366 (delete/backspace, in the core) adds 23 B: 39,521 B.
-const SPLIT_TOTAL_GZIP_CEILING = 39_521
+// Issue #365 (the dialog ops and the modal upgrade, in the core) adds 359 B: 39,857 B;
+// telling a kept `open` from a removed one adds 66 B: 39,923 B; upgrading a root
+// that is itself the dialog adds 14 B: 39,937 B.
+// #365 and #366 together: 39,956 B.
+const SPLIT_TOTAL_GZIP_CEILING = 39_956
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

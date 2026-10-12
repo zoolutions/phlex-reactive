@@ -130,6 +130,20 @@ RSpec.describe "broadcast_js_to (issue #97)", type: :request do
       .to raise_error(ArgumentError, /check_group/)
   end
 
+  # Issue #365: the dialog ops join the actor-only set — opening a modal steals
+  # focus from every subscriber at once; a broadcaster renders the dialog open
+  # with data-reactive-modal instead.
+  it "rejects show_modal / close_dialog (broadcasting a modal would steal every subscriber's focus)" do
+    js = TodoItemComponent.new(todo: Todo.new).js
+
+    expect { TodoItemComponent.broadcast_to("alerts", js: js.show_modal("#d")) }
+      .to raise_error(ArgumentError, /show_modal/)
+    expect { TodoItemComponent.broadcast_to("alerts", js: js.close_dialog("#d")) }
+      .to raise_error(ArgumentError, /close_dialog/)
+    expect { Phlex::Reactive.broadcast_to("alerts", js: [["show_modal", { "to" => "#d" }]]) }
+      .to raise_error(ArgumentError, /show_modal/)
+  end
+
   it "rejects an empty op chain (a dead reactive:js broadcast is a mistake)" do
     empty = TodoItemComponent.new(todo: Todo.new).js
 
