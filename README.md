@@ -1783,7 +1783,7 @@ end
 ```
 
 - **The stream** is `[record, :presence, name]` (a record-less roster passes
-  `key: ["lobby"]`), named `"<16-char digest of the record (or the `key:`)>:presence:<name>"`,
+  `key: ["lobby"]`), named `"<16-char digest of the record (or the key: value)>:presence:<name>"`,
   so any model name and id fit pgbus's stream-name budget (41 chars with the
   default queue prefix). That leaves 15 characters for the presence name; a
   longer one raises `Phlex::Reactive::ConfigurationError` at render. The root
