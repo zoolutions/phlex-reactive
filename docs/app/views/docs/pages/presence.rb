@@ -198,10 +198,12 @@ module Views
         def leaving
           DocsUI::Section('Leaving and expiry') do
             md <<~MD
-              A closed tab leaves when pgbus's next heartbeat write to it fails,
-              so within one `streams_heartbeat_interval` (15 s by default). A
-              tab that goes silent (a laptop
-              asleep, a lost network) expires after `ttl:` seconds (45 by
+              A closed tab leaves within about a second: pgbus watches each SSE
+              socket for the browser closing it. A tab that crashes or goes silent
+              (a laptop asleep, a lost network), so nothing closes its socket
+              cleanly, leaves on the next failed heartbeat write
+              (`streams_heartbeat_interval`, 15 s by default) or expires after
+              `ttl:` seconds (45 by
               default; it is written into pgbus's `streams_presence_ttl` at
               boot, under this stream's pattern); the transport's heartbeat
               keeps a live tab fresh. Each join, leave and
@@ -213,10 +215,7 @@ module Views
               the transport drops the row on the disconnect: unless the
               reconnect lands within one coalesce window (150 ms), the other
               tabs see that seat leave and join again, and `reactive:presence`
-              reports both. A tab that left never comes back by itself; only a
-              connection still open whose row expired (it missed its beats) is
-              re-joined by the transport's heartbeat, without its state until
-              its next `js.presence`.
+              reports both.
 
               `ttl:` must be above the transport's heartbeat interval
               (`streams_heartbeat_interval`, 15 s by default) — at or below it a
@@ -229,8 +228,9 @@ module Views
         def transport
           DocsUI::Section('Transport') do
             md <<~MD
-              Presence needs pgbus 0.17.3 or later (presence keyed by SSE
-              connection), its table created (`rails g pgbus:add_presence`) or
+              Presence needs pgbus 0.18.0 or later (presence keyed by SSE
+              connection, `pgbus:connected` only after the tab's seat joined,
+              `config.streams_authorize`), its table created (`rails g pgbus:add_presence`) or
               upgraded (`rails g pgbus:add_presence_seats`, which
               `rails pgbus:update` queues), and an ActiveJob adapter that runs
               jobs: each join, leave and expiry renders in a job. At boot the gem registers
@@ -241,22 +241,31 @@ module Views
               pgbus's client element (`import "pgbus/stream_source_element"`;
               any `pgbus_stream_from` on the page already does).
 
-              pgbus takes each tab's person from the context its stream app's
-              `authorize:` hook returns. The engine's own mount has no hook, so
-              every connection is anonymous and pgbus joins nobody (the tab
-              warns in the console that it never appeared on its roster). Mount
-              a stream app with one, ahead of the engine:
+              pgbus takes each tab's person from what `config.streams_authorize`
+              returns for the stream. `nil` or `false` answers 403; `true`
+              authorizes with no identity, and pgbus joins such a connection to no
+              roster (the tab warns in the console that it never appeared on its
+              roster). The signed stream name proves pgbus minted it, not that this
+              viewer may still read it (a removed member keeps a working name until
+              the secret rotates), so authorize here too:
 
               ```ruby
-              # config/routes.rb
-              mount Pgbus::Web::StreamApp.new(authorize: ->(env, _stream) {
-                env["warden"]&.user # a User (pgbus reads #id), or { id:, metadata: { name: } }
-              }) => "/pgbus/streams"
-              mount Pgbus::Engine => "/pgbus"
+              # config/initializers/pgbus.rb
+              Pgbus.configure do |config|
+                config.streams_authorize = ->(env, stream_name) {
+                  user = env["warden"]&.user
+                  next unless user&.active?
+
+                  { id: user.id, metadata: { name: user.name } } if user.may_stream?(stream_name)
+                }
+              end
               ```
 
-              `config.streams_presence_member = ->(user) { { id: user.id, metadata: { name: user.name } } }`
-              shapes the member from it.
+              A presence stream's name is a digest of the record, so the record cannot
+              be looked up from it: check what your app can (the user's standing, an
+              account-named stream). `config.streams_presence_member = ->(user) { { id: user.id, metadata: { name: user.name } } }`
+              shapes the member from a User. This site has no sign-in: each visitor
+              gets a random id in the session, and the hook returns it.
 
               `reactive_connection_id` (for `exclude:` on your own broadcasts)
               is the first `<pgbus-stream-source>` on the page, so a source
@@ -281,7 +290,7 @@ module Views
               not a lowercase identifier, a `ttl:` that is not a positive
               Integer above the heartbeat interval, the reserved state key
               `_rp`, or a dormant component (a dormant root never connects). The client is the `presence`
-              feature module (1.4 KB gzipped); the split client loads it only
+              feature module (1.3 KB gzipped); the split client loads it only
               for a page with a presence root.
             MD
           end

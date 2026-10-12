@@ -1821,38 +1821,49 @@ end
   there; a replayed frame that changes nothing fires nothing. The root names
   the seats its render saw (`data-reactive-presence-roster`), so this works for
   a roster that renders people, not tabs.
-- **Leaving**: pgbus notices a closed tab when its next heartbeat write fails,
-  so the tab leaves within one `streams_heartbeat_interval` (15 s by default);
-  a tab that goes silent (sleep, a lost network) expires after `ttl:` seconds. A reconnect keeps the tab's seat
-  id and re-sends its state, but pgbus drops the row on the disconnect, so
-  unless the reconnect lands within one coalesce window (150 ms) peers see that
-  seat leave and join again (`reactive:presence` reports both). A tab that left
-  never comes back by itself; only a connection still open whose row expired
-  (it missed its beats) is re-joined by the heartbeat, with no state until its
-  next `js.presence`. `ttl:` must be above the transport's heartbeat interval
-  (`streams_heartbeat_interval`, 15 s by default), or a live tab would expire
-  between two beats: `reactive_presence` raises otherwise.
-- **Transport**: needs pgbus 0.17.3 or later (presence keyed by SSE
-  connection; create the table with `rails g pgbus:add_presence`, or upgrade an
-  older one with `rails g pgbus:add_presence_seats`). `ttl:` (45 by default) is
-  written into pgbus's `streams_presence_ttl` under the stream's pattern. Action
-  Cable has no connection identity: rendering a presence root without it raises
+- **Leaving**: a closed tab leaves within about a second (pgbus watches each
+  SSE socket for the browser closing it). A tab that crashes or loses its
+  network, so nothing closes the socket cleanly, leaves on the next failed
+  heartbeat write (`streams_heartbeat_interval`, 15 s by default) or expires
+  after `ttl:` seconds. A reconnect keeps the tab's seat id and re-sends its
+  state, but pgbus drops the row on the disconnect, so unless the reconnect
+  lands within one coalesce window (150 ms) peers see that seat leave and
+  join again (`reactive:presence` reports both). `ttl:` must be above the
+  transport's heartbeat interval, or a live tab would expire between two
+  beats: `reactive_presence` raises otherwise.
+- **Transport**: needs pgbus 0.18.0 or later (presence keyed by SSE
+  connection, `pgbus:connected` only after the tab's seat joined,
+  `config.streams_authorize`). Create the table with
+  `rails g pgbus:add_presence`, or upgrade an older one with
+  `rails g pgbus:add_presence_seats`. `ttl:` (45 by default) is written into
+  pgbus's `streams_presence_ttl` under the stream's pattern. Action Cable has
+  no connection identity: rendering a presence root without it raises
   `Phlex::Reactive::ConfigurationError`. Every other component is unaffected.
-- **Identity**: pgbus takes each tab's person from the context its stream
-  app's `authorize:` hook returns. The engine's own mount has no hook, so every
-  connection is anonymous and pgbus joins nobody. Mount a stream app with one,
-  ahead of the engine (the tab then warns in the console that it never
-  appeared on its roster, if this is missing):
+- **Identity**: pgbus takes each tab's person from what
+  `config.streams_authorize` returns for the stream. `nil` or `false` answers
+  403; `true` authorizes with no identity, and pgbus joins such a connection
+  to no roster (the tab then warns in the console that it never appeared).
+  The signed stream name proves pgbus minted it, not that this viewer may
+  still read it (a removed member keeps a working name until the secret
+  rotates), so authorize here too:
 
   ```ruby
-  # config/routes.rb
-  mount Pgbus::Web::StreamApp.new(authorize: ->(env, _stream) {
-    env["warden"]&.user # a User (pgbus reads #id), or { id:, metadata: { name: } }
-  }) => "/pgbus/streams"
-  mount Pgbus::Engine => "/pgbus"
+  # config/initializers/pgbus.rb
+  Pgbus.configure do |config|
+    config.streams_authorize = ->(env, stream_name) {
+      user = env["warden"]&.user
+      next unless user&.active?
+
+      { id: user.id, metadata: { name: user.name } } if user.may_stream?(stream_name)
+    }
+  end
   ```
 
-  Shape the member with `config.streams_presence_member = ->(user) { { id: user.id, metadata: { name: user.name } } }`.
+  A presence stream's name is a digest of the record
+  (`"<16 hex>:presence:<name>"`), so the record cannot be looked up from it:
+  check what your app can (the user's standing, an account-named stream). A
+  User works too (pgbus reads its `#id`); shape the member from it with
+  `config.streams_presence_member = ->(user) { { id: user.id, metadata: { name: user.name } } }`.
 - **Jobs**: a join, a leave and an expiry re-render the roster in
   `Phlex::Reactive::PresenceRenderJob` (on `defer_job_queue`), so the app needs
   an ActiveJob adapter that runs jobs. A state change renders in the action.
