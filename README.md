@@ -684,7 +684,7 @@ Use in controllers: `render turbo_stream: Counter.replace(counter)`.
 | `busy_on(:save)` | Mark any element so it carries `data-reactive-busy` **only while `save` is in flight** — a spinner styled with pure CSS, zero Ruby. See [Loading states](#declarative-loading-states-loading--disable_with). |
 | `on(:action, once: true)` | Fire at most once, then unbind (Stimulus's native `:once`). |
 | `on_client(:click, js.toggle("#menu"))` | **Client-only** trigger: applies declared DOM ops with ZERO round trip — no token, no POST, ever. Takes the same `window:`/`once:`/`outside:` modifiers, plus `detail:` (run only when `event.detail` carries the listed values). See [Client-only ops](#client-only-ops-on_client--js--zero-round-trips). |
-| `js` | The immutable op builder behind `on_client`: `show`/`hide`/`toggle` (the `hidden` attribute, with an optional `transition:` and `expanded:`), `add_class`/`remove_class`/`toggle_class`, `set_attr`/`remove_attr`/`toggle_attr` (allowlisted names; `toggle_attr` also flips between two values), `focus`/`focus_first`, `text` (set `textContent` — XSS-safe), `dispatch`, `submit` (requestSubmit the target's own form, optionally through a `submitter:`), `paste_into` (read the clipboard into a field, gesture-gated), `check_group` (tick or untick a checkbox group, then re-sync its bindings), and `persist_state`/`persist_clear` (the `reactive_persist` draft) — chainable. |
+| `js` | The immutable op builder behind `on_client`: `show`/`hide`/`toggle` (the `hidden` attribute, with an optional `transition:` and `expanded:`), `add_class`/`remove_class`/`toggle_class`, `set_attr`/`remove_attr`/`toggle_attr` (allowlisted names; `toggle_attr` also flips between two values), `focus`/`focus_first`, `show_modal`/`close_dialog` (a real modal `<dialog>`), `text` (set `textContent` — XSS-safe), `dispatch`, `submit` (requestSubmit the target's own form, optionally through a `submitter:`), `paste_into` (read the clipboard into a field, gesture-gated), `check_group` (tick or untick a checkbox group, then re-sync its bindings), and `persist_state`/`persist_clear` (the `reactive_persist` draft) — chainable. |
 | `reactive_field(:param, **attrs)` | The attribute hash that binds a control to an action param (no magic `name:`) — spread onto any control: `input(**reactive_field(:value, value: @record.name))`, `select(**reactive_field(:status)) { … }`. |
 | `reactive_editable(:name, multiline: false, placeholder: nil, on_enter: nil, on_escape: :revert, spellcheck: true)` | A plain-text **editable element** as a field (issue #351): `h3(**reactive_editable(:title)) { @card.title }`. Its text travels under the scope-aware `name`: with `multiline: true` its line breaks are sent as `\n`; a single-line field (the default) folds them to spaces; a morph keeps the focused element's text and caret (attributes still morph); paste is plain text; Enter runs `on_enter:` (a single-line field swallows it); Escape reverts. `reactive_dirty` and `reactive_persist` treat it like an input. See the [Editable text](https://phlex-reactive.zoolutions.llc/docs/editable-text) page. |
 | `reactive_text(:name, initial)` | Mirror a compute output (or a declared input) into a **text node** — a live preview heading, a character counter, `"Hello, {name}"` — via `textContent` (XSS-safe). The text sibling of `reactive_field`; carries no `name`, so it's never POSTed. See [Client-side computes](#client-side-computes-reactive_compute--reactive_text). |
@@ -1257,6 +1257,15 @@ button(**on_client(:click, js
 - **`focus(to)`** focuses the first match; **`focus_first(to)`** focuses the first
   focusable descendant of the match (e.g. the first menuitem inside an opened
   menu).
+- **`show_modal(to)`** / **`close_dialog(to)`** (#365) call
+  `HTMLDialogElement#showModal()` / `#close()`: the top layer, a focus trap,
+  `::backdrop`, Escape to close and focus back on the opener — all the
+  browser's own. A dialog already open non-modally is reopened as a modal; a
+  target that is not a `<dialog>` is skipped. A dialog the server renders open
+  with `data: { reactive_modal: true }` (a full page, a reply, a broadcast) is
+  made modal as soon as the client sees it, and closed with `close()` when a
+  morph renders it without `open`. **Actor-only like focus**: refused in
+  `broadcast_to(js:)` — render the dialog open with the marker instead.
 - **`text(to, value)`** sets the target's `textContent` (stringified; `nil`
   clears) — **XSS-safe by construction**, never `innerHTML`, strictly less
   powerful than `set_attr`. With `global: true` it is the **cross-root text
@@ -3048,8 +3057,8 @@ Notifications::Badge.broadcast_to(user, :alerts,
 ```
 
 `broadcast_to` with `js:` **refuses the actor-only ops** (`focus`/`focus_first`/
-`submit`/`paste_into`/`persist_state`/`persist_clear`/`check_group` raise
-`ArgumentError`): broadcasting focus would steal it in every subscriber's tab, a
+`show_modal`/`close_dialog`/`submit`/`paste_into`/`persist_state`/`persist_clear`/`check_group` raise
+`ArgumentError`): broadcasting focus (or a modal) would steal it in every subscriber's tab, a
 broadcast submit would force-submit every subscriber's form, and a broadcast
 clipboard read, draft write or selection change would be hostile — these
 belong to the actor's own reply or gesture. Everything else is a fair broadcast

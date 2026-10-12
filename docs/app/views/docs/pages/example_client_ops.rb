@@ -19,6 +19,7 @@ module Views
           try_it
           how
           disclosure_menu
+          modal_dialogs
           ops
           value_conditional
           bulk_selection
@@ -53,7 +54,8 @@ module Views
               `remove_class`/`toggle_class`, `set_attr`/`toggle_attr`/`remove_attr`
               (`toggle_attr` also flips between two values, and `show`/`hide`/`toggle`
               take `expanded:` to keep a trigger's `aria-expanded` in sync — #271),
-              `focus`/`focus_first`, `text`, `dispatch`, `submit`, `paste_into` —
+              `focus`/`focus_first`, `show_modal`/`close_dialog`, `text`, `dispatch`,
+              `submit`, `paste_into` —
               each a local DOM mutation, with two deliberate exceptions. `submit`
               hands the form to its own native/intercepted submit path — the form
               may POST or navigate from there, but that is the form's contract,
@@ -105,6 +107,61 @@ module Views
           end
         end
 
+        def modal_dialogs
+          DocsUI::Section('Modal dialogs') do
+            md <<~MD
+              A `<dialog>` opened with `showModal()` is a **real** modal: the browser
+              puts it in the top layer, keeps Tab and Shift+Tab inside it, draws
+              `::backdrop`, closes it on Escape and puts focus back on whatever
+              opened it. Two ops reach it (#365), and one marker covers a dialog
+              the server renders open.
+
+              - **`js.show_modal(to)`** calls `showModal()`. A dialog already open
+                *non*-modally is closed and reopened as a modal in the same task; one
+                already modal is left alone; a target that is not a `<dialog>` is
+                skipped (warned under `verbose_errors`/debug).
+              - **`js.close_dialog(to)`** calls `close()`; a closed dialog is left alone.
+              - **`data: { reactive_modal: true }`** on a `dialog(open: …)` the server
+                renders — on a full page, in a reply, in a broadcast — makes it modal
+                as soon as the client sees it: at connect, after a morph, and after a
+                stream that brings a dialog. When a morph renders it **without**
+                `open`, the client closes it with `close()`, so the page behind takes
+                clicks and focus again.
+
+              ```ruby
+              button(**on_client(:click, js.show_modal("#picker"))) { "Choose…" }
+              dialog(id: "picker", aria_labelledby: "picker-title") do
+                h2(id: "picker-title") { "Choose an item" }
+                button(**on_client(:click, js.close_dialog("#picker"))) { "Close" }
+              end
+
+              # "Is it open?" as server state, rendered open by a reply or a broadcast:
+              dialog(id: "confirm", open: @confirming, data: { reactive_modal: true }) { … }
+              ```
+
+              Both ops are **actor-only**, like `focus`: `on_client`, `reply.js` and a
+              reducer's `$ops` may use them, `broadcast_to(js:)` refuses them — opening
+              a modal on every subscriber's screen at once would steal every
+              subscriber's focus. To show a dialog everywhere, broadcast a render with
+              the dialog open and the marker.
+            MD
+            DocsUI::Callout(:warning) do
+              md <<~MD
+                A dialog opened by `show_modal` is client state, and a server re-render
+                resets it like any other op: a morph of a root whose render has the
+                dialog **closed** closes it. When an action inside the dialog re-renders
+                its root, keep "open" on the server instead (`open: @open` plus the
+                marker), and close it with an action — or listen for the dialog's
+                `close` event (Escape) to keep the server in step.
+              MD
+            end
+            render Views::Examples::LiveExample.new(
+              component: ModalPickerComponent.new,
+              filename: 'app/components/modal_picker_component.rb'
+            )
+          end
+        end
+
         def ops
           DocsUI::Section('The op vocabulary') do
             md <<~MD
@@ -117,9 +174,10 @@ module Views
               `to: :root` / `global: true` — when the element exists but sits
               outside the op's scope (the root itself, a nested reactive root, or
               elsewhere in the document). Production stays silent. `focus`/`focus_first`/
-              `submit`/`paste_into` are allowed here (an actor's own gesture) but
-              **rejected** from a broadcast — stealing focus in every subscriber's
-              tab, force-submitting every subscriber's form, or reading every
+              `show_modal`/`close_dialog`/`submit`/`paste_into` are allowed here (an
+              actor's own gesture) but **rejected** from a broadcast — stealing focus
+              in every subscriber's tab, opening a modal on every subscriber's screen,
+              force-submitting every subscriber's form, or reading every
               subscriber's clipboard, would be hostile.
 
               `text(to, value)` (#159) sets the target's `textContent` — stringified,

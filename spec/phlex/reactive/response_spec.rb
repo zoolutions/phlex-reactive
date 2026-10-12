@@ -403,6 +403,14 @@ RSpec.describe Phlex::Reactive::Response do
       expect(stream).to include("&quot;check_group&quot;")
     end
 
+    # Issue #365: the dialog ops are actor-only too — the actor's own reply may
+    # open the modal it just rendered.
+    it "allows show_modal / close_dialog ops (actor-scoped, mirroring focus)" do
+      ops = CounterComponent.new(count: 0).js.show_modal("#d").close_dialog("#d")
+      stream = counter.reply.with.js(ops).streams.first
+      expect(stream).to include("&quot;show_modal&quot;", "&quot;close_dialog&quot;")
+    end
+
     it "enforces the attr allowlist on a raw op array (escape hatch can't bypass it)" do
       hostile = [["set_attr", { "to" => "#x", "name" => "onclick", "value" => "alert(1)" }]]
       expect { counter.reply.with.js(hostile) }.to raise_error(ArgumentError, /onclick/)

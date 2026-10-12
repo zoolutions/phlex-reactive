@@ -1,0 +1,101 @@
+# frozen_string_literal: true
+
+require "system_helper"
+
+# Issue #365: js.show_modal / js.close_dialog and data-reactive-modal. The
+# browser does the modal part (top layer, focus trap, Escape, focus restored
+# to the opener); these examples prove the library gets every dialog there —
+# from a client op, at connect, after a morph reply and after a replace reply
+# — and back out again when a morph renders it closed.
+RSpec.describe "Modal dialogs (issue #365)", type: :system do
+  def modal?(testid)
+    page.evaluate_script("document.querySelector('[data-testid=#{testid}]').matches(':modal')")
+  end
+
+  def focused_testid
+    page.evaluate_script("document.activeElement?.dataset?.testid ?? null")
+  end
+
+  def focus_inside?(testid)
+    page.evaluate_script(<<~JS)
+      document.activeElement === document.body || !!document.activeElement?.closest("[data-testid=#{testid}]")
+    JS
+  end
+
+  context "with the client ops" do
+    before { visit "/modal_dialog" }
+
+    it "opens the picker as a modal and closes it with close_dialog" do
+      find("[data-testid='choose']").click
+      expect(page).to have_css("[data-testid='picker'][open]")
+      expect(modal?("picker")).to be(true)
+
+      find("[data-testid='picker-close']").click
+      expect(page).to have_no_css("[data-testid='picker'][open]", visible: :all)
+      expect(modal?("picker")).to be(false)
+    end
+
+    it "keeps Tab and Shift+Tab inside the dialog" do
+      find("[data-testid='choose']").click
+      expect(page).to have_css("[data-testid='picker'][open]")
+
+      6.times do
+        page.driver.with_playwright_page { it.keyboard.press("Tab") }
+        expect(focus_inside?("picker")).to be(true)
+      end
+      6.times do
+        page.driver.with_playwright_page { it.keyboard.press("Shift+Tab") }
+        expect(focus_inside?("picker")).to be(true)
+      end
+    end
+
+    it "closes on Escape and returns focus to the opener" do
+      find("[data-testid='choose']").click
+      expect(page).to have_css("[data-testid='picker'][open]")
+      find("[data-testid='picker-search']").click
+
+      page.driver.with_playwright_page { it.keyboard.press("Escape") }
+
+      expect(page).to have_no_css("[data-testid='picker'][open]", visible: :all)
+      expect(focused_testid).to eq("choose")
+    end
+  end
+
+  context "with data-reactive-modal" do
+    it "makes a dialog rendered open on the page modal at connect" do
+      visit "/modal_dialog?open=1"
+
+      expect(page).to have_css("[data-testid='server-dialog'][open]")
+      expect(modal?("server-dialog")).to be(true)
+    end
+
+    it "makes a dialog a morph reply renders open modal" do
+      visit "/modal_dialog"
+      find("[data-testid='open-morph']").click
+
+      expect(page).to have_css("[data-testid='server-dialog'][open]")
+      expect(modal?("server-dialog")).to be(true)
+    end
+
+    it "makes a dialog a replace reply renders open modal" do
+      visit "/modal_dialog"
+      find("[data-testid='open-replace']").click
+
+      expect(page).to have_css("[data-testid='server-dialog'][open]")
+      expect(modal?("server-dialog")).to be(true)
+    end
+
+    it "closes the modal when a morph renders it closed, and the page takes clicks again" do
+      visit "/modal_dialog"
+      find("[data-testid='open-morph']").click
+      expect(page).to have_css("[data-testid='server-dialog'][open]")
+
+      find("[data-testid='close-morph']").click
+
+      expect(page).to have_no_css("[data-testid='server-dialog'][open]", visible: :all)
+      expect(modal?("server-dialog")).to be(false)
+      find("[data-testid='behind']").click
+      expect(page).to have_css("[data-testid='behind-clicks']", text: "clicked")
+    end
+  end
+end

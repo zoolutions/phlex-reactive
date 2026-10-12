@@ -359,6 +359,10 @@ class DemosController < ActionController::Base
     render_component LateShowComponent.new
   end
 
+  def modal_dialog
+    render_component ModalDialogComponent.new(open: params[:open] == "1")
+  end
+
   def nested_editor
     render_component NestedEditorComponent.new
   end

@@ -201,6 +201,7 @@ export function registerReactiveStreamRender() {
   streamRenderRegistered = true
   document.addEventListener("turbo:before-stream-render", (event) => {
     streamIntoRoots(event)
+    streamModals(event)
     // The opt-in entry sees every stream (it may hold one for a module the
     // incoming content needs); with no entry hook, a loaded effects module
     // wraps the stream directly — in the default entry, always.
@@ -243,6 +244,100 @@ function streamIntoRoots(event) {
     await render(el)
     for (const root of roots) if (root.isConnected) root.dispatchEvent(new Event(STREAMED))
   }
+}
+
+// --- Modal dialogs (issue #365) ---
+// show_modal / close_dialog reach the browser's own modal dialog: the top
+// layer, the focus trap, ::backdrop, Escape and focus restored to the opener.
+// A dialog the SERVER renders open with data-reactive-modal becomes modal as
+// soon as the client sees it: at a root's connect (a full page, a replaced
+// root), after a morph of a root or of the page, and after a stream whose
+// content holds a dialog. Duck-typed on tagName (the submitFormFor precedent:
+// fake-node and test friendly).
+function isDialog(el) {
+  return el?.tagName === "DIALOG" && typeof el.showModal === "function"
+}
+
+// `:modal` is the only way to tell a modal dialog from one opened with the
+// `open` attribute. An engine that does not know the pseudo-class throws a
+// SyntaxError; it then counts as not modal (show_modal reopens it modally).
+function isModal(dialog) {
+  try {
+    return dialog.matches(":modal")
+  } catch {
+    return false
+  }
+}
+
+function showModal(el) {
+  if (!isDialog(el)) {
+    // Said where a zero-target op is (issue #237): under verbose_errors or debug.
+    if (el?.closest?.('[data-reactive-verbose="true"], [data-reactive-debug="true"]')) {
+      console.warn(`[phlex-reactive] show_modal targets a <dialog>, not <${el.localName}> — skipped`)
+    }
+    return
+  }
+  if (!el.isConnected || isModal(el)) return
+  // showModal() throws on a dialog already open non-modally: close it first,
+  // in the same task, so nothing paints in between.
+  if (el.open) el.close()
+  el.showModal()
+}
+
+function closeDialog(el) {
+  if (isDialog(el) && el.open) el.close()
+}
+
+// Make every open dialog[data-reactive-modal] in `scope` modal.
+function upgradeModals(scope) {
+  for (const dialog of scope?.querySelectorAll?.("dialog[data-reactive-modal]") ?? []) {
+    if (dialog.open && !isModal(dialog)) showModal(dialog)
+  }
+}
+
+// After a stream whose content holds a dialog has rendered, upgrade the page's
+// marked dialogs. Document-wide: a replace's target is gone by then.
+function streamModals(event) {
+  const detail = event.detail
+  const render = detail?.render
+  const stream = detail?.newStream ?? event.target
+  if (typeof render !== "function" || !stream?.querySelector?.("template")?.content?.querySelector?.("dialog")) return
+  detail.render = async (el) => {
+    await render(el)
+    upgradeModals(document)
+  }
+}
+
+let modalsRegistered = false
+
+export function registerReactiveModals() {
+  if (modalsRegistered) return
+  if (typeof document === "undefined" || typeof document.addEventListener !== "function") return
+  modalsRegistered = true
+  // A morph of a root (a reply or broadcast morph, a page refresh) may have
+  // inserted an open marked dialog or opened one; a page morph covers dialogs
+  // outside any root.
+  document.addEventListener("turbo:morph-element", (event) => {
+    if (event.target?.matches?.('[data-controller~="reactive"]')) upgradeModals(event.target)
+  })
+  document.addEventListener("turbo:morph", () => upgradeModals(document))
+  // A morph that removes `open` from a modal dialog (the server now renders it
+  // closed): close() it instead, which leaves the top layer, ends the page's
+  // inertness and restores focus. Removing the attribute alone left all that
+  // in place under the older spec text, and close() is a no-op once `open` is
+  // gone — so the removal is cancelled and close() removes it.
+  document.addEventListener("turbo:before-morph-attribute", (event) => {
+    const el = event.target
+    const detail = event.detail
+    if (detail?.attributeName !== "open" || detail.mutationType !== "remove") return
+    if (!isDialog(el) || !el.open || !isModal(el)) return
+    event.preventDefault()
+    el.close()
+  })
+}
+
+export function __resetReactiveModalsForTest() {
+  modalsRegistered = false
 }
 
 // For the opt-in entry: what to do with a stream before its render — hold it
@@ -581,6 +676,7 @@ export function registerReactiveActions() {
   registerReactiveDefer()
   registerReactiveStreamRender()
   registerReactiveMorphFocus()
+  registerReactiveModals()
   registerReactivePlaintext()
   registerReactiveOffline()
   registerReactiveDev()
@@ -837,6 +933,11 @@ const CLIENT_OPS = Object.freeze({
   // its first focusable descendant (opened-menu → first menuitem).
   focus: (el) => el.focus?.(),
   focus_first: (el) => firstFocusable(el)?.focus?.(),
+
+  // Modal dialog ops (issue #365): HTMLDialogElement#showModal / #close.
+  // ACTOR-ONLY like focus (BROADCAST_REFUSED_OPS server-side).
+  show_modal: (el) => showModal(el),
+  close_dialog: (el) => closeDialog(el),
 
   // Text op (issue #159): set textContent — XSS-safe by construction (never
   // innerHTML), strictly less powerful than set_attr. Change-guarded like
@@ -1964,6 +2065,9 @@ export default class extends Controller {
     this.featuresReady = FEATURES_READY
     if (__SPLIT__) this.#loadFeatures()
     else this.#connectFeaturesNow()
+
+    // A dialog the server rendered open with data-reactive-modal (issue #365).
+    upgradeModals(this.element)
 
     // LAST, after every feature above is wired: a replayed trigger must find
     // the controller exactly as a live event after connect would.

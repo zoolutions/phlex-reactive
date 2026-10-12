@@ -187,6 +187,29 @@ RSpec.describe Phlex::Reactive::JS do
     end
   end
 
+  # --- Issue #365: modal dialog ops ---
+
+  describe "dialog ops (#show_modal / #close_dialog)" do
+    it "serializes show_modal with its target" do
+      expect(JSON.parse(js.show_modal("#picker").to_json))
+        .to eq([["show_modal", { "to" => "#picker" }]])
+    end
+
+    it "serializes close_dialog with its target" do
+      expect(JSON.parse(js.close_dialog("#picker").to_json))
+        .to eq([["close_dialog", { "to" => "#picker" }]])
+    end
+
+    it "accepts :root and global: on dialog ops" do
+      expect(JSON.parse(js.show_modal(:root).to_json).dig(0, 1, "to")).to eq("@root")
+      expect(JSON.parse(js.close_dialog("#d", global: true).to_json).dig(0, 1)).to include("global" => true)
+    end
+
+    it "passes the ops allowlist" do
+      expect { described_class.assert_ops_allowed!(js.show_modal("#d").close_dialog("#d").ops) }.not_to raise_error
+    end
+  end
+
   # --- Issue #226: submit — commit the target's own form ---
 
   describe "submit op (#submit) — requestSubmit the target's own form" do
