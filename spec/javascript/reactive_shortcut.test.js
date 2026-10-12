@@ -322,3 +322,125 @@ test("on_client: two shortcut records on one element — only the record whose c
   expect(panel.hidden).toBe(true)
   expect(ctrl.defaultPrevented).toBe(false)
 })
+
+// --- keys Stimulus does not know (issue #366) ------------------------------------
+// delete and backspace render a BARE `keydown@window` descriptor (Stimulus
+// would throw on an unknown key filter), so every keydown reaches the
+// controller and the shortcut check alone matches the chord.
+
+const remove = (extra = {}) => ({ action: "remove", params: "{}", window: true, shortcut: "delete", ...extra })
+
+test("bare delete: Delete dispatches once and is prevented", async () => {
+  onPlatform("Linux x86_64")
+  const { controller, calls } = buildController()
+
+  const event = keydown("Delete", { params: remove() })
+  await controller.dispatch(event)
+  await flush()
+  expect(event.defaultPrevented).toBe(true)
+  expect(calls()).toBe(1)
+})
+
+test("bare delete: any other key is a complete no-op (not prevented, nothing announced)", async () => {
+  onPlatform("Linux x86_64")
+  const { controller, root, calls } = buildController()
+
+  for (const key of ["a", "Backspace", "Enter", "Escape"]) {
+    const event = keydown(key, { params: remove() })
+    await controller.dispatch(event)
+    expect(event.defaultPrevented).toBe(false)
+  }
+  const shifted = keydown("Delete", { mods: { shiftKey: true }, params: remove() })
+  await controller.dispatch(shifted)
+  await flush()
+  expect(shifted.defaultPrevented).toBe(false)
+  expect(calls()).toBe(0)
+  expect(root.events).toHaveLength(0)
+})
+
+for (const [label, html] of [
+  ["an input", `<input data-focus>`],
+  ["a textarea", `<textarea data-focus></textarea>`],
+  ["a select", `<select data-focus><option>a</option></select>`],
+  ["a contenteditable", `<div contenteditable="true" data-focus></div>`],
+]) {
+  test(`bare delete inside ${label} dispatches nothing unless inEditable`, async () => {
+    onPlatform("Linux x86_64")
+    const target = editable(html)
+    const { controller, calls } = buildController()
+
+    const typed = keydown("Delete", { target, params: remove() })
+    await controller.dispatch(typed)
+    await flush()
+    expect(typed.defaultPrevented).toBe(false)
+    expect(calls()).toBe(0)
+
+    const opted = keydown("Delete", { target, params: remove({ shortcut: { keys: "delete", inEditable: true } }) })
+    await controller.dispatch(opted)
+    await flush()
+    expect(opted.defaultPrevented).toBe(true)
+    expect(calls()).toBe(1)
+  })
+}
+
+test("bare mod+backspace: Meta+Backspace on a Mac, never Ctrl+Backspace", async () => {
+  onPlatform("MacIntel")
+  const { controller, calls } = buildController()
+
+  const ctrl = keydown("Backspace", { mods: { ctrlKey: true }, params: remove({ shortcut: "mod+backspace" }) })
+  await controller.dispatch(ctrl)
+  expect(ctrl.defaultPrevented).toBe(false)
+  const bare = keydown("Backspace", { params: remove({ shortcut: "mod+backspace" }) })
+  await controller.dispatch(bare)
+  expect(bare.defaultPrevented).toBe(false)
+  expect(calls()).toBe(0)
+
+  const meta = keydown("Backspace", { mods: { metaKey: true }, params: remove({ shortcut: "mod+backspace" }) })
+  await controller.dispatch(meta)
+  await flush()
+  expect(meta.defaultPrevented).toBe(true)
+  expect(calls()).toBe(1)
+})
+
+test("bare mod+backspace: Ctrl+Backspace elsewhere, never Meta+Backspace", async () => {
+  onPlatform("Win32")
+  const { controller, calls } = buildController()
+
+  const meta = keydown("Backspace", { mods: { metaKey: true }, params: remove({ shortcut: "mod+backspace" }) })
+  await controller.dispatch(meta)
+  expect(meta.defaultPrevented).toBe(false)
+  expect(calls()).toBe(0)
+
+  const ctrl = keydown("Backspace", { mods: { ctrlKey: true }, params: remove({ shortcut: "mod+backspace" }) })
+  await controller.dispatch(ctrl)
+  await flush()
+  expect(ctrl.defaultPrevented).toBe(true)
+  expect(calls()).toBe(1)
+})
+
+test("on_client bare backspace: Backspace runs the ops and prevents; another key does nothing", () => {
+  onPlatform("Linux x86_64")
+  const { controller, panel } = paletteController()
+  const record = palette({ shortcut: "backspace" })
+
+  const other = keydown("x", { params: { ops: record } })
+  controller.runOps(other)
+  expect(panel.hidden).toBe(true)
+  expect(other.defaultPrevented).toBe(false)
+
+  const event = keydown("Backspace", { params: { ops: record } })
+  controller.runOps(event)
+  expect(panel.hidden).toBe(false)
+  expect(event.defaultPrevented).toBe(true)
+})
+
+test("on_client bare backspace: a press in an input is left to the field", () => {
+  onPlatform("Linux x86_64")
+  const target = editable(`<input data-focus>`)
+  const { controller, panel } = paletteController()
+
+  const event = keydown("Backspace", { target, params: { ops: palette({ shortcut: "backspace" }) } })
+  controller.runOps(event)
+  expect(panel.hidden).toBe(true)
+  expect(event.defaultPrevented).toBe(false)
+})

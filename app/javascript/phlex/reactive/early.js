@@ -142,7 +142,8 @@ function recordWindow(event) {
     // guard here, and the replay re-checks each). The guard covers only a
     // key-filtered descriptor — a shortcut's twins always carry a filter — so
     // the element's other window bindings (a click, a bare keydown) behave
-    // as they do without a shortcut.
+    // as they do without a shortcut. The exception is a delete/backspace
+    // chord's bare keydown (below), which on that element IS the shortcut.
     const ops = el.dataset.reactiveOpsParam ?? ""
     const shortcut = el.dataset.reactiveShortcutParam ?? (/"shortcut":/.test(ops) && ops)
     const { target } = event
@@ -150,16 +151,23 @@ function recordWindow(event) {
       shortcut && !/inEditable":true/.test(shortcut) && (target.isContentEditable || /^(input|textarea|select)$/.test(target.localName))
     // Apple platforms run the meta twin of a `mod` chord, the rest the ctrl
     // one: `skip` is the other platform's.
-    const skip = /mod\+/.test(shortcut) && (/[Mm]ac|iP/.test(navigator.userAgentData?.platform ?? navigator.platform) ? "ctrl" : "meta")
+    const mod = shortcut && (/[Mm]ac|iP/.test(navigator.userAgentData?.platform ?? navigator.platform) ? "meta" : "ctrl")
+    const skip = /mod\+/.test(shortcut) && (mod === "meta" ? "ctrl" : "meta")
+    // A delete/backspace chord (issue #366) binds a BARE keydown (Stimulus
+    // lacks the keys): the chord itself, this platform's `mod`, decides.
+    const chords = (shortcut && shortcut.match(/(^|"(keys|shortcut)":")[\w+]*(delete|backspace)(?="|$)/g)) || []
+    const bare = (d) => !d.filter && chords[0] && d.type === "keydown"
     // outside: is not recorded — on() flags it on the element, on_client in
     // the binding record (one window record without it is enough to queue;
     // the replay skips the outside ones).
     const descs = matching(el, event, true).filter(
       (d) =>
-        !(d.filter && (typing || (skip && d.filter.includes(skip)))) &&
+        (bare(d)
+          ? !typing && chords.some((chord) => keyMatches(chord.slice(chord.lastIndexOf('"') + 1).replace("mod", mod), event))
+          : !(d.filter && (typing || (skip && d.filter.includes(skip))))) &&
         (d.method === "runOps" ? /"window":true(?!,"outside")/.test(ops) : el.dataset.reactiveOutsideParam !== "true"),
     )
-    if (descs.length) enqueue(event, el, descs, true, shortcut && descs.some((d) => d.filter))
+    if (descs.length) enqueue(event, el, descs, true, shortcut && descs.some((d) => d.filter || bare(d)))
   }
 }
 

@@ -348,6 +348,81 @@ test("a plain keydown@window binding beside a shortcut record does not prevent T
   }
 })
 
+// --- early.js: delete/backspace shortcuts (issue #366) --------------------------
+// Stimulus lacks these keys, so the helper renders a BARE keydown@window and
+// the chord (on the element or in the record) decides what is queued.
+
+const REMOVE = `<div id="p" data-controller="reactive"><span id="r" data-action="keydown@window->reactive#dispatch" data-reactive-action-param="remove" data-reactive-window-param="true" data-reactive-shortcut-param="delete"></span><input id="q"></div>`
+
+test("a bare delete shortcut pressed before connect is prevented and replayed once", async () => {
+  onPlatform("Linux x86_64")
+  try {
+    const root = await mount(REMOVE)
+    const seen = countDispatches(root)
+    const event = press(document.body, "Delete")
+    expect(event.defaultPrevented).toBe(true)
+    expect(state().queue).toHaveLength(1)
+    realConnect(root)
+    expect(seen).toEqual(["remove"])
+  } finally {
+    restorePlatform()
+  }
+})
+
+test("any other key before connect is neither queued nor prevented beside a bare delete shortcut", async () => {
+  onPlatform("Linux x86_64")
+  try {
+    await mount(REMOVE)
+    const events = ["a", "Backspace", "Tab", "Enter"].map((key) => press(document.body, key))
+    events.push(press(document.body, "Delete", { shiftKey: true }))
+    expect(events.some((event) => event.defaultPrevented)).toBe(false)
+    expect(state().queue).toHaveLength(0)
+  } finally {
+    restorePlatform()
+  }
+})
+
+test("Delete typed in a field before connect is left to the field", async () => {
+  onPlatform("Linux x86_64")
+  try {
+    await mount(REMOVE)
+    const event = press(document.querySelector("#q"), "Delete")
+    expect(event.defaultPrevented).toBe(false)
+    expect(state().queue).toHaveLength(0)
+  } finally {
+    restorePlatform()
+  }
+})
+
+test("a bare on_client mod+backspace runs only this platform's chord before connect", async () => {
+  onPlatform("MacIntel")
+  try {
+    await mount(`<div id="p" data-controller="reactive" data-action="keydown@window->reactive#runOps" data-reactive-ops-param='{"on":"keydown","window":true,"ops":[["text",{"to":"#x","text":"delete"}]],"shortcut":"mod+backspace"}'></div>`)
+    const ctrl = press(document.body, "Backspace", { ctrlKey: true })
+    const plain = press(document.body, "Backspace")
+    expect(ctrl.defaultPrevented || plain.defaultPrevented).toBe(false)
+    expect(state().queue).toHaveLength(0)
+
+    const meta = press(document.body, "Backspace", { metaKey: true })
+    expect(meta.defaultPrevented).toBe(true)
+    expect(state().queue).toHaveLength(1)
+  } finally {
+    restorePlatform()
+  }
+})
+
+test("the Hash form with inEditable queues Delete from inside a field", async () => {
+  onPlatform("Linux x86_64")
+  try {
+    await mount(REMOVE.replace(`data-reactive-shortcut-param="delete"`, `data-reactive-shortcut-param='{"keys":"delete","inEditable":true}'`))
+    const event = press(document.querySelector("#q"), "Delete")
+    expect(event.defaultPrevented).toBe(true)
+    expect(state().queue).toHaveLength(1)
+  } finally {
+    restorePlatform()
+  }
+})
+
 test("a plain window hotkey is still recorded inside a textarea and never prevented (no shortcut:)", async () => {
   await mount(`<div id="p" data-controller="reactive"><span data-action="keydown.ctrl+s@window->reactive#dispatch" data-reactive-action-param="save" data-reactive-window-param="true"></span><textarea></textarea></div>`)
   const event = press(document.querySelector("textarea"), "s", { ctrlKey: true })
@@ -640,10 +715,11 @@ test("listens for trigger types of roots added after start (MutationObserver)", 
 })
 
 // The one module every page loads eagerly. 1,024 B before dormant roots (issue
-// #274) added the second root selector and the wake.
-test("early.min.js gzips to at most 1,491 bytes", () => {
+// #274) added the second root selector and the wake; 1,621 B since the bare
+// delete/backspace chords (issue #366).
+test("early.min.js gzips to at most 1,621 bytes", () => {
   const built = readFileSync(join(import.meta.dir, "../../app/javascript/phlex/reactive/early.min.js"))
-  expect(gzipSync(built, { level: 9 }).length).toBeLessThanOrEqual(1491)
+  expect(gzipSync(built, { level: 9 }).length).toBeLessThanOrEqual(1621)
 })
 
 // --- reactive_controller.js: connect() marks, announces and drains ------------

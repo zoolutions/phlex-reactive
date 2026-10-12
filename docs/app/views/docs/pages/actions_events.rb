@@ -331,9 +331,22 @@ module Views
               `shortcut:` decides the event and the window binding: with `event:`,
               `window:` or `outside:` it raises `ArgumentError`. The key must be in
               Stimulus's default key map (a letter, a digit, `enter`, `tab`, `esc`,
-              `space`, the arrows, `home`, `end`, `page_up`, `page_down`); an unknown
-              key raises `ArgumentError`. On `on_client`, the event must be bare
-              `keydown` (`:keydown` or `"keydown"`).
+              `space`, the arrows, `home`, `end`, `page_up`, `page_down`) or be
+              `delete` or `backspace`; an unknown key raises `ArgumentError`. On
+              `on_client`, the event must be bare `keydown` (`:keydown` or `"keydown"`).
+
+              `delete` and `backspace` are matched by the library, not Stimulus,
+              whose default key map lacks them: such a shortcut binds a bare
+              `keydown@window` (no key filter, no meta/ctrl twin) and the client
+              matches the chord, so it works even on an app with a custom Stimulus
+              schema. The rules above all hold — Delete typed in a search box stays
+              the field's. `once:` raises on these two keys: a bare binding would
+              be spent by the first key pressed of any kind.
+
+              ```ruby
+              span(**on(:remove_selected, shortcut: "delete"))   # remove the selected row
+              span(**on_client(:keydown, js.hide("#preview"), shortcut: "mod+backspace"))
+              ```
             MD
           end
         end
