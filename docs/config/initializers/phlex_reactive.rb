@@ -23,11 +23,19 @@ Rails.application.config.after_initialize do
   # The Presence demo (issue #358) refuses an unknown colour.
   Phlex::Reactive.authorization_errors << PresenceDemoComponent::Denied
 
-  # Presence needs a member per SSE connection; the docs have no sign-in, so
-  # every visitor is a guest. Only on a pgbus with per-connection presence —
-  # the signature probe, never capable? (a query; boot may have no database).
-  if Phlex::Reactive::Presence::Transport.wired? && Pgbus.configuration.respond_to?(:streams_presence_member=)
-    Pgbus.configuration.streams_presence_member = ->(_context) { { id: 'guest', metadata: { name: 'Guest' } } }
+  # Presence takes each SSE connection's identity from what streams_authorize
+  # returns (pgbus >= 0.18). The docs have no sign-in, so the identity is the
+  # visitor id ApplicationController keeps in the session; a request without
+  # one is authorized with no identity (pgbus joins it to no roster). Every
+  # demo stream here is public; a real app returns its user only when that user
+  # may read the record behind stream_name (a signed name is not authorization).
+  # Only on a wired pgbus — the signature probe, never capable? (a query; boot
+  # may have no database).
+  if Phlex::Reactive::Presence::Transport.wired?
+    Pgbus.configuration.streams_authorize = lambda do |env, _stream_name|
+      visitor = ActionDispatch::Request.new(env).session[:presence_visitor]
+      visitor ? { id: visitor, metadata: { name: "Visitor #{visitor.upcase}" } } : true
+    end
   end
 
   # With error_flash set, the endpoint renders a turbo-stream flash the browser
