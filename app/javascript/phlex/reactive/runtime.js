@@ -1404,7 +1404,9 @@ function guardAttr(name) {
 // copy_media op and the reactive_media binding (the bindings feature reaches it
 // through the core handle). Only an <img> target is written, so an iframe,
 // script, object, embed or frame never receives a src from here. A source that
-// is missing, not an <img> or has no src clears the target. Each attribute is
+// is missing or not an <img> clears the target. An <img> source without src is
+// a hit with no image (issue #381): the target loses src and srcset but takes
+// the alt, so a known entry without a logo keeps its name. Each attribute is
 // written only when it changes, so the same URL twice does not reload. Returns
 // the alt copied, false when it cleared, or null when the target was skipped.
 function copyMedia(target, source) {
@@ -1412,17 +1414,17 @@ function copyMedia(target, source) {
     console.warn(`[phlex-reactive] copy_media targets an <img>, not <${target?.localName}> — skipped`)
     return null
   }
-  const src = source?.localName === "img" ? source.getAttribute("src") : null
-  const pick = (name) => (src ? source.getAttribute(name) : null)
+  const img = source?.localName === "img" ? source : null
+  const src = img?.getAttribute("src")
   for (const name of ["srcset", "src"]) {
-    const value = pick(name)
+    const value = src ? img.getAttribute(name) : null
     if (value == null) {
       if (target.hasAttribute(name)) target.removeAttribute(name)
     } else if (target.getAttribute(name) !== value) target.setAttribute(name, value)
   }
-  const alt = pick("alt") ?? ""
+  const alt = img?.getAttribute("alt") ?? ""
   if (target.getAttribute("alt") !== alt) target.setAttribute("alt", alt)
-  return src ? alt : false
+  return img ? alt : false
 }
 
 // The first focusable descendant of `el`, in document order — the natural

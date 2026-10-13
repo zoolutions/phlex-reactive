@@ -12,8 +12,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `js.copy_media("#logo", from: "#logo-007")` copies `src`, `srcset` and `alt`
   from an `<img>` the server rendered onto a preview `<img>`; the URL is read
   from the live source element and is never an op argument, so `set_attr`
-  still refuses `src` (#96). A missing source, a non-`<img>` source or one
-  without `src` clears the target; a target that is not an `<img>` (an
+  still refuses `src` (#96). A missing source or a non-`<img>` source clears
+  the target (an `<img>` source without `src` keeps its `alt`, #381); a target that is not an `<img>` (an
   `iframe`, `script`, `object`, `embed`, `frame`) is warned about and skipped;
   the same URL twice is not written again. `img(**reactive_media(from: :code,
   take: 3, pool: { "007" => "#logo-007" }, label: "#caption", blank_label:
@@ -214,6 +214,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   are byte-identical.
 
 ### Fixed
+
+- **A pool `<img>` with an `alt` and no `src` keeps its name (#381).**
+  `js.copy_media` and `reactive_media` treated a source `<img>` without `src`
+  as a clear: the preview's `alt` was emptied and `label:` got `blank_label`,
+  so a known entry with no logo file lost its name. Such a source is now a hit
+  without an image: the target's `src` and `srcset` are removed, its `alt` is
+  set, and `label:` gets that `alt`. Only a pool miss, a selector that matches
+  nothing, or a source that is not an `<img>` clears. Client: +1 B gzipped in
+  the default bundle, −2 B in the split core; the bindings module is
+  unchanged.
 
 - **A stream that renders into a connected root wires what its content needs
   (#356).** A root read its feature markers only at connect and after a morph
