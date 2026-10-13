@@ -343,6 +343,42 @@ RSpec.describe Phlex::Reactive::Doctor do
       names = doctor.checks.map(&:name)
       expect(names).to include(:authorization)
     end
+
+    # Each Inspector.components call builds every component's info. Reading it
+    # once per component made the check quadratic: ~1.3 s over the dummy's 90.
+    it "reads the Inspector once for the whole component list" do
+      Rails.application.eager_load!
+      components = doctor.send(:registered_components)
+      expect(Phlex::Reactive::Inspector).to receive(:components).once.and_call_original
+
+      doctor.authorization_check(components)
+    end
+
+    # The ancestry guard needs no Prism scan, so a fully guarded app never
+    # builds the inventory (as before the read was hoisted).
+    it "does not read the Inspector when every component defines an authorization method" do
+      guarded = Class.new(ApplicationComponent) do
+        include Phlex::Reactive::Component
+
+        def self.name = "Phlex::Reactive::DoctorSpec::AllGuarded"
+        def authorize!(*) = true # rubocop:disable Naming/PredicateMethod
+      end
+      expect(Phlex::Reactive::Inspector).not_to receive(:components)
+
+      expect(doctor.authorization_check([guarded])).to be_ok
+    end
+
+    # Advisory check: a failing inventory must not take the whole doctor down.
+    it "stays ok when the Inspector raises" do
+      unguarded = Class.new(ApplicationComponent) do
+        include Phlex::Reactive::Component
+
+        def self.name = "Phlex::Reactive::DoctorSpec::InspectorBoom"
+      end
+      allow(Phlex::Reactive::Inspector).to receive(:components).and_raise(StandardError, "boom")
+
+      expect(doctor.authorization_check([unguarded])).to be_ok
+    end
   end
 
   # Issue #274: a dormant root is woken by phlex/reactive/early — without that
