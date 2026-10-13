@@ -264,8 +264,11 @@ test("a prefix shorter than take is pending: the preview clears (issue #380)", a
   const { $ } = mount(`<input name="code"><img id="logo" alt="" data-reactive-media="${BINDING}"><span id="caption"></span>${POOL}`, { connect: true })
   await flush()
 
+  type($("[name=code]"), "999")
+  expect($("#caption").textContent).toBe("Unknown")
   type($("[name=code]"), "00")
   expect($("#logo").hasAttribute("src")).toBe(false)
+  expect($("#caption").textContent).toBe("") // pending, not a miss: no blank_label
 })
 
 for (const [label, key] of [

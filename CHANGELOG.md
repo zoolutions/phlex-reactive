@@ -224,12 +224,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   label) or `:keep` (leave both alone). The preview carries
   `data-reactive-media-state="pending|hit|miss"`, so a row can hide itself
   with CSS. `match:` reaches the browser as a JS pattern: its `\A`/`\z`
-  anchors are dropped, and what JS reads differently raises at render
-  (options, Ruby-only escapes such as `\h`/`\p{…}`, POSIX and nested
-  classes, `&&`, `(?i)`/`(?>…)`, characters above U+FFFF). **Behaviour change:** with `take:`, a short value now
-  leaves the label empty instead of writing `blank_label`. Without `take:` or
-  `match:` nothing changes. Client: +160 B gzipped in the default bundle,
-  +152 B in the bindings module, the split core unchanged. Docs: "Media
+  anchors are dropped (a trailing `\Z` becomes `\n?`), and what JS reads
+  differently raises at render (options, escapes such as `\h`/`\p{…}`/`\s`/
+  `\u{…}`, POSIX and nested classes, `&&`, `(?i)`/`(?>…)`, characters above
+  U+FFFF). **Behaviour change:** with `take:`, a short value now leaves the
+  label empty instead of writing `blank_label`. Without `take:` or `match:`
+  nothing changes. Client: +160 B gzipped in the default bundle (+152 B on
+  top of #381/#382), +152 B in the bindings module, the split core unchanged. Docs: "Media
   previews" on the client-ops example.
 
 - **A pool `<img>` with an `alt` and no `src` keeps its name (#381).**

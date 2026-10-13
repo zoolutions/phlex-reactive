@@ -10,8 +10,9 @@ module Phlex
       # and anything JavaScript would read differently raises at render rather
       # than matching silently wrong in the browser.
       module MediaPattern
-        # Escapes Ruby reads as an anchor or a class and JS reads as a letter.
-        RUBY_ONLY_ESCAPES = %w[\A \z \Z \G \h \H \R \X \K \p \P].freeze
+        # Escapes Ruby reads as an anchor or a class and JS reads as a letter,
+        # plus \s/\S, whose JS class also holds Unicode spaces Ruby's does not.
+        RUBY_ONLY_ESCAPES = %w[\A \z \Z \G \h \H \R \X \K \p \P \s \S].freeze
         # The group openers both engines read alike: (?: (?= (?! (?<= (?<! (?<name>
         SHARED_GROUPS = [":", "=", "!", "<"].freeze
         OPTIONS = Regexp::IGNORECASE | Regexp::EXTENDED | Regexp::MULTILINE
@@ -31,9 +32,10 @@ module Phlex
 
           tokens = match.source.scan(/\\.|./m)
           tokens.shift if tokens.first == "\\A"
-          tokens.pop if %w[\z \Z].include?(tokens.last)
+          final = tokens.pop if %w[\z \Z].include?(tokens.last)
           check!(tokens, match)
-          tokens.join
+          # Ruby's \Z also matches before one final newline.
+          final == "\\Z" ? "#{tokens.join}\\n?" : tokens.join
         end
 
         def check!(tokens, match)
@@ -44,6 +46,10 @@ module Phlex
                 "uses #{token}, which is Ruby-only (JavaScript reads it differently)")
             end
             refuse!(match, "has a character above U+FFFF (the client pattern has no u flag)") if token.ord > 0xFFFF
+            if token == "\\u" && tokens[i + 1] == "{"
+              refuse!(match,
+                "uses \\u{…}, which JavaScript without the u flag reads as a repeated u")
+            end
             if in_class
               in_class = false if token == "]"
               class_syntax!(tokens, i, match)

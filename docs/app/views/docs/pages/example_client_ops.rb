@@ -211,7 +211,7 @@ module Views
                 `match:` is sent to the browser as a JavaScript pattern: its `\\A`
                 and `\\z` anchors are dropped (the client anchors it), and what
                 JavaScript reads differently raises at render: options (`i`, `m`,
-                `x`), Ruby-only escapes (`\\h`, `\\p{…}`, …), POSIX `[[:digit:]]`,
+                `x`), escapes such as `\\h`, `\\p{…}`, `\\s` and `\\u{…}`, POSIX `[[:digit:]]`,
                 nested classes, `&&`, `(?i)`/`(?>…)` groups and characters above
                 U+FFFF. The state is written once the client connects; to hide the
                 row on first paint too, render the preview with
@@ -223,7 +223,8 @@ module Views
                 img(id: "logo", alt: "", **reactive_media(
                   from: :code, take: 3, match: /\\A\\d{3}\\z/,
                   pool: { "007" => "#logo-007", "011" => "#logo-011" },
-                  label: "#caption", blank_label: "Unknown"
+                  label: "#caption", blank_label: "Unknown",
+                  data: { reactive_media_state: "pending" } # hidden on first paint, too
                 ))
                 span(id: "caption")
               end

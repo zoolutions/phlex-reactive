@@ -26,8 +26,21 @@ RSpec.describe Phlex::Reactive::Component::MediaBinding do
       expect(wire(match: /\A\d{3}\z/)["match"]).to eq("\\d{3}")
     end
 
-    it "drops a trailing \\Z too" do
-      expect(wire(match: /\A[0-9]{3}\Z/)["match"]).to eq("[0-9]{3}")
+    it "turns a trailing \\Z into \\n? (Ruby's \\Z allows one final newline)" do
+      expect(wire(match: /\A[0-9]{3}\Z/)["match"]).to eq("[0-9]{3}\\n?")
+    end
+
+    it "raises on \\s and \\S (JS's whitespace class is wider than Ruby's)" do
+      expect { wire(match: /\d\s\d/) }.to raise_error(ArgumentError, /\\s/)
+      expect { wire(match: /\S+/) }.to raise_error(ArgumentError, /\\S/)
+    end
+
+    it "raises on \\u{…} (JS without the u flag reads it as a repeated u)" do
+      expect { wire(match: /\u{41}/) }.to raise_error(ArgumentError, /\\u\{/)
+    end
+
+    it "accepts a four-digit \\uXXXX (Ruby folds it into the literal)" do
+      expect(wire(match: /A/)["match"]).to eq("A")
     end
 
     it "emits an unanchored source verbatim" do
@@ -92,6 +105,12 @@ RSpec.describe Phlex::Reactive::Component::MediaBinding do
       expect { wire(match: /a\Ab/) }.to raise_error(ArgumentError, /\\A/)
       expect { wire(match: /a\zb/) }.to raise_error(ArgumentError, /\\z/)
     end
+  end
+
+  it "lets a component seed the first-paint state through data: (mixed, the binding kept)" do
+    attrs = view.reactive_media(from: :rib, take: 3, pool:, data: { reactive_media_state: "pending" })
+    expect(attrs[:data]).to include(reactive_media_state: "pending")
+    expect(attrs[:data]).to have_key(:reactive_media)
   end
 
   describe "pending:" do
