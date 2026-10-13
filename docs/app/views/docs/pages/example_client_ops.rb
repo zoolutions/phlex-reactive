@@ -20,6 +20,7 @@ module Views
           how
           disclosure_menu
           modal_dialogs
+          kept_ops
           ops
           value_conditional
           bulk_selection
@@ -161,6 +162,75 @@ module Views
               component: ModalPickerComponent.new,
               filename: 'app/components/modal_picker_component.rb'
             )
+          end
+        end
+
+        def kept_ops
+          DocsUI::Section('Keeping client state through a morph') do
+            md <<~'MD'
+              A morph — `reply.morph`, `broadcast_to(…, morph: true)`, a page-refresh morph —
+              writes `class`, `hidden` and every attribute back from the server render.
+              Client ops record nothing, so a selection made with `add_class` is gone the
+              moment another viewer's change morphs the list. **`keep: true`** (#369)
+              marks an op's result as the client's own:
+
+              ```ruby
+              class ItemList < Phlex::HTML
+                include Phlex::Reactive::Component
+
+                reactive_record :list
+                def id = "item-list"
+
+                def view_template
+                  div(**reactive_root) do
+                    @list.items.each do |item|
+                      div(**mix(on_client(:click, select(item)), id: "item-#{item.id}", class: "item")) do
+                        plain item.name
+                        div(id: "details-#{item.id}", class: "details", hidden: true) { item.notes }
+                      end
+                    end
+                  end
+                end
+
+                private
+
+                # Clear all, then select one — every op kept.
+                def select(item)
+                  js.remove_class(".item", "selected", keep: true)
+                    .hide(".details", keep: true)
+                    .add_class("#item-#{item.id}", "selected", keep: true)
+                    .show("#details-#{item.id}", keep: true)
+                end
+              end
+
+              # Another viewer renames item 3; everyone's list is morphed —
+              # and the item each viewer selected stays selected in their tab.
+              ItemList.broadcast_to(list, :items, replace: list, morph: true)
+              ```
+
+              - **What is kept** is the op's *result* on each target: the class on or
+                off, `hidden`, the attribute's value or its absence. A `toggle_class` or
+                `toggle` puts back the state it left; it does not flip again.
+              - **The latest kept op wins** per element and class or attribute, so the
+                kept `remove_class` above cancels the previous selection's kept
+                `add_class` — one item stays selected, not every item ever clicked.
+                An op **without** `keep:` leaves an earlier kept record alone: a panel
+                shown with `show(…, keep: true)` and closed with a plain `hide` opens
+                again on the next morph. Close it with `hide(…, keep: true)`.
+              - **The render still lands.** A class or attribute no kept op touched
+                follows the server, so the renamed item's own changes appear.
+              - **A replaced element starts clean.** `keep:` holds through a *morph*,
+                which keeps the element; a stream that replaces it brings a new element
+                with no kept state.
+              - `keep:` takes the same ops in the client `ops` builder:
+                `ops.add_class("#item-2", "selected", { keep: true })`. With `expanded:`,
+                the trigger's `aria-expanded` is kept too.
+
+              `broadcast_to(js:)` **refuses** `keep: true` (an `ArgumentError` naming
+              `keep`): kept state belongs to one tab, like `focus`. When the server must
+              know the selection — to filter, to show other viewers — keep it on the
+              server (an action or [presence](/docs/presence)) instead.
+            MD
           end
         end
 

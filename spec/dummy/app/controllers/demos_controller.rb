@@ -363,6 +363,11 @@ class DemosController < ActionController::Base
     render_component ModalDialogComponent.new(open: params[:open] == "1")
   end
 
+  # Issue #369: ?renamed=N renders item N renamed (a server-side change).
+  def kept_selection
+    render_component KeptSelectionComponent.new(renamed: params[:renamed]&.to_i)
+  end
+
   def nested_editor
     render_component NestedEditorComponent.new
   end
