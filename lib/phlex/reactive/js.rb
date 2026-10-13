@@ -434,9 +434,10 @@ module Phlex
       end
 
       # preview_file's into:/name: — a non-empty CSS selector String, never
-      # :root (the root is a container, not the img or the name node).
+      # :root or its "@root" sentinel (the root is a container, not the img —
+      # and a name: on it would replace the whole component with a file name).
       def preview_selector(key, selector)
-        return selector if selector.is_a?(String) && !selector.strip.empty?
+        return selector if selector.is_a?(String) && !selector.strip.empty? && selector != ROOT_SENTINEL
 
         raise ArgumentError,
           "#{self.class}: preview_file #{key}: must be a CSS selector string, got #{selector.inspect}"

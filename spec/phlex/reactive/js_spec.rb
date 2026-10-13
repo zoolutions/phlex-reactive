@@ -315,11 +315,11 @@ RSpec.describe Phlex::Reactive::JS do
     end
 
     it "rejects an into: that is not a CSS selector string" do
-      [nil, "", :root, :photo].each { expect_preview_refused(into: it) }
+      [nil, "", :root, "@root", :photo].each { expect_preview_refused(into: it) }
     end
 
     it "rejects a name: that is not a CSS selector string" do
-      ["", :name, 1].each { expect_preview_refused(name: it) }
+      ["", :name, 1, "@root"].each { expect_preview_refused(name: it) }
     end
 
     it "passes the ops allowlist" do

@@ -1096,7 +1096,8 @@ function pasteClipboardInto(field) {
 // while the img is on the page AND still shows that URL; a re-pick, a clear,
 // a non-image file, the img leaving the page or a morph that strips its src
 // in place revokes it. One MutationObserver notices the last two, and only
-// while some preview is live.
+// while some preview is live: it then wakes on every DOM mutation of the page
+// (a live feed, a drag), and each wake is a walk over the few live previews.
 const previews = new Map()
 let previewObserver = null
 
