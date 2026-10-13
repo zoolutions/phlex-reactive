@@ -74,7 +74,7 @@ module Phlex
           # before to_gid (nil.to_gid would raise).
           if (record_ivar = klass.reactive_record_ivar) &&
              (record = instance_variable_get(record_ivar)) && signable_gid?(record)
-            payload["gid"] = record.to_gid.to_s
+            payload["gid"] = reactive_gid(record)
           end
 
           state_ivars = klass.reactive_state_ivars
@@ -94,6 +94,24 @@ module Phlex
         # signable, matching the pre-existing contract.
         def signable_gid?(record)
           !(record.respond_to?(:persisted?) && !record.persisted?)
+        end
+
+        # record.to_gid.to_s, without the URI. For a record whose to_gid is
+        # GlobalID's own (not overridden on its class or on itself) and whose
+        # id is an Integer, GlobalID's string is exactly
+        # "gid://<GlobalID.app>/<class name>/<id>": an Integer needs no
+        # escaping and there are no params. Building it directly skips a
+        # validated URI::GID (~37 objects, about half a record token's cost),
+        # once per record-backed row per render. Anything else goes through
+        # to_gid unchanged, its errors included.
+        def reactive_gid(record)
+          if record.is_a?(::GlobalID::Identification) &&
+             record.method(:to_gid).owner.equal?(::GlobalID::Identification) &&
+             (id = record.id).is_a?(Integer) && (app = ::GlobalID.app) && (name = record.class.name)
+            "gid://#{app}/#{name}/#{id}"
+          else
+            record.to_gid.to_s
+          end
         end
       end
     end
