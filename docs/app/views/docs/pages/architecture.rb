@@ -162,7 +162,61 @@ module Views
               code { 'reply.replace' }
               plain ' is the swap you get.'
             end
+            knowing_what_was_held
           end
+        end
+
+        def knowing_what_was_held
+          md <<~MD
+            ### Knowing what was held
+
+            A morph keeps the value of the field being typed in and writes the
+            render's value as the field's default (issue #338). When that render
+            differs from the old default, someone else changed the field while
+            the user typed (another tab's `broadcast_to(..., morph: true)`). The
+            client then marks the field `data-reactive-held` (style it: "someone
+            changed this") and dispatches a bubbling `reactive:held` event with
+            `{ name, theirs }`, the server's value. A render equal to the default
+            marks nothing.
+
+            The root's next action request names its held fields in an
+            `X-Reactive-Held` header, and inside the action
+            `reactive_held_fields` returns them (`[]` when nothing was held), so
+            the action can refuse or merge instead of silently overwriting the
+            other change:
+          MD
+          DocsUI::Code(held_source, lexer: :ruby, filename: 'app/components/note_form.rb')
+          md <<~MD
+            The marks clear once the reply to the root's own request is applied
+            (that reply is the server's answer to exactly those values), and a
+            field's mark clears when its value is set back to its default (the
+            user took theirs). An unfocused field takes the server's value in a
+            morph, so it is never held.
+
+            The header is untrusted input like any request field: names only,
+            capped, and filtered to the params the running action declares
+            (`title[en]` counts for a declared `title`). It tells you what the
+            user saw, not what they may do: authorize as always. In a unit test,
+            `run_reactive(form, :save, held: ["title"], title: "Draft")` stands
+            in for the header.
+          MD
+        end
+
+        def held_source
+          <<~RUBY
+            action :save, params: { title: :string, body: :string }
+
+            def save(title: nil, body: nil)
+              authorize!(@note, to: :update?)
+              # Another tab changed the title while this user typed over it.
+              if reactive_held_fields.include?("title") && title != @note.title
+                @conflict = title # render "someone changed the title" with both versions
+                return reply.morph
+              end
+              @note.update!(title:, body:)
+              reply.morph
+            end
+          RUBY
         end
 
         def transport

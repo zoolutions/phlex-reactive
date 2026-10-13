@@ -114,6 +114,28 @@ RSpec.describe Phlex::Reactive::TestHelpers do
         run_reactive(component, :toggle)
       end
     end
+
+    # Issue #370: held: stands in for the X-Reactive-Held header, filtered the
+    # same way (to the action's declared params).
+    context "with held:" do
+      it "exposes the held names to the action as reactive_held_fields, filtered to its params" do
+        component = HeldNoteComponent.new(todo:)
+
+        result = run_reactive(component, :save, held: %w[title is_admin], title: "mine")
+
+        expect(result.component.instance_variable_get(:@held)).to eq(["title"])
+        expect(result.component.instance_variable_get(:@conflict)).to eq("mine")
+        expect(todo.reload.title).to eq("write docs")
+        expect(Phlex::Reactive::HeldFields.current).to eq([])
+      end
+
+      it "is [] without held:" do
+        result = run_reactive(HeldNoteComponent.new(todo:), :save, title: "mine")
+
+        expect(result.component.instance_variable_get(:@held)).to eq([])
+        expect(todo.reload.title).to eq("mine")
+      end
+    end
   end
 
   describe "Result" do

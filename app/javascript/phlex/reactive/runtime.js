@@ -200,6 +200,7 @@ export function registerReactiveStreamRender() {
   if (typeof document === "undefined" || typeof document.addEventListener !== "function") return
   streamRenderRegistered = true
   document.addEventListener("turbo:before-stream-render", (event) => {
+    streamOwnReply(event)
     streamIntoRoots(event)
     streamModals(event)
     // The opt-in entry sees every stream (it may hold one for a module the
@@ -470,11 +471,13 @@ export function registerReactiveMorphFocus() {
     const el = event.target
     const next = event.detail?.newElement // absent when Turbo asks before a removal
     if (!next || event.defaultPrevented) return
+    // Before the default below is overwritten (issue #370).
+    if (holdsTypedValue(el)) noteHeld(el, next)
     if (el.hasAttribute?.("data-reactive-editable")) {
       serverTexts.set(el, editableValue(next))
       if (!holdsTypedValue(el)) return
       for (const { name } of [...el.attributes]) {
-        if (!next.hasAttribute(name) && name !== "contenteditable") el.removeAttribute(name)
+        if (!next.hasAttribute(name) && name !== "contenteditable" && name !== HELD) el.removeAttribute(name)
       }
       for (const { name, value } of next.attributes) {
         if (name !== "contenteditable" && el.getAttribute(name) !== value) el.setAttribute(name, value)
@@ -490,8 +493,105 @@ export function registerReactiveMorphFocus() {
   // text when first focused — before anything can be typed into it.
   document.addEventListener("focusin", (event) => seedServerText(event.target))
   document.addEventListener("turbo:before-morph-attribute", (event) => {
-    if (event.detail?.attributeName === "value" && holdsTypedValue(event.target)) event.preventDefault()
+    const name = event.detail?.attributeName
+    if ((name === "value" || name === HELD) && holdsTypedValue(event.target)) event.preventDefault()
   })
+  // The user took theirs: the field reads its default again.
+  document.addEventListener("input", (event) => {
+    const el = event.target
+    if (el?.hasAttribute?.(HELD) && typedValue(el) === serverValue(el)) el.removeAttribute(HELD)
+  })
+}
+
+// --- Knowing what was held (issue #370) ---
+// A morph that holds a focused field (above) over a render whose value differs
+// from the field's default — its last server value — means someone else changed
+// the field while the user typed. The field is marked data-reactive-held (kept
+// through later morphs while focused, like `value`), a bubbling reactive:held
+// { name, theirs } is dispatched, and the root's next action sends the names as
+// X-Reactive-Held. The root's own reply never marks (it answers exactly those
+// values), and once applied the root holds nothing. A morph of the field while
+// unfocused writes the server's value and drops the mark with it.
+const HELD = "data-reactive-held"
+const ROOT = '[data-controller~="reactive"]'
+let replyRoot = null
+const replying = new Map()
+
+function typedValue(el) {
+  return el.hasAttribute("data-reactive-editable") ? editableValue(el) : el.value
+}
+
+function serverValue(el) {
+  return el.hasAttribute("data-reactive-editable") ? serverText(el) : el.defaultValue
+}
+
+function renderedValue(next) {
+  if (next.hasAttribute("data-reactive-editable")) return editableValue(next)
+  return next.localName === "textarea" ? next.textContent : (next.getAttribute("value") ?? "")
+}
+
+function noteHeld(el, next) {
+  const name = el.getAttribute("name")
+  if (!name || replying.has(el.closest(ROOT))) return
+  const theirs = renderedValue(next)
+  if (theirs === typedValue(el)) return el.removeAttribute(HELD)
+  if (theirs === serverValue(el)) return
+  el.setAttribute(HELD, "")
+  el.dispatchEvent(new CustomEvent("reactive:held", { bubbles: true, detail: { name, theirs } }))
+}
+
+// The names a root's next request reports: its own marked fields (not a nested
+// root's), still different from their default. As a header value: JSON with
+// every non-ASCII character escaped (fetch refuses a code point above 0xFF).
+function heldHeader(root) {
+  const names = []
+  for (const el of root.querySelectorAll(`[${HELD}]`)) {
+    if (el.closest(ROOT) !== root) continue
+    const name = el.getAttribute("name")
+    if (typedValue(el) === serverValue(el)) el.removeAttribute(HELD)
+    else if (name && !names.includes(name)) names.push(name)
+  }
+  if (names.length === 0) return null
+  return JSON.stringify(names).replace(/[\u007f-￿]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`)
+}
+
+function releaseHeld(root) {
+  for (const el of root.querySelectorAll(`[${HELD}]`)) if (el.closest(ROOT) === root) el.removeAttribute(HELD)
+}
+
+// Hand a root's own reply to Turbo: while its streams render nothing in the
+// root is marked, and once they have the root holds nothing. Turbo announces
+// each stream synchronously inside renderStreamMessage (streamOwnReply wraps
+// its render, innermost); a reply none of whose streams rendered releases now.
+function renderOwnReply(root, html) {
+  const own = { root, streams: 0 }
+  const previous = replyRoot
+  replyRoot = own
+  try {
+    window.Turbo.renderStreamMessage(html)
+  } finally {
+    replyRoot = previous
+  }
+  if (own.streams === 0) releaseHeld(root)
+}
+
+function streamOwnReply(event) {
+  const own = replyRoot
+  const detail = event.detail
+  const render = detail?.render
+  if (!own || typeof render !== "function") return
+  own.streams++
+  detail.render = async (el) => {
+    replying.set(own.root, (replying.get(own.root) || 0) + 1)
+    try {
+      return await render(el)
+    } finally {
+      const left = replying.get(own.root) - 1
+      if (left) replying.set(own.root, left)
+      else replying.delete(own.root)
+      releaseHeld(own.root)
+    }
+  }
 }
 
 export function __resetReactiveMorphFocusForTest() {
@@ -3340,6 +3440,9 @@ export default class extends Controller {
           presenceNeeded(this.element) &&
           document.getElementById(`reactive-presence-src-${this.element.id}`)?.getAttribute("connection-id")
         if (presence) headers["X-Reactive-Presence"] = presence
+        // The fields a morph held over a changed server value (issue #370).
+        const held = heldHeader(this.element)
+        if (held) headers["X-Reactive-Held"] = held
 
         // ONLY `fetch` itself is the network boundary — offline, DNS, a reset
         // connection. Everything below this inner try (reading the body,
@@ -3452,8 +3555,9 @@ export default class extends Controller {
       // Turbo applies the <turbo-stream> ops by id. A plain replace is an
       // outerHTML swap (focus on the replaced subtree is lost); a method="morph"
       // replace (Response.morph) or an update morphs in place, preserving the
-      // focused input + caret on unchanged nodes — see issue #28.
-      window.Turbo.renderStreamMessage(html)
+      // focused input + caret on unchanged nodes — see issue #28. As the root's
+      // own reply, it clears what the root held (issue #370).
+      renderOwnReply(this.element, html)
       // Debug-only (issue #181): the morph may apply a microtask later, so check
       // the resurrected-hide case AFTER it lands. Off the debug path, resurrect is
       // null — zero cost.

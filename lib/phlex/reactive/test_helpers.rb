@@ -93,14 +93,22 @@ module Phlex
       #      after_commit broadcasts behave.
       #   5. authorization — a registered authorization error RAISES (the endpoint
       #      maps it to 403; a unit test asserts the real exception).
-      def run_reactive(component, action, **params)
+      #
+      # `held:` stands in for the X-Reactive-Held header (issue #370): the field
+      # names a morph held over a changed server value, filtered to the action's
+      # declared params exactly as the endpoint filters them, and returned by
+      # reactive_held_fields inside the action.
+      #
+      #   run_reactive(form, :save, held: ["title"], title: "Draft by B")
+      def run_reactive(component, action, held: [], **params)
         klass = component.class
         action_def = klass.reactive_actions[action.to_sym] || raise_undeclared(klass, action)
 
         rebuilt = rebuild_from_identity(component, klass)
         coerced = action_def.schema.coerce(stringify_params(params))
 
-        returned = run_reactive_action(rebuilt, action_def, coerced)
+        held_fields = Phlex::Reactive::HeldFields.filter(Array(held).map(&:to_s), action_def)
+        returned = Phlex::Reactive::HeldFields.with(held_fields) { run_reactive_action(rebuilt, action_def, coerced) }
         Result.new(returned:, component: rebuilt)
       end
 

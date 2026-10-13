@@ -8,6 +8,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`reactive_held_fields` — the action knows when a morph held a focused
+  field over a changed server value (#370).** Since #338 a morph keeps the
+  value of the field being typed in; when the render's value differs from the
+  field's default, another tab changed it while the user typed, and the next
+  save silently overwrote that change. The client now marks such a field
+  `data-reactive-held` (kept through later morphs while focused) and
+  dispatches a bubbling `reactive:held` with `{ name, theirs }`; a render
+  equal to the default marks nothing. The root's next action request names its
+  held fields in an `X-Reactive-Held` header (absent when nothing is held, so
+  every other request is byte-identical), and `reactive_held_fields` in the
+  action returns them (`[]` without the header), so the action can refuse or
+  merge. The marks clear once the reply to the root's own request is applied
+  (that reply never marks), or when a field is set back to its default. The
+  header is untrusted: names only, capped, and filtered to the action's
+  declared params. `run_reactive(form, :save, held: ["title"], …)` stands in
+  for it in unit tests. Client: +498 B gzipped in the default bundle, +516 B
+  in the split core. Docs: "Knowing what was held" under Morphing on the
+  architecture page.
+
 - **Modal dialogs — `js.show_modal` / `js.close_dialog` and
   `data-reactive-modal` (#365).** `js.show_modal("#picker")` calls
   `HTMLDialogElement#showModal()`, so an `on_client` dialog gets the browser's
