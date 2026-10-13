@@ -33,12 +33,14 @@ class MediaPreviewComponent < Phlex::HTML
     end
   end
 
+  # The first paint matches the field's initial value (007), so the preview
+  # shows without JavaScript; the binding then writes nothing until it changes.
   def preview
     figure(class: 'flex flex-col items-center gap-1') do
-      img(id: 'mpv-logo', alt: '', width: 64, height: 64, class: 'rounded',
+      img(id: 'mpv-logo', src: '/media-demo/north.svg', alt: 'North', width: 64, height: 64, class: 'rounded',
           **reactive_media(from: :code, take: 3, pool: REGIONS.transform_values(&:first),
                            label: '#mpv-caption', blank_label: 'Unknown branch'))
-      figcaption(id: 'mpv-caption', class: 'text-sm')
+      figcaption(id: 'mpv-caption', class: 'text-sm') { 'North' }
     end
   end
 

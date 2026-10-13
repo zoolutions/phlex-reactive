@@ -154,8 +154,8 @@ RSpec.describe "broadcast_js_to (issue #97)", type: :request do
     end
 
     html = broadcasts.map(&:to_s).join # rubocop:disable Style/MapJoin
-    expect(html).to include("copy_media", "#logo-007")
-    expect(html).not_to include(".svg")
+    ops = Nokogiri::HTML.fragment(html).at_css("turbo-stream")["data-reactive-ops"]
+    expect(JSON.parse(ops)).to eq([["copy_media", { "to" => "#logo", "from" => "#logo-007", "global" => true }]])
   end
 
   it "rejects an empty op chain (a dead reactive:js broadcast is a mistake)" do

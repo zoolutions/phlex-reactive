@@ -41,7 +41,14 @@ RSpec.describe "Media previews (issue #373)", type: :system do
     type_code("007-42")
     expect(page).to have_css("[data-testid='preview'][src='/logos/007.svg'][srcset='/logos/007.svg 1x'][alt='North']")
     expect(page).to have_css("[data-testid='caption']", text: "North")
-    expect(page.evaluate_script("document.querySelector('[data-testid=preview]').complete")).to be(true)
+    # The copied URL really loads (waits for load/error, not just the attribute).
+    expect(page.evaluate_async_script(<<~JS)).to be(true)
+      const image = document.querySelector("[data-testid=preview]")
+      const done = arguments[arguments.length - 1]
+      if (image.complete) return done(image.naturalWidth > 0)
+      image.addEventListener("load", () => done(true), { once: true })
+      image.addEventListener("error", () => done(false), { once: true })
+    JS
 
     type_code("011")
     expect(page).to have_css("[data-testid='preview'][src='/logos/011.svg'][alt='South']")
