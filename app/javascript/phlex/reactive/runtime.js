@@ -356,6 +356,62 @@ export function __resetReactiveModalsForTest() {
   modalsRegistered = false
 }
 
+// --- keep: a morph re-applies what a kept client op did (issue #369) ---------
+// A morph rewrites `class`, `hidden` and every attribute from the server
+// render, so a selection made with on_client ops was lost to the next reply or
+// broadcast morph. An op with keep: records its RESULT on each target — each
+// class on or off, `hidden`, an attribute's value (null: absent) — and the one
+// document listener below puts that back after Turbo morphs the element in
+// place. The result, not the op: a toggle must not flip again on every morph.
+// The latest kept op on an element and a class or attribute wins, so "clear
+// all, then select one" leaves one. Classes and attributes no kept op touched
+// follow the render. Weak: an element a stream replaces is a new element.
+//
+// One Map per element: ".name" → whether that class is on; an attribute name →
+// its value, null when absent. show/hide/toggle keep the `hidden` attribute,
+// so the morph puts back the visibility without running a transition again.
+// (No attribute name starts with ".", so the two kinds of key never meet.)
+const kept = new WeakMap()
+
+function keepResult(el, name, args, resolveTargets) {
+  const state = kept.get(el) ?? new Map()
+  kept.set(el, state)
+  if (name.endsWith("_class")) for (const c of args.classes ?? []) state.set(`.${c}`, el.classList.contains(c))
+  else if (name.endsWith("_attr")) attrRefused(args.name) || state.set(args.name, el.getAttribute(args.name))
+  else if (name === "show" || name === "hide" || name === "toggle") {
+    state.set("hidden", el.getAttribute("hidden"))
+    // The expanded: trigger's aria-expanded is kept on the trigger: a document
+    // listener has no op scope to resolve it from later.
+    if (args.expanded != null) {
+      for (const trigger of resolveTargets({ ...args, to: args.expanded })) {
+        keepResult(trigger, "set_attr", { name: "aria-expanded" })
+      }
+    }
+  }
+}
+
+let keepRegistered = false
+
+export function registerReactiveKeep() {
+  if (keepRegistered) return
+  if (typeof document === "undefined" || typeof document.addEventListener !== "function") return
+  keepRegistered = true
+  // turbo:morph-element fires for every element Idiomorph morphed in place,
+  // after its attributes were synced from the new render.
+  document.addEventListener("turbo:morph-element", (event) => {
+    const el = event.target
+    for (const [key, value] of kept.get(el) ?? []) {
+      if (key[0] === ".") el.classList.toggle(key.slice(1), value)
+      else if (value == null) el.removeAttribute(key)
+      else if (el.getAttribute(key) !== value) el.setAttribute(key, value)
+    }
+  })
+}
+
+export function __resetReactiveKeepForTest() {
+  keepRegistered = false
+}
+
 // For the opt-in entry: what to do with a stream before its render — hold it
 // for a module the incoming content needs. `handle(event, effects)` gets the
 // loaded effects module (or undefined) and wraps the stream with it itself.
@@ -693,6 +749,7 @@ export function registerReactiveActions() {
   registerReactiveStreamRender()
   registerReactiveMorphFocus()
   registerReactiveModals()
+  registerReactiveKeep()
   registerReactivePlaintext()
   registerReactiveOffline()
   registerReactiveDev()
@@ -1352,7 +1409,10 @@ function applyOps(list, resolveTargets, onZeroTargets) {
     }
     const targets = resolveTargets(args)
     if (targets.length === 0 && onZeroTargets) onZeroTargets(name, args)
-    for (const el of targets) CLIENT_OPS[name](el, args, resolveTargets)
+    for (const el of targets) {
+      CLIENT_OPS[name](el, args, resolveTargets)
+      if (args?.keep === true) keepResult(el, name, args, resolveTargets)
+    }
   }
 }
 

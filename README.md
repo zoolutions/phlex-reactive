@@ -684,7 +684,7 @@ Use in controllers: `render turbo_stream: Counter.replace(counter)`.
 | `busy_on(:save)` | Mark any element so it carries `data-reactive-busy` **only while `save` is in flight** — a spinner styled with pure CSS, zero Ruby. See [Loading states](#declarative-loading-states-loading--disable_with). |
 | `on(:action, once: true)` | Fire at most once, then unbind (Stimulus's native `:once`). |
 | `on_client(:click, js.toggle("#menu"))` | **Client-only** trigger: applies declared DOM ops with ZERO round trip — no token, no POST, ever. Takes the same `window:`/`once:`/`outside:` modifiers, plus `detail:` (run only when `event.detail` carries the listed values). See [Client-only ops](#client-only-ops-on_client--js--zero-round-trips). |
-| `js` | The immutable op builder behind `on_client`: `show`/`hide`/`toggle` (the `hidden` attribute, with an optional `transition:` and `expanded:`), `add_class`/`remove_class`/`toggle_class`, `set_attr`/`remove_attr`/`toggle_attr` (allowlisted names; `toggle_attr` also flips between two values), `focus`/`focus_first`, `show_modal`/`close_dialog` (a real modal `<dialog>`), `text` (set `textContent` — XSS-safe), `dispatch`, `submit` (requestSubmit the target's own form, optionally through a `submitter:`), `paste_into` (read the clipboard into a field, gesture-gated), `check_group` (tick or untick a checkbox group, then re-sync its bindings), and `persist_state`/`persist_clear` (the `reactive_persist` draft) — chainable. |
+| `js` | The immutable op builder behind `on_client`: `show`/`hide`/`toggle` (the `hidden` attribute, with an optional `transition:` and `expanded:`), `add_class`/`remove_class`/`toggle_class`, `set_attr`/`remove_attr`/`toggle_attr` (allowlisted names; `toggle_attr` also flips between two values), `focus`/`focus_first`, `show_modal`/`close_dialog` (a real modal `<dialog>`), `text` (set `textContent` — XSS-safe), `dispatch`, `submit` (requestSubmit the target's own form, optionally through a `submitter:`), `paste_into` (read the clipboard into a field, gesture-gated), `check_group` (tick or untick a checkbox group, then re-sync its bindings), and `persist_state`/`persist_clear` (the `reactive_persist` draft) — chainable. `keep: true` on the visibility, class and attr ops makes their result survive a morph. |
 | `reactive_field(:param, **attrs)` | The attribute hash that binds a control to an action param (no magic `name:`) — spread onto any control: `input(**reactive_field(:value, value: @record.name))`, `select(**reactive_field(:status)) { … }`. |
 | `reactive_editable(:name, multiline: false, placeholder: nil, on_enter: nil, on_escape: :revert, spellcheck: true)` | A plain-text **editable element** as a field (issue #351): `h3(**reactive_editable(:title)) { @card.title }`. Its text travels under the scope-aware `name`: with `multiline: true` its line breaks are sent as `\n`; a single-line field (the default) folds them to spaces; a morph keeps the focused element's text and caret (attributes still morph); paste is plain text; Enter runs `on_enter:` (a single-line field swallows it); Escape reverts. `reactive_dirty` and `reactive_persist` treat it like an input. See the [Editable text](https://phlex-reactive.zoolutions.llc/docs/editable-text) page. |
 | `reactive_text(:name, initial)` | Mirror a compute output (or a declared input) into a **text node** — a live preview heading, a character counter, `"Hello, {name}"` — via `textContent` (XSS-safe). The text sibling of `reactive_field`; carries no `name`, so it's never POSTed. See [Client-side computes](#client-side-computes-reactive_compute--reactive_text). |
@@ -1333,6 +1333,25 @@ button(**on_client(:click, js
   frame, and the helper classes are cleaned up on `animationend` (with a timeout
   fallback, so an element with no animation never leaves them stuck). The op chain
   is never blocked — later ops (a `focus`, a `dispatch`) run immediately.
+- **`keep: true`** (#369) on `show`/`hide`/`toggle`, the class ops and the attr
+  ops makes the op's result survive a **morph** of its target (a `reply.morph`, a
+  `broadcast_to(…, morph: true)`, a page-refresh morph). Without it the morph
+  writes `class`, `hidden` and every attribute back from the server render, so a
+  selection made on the client is lost the moment another viewer's change
+  morphs the list. The client records what each kept op left on each target —
+  the class on or off, `hidden`, the attribute's value or its absence — and puts
+  it back after Turbo morphs that element. Classes and attributes no kept op
+  touched still follow the render; the latest kept op on an element and a class
+  or attribute wins, so "clear all, then select one" leaves one selected; an
+  element a stream **replaces** is a new element and starts clean. With
+  `expanded:`, the trigger's `aria-expanded` is kept too. Refused in
+  `broadcast_to(js:)`: kept state belongs to one tab.
+
+  ```ruby
+  js.remove_class(".item", "selected", keep: true)
+    .add_class("#item-#{item.id}", "selected", keep: true)
+    .show("#details-#{item.id}", keep: true)
+  ```
 
 `window:`, `once:`, and `outside:` compose exactly like `on(...)`'s event
 modifiers: the dropdown above closes on any click outside the component, and
@@ -3069,7 +3088,8 @@ Notifications::Badge.broadcast_to(user, :alerts,
 `ArgumentError`): broadcasting focus (or a modal) would steal it in every subscriber's tab, a
 broadcast submit would force-submit every subscriber's form, and a broadcast
 clipboard read, draft write or selection change would be hostile — these
-belong to the actor's own reply or gesture. Everything else is a fair broadcast
+belong to the actor's own reply or gesture. It refuses `keep: true` on any op
+too (#369): kept state belongs to the tab that ran the op. Everything else is a fair broadcast
 (class and attribute toggles, `text`, `dispatch`). As with `on_client`, the ops are
 whitelist-interpreted client-side — an unknown op warns and is skipped — and the
 ops attribute is HTML-escaped, so a value can't break out of it. `reactive:js`

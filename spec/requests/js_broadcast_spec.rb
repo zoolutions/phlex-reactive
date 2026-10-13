@@ -144,6 +144,25 @@ RSpec.describe "broadcast_js_to (issue #97)", type: :request do
       .to raise_error(ArgumentError, /show_modal/)
   end
 
+  # Issue #369: keep: records client state in ONE tab — a broadcast refuses the
+  # flag (not the op), on the builder and on a raw list alike.
+  it "rejects keep: on any op (kept state belongs to one tab)" do
+    js = TodoItemComponent.new(todo: Todo.new).js
+
+    expect { TodoItemComponent.broadcast_to("alerts", js: js.add_class("#a", "x", keep: true)) }
+      .to raise_error(ArgumentError, /keep/)
+    expect { Phlex::Reactive.broadcast_to("alerts", js: [["hide", { "to" => "#a", "keep" => true }]]) }
+      .to raise_error(ArgumentError, /keep/)
+    expect { Phlex::Reactive.broadcast_to("alerts", js: [["show", { to: "#a", keep: true }]]) }
+      .to raise_error(ArgumentError, /keep/)
+  end
+
+  it "still broadcasts the same op without keep:" do
+    js = TodoItemComponent.new(todo: Todo.new).js
+
+    expect { TodoItemComponent.broadcast_to("alerts", js: js.add_class("#a", "x")) }.not_to raise_error
+  end
+
   it "rejects an empty op chain (a dead reactive:js broadcast is a mistake)" do
     empty = TodoItemComponent.new(todo: Todo.new).js
 

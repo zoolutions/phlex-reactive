@@ -8,6 +8,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`keep:` on client ops — a morph no longer undoes them (#369).**
+  `js.add_class("#item-2", "selected", keep: true)` (and `keep:` on
+  `remove_class`/`toggle_class`, `show`/`hide`/`toggle`,
+  `set_attr`/`remove_attr`/`toggle_attr`, in the Ruby builder and the client
+  `ops` builder) records what the op left on each target — the class on or
+  off, `hidden`, the attribute's value or its absence — and the client puts it
+  back after Turbo morphs that element (a `reply.morph`, a
+  `broadcast_to(…, morph: true)`, a page refresh). A selection, an expanded row
+  or a highlighted item now survives another viewer's broadcast. Classes and
+  attributes no kept op touched still follow the render; a later kept op on the
+  same class or attribute replaces the earlier one ("clear all, then select
+  one"); an element a stream replaces starts clean. `broadcast_to(js:)` refuses
+  `keep:` with an `ArgumentError`. Without `keep:` the wire is byte-identical.
+  Client: +249 B gzipped in the default bundle, +245 B in the split core.
+  Docs: "Keeping client state through a morph" on the client-ops example.
+
 - **Modal dialogs — `js.show_modal` / `js.close_dialog` and
   `data-reactive-modal` (#365).** `js.show_modal("#picker")` calls
   `HTMLDialogElement#showModal()`, so an `on_client` dialog gets the browser's

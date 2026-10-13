@@ -467,7 +467,9 @@ module Views
                     "submit would force-submit every subscriber's form, and a broadcast clipboard " \
                     'read would be hostile. These are actor-reply concerns (use '
               code { 'reply.js' }
-              plain ').'
+              plain '). So is '
+              code { 'keep: true' }
+              plain ' on any op (#369): kept state belongs to the tab that ran the op.'
             end
           end
         end
