@@ -64,6 +64,30 @@ RSpec.describe Phlex::Reactive::Component::MediaBinding do
       end
     end
 
+    it "raises on a POSIX bracket, a nested class or an intersection (JS reads [ and && literally in a class)" do
+      expect { wire(match: /\A[[:digit:]]{3}\z/) }.to raise_error(ArgumentError, /character class/)
+      expect { wire(match: /[a[bc]]/) }.to raise_error(ArgumentError, /character class/)
+      expect { wire(match: /[a-z&&[^aeiou]]/) }.to raise_error(ArgumentError, /character class/)
+    end
+
+    it "accepts an escaped [ inside a class, and a [ or & outside one" do
+      expect(wire(match: /[\[\]]&[a&b]/)["match"]).to eq("[\\[\\]]&[a&b]")
+    end
+
+    it "raises on a group syntax JS lacks (inline options, atomic groups)" do
+      expect { wire(match: /(?i)abc/) }.to raise_error(ArgumentError, /\(\?/)
+      expect { wire(match: /(?>ab)/) }.to raise_error(ArgumentError, /\(\?/)
+      expect { wire(match: /(?i:ab)/) }.to raise_error(ArgumentError, /\(\?/)
+    end
+
+    it "accepts the groups both read alike" do
+      expect(wire(match: /(?:a)(?=b)(?!c)(?<=d)(?<!e)(?<n>f)/)["match"]).to eq("(?:a)(?=b)(?!c)(?<=d)(?<!e)(?<n>f)")
+    end
+
+    it "raises on a character outside the BMP (the client pattern has no u flag)" do
+      expect { wire(match: /\A😀{3}\z/) }.to raise_error(ArgumentError, /U\+FFFF/)
+    end
+
     it "raises on \\A or \\z anywhere but the ends" do
       expect { wire(match: /a\Ab/) }.to raise_error(ArgumentError, /\\A/)
       expect { wire(match: /a\zb/) }.to raise_error(ArgumentError, /\\z/)

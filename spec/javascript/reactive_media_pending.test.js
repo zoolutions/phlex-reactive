@@ -196,6 +196,15 @@ test("the state attribute is written only when it changes", async () => {
   expect(writes).toEqual([])
 })
 
+test("a morph that strips the state attribute gets it back", async () => {
+  const $ = await mount(RIB, { value: "0" })
+  expect(state($)).toBe("pending")
+
+  $("#bank-logo").removeAttribute("data-reactive-media-state")
+  $("#r").dispatchEvent(new window.CustomEvent("turbo:morph-element", { bubbles: true }))
+  expect(state($)).toBe("pending")
+})
+
 test("an unowned field writes no state", async () => {
   document.body.innerHTML = `<div id="r" data-controller="reactive" data-reactive-token-value="t">
     <img id="bank-logo" alt="" data-reactive-media="${media(RIB)}">${POOL}</div>`

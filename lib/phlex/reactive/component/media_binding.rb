@@ -39,7 +39,7 @@ module Phlex
         def reactive_media(from:, pool: nil, take: nil, match: nil, pending: :clear, label: nil, blank_label: nil, **attrs)
           wire = { "field" => media_field!(from) }
           wire["take"] = media_take!(take) unless take.nil?
-          wire["match"] = media_match!(match) unless match.nil?
+          wire["match"] = MediaPattern.to_js(match) unless match.nil?
           wire["pending"] = "keep" if media_pending!(pending) == "keep"
           wire["pool"] = media_pool!(pool)
           wire["label"] = media_selector!(:label, label) unless label.nil?
@@ -61,39 +61,6 @@ module Phlex
 
           raise ArgumentError, "reactive_media take: must be a positive Integer (or omitted for the whole value), " \
                                "got #{take.inspect}"
-        end
-
-        # Escapes Ruby reads as a class or an anchor and JS reads as a plain
-        # letter (or rejects): refused rather than silently matching wrong.
-        MEDIA_RUBY_ONLY_ESCAPES = %w[\A \z \Z \G \h \H \R \X \K \p \P].freeze
-        private_constant :MEDIA_RUBY_ONLY_ESCAPES
-
-        # A Regexp as the JS source the client anchors as ^(?:…)$ (issue #380).
-        # Tokenized so an escaped backslash is never mistaken for an escape:
-        # a leading \A and a trailing \z/\Z are dropped (the client anchors),
-        # any other Ruby-only escape raises.
-        def media_match!(match)
-          unless match.is_a?(Regexp)
-            raise ArgumentError, "reactive_media match: must be a Regexp (e.g. /\\A\\d{3}\\z/), got #{match.inspect}"
-          end
-          unless match.options.nobits?(Regexp::IGNORECASE | Regexp::EXTENDED | Regexp::MULTILINE)
-            raise ArgumentError,
-              "reactive_media match: #{match.inspect} has options (i, m, x) the client would read differently — drop them"
-          end
-
-          tokens = match.source.scan(/\\.|./m)
-          tokens.shift if tokens.first == "\\A"
-          tokens.pop if %w[\z \Z].include?(tokens.last)
-          media_ruby_only_escape!(tokens, match)
-          tokens.join
-        end
-
-        def media_ruby_only_escape!(tokens, match)
-          escape = tokens.find { MEDIA_RUBY_ONLY_ESCAPES.include?(it) }
-          return unless escape
-
-          raise ArgumentError,
-            "reactive_media match: #{escape} is Ruby-only (JavaScript reads it differently) in #{match.inspect}"
         end
 
         def media_pending!(pending)

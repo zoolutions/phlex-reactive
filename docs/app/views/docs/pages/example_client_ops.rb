@@ -206,8 +206,13 @@ module Views
                 itself with CSS until there is an answer (the demo below uses
                 Tailwind's `has-[[data-reactive-media-state=pending]]:invisible`).
                 `match:` is sent to the browser as a JavaScript pattern: its `\\A`
-                and `\\z` anchors are dropped (the client anchors it), and options
-                (`i`, `m`, `x`) or Ruby-only escapes (`\\h`, `\\p{…}`, …) raise at render.
+                and `\\z` anchors are dropped (the client anchors it), and what
+                JavaScript reads differently raises at render: options (`i`, `m`,
+                `x`), Ruby-only escapes (`\\h`, `\\p{…}`, …), POSIX `[[:digit:]]`,
+                nested classes, `&&`, `(?i)`/`(?>…)` groups and characters above
+                U+FFFF. The state is written once the client connects; to hide the
+                row on first paint too, render the preview with
+                `data: { reactive_media_state: "pending" }`.
 
               ```ruby
               input(name: "code")
