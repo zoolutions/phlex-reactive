@@ -1766,13 +1766,16 @@ module Phlex
 
         private_constant :REMOVED_ON_KWARGS, :PENDING_CLASS_OPS
 
+        # Runs on every on() (a hot path): a key lookup per removed name, no arrays.
         def reject_removed_on_kwargs!(action_name, params)
-          removed = params.keys & REMOVED_ON_KWARGS.keys
-          return if removed.empty?
+          return if params.empty?
 
-          key = removed.first
-          raise ArgumentError,
-            "on(#{action_name.inspect}) #{key}: was removed in issue #181 — use #{REMOVED_ON_KWARGS[key]}"
+          REMOVED_ON_KWARGS.each_key do
+            next unless params.key?(it)
+
+            raise ArgumentError,
+              "on(#{action_name.inspect}) #{it}: was removed in issue #181 — use #{REMOVED_ON_KWARGS[it]}"
+          end
         end
 
         # Issue #357: parse on()'s shortcut: (nil when absent). A shortcut
