@@ -371,6 +371,10 @@ class DemosController < ActionController::Base
     render_component PhotoPreviewComponent.new
   end
 
+  def image_fallback
+    render_component ImageFallbackComponent.new
+  end
+
   def validated_photo_preview
     render_component ValidatedPhotoPreviewComponent.new
   end

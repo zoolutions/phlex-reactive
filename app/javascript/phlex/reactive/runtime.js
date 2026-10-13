@@ -419,6 +419,135 @@ export function __resetReactiveKeepForTest() {
   keepRegistered = false
 }
 
+// --- An image fallback that recovers (issue #383) ---------------------------
+// data-reactive-image-fallback='{"hide":true,"alt":"#name"}' on an <img>. On
+// `error` it gets data-reactive-image-state="error" (plus `hidden` with hide,
+// and its alt shown in the `alt` node of its own reactive root); on `load`,
+// "loaded". A later src clears the error: copy_media and preview_file reset
+// it as they write (resetImage), any src that loads clears it on `load`, and
+// a morph that changes the src lets the browser try again. A morph that keeps
+// the src puts the state back. An error with no src is not an error (a
+// removed or emptied src). One document listener, capture phase (neither
+// event bubbles); nothing per root at connect.
+const IMAGE_FALLBACK = "data-reactive-image-fallback"
+const IMAGE_STATE = "data-reactive-image-state"
+// Marks the `hidden` the fallback set, so a reset removes only that one. On
+// the element, not in a WeakSet: a Turbo snapshot restores a NEW node.
+const IMAGE_HIDDEN = "data-reactive-image-hidden"
+let imageFallbackListeners = null
+
+function imageFallback(img) {
+  if (img?.localName !== "img") return null
+  const raw = img.getAttribute(IMAGE_FALLBACK)
+  if (raw == null) return null
+  try {
+    return JSON.parse(raw) || {}
+  } catch {
+    return {}
+  }
+}
+
+const hasImageSrc = (img) => img.getAttribute("src") || img.getAttribute("srcset")
+
+// The node that shows the alt text: a selector resolved inside the img's own
+// root only (a document listener has no op scope).
+function imageAltNode(img, wire) {
+  if (typeof wire.alt !== "string" || !wire.alt) return null
+  try {
+    const node = img.closest('[data-controller~="reactive"]')?.querySelector(wire.alt)
+    // Never a node that holds the img: its textContent would wipe the img.
+    return node && !node.contains(img) ? node : null
+  } catch {
+    return null
+  }
+}
+
+function setImageState(img, wire, value) {
+  if (value === "error") {
+    if (wire.hide && !img.hasAttribute("hidden")) {
+      img.setAttribute("hidden", "")
+      img.setAttribute(IMAGE_HIDDEN, "")
+    }
+    const node = imageAltNode(img, wire)
+    if (node) {
+      node.textContent = img.getAttribute("alt") ?? ""
+      node.hidden = false
+    }
+  } else resetImage(img, wire)
+  img.setAttribute(IMAGE_STATE, value)
+}
+
+// Undo what an error did — only what it did: `hidden` stays when the author
+// set it. Called by copy_media and preview_file when they change the src.
+function resetImage(img, wire = imageFallback(img)) {
+  if (!wire || img.getAttribute(IMAGE_STATE) == null) return
+  if (img.getAttribute(IMAGE_STATE) === "error") {
+    if (img.hasAttribute(IMAGE_HIDDEN)) img.removeAttribute("hidden")
+    const node = imageAltNode(img, wire)
+    if (node) node.hidden = true
+  }
+  img.removeAttribute(IMAGE_STATE)
+  img.removeAttribute(IMAGE_HIDDEN)
+}
+
+function onImageEvent(event) {
+  const img = event.target
+  const wire = imageFallback(img)
+  if (!wire) return
+  if (event.type === "load") setImageState(img, wire, "loaded")
+  else if (hasImageSrc(img)) setImageState(img, wire, "error")
+  else resetImage(img, wire)
+}
+
+export function registerReactiveImageFallback() {
+  if (imageFallbackListeners) return
+  if (typeof document === "undefined" || typeof document.addEventListener !== "function") return
+  // A morph that keeps the src keeps the state: the render carries none, and
+  // the browser loads nothing new to tell us again. Put it back once the
+  // whole morph is done, so a later-morphed alt node is shown again too.
+  const kept = new WeakMap()
+  imageFallbackListeners = {
+    error: onImageEvent,
+    load: onImageEvent,
+    "turbo:before-morph-element": (event) => {
+      const img = event.target
+      const next = event.detail?.newElement
+      const value = img?.getAttribute?.(IMAGE_STATE)
+      if (value == null || !next || !imageFallback(img)) return
+      const same = (name) => img.getAttribute(name) === next.getAttribute?.(name)
+      if (same("src") && same("srcset")) kept.set(img, value)
+    },
+    "turbo:morph-element": (event) => {
+      const img = event.target
+      const value = kept.get(img)
+      if (value === undefined) return
+      kept.delete(img)
+      queueMicrotask(() => {
+        const wire = imageFallback(img)
+        if (wire) setImageState(img, wire, value)
+      })
+    },
+  }
+  for (const [name, fn] of Object.entries(imageFallbackListeners)) document.addEventListener(name, fn, true)
+  // An image that finished before this ran (a cached 404) fired its event
+  // unheard: read it off the element once. naturalWidth 0 is also a loaded
+  // SVG with only a viewBox, so decode() decides (it rejects a broken image).
+  for (const img of document.querySelectorAll?.(`img[${IMAGE_FALLBACK}]`) ?? []) {
+    if (!img.complete || !hasImageSrc(img)) continue
+    // A decode() that settles after the src changed decoded the OLD one: ignore it.
+    const was = `${img.getAttribute("src")} ${img.getAttribute("srcset")}`
+    const mark = (value) => `${img.getAttribute("src")} ${img.getAttribute("srcset")}` === was && setImageState(img, imageFallback(img) ?? {}, value)
+    if (img.naturalWidth > 0) mark("loaded")
+    else if (typeof img.decode === "function") img.decode().then(() => mark("loaded"), () => mark("error"))
+    else mark("error")
+  }
+}
+
+export function __resetReactiveImageFallbackForTest() {
+  for (const [name, fn] of Object.entries(imageFallbackListeners ?? {})) document.removeEventListener(name, fn, true)
+  imageFallbackListeners = null
+}
+
 // For the opt-in entry: what to do with a stream before its render — hold it
 // for a module the incoming content needs. `handle(event, effects)` gets the
 // loaded effects module (or undefined) and wraps the stream with it itself.
@@ -860,6 +989,7 @@ export function registerReactiveActions() {
   registerReactiveMorphFocus()
   registerReactiveModals()
   registerReactiveKeep()
+  registerReactiveImageFallback()
   registerReactivePlaintext()
   registerReactiveOffline()
   registerReactiveDev()
@@ -1308,6 +1438,7 @@ function previewFile(input, args, resolveTargets) {
     img.setAttribute("src", url)
     watchPreviews()
   } else img.removeAttribute("src")
+  resetImage(img)
   if (args.name == null) return
   for (const node of resolveTargets({ ...args, to: args.name })) node.textContent = file ? file.name : ""
 }
@@ -1420,12 +1551,14 @@ function copyMedia(target, source) {
   }
   const img = source?.localName === "img" ? source : null
   const src = img?.getAttribute("src")
+  let changed = false
   for (const name of ["srcset", "src"]) {
     const value = src ? img.getAttribute(name) : null
     if (value == null) {
-      if (target.hasAttribute(name)) target.removeAttribute(name)
-    } else if (target.getAttribute(name) !== value) target.setAttribute(name, value)
+      if (target.hasAttribute(name)) changed = target.removeAttribute(name) ?? true
+    } else if (target.getAttribute(name) !== value) changed = target.setAttribute(name, value) ?? true
   }
+  if (changed) resetImage(target)
   const alt = img?.getAttribute("alt") ?? ""
   if (target.getAttribute("alt") !== alt) target.setAttribute("alt", alt)
   return img ? alt : false

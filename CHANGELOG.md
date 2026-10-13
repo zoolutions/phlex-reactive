@@ -8,6 +8,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **An image fallback that recovers — `reactive_image_fallback(hide: true, show_alt: nil)` (#383).**
+  `img(**reactive_image_fallback)` marks an `<img>` whose `src` fails with
+  `data-reactive-image-state="error"` and hides it; `show_alt: "#bank-name"`
+  also writes its `alt` (as `textContent`) into that node inside the root and
+  shows it; `hide: false` only sets the state, for CSS. `load` sets
+  `"loaded"`. A later `src` tries again: `copy_media`, `reactive_media` and
+  `preview_file` clear the error as they write the `src`, any `src` that loads
+  clears it, and a morph that changes the `src` lets the browser retry (one
+  that keeps it keeps the state). Removing the `src` is not an error. Only the
+  `hidden` the fallback added is ever removed. Composes with `reactive_media`
+  (`reactive_media(…, **reactive_image_fallback)`). The client listens once on
+  the document in the capture phase (`error`/`load` do not bubble) and reads
+  images that failed before it registered; nothing runs per root at connect.
+  No URL in any argument; `set_attr` still refuses `src`/`srcset`. `hide:`
+  that is not a boolean, or a `show_alt:` that is not a non-blank String (or
+  is `@root`), raises at render; a String that is not a valid CSS selector is
+  ignored by the client. Client: +597 B gzipped in the default bundle,
+  +550 B in the split core. Docs: "An image that falls back, and recovers" on
+  the client-ops example.
+
 - **Media previews — `js.copy_media` and `reactive_media` (#373).**
   `js.copy_media("#logo", from: "#logo-007")` copies `src`, `srcset` and `alt`
   from an `<img>` the server rendered onto a preview `<img>`; the URL is read

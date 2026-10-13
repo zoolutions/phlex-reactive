@@ -155,7 +155,12 @@ const SLACK = 250
 // on top of #381, 22 B: 34,022 B.
 // Issue #380 (reactive_media pending: take/match, pending: keep, data-reactive-media-state)
 // adds 160 B on #373 (34,159 B); on top of #381 and #382, 152 B: 34,174 B.
-const BUNDLE_GZIP_CEILING = 34_174
+// Issue #383 (reactive_image_fallback: the document error/load listener, the
+// morph that keeps a src keeping its state, the copy_media/preview_file reset,
+// the restoration-safe hidden mark and the decode() check in the sweep) adds
+// 582 B on #381; on top of #382, 584 B (34,606 B); on top of #380, 586 B: 34,760 B;
+// ignoring a stale sweep decode(), 11 B: 34,771 B.
+const BUNDLE_GZIP_CEILING = 34_771
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -206,7 +211,10 @@ const TARGET_BUNDLE_GZIP = 22_700
 // Issue #381 (an <img> source without src is a hit: copy_media keeps its alt) saves 2 B: 16,559 B.
 // Issue #382 (preview_file valid: — an invalid input previews as empty) adds 30 B: 16,591 B;
 // on top of #381, 34 B: 16,593 B.
-const CORE_GZIP_CEILING = 16_593
+// Issue #383 (reactive_image_fallback, in the runtime) adds 546 B on #381; on top
+// of #382, 546 B: 17,139 B.
+// Ignoring a stale sweep decode() adds 4 B: 17,143 B.
+const CORE_GZIP_CEILING = 17_143
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -290,7 +298,10 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #381 (copy_media keeps a src-less source's alt, in the core) saves 2 B: 41,866 B.
 // Issue #382 (preview_file valid:, in the core) adds 30 B: 41,898 B; on top of #381, 34 B: 41,900 B.
 // Issue #380 (reactive_media pending, in bindings; the core unchanged) adds 152 B: 42,052 B.
-const SPLIT_TOTAL_GZIP_CEILING = 42_052
+// Issue #383 (reactive_image_fallback, in the core) adds 546 B on #381; on top of
+// #382 (42,446 B) and #380, 546 B: 42,598 B; ignoring a stale sweep decode(),
+// 4 B: 42,602 B.
+const SPLIT_TOTAL_GZIP_CEILING = 42_602
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 
