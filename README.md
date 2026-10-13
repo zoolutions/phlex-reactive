@@ -1341,7 +1341,7 @@ button(**on_client(:click, js
   (a broadcast that reads every subscriber's clipboard would be hostile). The
   op is async fire-and-forget — chained siblings apply immediately, never
   waiting for the read.
-- **`preview_file(to, into:, name: nil, global: false)`** (#375; `global: true`
+- **`preview_file(to, into:, name: nil, global: false, valid: false)`** (#375; `global: true`
   resolves `to`, `into:` and `name:` document-wide, for an `img` outside the
   root) paints the file a file input
   holds onto an `img` **before any upload**:
@@ -1358,6 +1358,14 @@ button(**on_client(:click, js
   and revokes it on a re-pick, a clear, and when the `img` leaves the page or a
   morph strips its `src` — a server re-render resets the preview like any other
   op. **Actor-only**: refused in `broadcast_to(js:)`.
+  **Upload validation (#382):** `valid: true` treats an input whose
+  `validity.valid` is false (`setCustomValidity`, `required`) as empty, so a
+  rejected file never gets a preview. An app that clears the input itself
+  (`input.value = ""` fires no `change`) dispatches `reactive:file-changed` on
+  it; bind the op to that event too and the preview, the name and the URL are
+  cleared: `op = js.preview_file("#photo-file", into: "#photo", valid: true)`,
+  `input(type: "file", id: "photo-file", **mix(on_client(:change, op),
+  on_client("reactive:file-changed", op)))`.
 - **`expanded:`** on `show`/`hide`/`toggle` (#271) keeps a disclosure trigger's
   `aria-expanded` honest: `js.toggle("#menu", expanded: "#trigger")` writes the
   op's **intended** state (`show` → `"true"`, `hide` → `"false"`, `toggle` → the

@@ -1424,7 +1424,11 @@ function previewFile(input, args, resolveTargets) {
   if (img?.tagName !== "IMG") {
     return warnPreview(`paints an <img>, and ${JSON.stringify(args.into)} is ${img ? `a <${img.localName}>` : "not on the page"}`)
   }
-  const file = [...(input.files ?? [])].find((f) => typeof f?.type === "string" && f.type.startsWith("image/"))
+  // valid: true (issue #382): an input the app marked invalid (setCustomValidity,
+  // required) previews as empty. validity.valid, not checkValidity(): no
+  // `invalid` event fired into the app's own listeners.
+  const files = args.valid === true && input.validity?.valid === false ? [] : (input.files ?? [])
+  const file = [...files].find((f) => typeof f?.type === "string" && f.type.startsWith("image/"))
   forgetPreview(img)
   if (file) {
     const url = URL.createObjectURL(file)

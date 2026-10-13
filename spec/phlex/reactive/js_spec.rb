@@ -293,6 +293,14 @@ RSpec.describe Phlex::Reactive::JS do
       expect(args).to eq("to" => "#f", "into" => "#p", "name" => "#n", "global" => true)
     end
 
+    # Issue #382: valid: true gates the preview on the input's validity.
+    it "carries valid: only when true" do
+      expect(JSON.parse(js.preview_file("#f", into: "#p", valid: true).to_json).dig(0, 1))
+        .to eq("to" => "#f", "into" => "#p", "valid" => true)
+      expect(JSON.parse(js.preview_file("#f", into: "#p", valid: false).to_json).dig(0, 1))
+        .to eq("to" => "#f", "into" => "#p")
+    end
+
     it "never carries a URL (the op has nowhere to put one)" do
       args = js.preview_file("#f", into: "#p", name: "#n").ops.dig(0, 1)
       expect(args.keys).to contain_exactly("to", "into", "name")
