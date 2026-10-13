@@ -49,6 +49,10 @@ module Phlex
         show_modal close_dialog
         set_value
       ].freeze
+      # Refused as a FLAG, on any op (issue #369): keep: records client state in
+      # the tab that ran the op, so a broadcast carrying it would plant that
+      # state in every subscriber's tab. The op itself broadcasts fine without it.
+      BROADCAST_REFUSED_ARG = "keep"
 
       # The broadcast_to verb kwargs (issue #185) → their Turbo stream action.
       # SELF-TARGETING verbs derive the target from the component's #id (require a
@@ -208,8 +212,22 @@ module Phlex
               "every screen — render the dialog open or closed, with data: { reactive_modal: true }, instead." \
               "These are actor concerns (reply.js / on_client / $ops)."
           end
+          refuse_kept_broadcast_ops!(pairs)
 
           Phlex::Reactive::Response.js_ops_json(ops)
+        end
+
+        # keep: (issue #369) is per-tab client state: refuse the flag on any op.
+        def refuse_kept_broadcast_ops!(pairs)
+          kept = pairs.filter_map do |name, args|
+            name.to_s if args.is_a?(::Hash) && (args[BROADCAST_REFUSED_ARG] || args[BROADCAST_REFUSED_ARG.to_sym])
+          end
+          return if kept.empty?
+
+          raise ArgumentError,
+            "broadcast_to(js:) refuses keep: (on #{kept.uniq.join(", ")}) — kept state belongs to the tab " \
+            "that ran the op; broadcasting it would plant it in every subscriber's tab. Drop keep: from the " \
+            "broadcast, or render the state on the server."
         end
 
         # Render a built component to HTML for a broadcast, ALWAYS instrumented

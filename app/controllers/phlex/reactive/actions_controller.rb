@@ -350,7 +350,10 @@ module Phlex
           # Issue #358: a presence root also sends its presence connection, the
           # row a presence write lands on.
           Phlex::Reactive::Presence.with_connection_id(request.headers[Phlex::Reactive::Presence::HEADER]) do
-            run_action_wrapped(component, action_def, coerced)
+            # Issue #370: the fields a morph held over a changed server value,
+            # filtered to this action's declared params (reactive_held_fields).
+            held = Phlex::Reactive::HeldFields.parse(request.headers[Phlex::Reactive::HeldFields::HEADER], action_def)
+            Phlex::Reactive::HeldFields.with(held) { run_action_wrapped(component, action_def, coerced) }
           end
         end
       end

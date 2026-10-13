@@ -15,6 +15,7 @@ RSpec.describe "Morph keeps the focused field's value (issue #338)", type: :syst
   it "keeps what the user typed in the focused input across a normalising save" do
     visit "/morph_normalize"
     page.execute_script("window.__noReload = 'alive'")
+    page.execute_script("window.__held = 0; document.addEventListener('reactive:held', () => window.__held++)")
 
     name = find("[data-testid='name']")
     name.click
@@ -29,6 +30,9 @@ RSpec.describe "Morph keeps the focused field's value (issue #338)", type: :syst
     expect(page).to have_field("name", with: "Hello ")
     expect(page.evaluate_script("document.querySelector(\"[data-testid='name']\").defaultValue")).to eq("Hello")
     expect(page.evaluate_script("document.activeElement.dataset.testid")).to eq("name")
+    # The own reply rendered "Hello" over a default of "": not someone else's change (#370).
+    expect(page).to have_no_css("[data-reactive-held]")
+    expect(page.evaluate_script("window.__held")).to eq(0)
 
     name.send_keys("world")
 

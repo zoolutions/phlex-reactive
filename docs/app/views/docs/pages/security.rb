@@ -144,7 +144,9 @@ module Views
               reducer builder deliberately omits `paste_into` and `check_group`, and has no
               `show_modal` / `close_dialog` verbs — the raw pairs still interpret) but **refused in
               broadcasts**: a broadcast op must never steal focus in, force-submit a form
-              from, read the clipboard of, or overwrite a field in, every subscriber's tab.
+              from, read the clipboard of, or overwrite a field in, every subscriber's tab. The `keep: true`
+              flag (#369) is refused in broadcasts on any op for the same reason: what
+              it records is one tab's client state.
             MD
           end
         end
@@ -165,6 +167,12 @@ module Views
               a string at click time. A declared value that can't be coerced to its type (a bad
               `:date`/`:decimal`, a non-file for `:file`) is dropped — never fabricated — so the
               action sees its keyword default, not a bogus value.
+
+              The same goes for `reactive_held_fields` (the `X-Reactive-Held` header, the fields
+              a morph held over a changed server value, usually another tab's edit
+              but not proof of one): names only, never values, capped, and
+              filtered to the params the action declares. Malformed reads as `[]`. It tells the
+              action what the user saw, never what they may do.
             MD
             custom_param_types
             DocsUI::Callout(:note, title: 'File params (:file / [:file])') do

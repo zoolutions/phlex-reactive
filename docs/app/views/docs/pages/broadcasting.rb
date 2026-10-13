@@ -470,7 +470,10 @@ module Views
                     'read would be hostile, and a broadcast set_value would overwrite every ' \
                     "subscriber's field (render the value instead). These are actor-reply concerns (use "
               code { 'reply.js' }
-              plain ').'
+              plain '). So is '
+              code { 'keep: true' }
+              plain ' (#369), on the visibility, class and attribute ops that take it: ' \
+                    'kept state belongs to the tab that ran the op.'
             end
           end
         end

@@ -135,9 +135,13 @@ const SLACK = 250
 // telling a kept `open` from a removed one adds 78 B: 32,108 B; upgrading a root
 // that is itself the dialog adds 12 B: 32,120 B.
 // #365 and #366 together: 32,147 B.
-// Issue #374 (the set_value op) adds 75 B: 32,222 B; comparing a
-// <select multiple>'s whole selection adds 36 B: 32,258 B.
-const BUNDLE_GZIP_CEILING = 32_258
+// Issue #369 (keep: on client ops — the kept-result registry and its one
+// turbo:morph-element listener; entries kept in op order) adds 251 B: 32,398 B.
+// Issue #370 (the held mark, reactive:held, X-Reactive-Held and the own-reply
+// release; the error reply never marks; checkboxes and radios are never held) adds 550 B on #366/#365 (32,697 B); on top of #369, 534 B: 32,932 B.
+// Issue #374 (the set_value op, comparing a <select multiple>'s whole selection)
+// adds 111 B on #366/#365 (32,258 B); on top of #369 and #370, 134 B: 33,066 B.
+const BUNDLE_GZIP_CEILING = 33_066
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -176,9 +180,12 @@ const TARGET_BUNDLE_GZIP = 22_700
 // telling a kept `open` from a removed one adds 66 B: 15,079 B; upgrading a root
 // that is itself the dialog adds 14 B: 15,093 B.
 // #365 and #366 together: 15,112 B.
-// Issue #374 (the set_value op) adds 84 B: 15,196 B; comparing a
-// <select multiple>'s whole selection adds 36 B: 15,232 B.
-const CORE_GZIP_CEILING = 15_232
+// Issue #369 (keep: on client ops, in the runtime) adds 247 B: 15,359 B.
+// Issue #370 (the held mark, reactive:held, X-Reactive-Held and the own-reply
+// release; the error reply never marks; checkboxes and radios are never held) adds 566 B on #366/#365 (15,678 B); on top of #369, 559 B: 15,918 B.
+// Issue #374 (the set_value op) adds 120 B on #366/#365 (15,232 B); on top of
+// #369 and #370, 117 B: 16,035 B.
+const CORE_GZIP_CEILING = 16_035
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -243,9 +250,11 @@ const FEATURE_GZIP_CEILINGS = {
 // telling a kept `open` from a removed one adds 66 B: 39,923 B; upgrading a root
 // that is itself the dialog adds 14 B: 39,937 B.
 // #365 and #366 together: 39,956 B.
-// Issue #374 (the set_value op, in the core) adds 84 B: 40,040 B; the
-// <select multiple> comparison adds 36 B: 40,076 B.
-const SPLIT_TOTAL_GZIP_CEILING = 40_076
+// Issue #369 (keep: on client ops, in the core) adds 247 B: 40,203 B.
+// Issue #370 (in the core) adds 566 B on #366/#365 (40,522 B); on top of #369, 559 B: 40,762 B.
+// Issue #374 (the set_value op, in the core) adds 120 B on #366/#365 (40,076 B);
+// on top of #369 and #370, 117 B: 40,879 B.
+const SPLIT_TOTAL_GZIP_CEILING = 40_879
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

@@ -31,6 +31,20 @@ module Phlex
           Phlex::Reactive.current_connection_id
         end
 
+        # The names of this action's posted fields that a morph held over a
+        # changed server value (issue #370): someone else changed the field
+        # while this user typed, and this tab kept the user's text. [] when
+        # nothing was held, and outside an action. Filtered to the action's
+        # declared params; a hint about what the user saw, never authorization.
+        #
+        #   def save(title: nil)
+        #     return conflict!(title) if reactive_held_fields.include?("title") && title != @note.title
+        #     @note.update!(title:)
+        #   end
+        def reactive_held_fields
+          Phlex::Reactive::HeldFields.current
+        end
+
         # Manually satisfy the verify_authorized guard (issue #168) for a bespoke
         # authorization check the interceptor can't see — a hand-rolled policy, a
         # feature flag, an ownership comparison that doesn't go through one of

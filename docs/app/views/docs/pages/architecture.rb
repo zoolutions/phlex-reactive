@@ -162,7 +162,68 @@ module Views
               code { 'reply.replace' }
               plain ' is the swap you get.'
             end
+            knowing_what_was_held
           end
+        end
+
+        def knowing_what_was_held
+          DocsUI::Prose() { h3 { 'Knowing what was held' } }
+          md <<~MD
+            A morph keeps the value of the field being typed in and writes the
+            render's value as the field's default (issue #338). When that render
+            differs from the old default, the server value changed while the user
+            typed (usually another tab's `broadcast_to(..., morph: true)`). The
+            client then marks the field `data-reactive-held` (style it: "someone
+            changed this") and dispatches a bubbling `reactive:held` event with
+            `{ name, theirs }`, the server's value. A render equal to the default,
+            or to what the user typed, marks nothing (nor does a checkbox or radio:
+            its value is the option, not typing).
+
+            The root's next action request names its held fields in an
+            `X-Reactive-Held` header, and inside the action
+            `reactive_held_fields` returns them (`[]` when nothing was held), so
+            the action can refuse or merge instead of silently overwriting the
+            other change. Only names the action declares in its `params:` schema
+            reach it: declare the field you check.
+          MD
+          DocsUI::Code(held_source, lexer: :ruby, filename: 'app/components/note_form.rb')
+          md <<~MD
+            The marks clear once a successful reply to the root's own request is
+            applied (that reply is the server's answer to exactly those values);
+            an error reply never marks and leaves the marks in place. A
+            field's mark clears when its value is set back to its default (the
+            user took theirs). An unfocused field takes the server's value in a
+            morph, so it is never held.
+
+            Broadcast with `exclude: reactive_connection_id` (pgbus) so the
+            actor never morphs its own echo. On a transport without `exclude:`
+            (Action Cable), an echo of an older save that lands after a newer
+            reply renders a stale value over the field, and that marks it too.
+
+            The header is untrusted input like any request field: names only,
+            capped, and filtered to the params the running action declares
+            (`title[en]` counts for a declared `title`). It tells you what the
+            user saw, not what they may do: authorize as always. In a unit test,
+            `run_reactive(form, :save, held: ["title"], title: "Draft")` stands
+            in for the header.
+          MD
+        end
+
+        def held_source
+          <<~RUBY
+            action :save, params: { title: :string, body: :string }
+
+            def save(title: nil, body: nil)
+              authorize!(@note, to: :update?)
+              # Another tab changed the title while this user typed over it.
+              if reactive_held_fields.include?("title") && title != @note.title
+                @conflict = title # render "someone changed the title" with both versions
+                return reply.morph
+              end
+              @note.update!(title:, body:)
+              reply.morph
+            end
+          RUBY
         end
 
         def transport

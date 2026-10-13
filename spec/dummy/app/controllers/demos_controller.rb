@@ -367,6 +367,11 @@ class DemosController < ActionController::Base
     render_component NotesFillComponent.new
   end
 
+  # Issue #369: ?renamed=N renders item N renamed (a server-side change).
+  def kept_selection
+    render_component KeptSelectionComponent.new(renamed: params[:renamed]&.to_i)
+  end
+
   def nested_editor
     render_component NestedEditorComponent.new
   end
@@ -651,6 +656,11 @@ class DemosController < ActionController::Base
   # Issue #338: a morph save that normalises the value keeps the focused field's text.
   def morph_normalize
     render_component MorphNormalizeComponent.new
+  end
+
+  # Issue #370: a save whose focused field a morph held over another tab's change.
+  def held_note
+    render_component HeldNoteComponent.new(todo: Todo.find(params[:id]))
   end
 
   # Issue #97: post-save focus lands on the freshly morphed field via
