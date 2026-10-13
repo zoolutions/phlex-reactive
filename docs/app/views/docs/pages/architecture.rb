@@ -192,6 +192,11 @@ module Views
             user took theirs). An unfocused field takes the server's value in a
             morph, so it is never held.
 
+            Broadcast with `exclude: reactive_connection_id` (pgbus) so the
+            actor never morphs its own echo. On a transport without `exclude:`
+            (Action Cable), an echo of an older save that lands after a newer
+            reply renders a stale value over the field, and that marks it too.
+
             The header is untrusted input like any request field: names only,
             capped, and filtered to the params the running action declares
             (`title[en]` counts for a declared `title`). It tells you what the

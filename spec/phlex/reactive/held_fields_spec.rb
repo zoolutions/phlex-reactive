@@ -63,7 +63,7 @@ RSpec.describe Phlex::Reactive::HeldFields do
 
     it "reads a \\u-escaped non-ASCII name (how the client sends one)" do
       action = Data.define(:params).new(params: { "titel_ä" => :string })
-      expect(described_class.parse('["titel_ä"]', action)).to eq(["titel_ä"])
+      expect(described_class.parse('["titel_\u00e4"]', action)).to eq(["titel_ä"])
     end
 
     it "returns a frozen list" do

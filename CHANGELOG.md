@@ -20,10 +20,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   every other request is byte-identical), and `reactive_held_fields` in the
   action returns them (`[]` without the header), so the action can refuse or
   merge. The marks clear once the reply to the root's own request is applied
-  (that reply never marks), or when a field is set back to its default. The
+  (that reply never marks), or when a field is set back to its default; an
+  error reply never marks and keeps them. Broadcast with
+  `exclude: reactive_connection_id` (pgbus): without it (Action Cable), an
+  echo of an older save landing after a newer reply can mark too. The
   header is untrusted: names only, capped, and filtered to the action's
   declared params. `run_reactive(form, :save, held: ["title"], …)` stands in
-  for it in unit tests. Client: +498 B gzipped in the default bundle, +516 B
+  for it in unit tests. Client: +536 B gzipped in the default bundle, +547 B
   in the split core. Docs: "Knowing what was held" under Morphing on the
   architecture page.
 

@@ -471,11 +471,12 @@ export function registerReactiveMorphFocus() {
     const el = event.target
     const next = event.detail?.newElement // absent when Turbo asks before a removal
     if (!next || event.defaultPrevented) return
+    const holds = holdsTypedValue(el)
     // Before the default below is overwritten (issue #370).
-    if (holdsTypedValue(el)) noteHeld(el, next)
+    if (holds) noteHeld(el, next)
     if (el.hasAttribute?.("data-reactive-editable")) {
       serverTexts.set(el, editableValue(next))
-      if (!holdsTypedValue(el)) return
+      if (!holds) return
       for (const { name } of [...el.attributes]) {
         if (!next.hasAttribute(name) && name !== "contenteditable" && name !== HELD) el.removeAttribute(name)
       }
@@ -484,7 +485,7 @@ export function registerReactiveMorphFocus() {
       }
       return event.preventDefault()
     }
-    if (el.localName !== "input" || !holdsTypedValue(el)) return
+    if (el.localName !== "input" || !holds) return
     const value = next.getAttribute("value")
     if (value == null) el.removeAttribute("value")
     else if (el.getAttribute("value") !== value) el.setAttribute("value", value)
@@ -563,8 +564,10 @@ function releaseHeld(root) {
 // root is marked, and once they have the root holds nothing. Turbo announces
 // each stream synchronously inside renderStreamMessage (streamOwnReply wraps
 // its render, innermost); a reply none of whose streams rendered releases now.
-function renderOwnReply(root, html) {
-  const own = { root, streams: 0 }
+// An error reply (release false) never marks either, but releases nothing: the
+// server refused those values rather than answering them.
+function renderOwnReply(root, html, release = true) {
+  const own = { root, streams: 0, release }
   const previous = replyRoot
   replyRoot = own
   try {
@@ -572,7 +575,7 @@ function renderOwnReply(root, html) {
   } finally {
     replyRoot = previous
   }
-  if (own.streams === 0) releaseHeld(root)
+  if (release && own.streams === 0) releaseHeld(root)
 }
 
 function streamOwnReply(event) {
@@ -589,7 +592,7 @@ function streamOwnReply(event) {
       const left = replying.get(own.root) - 1
       if (left) replying.set(own.root, left)
       else replying.delete(own.root)
-      releaseHeld(own.root)
+      if (own.release) releaseHeld(own.root)
     }
   }
 }
@@ -3524,7 +3527,7 @@ export default class extends Controller {
             if (__SPLIT__) this.#devtools((devtools) => devtools.recordBody(debug, errorBody, fresh))
             else devtoolsFeature.recordBody(debug, errorBody, fresh)
           }
-          window.Turbo.renderStreamMessage(errorBody)
+          renderOwnReply(this.element, errorBody, false)
         }
         this.#markError("http")
         this.#emitError(action, params, allParams, { kind: "http", status: response.status, body: errorBody })

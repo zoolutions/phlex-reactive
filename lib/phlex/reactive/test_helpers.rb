@@ -97,7 +97,8 @@ module Phlex
       # `held:` stands in for the X-Reactive-Held header (issue #370): the field
       # names a morph held over a changed server value, filtered to the action's
       # declared params exactly as the endpoint filters them, and returned by
-      # reactive_held_fields inside the action.
+      # reactive_held_fields inside the action. `held` is therefore reserved
+      # here: an action param literally named `held` can't be passed through.
       #
       #   run_reactive(form, :save, held: ["title"], title: "Draft by B")
       def run_reactive(component, action, held: [], **params)

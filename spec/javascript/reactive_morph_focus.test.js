@@ -33,6 +33,8 @@ beforeEach(async () => {
   ))
   window = new Window()
   globalThis.document = window.document
+  // A held field dispatches reactive:held (issue #370) with the page's CustomEvent.
+  globalThis.CustomEvent = window.CustomEvent
   __resetReactiveMorphFocusForTest()
   registerReactiveMorphFocus()
 })

@@ -305,3 +305,32 @@ test("a non-ASCII field name is escaped so the header stays a valid byte string"
   expect(/^[\x20-\x7e]*$/.test(header)).toBe(true)
   expect(JSON.parse(header)).toEqual(["titel_ä"])
 })
+
+test("an error reply (422 turbo-stream) never marks, and keeps what the root already held", async () => {
+  const controller = mount(`<input name="title" value="Original"><input name="body" value="b">`)
+  const [title, body] = document.querySelectorAll("input")
+  type(body, "mine")
+  morph(body, `<input name="body" value="theirs">`)
+  type(title, "Hello ")
+  globalThis.fetch = (_url, init) => {
+    requests.push({ body: JSON.parse(init.body), headers: init.headers })
+    return Promise.resolve({
+      redirected: false,
+      ok: false,
+      status: 422,
+      headers: { get: () => "text/vnd.turbo-stream.html" },
+      text: () => Promise.resolve("<turbo-stream></turbo-stream>"),
+    })
+  }
+  // The validation reply re-renders the focused title normalised.
+  reply = () => morph(title, `<input name="title" value="Hello">`)
+  const events = heldEvents()
+
+  act(controller)
+  await flush()
+
+  expect(requests[0].headers["X-Reactive-Held"]).toBe('["body"]')
+  expect(events).toEqual([])
+  expect(title.hasAttribute("data-reactive-held")).toBe(false)
+  expect(body.hasAttribute("data-reactive-held")).toBe(true)
+})
