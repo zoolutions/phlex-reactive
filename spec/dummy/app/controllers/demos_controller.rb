@@ -363,6 +363,10 @@ class DemosController < ActionController::Base
     render_component LogoPreviewComponent.new
   end
 
+  def rib_preview
+    render_component RibPreviewComponent.new
+  end
+
   def photo_preview
     render_component PhotoPreviewComponent.new
   end

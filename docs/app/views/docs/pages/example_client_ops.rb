@@ -189,7 +189,7 @@ module Views
                 URL the target already shows writes nothing, so the image does not
                 reload. A broadcast may carry it: it only reads elements that are
                 already on each subscriber's page.
-              - **`reactive_media(from:, pool:, take: nil, label: nil, blank_label: nil)`**
+              - **`reactive_media(from:, pool:, take: nil, match: nil, pending: :clear, label: nil, blank_label: nil)`**
                 is a binding, read the way `reactive_show` reads a field: a text field
                 gives its value, a radio group its checked value, `reactive_scope`
                 applies. `take: n` (a positive Integer) keeps the first *n* characters
@@ -200,19 +200,44 @@ module Views
                 is a hit: the preview drops its image and `label:` still gets the name.
                 `label:` names a node whose `textContent` becomes the chosen image's
                 `alt`, or `blank_label` (empty when omitted) on a miss.
+              - **Pending (#380).** A value shorter than `take:` characters is not a
+                miss yet: the binding is *pending* and never writes `blank_label`.
+                `match:` (a Regexp, matched against the whole key) makes a key it
+                rejects pending too, so `"ab1"` waits instead of reading "Unknown".
+                `pending: :clear` (the default) clears the preview and empties the
+                label; `pending: :keep` leaves both as they are. The preview carries
+                `data-reactive-media-state="pending|hit|miss"`, so a row can hide
+                itself with CSS until there is an answer (the demo below uses
+                Tailwind's `has-[[data-reactive-media-state=pending]]:invisible`).
+                `match:` is sent to the browser as a JavaScript pattern: its `\\A`
+                and `\\z` anchors are dropped (the client anchors it), and what
+                JavaScript reads differently raises at render: options (`i`, `m`,
+                `x`), escapes such as `\\h`, `\\p{…}`, `\\s` and `\\u{…}`, POSIX `[[:digit:]]`,
+                nested classes, `&&`, `(?i)`/`(?>…)` groups and characters above
+                U+FFFF. The state is written once the client connects; to hide the
+                row on first paint too, render the preview with
+                `data: { reactive_media_state: "pending" }`.
 
               ```ruby
               input(name: "code")
-              img(id: "logo", alt: "", **reactive_media(
-                from: :code, take: 3,
-                pool: { "007" => "#logo-007", "011" => "#logo-011" },
-                label: "#caption", blank_label: "Unknown"
-              ))
-              span(id: "caption")
+              div(id: "logo-row") do
+                img(id: "logo", alt: "", **reactive_media(
+                  from: :code, take: 3, match: /\\A\\d{3}\\z/,
+                  pool: { "007" => "#logo-007", "011" => "#logo-011" },
+                  label: "#caption", blank_label: "Unknown",
+                  data: { reactive_media_state: "pending" } # hidden on first paint, too
+                ))
+                span(id: "caption")
+              end
               img(id: "logo-007", src: "/logos/007.svg", alt: "North", hidden: true)
               img(id: "logo-011", src: "/logos/011.svg", alt: "South", hidden: true)
 
               button(**on_client(:click, js.copy_media("#logo", from: "#logo-007"))) { "Use north" }
+              ```
+
+              ```css
+              /* hide the row until three digits are typed */
+              #logo-row:has([data-reactive-media-state="pending"]) { display: none; }
               ```
 
               `js.copy_media("#logo")` without `from:`, `reactive_media` without

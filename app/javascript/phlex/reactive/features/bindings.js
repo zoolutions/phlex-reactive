@@ -638,12 +638,16 @@ function fieldResolver(c, owns) {
 }
 
 // --- Media bindings (issue #373) ---------------------------------------------
-// data-reactive-media='{"field","take"?,"pool","label"?,"blank"?}' on a preview
-// <img>: the owned field's value (its first `take` characters, or all of it)
-// is a key into `pool`, whose value is a SELECTOR for an <img> inside the root.
-// The core's copyMedia copies that element's src, srcset and alt — a pool
-// value is never assigned to anything. A key, selector or element that misses
-// clears the preview; `label` gets the alt (or `blank`) via textContent. An
+// data-reactive-media='{"field","take"?,"match"?,"pending"?,"pool","label"?,"blank"?}'
+// on a preview <img>: the owned field's value (its first `take` characters, or
+// all of it) is a key into `pool`, whose value is a SELECTOR for an <img>
+// inside the root. The core's copyMedia copies that element's src, srcset and
+// alt — a pool value is never assigned to anything. A key, selector or element
+// that misses clears the preview; `label` gets the alt (or `blank`) via
+// textContent. A key shorter than `take`, or one the anchored `match` source
+// rejects, is PENDING (issue #380) and never gets `blank`: "keep" leaves the
+// preview and label alone, the default clears both. The preview's
+// data-reactive-media-state names the outcome (pending | hit | miss). An
 // unowned field leaves the preview alone (the show default-deny); a malformed
 // attr warns and is skipped.
 const MEDIA_BINDING_SELECTOR = "[data-reactive-media]"
@@ -651,24 +655,39 @@ const MEDIA_BINDING_SELECTOR = "[data-reactive-media]"
 function syncMedia(c, fieldValue, owns) {
   for (const el of c.root.querySelectorAll(MEDIA_BINDING_SELECTOR)) {
     if (!owns(el)) continue
-    let wire
+    let wire, pattern
     try {
       wire = JSON.parse(el.getAttribute("data-reactive-media"))
+      if (wire?.match != null) pattern = new RegExp(`^(?:${wire.match})$`)
     } catch {}
-    if (typeof wire?.field !== "string" || !wire.pool || typeof wire.pool !== "object") {
+    if (typeof wire?.field !== "string" || !wire.pool || typeof wire.pool !== "object" || (wire.match != null && !pattern)) {
       console.warn("[phlex-reactive] malformed data-reactive-media — skipped")
       continue
     }
     const value = fieldValue(wire.field)
     if (value === null) continue
     // Characters (code points), as Ruby counts them — not UTF-16 code units.
-    const key = wire.take > 0 ? [...value].slice(0, wire.take).join("") : value
-    const source = Object.hasOwn(wire.pool, key) ? mediaMatches(c, wire.pool[key])[0] : null
+    const chars = wire.take > 0 ? [...value] : null
+    const key = chars ? chars.slice(0, wire.take).join("") : value
+    const pending = chars?.length < wire.take || pattern?.test(key) === false
+    if (pending && wire.pending === "keep") {
+      mediaState(el, "pending")
+      continue
+    }
+    const source = !pending && Object.hasOwn(wire.pool, key) ? mediaMatches(c, wire.pool[key])[0] : null
     const alt = c.core.copyMedia(el, source ?? null)
-    if (alt === null || typeof wire.label !== "string") continue
-    const text = alt === false ? String(wire.blank ?? "") : alt
+    if (alt === null) continue
+    mediaState(el, pending ? "pending" : alt === false ? "miss" : "hit")
+    if (typeof wire.label !== "string") continue
+    const text = pending ? "" : alt === false ? String(wire.blank ?? "") : alt
     for (const node of mediaMatches(c, wire.label)) if (node.textContent !== text) node.textContent = text
   }
+}
+
+// The outcome a stylesheet (or :has()) can hide a row on, written only when
+// it changes.
+function mediaState(el, state) {
+  if (el.getAttribute("data-reactive-media-state") !== state) el.setAttribute("data-reactive-media-state", state)
 }
 
 // The owned elements a pool or label selector names — none when it does not
