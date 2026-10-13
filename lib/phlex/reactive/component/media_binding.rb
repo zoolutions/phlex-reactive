@@ -20,9 +20,11 @@ module Phlex
       # first n characters as the key; omit it to use the whole value. A pool
       # value is a CSS SELECTOR for an <img> inside the root, never a URL: the
       # client copies that element's src, srcset and alt the way
-      # js.copy_media does. A key, selector or element that misses clears the
-      # preview. `label:` names a node whose textContent becomes the chosen
-      # image's alt (`blank_label`, or "", on a miss). Client-only: no token,
+      # js.copy_media does. A key, selector or element that misses (or is not
+      # an <img>) clears the preview. A pool <img> with an alt and no src is a
+      # hit without an image: the preview drops its src and takes the alt
+      # (issue #381). `label:` names a node whose textContent becomes the
+      # chosen image's alt (`blank_label`, or "", on a miss). Client-only: no token,
       # no round trip.
       #
       # Named MediaBinding, not Media: this module sits in every reactive

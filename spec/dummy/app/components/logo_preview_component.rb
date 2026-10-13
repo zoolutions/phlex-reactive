@@ -12,6 +12,7 @@ class LogoPreviewComponent < ApplicationComponent
   POOL = {
     "007" => "#logo-007",
     "011" => "#logo-011",
+    "050" => "#logo-050",
     "999" => "https://example.test/a.svg",
     "spa" => "#logo-text"
   }.freeze
@@ -35,6 +36,7 @@ class LogoPreviewComponent < ApplicationComponent
   def pool
     img(id: "logo-007", src: "/logos/007.svg", srcset: "/logos/007.svg 1x", alt: "North", hidden: true)
     img(id: "logo-011", src: "/logos/011.svg", alt: "South", hidden: true)
+    img(id: "logo-050", alt: "Bank Al-Maghrib", hidden: true)
     span(id: "logo-text", hidden: true) { "/logos/007.svg" }
   end
 
@@ -42,6 +44,7 @@ class LogoPreviewComponent < ApplicationComponent
     button(**mix(on_client(:click, js.copy_media("#copied", from: "#logo-007")), data: { testid: "use-north" })) { "North" }
     button(**mix(on_client(:click, js.copy_media("#copied", from: "#logo-011")), data: { testid: "use-south" })) { "South" }
     button(**mix(on_client(:click, js.copy_media("#copied", from: "#missing")), data: { testid: "use-none" })) { "None" }
+    button(**mix(on_client(:click, js.copy_media("#copied", from: "#logo-050")), data: { testid: "use-nologo" })) { "No logo" }
     button(**mix(on_client(:click, js.copy_media("#frame", from: "#logo-007")), data: { testid: "use-frame" })) { "Frame" }
     img(id: "copied", alt: "", data: { testid: "copied" })
   end

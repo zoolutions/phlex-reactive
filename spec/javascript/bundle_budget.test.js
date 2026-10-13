@@ -150,7 +150,9 @@ const SLACK = 250
 // One window listener pair for every warn_unsaved root (connecting N guarded
 // forms was quadratic) adds 110 B: 33,915 B. One document submit-end listener for
 // every persisted root, 84 B: 33,999 B.
-// Issue #382 (preview_file valid: — an invalid input previews as empty) adds 23 B: 34,022 B.
+// Issue #381 (an <img> source without src is a hit: copy_media keeps its alt) adds 1 B: 34,000 B.
+// Issue #382 (preview_file valid: — an invalid input previews as empty) adds 23 B: 34,022 B;
+// on top of #381, 22 B: 34,022 B.
 const BUNDLE_GZIP_CEILING = 34_022
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
@@ -199,8 +201,10 @@ const TARGET_BUNDLE_GZIP = 22_700
 // #369, #370 and #374, 356 B: 16,391 B.
 // Issue #373 (copy_media, the media marker, refusing srcset) adds 182 B on #366/#365
 // (15,294 B); on top of #369, #370, #374 and #375, 170 B: 16,561 B.
-// Issue #382 (preview_file valid: — an invalid input previews as empty) adds 30 B: 16,591 B.
-const CORE_GZIP_CEILING = 16_591
+// Issue #381 (an <img> source without src is a hit: copy_media keeps its alt) saves 2 B: 16,559 B.
+// Issue #382 (preview_file valid: — an invalid input previews as empty) adds 30 B: 16,591 B;
+// on top of #381, 34 B: 16,593 B.
+const CORE_GZIP_CEILING = 16_593
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -280,8 +284,9 @@ const FEATURE_GZIP_CEILINGS = {
 // adds 394 B: 41,629 B; slicing take: by code point, 41,636 B.
 // One window listener pair for every warn_unsaved root (form) adds 116 B: 41,752 B.
 // One document submit-end listener for every persisted root (persist), 116 B: 41,868 B.
-// Issue #382 (preview_file valid:, in the core) adds 30 B: 41,898 B.
-const SPLIT_TOTAL_GZIP_CEILING = 41_898
+// Issue #381 (copy_media keeps a src-less source's alt, in the core) saves 2 B: 41,866 B.
+// Issue #382 (preview_file valid:, in the core) adds 30 B: 41,898 B; on top of #381, 34 B: 41,900 B.
+const SPLIT_TOTAL_GZIP_CEILING = 41_900
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 
