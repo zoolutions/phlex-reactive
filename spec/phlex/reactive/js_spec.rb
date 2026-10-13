@@ -301,6 +301,7 @@ RSpec.describe Phlex::Reactive::JS do
 
     it "rejects :root as the file input LOUDLY" do
       expect { js.preview_file(:root, into: "#photo") }.to raise_error(ArgumentError, /file input/)
+      expect { js.preview_file("@root", into: "#photo") }.to raise_error(ArgumentError, /file input/)
     end
 
     it "requires into:" do

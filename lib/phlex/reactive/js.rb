@@ -283,7 +283,7 @@ module Phlex
       #     **on_client(:change, js.preview_file("#photo-file", into: "#photo", name: "#photo-name")))
 
       def preview_file(to, into:, name: nil, global: false)
-        if to == :root
+        if [:root, ROOT_SENTINEL].include?(to)
           raise ArgumentError,
             "#{self.class}: preview_file reads a file input, not the component root — " \
             "pass the input's CSS selector (e.g. js.preview_file(\"#photo-file\", into: \"#photo\"))"
