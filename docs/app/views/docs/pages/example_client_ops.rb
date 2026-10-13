@@ -180,9 +180,10 @@ module Views
                 `from` `<img>` onto the `to` `<img>`. Both are `:root` or a selector,
                 resolved with the op's own scoping (`global: true` reaches the whole
                 document). The browser reads the URL from the source element itself;
-                it is never an argument. A missing source, a source that is not an
-                `<img>`, or one without `src` clears the target's `src`, `srcset` and
-                `alt`. A target that is not an `<img>` (an `iframe`, `script`,
+                it is never an argument. A missing source or a source that is not an
+                `<img>` clears the target's `src`, `srcset` and `alt`. An `<img>`
+                source without `src` is a hit with no image (#381): the target loses
+                `src` and `srcset` and takes the source's `alt`. A target that is not an `<img>` (an `iframe`, `script`,
                 `object`, `embed`, `frame`, …) is warned about and skipped. Copying the
                 URL the target already shows writes nothing, so the image does not
                 reload. A broadcast may carry it: it only reads elements that are
@@ -194,6 +195,8 @@ module Views
                 as the key; omit it to use the whole value. The key looks up `pool`,
                 whose values are **selectors** for `<img>` elements inside the root,
                 never URLs. A key, selector or element that misses clears the preview.
+                A pool `<img>` with an `alt` and no `src` (an entry with no logo file)
+                is a hit: the preview drops its image and `label:` still gets the name.
                 `label:` names a node whose `textContent` becomes the chosen image's
                 `alt`, or `blank_label` (empty when omitted) on a miss.
 

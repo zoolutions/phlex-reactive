@@ -89,6 +89,28 @@ RSpec.describe "Media previews (issue #373)", type: :system do
     expect(attr("preview", "src")).to be_nil
   end
 
+  # Issue #381: a pool <img> with an alt and no src is a hit without an image.
+  it "reactive_media keeps the name of a pool image that has no src" do
+    type_code("007")
+    expect(page).to have_css("[data-testid='preview'][src='/logos/007.svg']")
+
+    type_code("050")
+    expect(page).to have_css("[data-testid='caption']", text: "Bank Al-Maghrib")
+    expect(page).to have_css("[data-testid='preview'][alt='Bank Al-Maghrib']:not([src]):not([srcset])")
+
+    type_code("spa")
+    expect(page).to have_css("[data-testid='caption']", text: "Unknown")
+    expect(attr("preview", "alt")).to eq("")
+  end
+
+  it "js.copy_media from an img without src drops the image and copies the alt" do
+    find("[data-testid='use-north']").click
+    expect(page).to have_css("[data-testid='copied'][src='/logos/007.svg']")
+
+    find("[data-testid='use-nologo']").click
+    expect(page).to have_css("[data-testid='copied'][alt='Bank Al-Maghrib']:not([src]):not([srcset])")
+  end
+
   it "js.copy_media copies src, srcset and alt, writes nothing for the same URL, and clears on a missing source" do
     find("[data-testid='use-north']").click
     expect(page).to have_css("[data-testid='copied'][src='/logos/007.svg'][srcset='/logos/007.svg 1x'][alt='North']")
