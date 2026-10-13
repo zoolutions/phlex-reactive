@@ -68,6 +68,7 @@ Rails.application.routes.draw do
   get "logo_preview" => "demos#logo_preview" # issue #373: js.copy_media / reactive_media
   get "modal_dialog" => "demos#modal_dialog" # issue #365: show_modal / close_dialog / data-reactive-modal
   get "photo_preview" => "demos#photo_preview" # issue #375: js.preview_file
+  get "image_fallback" => "demos#image_fallback" # issue #383: reactive_image_fallback
   get "notes_fill" => "demos#notes_fill" # issue #374: js.set_value
   get "kept_selection" => "demos#kept_selection" # issue #369: keep: on client ops survives a morph
   get "nested_editor" => "demos#nested_editor"

@@ -151,7 +151,10 @@ const SLACK = 250
 // forms was quadratic) adds 110 B: 33,915 B. One document submit-end listener for
 // every persisted root, 84 B: 33,999 B.
 // Issue #381 (an <img> source without src is a hit: copy_media keeps its alt) adds 1 B: 34,000 B.
-const BUNDLE_GZIP_CEILING = 34_000
+// Issue #383 (reactive_image_fallback: the document error/load listener, the
+// morph that keeps a src keeping its state, the copy_media/preview_file reset)
+// adds 516 B: 34,515 B.
+const BUNDLE_GZIP_CEILING = 34_515
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -200,7 +203,8 @@ const TARGET_BUNDLE_GZIP = 22_700
 // Issue #373 (copy_media, the media marker, refusing srcset) adds 182 B on #366/#365
 // (15,294 B); on top of #369, #370, #374 and #375, 170 B: 16,561 B.
 // Issue #381 (an <img> source without src is a hit: copy_media keeps its alt) saves 2 B: 16,559 B.
-const CORE_GZIP_CEILING = 16_559
+// Issue #383 (reactive_image_fallback, in the runtime) adds 494 B: 17,055 B.
+const CORE_GZIP_CEILING = 17_055
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -281,7 +285,8 @@ const FEATURE_GZIP_CEILINGS = {
 // One window listener pair for every warn_unsaved root (form) adds 116 B: 41,752 B.
 // One document submit-end listener for every persisted root (persist), 116 B: 41,868 B.
 // Issue #381 (copy_media keeps a src-less source's alt, in the core) saves 2 B: 41,866 B.
-const SPLIT_TOTAL_GZIP_CEILING = 41_866
+// Issue #383 (reactive_image_fallback, in the core) adds 494 B: 42,362 B.
+const SPLIT_TOTAL_GZIP_CEILING = 42_362
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

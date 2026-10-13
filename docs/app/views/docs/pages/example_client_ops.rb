@@ -22,6 +22,7 @@ module Views
           modal_dialogs
           media_previews
           preview_file
+          image_fallback
           kept_ops
           ops
           value_conditional
@@ -268,6 +269,52 @@ module Views
               component: PhotoPreviewComponent.new,
               filename: 'app/reactive_components/photo_preview_component.rb'
             )
+          end
+        end
+
+        def image_fallback
+          DocsUI::Section('An image that falls back, and recovers') do
+            md <<~MD
+              A preview that `copy_media`, `reactive_media` or `preview_file` points at a
+              broken URL should not show a broken-image icon, and the **next** good URL
+              should show it again. `reactive_image_fallback` (#383) does both, with no
+              Stimulus controller to reset by hand:
+
+              ```ruby
+              input(name: "rib")
+              img(id: "logo", alt: "", **reactive_media(
+                from: :rib, take: 3,
+                pool: { "001" => "#bank-001", "007" => "#bank-007" },
+                **reactive_image_fallback(hide: true)
+              ))
+              img(id: "bank-001", src: "/banks/missing.svg", alt: "Broken Bank", hidden: true)
+              img(id: "bank-007", src: "/banks/007.svg", alt: "Attijariwafa", hidden: true)
+
+              # Or swap the image for its alt text in a node inside the root:
+              img(id: "copied", alt: "Bank", **reactive_image_fallback(show_alt: "#bank-name"))
+              span(id: "bank-name", hidden: true)
+              ```
+
+              - On `error` the `img` gets `data-reactive-image-state="error"`. With
+                `hide: true` (the default) it is hidden; with `show_alt:` its `alt` is
+                written (as `textContent`) into that node, which is shown. `hide: false`
+                only sets the state, for CSS: `img[data-reactive-image-state=error]`.
+              - On `load` the state is `"loaded"`.
+              - **A later `src` tries again.** `copy_media`, `reactive_media` and
+                `preview_file` clear the error as they write the `src`; any `src` that
+                loads clears it on `load`; a morph that changes the `src` lets the browser
+                try the new one. A morph that keeps the same `src` keeps the state.
+              - **No `src` is not an error.** Removing it (a `reactive_media` miss, a
+                `copy_media` from a missing source) clears the state and shows the `img`.
+              - Only the `hidden` the fallback added is removed: an `img` the server
+                rendered `hidden` stays hidden.
+              - `show_alt:` is a selector resolved inside the `img`'s own reactive root,
+                never a URL. `hide:` that is not `true`/`false`, or a `show_alt:` that is
+                not a selector (or is `@root`), raises at render.
+              - The client listens once on the document (`error` and `load` do not
+                bubble, so it listens in the capture phase): nothing runs per root at
+                connect.
+            MD
           end
         end
 

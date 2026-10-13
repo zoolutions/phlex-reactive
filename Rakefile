@@ -34,6 +34,7 @@ namespace :spec do
     .select { File.read(it).include?(":split_client") }
   split_client_specs += %w[
     spec/system/logo_preview_spec.rb
+    spec/system/image_fallback_spec.rb
     spec/system/persist_form_spec.rb
     spec/system/persist_editors_spec.rb
     spec/system/editable_text_spec.rb
