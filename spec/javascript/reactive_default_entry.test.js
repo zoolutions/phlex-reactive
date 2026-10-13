@@ -65,7 +65,12 @@ beforeEach(() => {
   }
 })
 
+// Every root persistRoot() built is disconnected after its test, so the next
+// test starts on a document with no persisted root's listener on it.
+const built = []
+
 afterEach(() => {
+  for (const controller of built.splice(0)) controller.disconnect()
   globalThis.setTimeout = REAL.setTimeout
   globalThis.localStorage = REAL.localStorage
 })
@@ -86,6 +91,7 @@ function persistRoot() {
   const controller = new ReactiveController()
   controller.element = root
   controller.tokenValue = "tok"
+  built.push(controller)
   return { root, controller, note: root.querySelector('[name="note"]'), extra: root.querySelector('[name="extra"]') }
 }
 
