@@ -403,6 +403,52 @@ test("disconnect removes the document-level submit-end listener", async () => {
   expect(storage.json(KEY).fields["form[name]"]).toBe("Ada")
 })
 
+// A document listener per root made connecting N persisted roots quadratic
+// (the browser scans a target's listeners on each add and remove): one
+// listener serves them all, and leaves with the last of them.
+test("persisted roots share one document submit-end listener", async () => {
+  storage.seed("phlex-reactive:persist:a", { v: 1, savedAt: now - 1000, fields: { "form[name]": "A" } })
+  storage.seed("phlex-reactive:persist:b", { v: 1, savedAt: now - 1000, fields: { "form[name]": "B" } })
+  const root = (key) =>
+    `<form id="f-${key}"><div id="pf-${key}" data-controller="reactive" data-reactive-persist='${JSON.stringify({ key, ttl: 60, debounce: 300 })}'>` +
+    `<input type="text" name="form[name]"></div></form>`
+  document.body.innerHTML = root("a") + root("b")
+  const listening = []
+  const add = document.addEventListener.bind(document)
+  const remove = document.removeEventListener.bind(document)
+  document.addEventListener = (type, fn, ...rest) => {
+    if (type === "turbo:submit-end") listening.push(fn)
+    return add(type, fn, ...rest)
+  }
+  document.removeEventListener = (type, fn, ...rest) => {
+    if (type === "turbo:submit-end") listening.splice(listening.indexOf(fn), 1)
+    return remove(type, fn, ...rest)
+  }
+  try {
+    const controllers = ["a", "b"].map((key) => {
+      const controller = new ReactiveController()
+      controller.element = document.getElementById(`pf-${key}`)
+      controller.tokenValue = "tok"
+      return controller
+    })
+    for (const controller of controllers) await connect(controller)
+    expect(listening).toHaveLength(1)
+
+    // The one listener still reaches each root: submitting b's form clears b only.
+    submitEnd(document.getElementById("f-b"), true)
+    expect(storage.raw("phlex-reactive:persist:b")).toBeUndefined()
+    expect(storage.json("phlex-reactive:persist:a").fields["form[name]"]).toBe("A")
+
+    controllers[0].disconnect()
+    expect(listening).toHaveLength(1)
+    controllers[1].disconnect()
+    expect(listening).toHaveLength(0)
+  } finally {
+    document.addEventListener = add
+    document.removeEventListener = remove
+  }
+})
+
 // --- ops ------------------------------------------------------------------
 
 test("persist_state merges the bag, re-snapshots the fields and stamps the root", async () => {

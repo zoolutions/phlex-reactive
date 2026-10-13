@@ -190,6 +190,22 @@ namespace :bench do
     puts "\nSaved report to tmp/benchmarks/client.txt"
     abort "\nClient benchmark failed (exit #{$CHILD_STATUS.exitstatus})" unless $CHILD_STATUS.success?
   end
+
+  desc "Connect/disconnect cost and a heap soak in headless Chromium (the shipped client + Stimulus)"
+  task :browser do
+    # The happy-dom connect bench is engine-relative; this one runs the vendored
+    # minified client in a real browser. Pass another build's vendor directory to
+    # compare: bun run benchmark/browser/connect.mjs path/to/vendor
+    require "fileutils"
+    FileUtils.mkdir_p("tmp/benchmarks")
+    header = "\n### benchmark/browser/connect.mjs ###"
+    puts "\e[1;35m#{header}\e[0m"
+    result = `bun run benchmark/browser/connect.mjs 2>&1`
+    puts result
+    File.write("tmp/benchmarks/browser.txt", "#{header}\n#{result}#{"!!! FAILED\n" unless $CHILD_STATUS.success?}")
+    puts "\nSaved report to tmp/benchmarks/browser.txt"
+    abort "\nBrowser benchmark failed (exit #{$CHILD_STATUS.exitstatus})" unless $CHILD_STATUS.success?
+  end
 end
 
 desc "Run the micro-benchmark suite (alias for bench:micro)"

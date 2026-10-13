@@ -147,7 +147,10 @@ const SLACK = 250
 // Issue #373 (copy_media, the media marker, the reactive_media binding, refusing srcset
 // and a media label of @root) adds 404 B on #366/#365 (32,551 B); on top of #369, #370,
 // #374 and #375, 410 B: 33,799 B; slicing take: by code point, 33,805 B.
-const BUNDLE_GZIP_CEILING = 33_805
+// One window listener pair for every warn_unsaved root (connecting N guarded
+// forms was quadratic) adds 110 B: 33,915 B. One document submit-end listener for
+// every persisted root, 84 B: 33,999 B.
+const BUNDLE_GZIP_CEILING = 33_999
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -215,10 +218,12 @@ const FEATURE_GZIP_CEILINGS = {
   "features/hints": 1_000,
   "features/effects": 1_750,
   // Issue #351 (an editable drafted through the core's collector) takes it to 3,167 B.
-  "features/persist": 3_200,
+  // One document submit-end listener for every persisted root, to 3,283 B.
+  "features/persist": 3_283,
   // Issue #351 (an editable's dirty diff against its server text) takes it to 1,088 B.
   // Issue #356 (a gate wired the first time it reads true, and reseed) to 1,152 B.
-  "features/form": 1_152,
+  // One window listener pair for every warn_unsaved root, to 1,268 B.
+  "features/form": 1_268,
   "features/devtools": 1_600,
   // Issue #350: sortable lists, 3,094 B; its review fixes take it to 3,130 B; PR #352 review to 3,215 B.
   "features/sortable": 3_215,
@@ -271,7 +276,9 @@ const FEATURE_GZIP_CEILINGS = {
 // on top of #369, #370 and #374, 356 B: 41,235 B.
 // Issue #373 (+170 B core, +224 B bindings) on top of #369, #370, #374 and #375
 // adds 394 B: 41,629 B; slicing take: by code point, 41,636 B.
-const SPLIT_TOTAL_GZIP_CEILING = 41_636
+// One window listener pair for every warn_unsaved root (form) adds 116 B: 41,752 B.
+// One document submit-end listener for every persisted root (persist), 116 B: 41,868 B.
+const SPLIT_TOTAL_GZIP_CEILING = 41_868
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

@@ -18,6 +18,16 @@ module Phlex
       module Identity
         extend ActiveSupport::Concern
 
+        # Whether the installed GlobalID gives a class its own app
+        # (global_id_app, then GlobalID.app — rails/globalid after 1.4).
+        # Read once: it is a fact about the loaded gem.
+        def self.per_class_gid_app?
+          return @per_class_gid_app if defined?(@per_class_gid_app)
+
+          @per_class_gid_app = ::GlobalID::Identification.const_defined?(:ClassMethods, false) &&
+                               ::GlobalID::Identification::ClassMethods.method_defined?(:global_id_app)
+        end
+
         class_methods do
           # The record's instance-variable symbol (e.g. :@todo), computed once.
           # reactive_token reads it on every render; interpolating :"@#{key}" each
@@ -74,7 +84,7 @@ module Phlex
           # before to_gid (nil.to_gid would raise).
           if (record_ivar = klass.reactive_record_ivar) &&
              (record = instance_variable_get(record_ivar)) && signable_gid?(record)
-            payload["gid"] = record.to_gid.to_s
+            payload["gid"] = reactive_gid(record)
           end
 
           state_ivars = klass.reactive_state_ivars
@@ -94,6 +104,29 @@ module Phlex
         # signable, matching the pre-existing contract.
         def signable_gid?(record)
           !(record.respond_to?(:persisted?) && !record.persisted?)
+        end
+
+        # record.to_gid.to_s, without the URI. For a record whose to_gid is
+        # GlobalID's own (not overridden on its class or on itself) and whose
+        # id is an Integer, GlobalID's string is exactly
+        # "gid://<GlobalID.app>/<class name>/<id>": an Integer needs no
+        # escaping and there are no params. Building it directly skips a
+        # validated URI::GID (~37 objects, about half a record token's cost),
+        # once per record-backed row per render. Anything else goes through
+        # to_gid unchanged, its errors included.
+        def reactive_gid(record)
+          if record.is_a?(::GlobalID::Identification) &&
+             record.method(:to_gid).owner.equal?(::GlobalID::Identification) &&
+             (id = record.id).is_a?(Integer) && (app = reactive_gid_app(record.class)) && (name = record.class.name)
+            "gid://#{app}/#{name}/#{id}"
+          else
+            record.to_gid.to_s
+          end
+        end
+
+        # The app to_gid would use: the class's own where GlobalID has one.
+        def reactive_gid_app(klass)
+          (Identity.per_class_gid_app? && klass.global_id_app) || ::GlobalID.app
         end
       end
     end

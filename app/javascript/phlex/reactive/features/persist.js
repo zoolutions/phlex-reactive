@@ -508,6 +508,35 @@ function persistClearRoot(root) {
 // record's fields: the minifier renames a local, never a property (#310).
 const wired = new WeakMap()
 
+// document -> the submit-end handlers of its persisted roots. One document
+// listener serves them all: a listener per root made connecting and
+// disconnecting N persisted roots quadratic (the browser scans a target's
+// listeners on each add and remove). Added with the first root, removed with
+// the last. Returns the handler's removal.
+const submitEnds = new WeakMap()
+
+function onSubmitEndOf(doc, handler) {
+  if (typeof doc?.addEventListener !== "function") return () => {}
+  let shared = submitEnds.get(doc)
+  if (!shared) {
+    const handlers = new Set()
+    const listener = (event) => {
+      for (const run of handlers) run(event)
+    }
+    doc.addEventListener("turbo:submit-end", listener)
+    shared = [handlers, listener]
+    submitEnds.set(doc, shared)
+  }
+  const [handlers, listener] = shared
+  handlers.add(handler)
+  return () => {
+    handlers.delete(handler)
+    if (handlers.size > 0) return
+    doc.removeEventListener?.("turbo:submit-end", listener)
+    submitEnds.delete(doc)
+  }
+}
+
 // Restore the draft into the owned controls, expose the state bag, announce,
 // then arm the write listeners. The restore reads ONCE and never writes back:
 // nothing is wired until it has completed, so no listener can clobber the
@@ -578,12 +607,12 @@ export function connect(controller, core, _morphed, pending) {
   const inputs = ["input", ...PERSIST_EDITOR_CHANGE_EVENTS]
   for (const event of inputs) root.addEventListener?.(event, onInput)
   root.addEventListener?.("change", writeNow)
-  document.addEventListener?.("turbo:submit-end", onSubmitEnd)
+  const offSubmitEnd = onSubmitEndOf(globalThis.document, onSubmitEnd)
   wired.set(controller, () => {
     if (timer !== null) writeNow()
     for (const event of inputs) root.removeEventListener?.(event, onInput)
     root.removeEventListener?.("change", writeNow)
-    document.removeEventListener?.("turbo:submit-end", onSubmitEnd)
+    offSubmitEnd()
   })
 
   // An edit made while we were on our way had no listener to draft it: draft
