@@ -366,7 +366,9 @@ module Views
                 rendered `hidden` stays hidden.
               - `show_alt:` is a selector resolved inside the `img`'s own reactive root,
                 never a URL. `hide:` that is not `true`/`false`, or a `show_alt:` that is
-                not a selector (or is `@root`), raises at render.
+                not a non-blank String (or is `@root`), raises at render. A String that
+                is not a valid CSS selector, or a node that holds the `img`, is ignored
+                by the client.
               - The client listens once on the document (`error` and `load` do not
                 bubble, so it listens in the capture phase): nothing runs per root at
                 connect.

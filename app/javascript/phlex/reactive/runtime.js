@@ -534,9 +534,11 @@ export function registerReactiveImageFallback() {
   // SVG with only a viewBox, so decode() decides (it rejects a broken image).
   for (const img of document.querySelectorAll?.(`img[${IMAGE_FALLBACK}]`) ?? []) {
     if (!img.complete || !hasImageSrc(img)) continue
-    const mark = (value) => setImageState(img, imageFallback(img) ?? {}, value)
+    // A decode() that settles after the src changed decoded the OLD one: ignore it.
+    const was = `${img.getAttribute("src")} ${img.getAttribute("srcset")}`
+    const mark = (value) => `${img.getAttribute("src")} ${img.getAttribute("srcset")}` === was && setImageState(img, imageFallback(img) ?? {}, value)
     if (img.naturalWidth > 0) mark("loaded")
-    else if (typeof img.decode === "function") img.decode().then(() => mark("loaded"), () => hasImageSrc(img) && mark("error"))
+    else if (typeof img.decode === "function") img.decode().then(() => mark("loaded"), () => mark("error"))
     else mark("error")
   }
 }

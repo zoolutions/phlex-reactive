@@ -424,6 +424,24 @@ test("a sweep decode() that rejects after the src was removed does not mark an e
   expect(img.hidden).toBe(false)
 })
 
+test("a sweep decode() that settles after the src changed is ignored (it decoded the old src)", async () => {
+  document.body.innerHTML = `<img id="logo" src="/missing.svg" alt="" data-reactive-image-fallback="${HIDE}">`
+  const img = document.getElementById("logo")
+  Object.defineProperty(img, "complete", { value: true, configurable: true })
+  Object.defineProperty(img, "naturalWidth", { value: 0, configurable: true })
+  let reject
+  img.decode = () => new Promise((_, r) => (reject = r))
+
+  mod.__resetReactiveImageFallbackForTest()
+  mod.registerReactiveImageFallback()
+  quietly(() => img.setAttribute("src", "/logos/007.svg")) // copy_media / preview_file wrote a new src
+  reject(new Error("EncodingError"))
+  await flush()
+
+  expect(img.hasAttribute("data-reactive-image-state")).toBe(false)
+  expect(img.hidden).toBe(false)
+})
+
 test("an img restored from a snapshot (hidden + error already in the DOM) is shown again by a new src", () => {
   // A Turbo restoration visit hands back a NEW element carrying what the
   // fallback wrote — its hidden must still be undoable.

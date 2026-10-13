@@ -22,9 +22,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the document in the capture phase (`error`/`load` do not bubble) and reads
   images that failed before it registered; nothing runs per root at connect.
   No URL in any argument; `set_attr` still refuses `src`/`srcset`. `hide:`
-  that is not a boolean, or a `show_alt:` that is not a selector (or is
-  `@root`), raises at render. Client: +584 B gzipped in the default bundle,
-  +546 B in the split core. Docs: "An image that falls back, and recovers" on
+  that is not a boolean, or a `show_alt:` that is not a non-blank String (or
+  is `@root`), raises at render; a String that is not a valid CSS selector is
+  ignored by the client. Client: +597 B gzipped in the default bundle,
+  +550 B in the split core. Docs: "An image that falls back, and recovers" on
   the client-ops example.
 
 - **Media previews — `js.copy_media` and `reactive_media` (#373).**
