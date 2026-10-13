@@ -152,10 +152,14 @@ export function __resetComputeRegistryForTest() {
 // wire.
 const ROOT_SENTINEL = "@root"
 
-function targetArgs(to, { global, transition } = {}) {
+// `keep: true` (issue #369) on show/hide/toggle and the class and attr ops:
+// a morph of the target re-applies the op's result (see Phlex::Reactive::JS).
+// Ignored by the other ops, as the interpreter only keeps those nine.
+function targetArgs(to, { global, transition, keep } = {}) {
   const args = { to: to ?? ROOT_SENTINEL }
   if (global) args.global = true
   if (transition) args.transition = normalizeTransition(transition)
+  if (keep) args.keep = true
   return args
 }
 

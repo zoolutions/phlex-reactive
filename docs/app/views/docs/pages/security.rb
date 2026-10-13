@@ -144,7 +144,9 @@ module Views
               reducer builder deliberately omits `paste_into` and `check_group`, and has no
               `show_modal` / `close_dialog` verbs — the raw pairs still interpret) but **refused in
               broadcasts**: a broadcast op must never steal focus in, force-submit a form
-              from, or read the clipboard of, every subscriber's tab.
+              from, or read the clipboard of, every subscriber's tab. The `keep: true`
+              flag (#369) is refused in broadcasts on any op for the same reason: what
+              it records is one tab's client state.
             MD
           end
         end

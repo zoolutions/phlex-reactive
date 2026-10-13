@@ -397,6 +397,46 @@ RSpec.describe Phlex::Reactive::JS do
     end
   end
 
+  # --- Issue #369: keep: — a morph of the target re-applies what the op did ---
+
+  describe "keep: on the class, visibility and attribute ops" do
+    it "serializes keep: true on every op that takes it" do
+      chain = js.add_class("#a", "x", keep: true).remove_class("#a", "y", keep: true)
+        .toggle_class("#a", "z", keep: true).show("#a", keep: true).hide("#a", keep: true)
+        .toggle("#a", keep: true).set_attr("#a", "aria-selected", "true", keep: true)
+        .remove_attr("#a", "data-open", keep: true).toggle_attr("#a", "aria-expanded", "true", "false", keep: true)
+
+      expect(chain.ops.map { |_, args| args["keep"] }).to all(be(true))
+      expect(chain.ops.map(&:first)).to eq(
+        %w[add_class remove_class toggle_class show hide toggle set_attr remove_attr toggle_attr]
+      )
+    end
+
+    it "puts keep after the op's own arguments" do
+      expect(js.add_class("#item-2", "selected", global: true, keep: true).to_json)
+        .to eq('[["add_class",{"to":"#item-2","classes":["selected"],"global":true,"keep":true}]]')
+      expect(js.set_attr("#row", "aria-expanded", "true", keep: true).to_json)
+        .to eq('[["set_attr",{"to":"#row","name":"aria-expanded","value":"true","keep":true}]]')
+      expect(js.show("#d", expanded: "#t", keep: true).to_json)
+        .to eq('[["show",{"to":"#d","expanded":"#t","keep":true}]]')
+    end
+
+    it "keeps the wire byte-identical when keep: is omitted or false" do
+      expect(js.add_class("#a", "x").to_json).to eq('[["add_class",{"to":"#a","classes":["x"]}]]')
+      expect(js.add_class("#a", "x", keep: false).to_json).to eq('[["add_class",{"to":"#a","classes":["x"]}]]')
+      expect(js.hide("#a", keep: false).to_json).to eq('[["hide",{"to":"#a"}]]')
+      expect(js.remove_attr("#a", "hidden", keep: false).to_json)
+        .to eq('[["remove_attr",{"to":"#a","name":"hidden"}]]')
+      expect(js.toggle_attr("#a", "aria-pressed", keep: false).to_json)
+        .to eq('[["toggle_attr",{"to":"#a","name":"aria-pressed"}]]')
+    end
+
+    it "is not an option on ops whose effect is not DOM state" do
+      expect { js.focus("#a", keep: true) }.to raise_error(ArgumentError, /keep/)
+      expect { js.text("#a", "x", keep: true) }.to raise_error(ArgumentError, /keep/)
+    end
+  end
+
   # --- Issue #159: the text op (set textContent — the cross-root text escape) ---
 
   describe "text op (#text) — textContent only, never innerHTML" do
