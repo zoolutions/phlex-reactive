@@ -359,6 +359,10 @@ class DemosController < ActionController::Base
     render_component LateShowComponent.new
   end
 
+  def logo_preview
+    render_component LogoPreviewComponent.new
+  end
+
   def photo_preview
     render_component PhotoPreviewComponent.new
   end

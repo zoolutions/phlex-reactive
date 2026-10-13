@@ -33,6 +33,7 @@ namespace :spec do
   split_client_specs = Dir["spec/system/*_spec.rb"].grep_v(/default_client/)
     .select { File.read(it).include?(":split_client") }
   split_client_specs += %w[
+    spec/system/logo_preview_spec.rb
     spec/system/persist_form_spec.rb
     spec/system/persist_editors_spec.rb
     spec/system/editable_text_spec.rb

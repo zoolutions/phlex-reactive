@@ -172,6 +172,20 @@ RSpec.describe "broadcast_js_to (issue #97)", type: :request do
       .to raise_error(ArgumentError, /show_modal/)
   end
 
+  # Issue #373: copy_media only reads elements already in each subscriber's
+  # document, so a broadcast may carry it — and it carries no URL.
+  it "broadcasts a copy_media op (selectors only, no URL)" do
+    ops = TodoItemComponent.new(todo: Todo.new).js.copy_media("#logo", from: "#logo-007", global: true)
+
+    broadcasts = capture_turbo_stream_broadcasts("alerts") do
+      TodoItemComponent.broadcast_to("alerts", js: ops)
+    end
+
+    html = broadcasts.map(&:to_s).join # rubocop:disable Style/MapJoin
+    ops = Nokogiri::HTML.fragment(html).at_css("turbo-stream")["data-reactive-ops"]
+    expect(JSON.parse(ops)).to eq([["copy_media", { "to" => "#logo", "from" => "#logo-007", "global" => true }]])
+  end
+
   # Issue #369: keep: records client state in ONE tab — a broadcast refuses the
   # flag (not the op), on the builder and on a raw list alike.
   it "rejects keep: on any op (kept state belongs to one tab)" do

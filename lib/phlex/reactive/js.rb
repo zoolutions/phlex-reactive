@@ -43,10 +43,13 @@ module Phlex
       #   * the URL set     — href/src/srcdoc/action/formaction/xlink:href can carry
       #                       a `javascript:` payload; setting them from client ops
       #                       is a navigation/injection surface, not a UI toggle.
+      #                       srcset (issue #373) is a URL list that picks what an
+      #                       <img> loads: copy_media copies it from a server-rendered
+      #                       image instead.
       #   * style           — inline CSS injection; use classes (add_class/...).
       # The INTENDED surface is class ops plus boolean/state attributes:
       #   hidden, disabled, open, selected, aria-*, data-*.
-      URL_BEARING_ATTRS = %w[href src srcdoc action formaction xlink:href].freeze
+      URL_BEARING_ATTRS = %w[href src srcset srcdoc action formaction xlink:href].freeze
       EVENT_HANDLER_ATTR = /\Aon/i
 
       # The attr ops whose args carry a "name" the allowlist must gate. Used to
@@ -320,6 +323,28 @@ module Phlex
         args = { "to" => normalize_target(to), "value" => value.to_s }
         args["global"] = true if global
         append("text", args.freeze)
+      end
+
+      # --- Copy a server-rendered image (issue #373) ---
+      #
+      # copy_media(to, from:) — copy src, srcset and alt from the `from` <img>
+      # onto the `to` <img>. Both are ELEMENTS (:root or a CSS selector,
+      # resolved with the op's own scoping, global: included): the URL is read
+      # off the live source element in the browser and is never an argument,
+      # so the set_attr refusal of src (issue #96) stays. A missing source, a
+      # non-<img> source or one without src clears the target's src, srcset
+      # and alt; a target that is not an <img> is skipped. The same URL twice
+      # is not written again (no reload). Broadcast-safe: it only reads
+      # elements already in the subscriber's document.
+      #   button(**on_client(:click, js.copy_media("#logo", from: "#logo-007"))) { "North" }
+
+      def copy_media(to, from:, global: false)
+        source = normalize_target(from)
+        raise ArgumentError, "#{self.class}: copy_media from: needs a CSS selector, got an empty string" if source.empty?
+
+        args = { "to" => normalize_target(to), "from" => source }
+        args["global"] = true if global
+        append("copy_media", args.freeze)
       end
 
       # --- A field's live value (issue #374) ---

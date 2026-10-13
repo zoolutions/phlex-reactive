@@ -144,7 +144,10 @@ const SLACK = 250
 // Issue #375 (js.preview_file: the op, its object-URL map and the observer that
 // revokes) adds 367 B on #366/#365 (32,514 B); on top of #369, #370 and #374,
 // 323 B: 33,389 B.
-const BUNDLE_GZIP_CEILING = 33_389
+// Issue #373 (copy_media, the media marker, the reactive_media binding, refusing srcset
+// and a media label of @root) adds 404 B on #366/#365 (32,551 B); on top of #369, #370,
+// #374 and #375, 410 B: 33,799 B; slicing take: by code point, 33,805 B.
+const BUNDLE_GZIP_CEILING = 33_805
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -190,7 +193,9 @@ const TARGET_BUNDLE_GZIP = 22_700
 // #369 and #370, 117 B: 16,035 B.
 // Issue #375 (js.preview_file) adds 374 B on #366/#365 (15,486 B); on top of
 // #369, #370 and #374, 356 B: 16,391 B.
-const CORE_GZIP_CEILING = 16_391
+// Issue #373 (copy_media, the media marker, refusing srcset) adds 182 B on #366/#365
+// (15,294 B); on top of #369, #370, #374 and #375, 170 B: 16,561 B.
+const CORE_GZIP_CEILING = 16_561
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -200,7 +205,10 @@ const FEATURE_GZIP_CEILINGS = {
   // module's real size, rounded up to the next 50 B. Issue #343 (cross-root
   // group targets) takes it to 6,203 B. Issue #351 (editable text: Enter,
   // Escape, paste/drop, the plaintext-only fallback) takes it to 6,771 B.
-  "features/bindings": 6_800,
+  // Issue #373 (the reactive_media binding) takes it from 6,664 B to 6,884 B;
+  // never resolving a label or pool value of @root, 6,888 B; slicing take: by
+  // code point, 6,895 B.
+  "features/bindings": 6_895,
   // Issue #336 (render a defer reply now) takes it from 2,845 B to 2,974 B.
   "features/defer": 2_974,
   "features/compute": 2_050,
@@ -261,7 +269,9 @@ const FEATURE_GZIP_CEILINGS = {
 // on top of #369 and #370, 117 B: 40,879 B.
 // Issue #375 (js.preview_file, in the core) adds 374 B on #366/#365 (40,330 B);
 // on top of #369, #370 and #374, 356 B: 41,235 B.
-const SPLIT_TOTAL_GZIP_CEILING = 41_235
+// Issue #373 (+170 B core, +224 B bindings) on top of #369, #370, #374 and #375
+// adds 394 B: 41,629 B; slicing take: by code point, 41,636 B.
+const SPLIT_TOTAL_GZIP_CEILING = 41_636
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

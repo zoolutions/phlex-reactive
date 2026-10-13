@@ -684,11 +684,12 @@ Use in controllers: `render turbo_stream: Counter.replace(counter)`.
 | `busy_on(:save)` | Mark any element so it carries `data-reactive-busy` **only while `save` is in flight** — a spinner styled with pure CSS, zero Ruby. See [Loading states](#declarative-loading-states-loading--disable_with). |
 | `on(:action, once: true)` | Fire at most once, then unbind (Stimulus's native `:once`). |
 | `on_client(:click, js.toggle("#menu"))` | **Client-only** trigger: applies declared DOM ops with ZERO round trip — no token, no POST, ever. Takes the same `window:`/`once:`/`outside:` modifiers, plus `detail:` (run only when `event.detail` carries the listed values). See [Client-only ops](#client-only-ops-on_client--js--zero-round-trips). |
-| `js` | The immutable op builder behind `on_client`: `show`/`hide`/`toggle` (the `hidden` attribute, with an optional `transition:` and `expanded:`), `add_class`/`remove_class`/`toggle_class`, `set_attr`/`remove_attr`/`toggle_attr` (allowlisted names; `toggle_attr` also flips between two values), `focus`/`focus_first`, `show_modal`/`close_dialog` (a real modal `<dialog>`), `text` (set `textContent` — XSS-safe), `set_value` (set a field's live `.value` and dispatch `input`), `dispatch`, `submit` (requestSubmit the target's own form, optionally through a `submitter:`), `paste_into` (read the clipboard into a field, gesture-gated), `preview_file` (paint a chosen image file onto an `img` through an object URL the client makes and revokes), `check_group` (tick or untick a checkbox group, then re-sync its bindings), and `persist_state`/`persist_clear` (the `reactive_persist` draft) — chainable. `keep: true` on the visibility, class and attr ops makes their result survive a morph. |
+| `js` | The immutable op builder behind `on_client`: `show`/`hide`/`toggle` (the `hidden` attribute, with an optional `transition:` and `expanded:`), `add_class`/`remove_class`/`toggle_class`, `set_attr`/`remove_attr`/`toggle_attr` (allowlisted names; `toggle_attr` also flips between two values), `focus`/`focus_first`, `show_modal`/`close_dialog` (a real modal `<dialog>`), `copy_media` (copy `src`/`srcset`/`alt` from a server-rendered `<img>`, no URL argument), `text` (set `textContent` — XSS-safe), `set_value` (set a field's live `.value` and dispatch `input`), `dispatch`, `submit` (requestSubmit the target's own form, optionally through a `submitter:`), `paste_into` (read the clipboard into a field, gesture-gated), `preview_file` (paint a chosen image file onto an `img` through an object URL the client makes and revokes), `check_group` (tick or untick a checkbox group, then re-sync its bindings), and `persist_state`/`persist_clear` (the `reactive_persist` draft) — chainable. `keep: true` on the visibility, class and attr ops makes their result survive a morph. |
 | `reactive_field(:param, **attrs)` | The attribute hash that binds a control to an action param (no magic `name:`) — spread onto any control: `input(**reactive_field(:value, value: @record.name))`, `select(**reactive_field(:status)) { … }`. |
 | `reactive_editable(:name, multiline: false, placeholder: nil, on_enter: nil, on_escape: :revert, spellcheck: true)` | A plain-text **editable element** as a field (issue #351): `h3(**reactive_editable(:title)) { @card.title }`. Its text travels under the scope-aware `name`: with `multiline: true` its line breaks are sent as `\n`; a single-line field (the default) folds them to spaces; a morph keeps the focused element's text and caret (attributes still morph); paste is plain text; Enter runs `on_enter:` (a single-line field swallows it); Escape reverts. `reactive_dirty` and `reactive_persist` treat it like an input. See the [Editable text](https://phlex-reactive.zoolutions.llc/docs/editable-text) page. |
 | `reactive_text(:name, initial)` | Mirror a compute output (or a declared input) into a **text node** — a live preview heading, a character counter, `"Hello, {name}"` — via `textContent` (XSS-safe). The text sibling of `reactive_field`; carries no `name`, so it's never POSTed. See [Client-side computes](#client-side-computes-reactive_compute--reactive_text). |
 | `reactive_show(if:/if_any:/unless:)` | **Value-conditional visibility** (the `x-show`/`data-show` case): spread onto the element to show/hide — it toggles `hidden` from the fields' **current values**, client-only, zero round trip. One conditions language: a **Hash is an AND**, an **Array is membership**, a **Range is a threshold**, `if_any:` is OR-of-AND, `unless:` negates. `reactive_values` computes first paint; `disable:` disables a hidden section's controls. See [Value-conditional visibility](#value-conditional-visibility-reactive_show). |
+| `reactive_media(from:, pool:, take:, label:, blank_label:)` | A preview `<img>` that **follows a field** (#373): the field's value (its first `take:` characters, or all of it) is a key into `pool`, whose values are **selectors** for `<img>` elements the server rendered — never URLs. A hit copies that image's `src`/`srcset`/`alt` like `js.copy_media`; a miss clears the preview. `label:` gets the `alt` (or `blank_label`) as `textContent`. See [Media previews](https://phlex-reactive.zoolutions.llc/docs/example-client-ops). |
 | `reactive_enable(if:/if_any:/unless:)` | The sibling of `reactive_show` that flips the element's **own `disabled`** (a button, a fieldset) instead of `hidden` — same conditions, same `reactive_values` first paint. `button(**reactive_enable(if: { "ids[]" => { checked: 1.. } }))`. See [Bulk selection](#bulk-selection-reactive_select_all-reactive_count-reactive_enable). |
 | `reactive_select_all("ids[]")` / `reactive_count("ids[]")` | A checkbox **group**'s header box (ticks/unticks every owned box; shows checked / indeterminate / unchecked) and its ticked count as text — re-synced on every change and when rows are appended or removed. See [Bulk selection](#bulk-selection-reactive_select_all-reactive_count-reactive_enable). |
 | `reactive_group_targets("ids[]", count: "#c", enable: { "#b" => 1.. })` | Spread on the root that **owns** a checkbox group: drives a count and an enable on outside, id-allowlisted elements (a bulk bar the page renders). `reactive_group_target_attrs` gives that outside markup its first paint. See [A bulk bar outside the list's root](#a-bulk-bar-outside-the-lists-root-reactive_group_targets). |
@@ -1258,10 +1259,18 @@ button(**on_client(:click, js
   values raise at build time. The **attribute name is allowlisted, enforced twice** — at
   build time in Ruby (an offending name raises) and again in the client
   interpreter (a hand-built op is warned and skipped). Refused: **event handlers**
-  (`on*` → XSS), **URL-bearing** names (`href`, `src`, `srcdoc`, `action`,
+  (`on*` → XSS), **URL-bearing** names (`href`, `src`, `srcset`, `srcdoc`, `action`,
   `formaction`, `xlink:href` → a `javascript:` navigation surface), and **`style`**
   (CSS injection — use classes). The **intended surface** is class ops plus
   `hidden`, `disabled`, `open`, `selected`, and any `aria-*` / `data-*` attribute.
+- **`copy_media(to, from:)`** (#373) copies `src`, `srcset` and `alt` from the
+  `from` `<img>` onto the `to` `<img>` — how a preview shows an image the server
+  already rendered while `src` stays refused. Both are elements (`:root` or a
+  selector); the URL is read from the live source element, never passed. A
+  missing source, a non-`<img>` source or one without `src` clears the target;
+  a non-`<img>` target is warned about and skipped; an attribute that already
+  holds the copied value is not rewritten, so the same image twice does not
+  reload. Allowed in a broadcast (it only reads the subscriber's own page).
 - **`focus(to)`** focuses the first match; **`focus_first(to)`** focuses the first
   focusable descendant of the match (e.g. the first menuitem inside an opened
   menu).
@@ -1341,7 +1350,7 @@ button(**on_client(:click, js
   `file.name` in the `name:` node's `textContent`. An empty selection or a
   non-image file removes the `src` and clears the name. The op carries **no
   URL** — there is no parameter for one and the client never reads a `url` key
-  — so `set_attr` of `src` stays refused (#96); only an `<img>` ever gets a
+  — so `set_attr` of `src` (and `srcset`, #373) stays refused (#96); only an `<img>` ever gets a
   `src` (an `into:` that is anything else warns and is skipped, as is a `to`
   that is not an `input[type=file]`). The runtime keeps the last URL per `img`
   and revokes it on a re-pick, a clear, and when the `img` leaves the page or a

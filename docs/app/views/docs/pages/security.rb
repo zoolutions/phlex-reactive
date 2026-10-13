@@ -155,6 +155,13 @@ module Views
               `url` key off a raw pair, `set_attr` of `src` still raises, and only an
               `<img>` ever gets a `src` (an iframe, script or frame target is skipped).
               The reducer builder omits it too.
+
+              The allowlist refuses URL-bearing names (`href`, `src`, `srcset`, `srcdoc`,
+              …) on both sides. A preview image therefore never takes a URL from an op:
+              `copy_media` and `reactive_media` (#373) name **elements** — a pool value
+              is only ever passed to `querySelector` — and copy `src` from an `<img>`
+              already in the page (resolved in the live DOM; normally one the server
+              rendered), onto an `<img>` only.
             MD
           end
         end

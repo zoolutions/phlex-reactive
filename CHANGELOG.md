@@ -8,6 +8,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Media previews — `js.copy_media` and `reactive_media` (#373).**
+  `js.copy_media("#logo", from: "#logo-007")` copies `src`, `srcset` and `alt`
+  from an `<img>` the server rendered onto a preview `<img>`; the URL is read
+  from the live source element and is never an op argument, so `set_attr`
+  still refuses `src` (#96). A missing source, a non-`<img>` source or one
+  without `src` clears the target; a target that is not an `<img>` (an
+  `iframe`, `script`, `object`, `embed`, `frame`) is warned about and skipped;
+  the same URL twice is not written again. `img(**reactive_media(from: :code,
+  take: 3, pool: { "007" => "#logo-007" }, label: "#caption", blank_label:
+  "Unknown"))` is a binding: the field's value (its first `take:` characters)
+  picks the pool image by key, a miss clears the preview, and `label:` gets
+  the alt via `textContent`. Pool values are selectors only. `reactive_media`
+  raises at render without `pool:` or with a `take:` that is not a positive
+  Integer. `set_attr` / `toggle_attr` / `remove_attr` now refuse `srcset`
+  too, on both sides (a URL list that picks what an `<img>` loads); copy it
+  with `copy_media`. Client: +416 B gzipped in the default bundle, +170 B in the split
+  core, +231 B in the bindings module. Docs: "Media previews" on the
+  client-ops example.
+
 - **Preview a chosen file — `js.preview_file(to, into:, name: nil, global: false)` (#375).**
   `on_client(:change, js.preview_file("#photo-file", into: "#photo", name:
   "#photo-name"))` paints the input's first `image/*` file onto the `img`
@@ -16,7 +35,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   non-image file removes the `src` and clears the name. The runtime keeps the
   last URL per `img` and revokes it on a re-pick, a clear, and when the `img`
   leaves the page or a morph strips its `src`. The op carries no URL (a `url`
-  key on a raw op list is ignored), `set_attr` of `src` still raises, and only
+  key on a raw op list is ignored), `set_attr` of `src` (and, with #373, `srcset`) still raises, and only
   an `<img>` ever gets a `src`. Actor-only: `broadcast_to(js:)` refuses it.
   Client: +323 B gzipped in the default bundle, +356 B in the split core (on
   top of #369, #370 and #374).

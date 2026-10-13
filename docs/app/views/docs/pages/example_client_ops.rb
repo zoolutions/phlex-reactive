@@ -20,6 +20,7 @@ module Views
           how
           disclosure_menu
           modal_dialogs
+          media_previews
           preview_file
           kept_ops
           ops
@@ -56,7 +57,7 @@ module Views
               `remove_class`/`toggle_class`, `set_attr`/`toggle_attr`/`remove_attr`
               (`toggle_attr` also flips between two values, and `show`/`hide`/`toggle`
               take `expanded:` to keep a trigger's `aria-expanded` in sync — #271),
-              `focus`/`focus_first`, `show_modal`/`close_dialog`, `text`, `set_value`,
+              `focus`/`focus_first`, `show_modal`/`close_dialog`, `copy_media`, `text`, `set_value`,
               `dispatch`, `submit`, `paste_into`, `preview_file` —
               each a local DOM mutation, with three deliberate exceptions. `submit`
               hands the form to its own native/intercepted submit path — the form
@@ -168,6 +169,62 @@ module Views
           end
         end
 
+        def media_previews
+          DocsUI::Section('Media previews (copy_media, reactive_media)') do
+            md <<~MD
+              `set_attr` refuses `src` (#96): a URL in an op could carry a `javascript:`
+              payload. To point a preview at an image, render every candidate `<img>`
+              on the server and **copy** one. No op or binding takes a URL (#373).
+
+              - **`js.copy_media(to, from:)`** copies `src`, `srcset` and `alt` from the
+                `from` `<img>` onto the `to` `<img>`. Both are `:root` or a selector,
+                resolved with the op's own scoping (`global: true` reaches the whole
+                document). The browser reads the URL from the source element itself;
+                it is never an argument. A missing source, a source that is not an
+                `<img>`, or one without `src` clears the target's `src`, `srcset` and
+                `alt`. A target that is not an `<img>` (an `iframe`, `script`,
+                `object`, `embed`, `frame`, …) is warned about and skipped. Copying the
+                URL the target already shows writes nothing, so the image does not
+                reload. A broadcast may carry it: it only reads elements that are
+                already on each subscriber's page.
+              - **`reactive_media(from:, pool:, take: nil, label: nil, blank_label: nil)`**
+                is a binding, read the way `reactive_show` reads a field: a text field
+                gives its value, a radio group its checked value, `reactive_scope`
+                applies. `take: n` (a positive Integer) keeps the first *n* characters
+                as the key; omit it to use the whole value. The key looks up `pool`,
+                whose values are **selectors** for `<img>` elements inside the root,
+                never URLs. A key, selector or element that misses clears the preview.
+                `label:` names a node whose `textContent` becomes the chosen image's
+                `alt`, or `blank_label` (empty when omitted) on a miss.
+
+              ```ruby
+              input(name: "code")
+              img(id: "logo", alt: "", **reactive_media(
+                from: :code, take: 3,
+                pool: { "007" => "#logo-007", "011" => "#logo-011" },
+                label: "#caption", blank_label: "Unknown"
+              ))
+              span(id: "caption")
+              img(id: "logo-007", src: "/logos/007.svg", alt: "North", hidden: true)
+              img(id: "logo-011", src: "/logos/011.svg", alt: "South", hidden: true)
+
+              button(**on_client(:click, js.copy_media("#logo", from: "#logo-007"))) { "Use north" }
+              ```
+
+              `js.copy_media("#logo")` without `from:`, `reactive_media` without
+              `pool:`, and a `take:` that is not a positive Integer raise at render.
+              When the field value *is* the whole key and the images differ in more
+              than the picture, `reactive_show` over pre-rendered blocks is the
+              simpler tool; `reactive_media` is for a key that is a prefix of a
+              longer value.
+            MD
+            render Views::Examples::LiveExample.new(
+              component: MediaPreviewComponent.new,
+              filename: 'app/components/media_preview_component.rb'
+            )
+          end
+        end
+
         def preview_file
           DocsUI::Section('Preview a chosen image') do
             md <<~MD
@@ -190,7 +247,7 @@ module Views
                 choice, on a clear, and when the `img` leaves the page or a morph strips
                 its `src` — no blob URL leaks.
               - The op carries **no URL**. There is no parameter for one, the client never
-                reads a `url` key, and `set_attr` of `src` stays refused (#96). Only an
+                reads a `url` key, and `set_attr` of `src` (and `srcset`, #373) stays refused (#96). Only an
                 `<img>` ever gets a `src`: an `into:` that is anything else, or a `to` that
                 is not an `input[type=file]`, warns and is skipped.
               - **Actor-only** like `paste_into`: `on_client` and `reply.js` may use it,

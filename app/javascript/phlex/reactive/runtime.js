@@ -934,7 +934,8 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
 // time; this guards a hand-built / forged ops attr from bypassing it. Refused:
 // event handlers (on*, XSS), URL-bearing names (a javascript: navigation
 // surface), and style (CSS injection). Case-insensitive, mirroring js.rb.
-const REFUSED_ATTR_URL = new Set(["href", "src", "srcdoc", "action", "formaction", "xlink:href", "style"])
+// srcset (issue #373) too: a URL list that picks what an <img> loads.
+const REFUSED_ATTR_URL = new Set(["href", "src", "srcset", "srcdoc", "action", "formaction", "xlink:href", "style"])
 function attrRefused(name) {
   const lower = String(name).toLowerCase()
   return lower.startsWith("on") || REFUSED_ATTR_URL.has(lower)
@@ -1129,6 +1130,19 @@ const CLIENT_OPS = Object.freeze({
   text: (el, args) => {
     const text = String(args.value ?? "")
     if (el.textContent !== text) el.textContent = text
+  },
+
+  // Copy a server-rendered image (issue #373): src, srcset and alt from the
+  // `from` <img>, resolved with the op's own scoping (the `submitter:`
+  // precedent). The URL is read off that element, never from an argument —
+  // the src refusal above stays. A selector that does not parse (a URL
+  // string) is a miss, like one that matches nothing.
+  copy_media: (el, args, resolveTargets) => {
+    let source = null
+    try {
+      source = resolveTargets({ ...args, to: args.from })[0] ?? null
+    } catch {}
+    copyMedia(el, source)
   },
 
   // Tick or untick a whole checkbox group (issue #342) — "clear selection".
@@ -1384,6 +1398,31 @@ function guardAttr(name) {
   if (!attrRefused(name)) return true
   console.warn(`[phlex-reactive] refused client attr op on ${JSON.stringify(name)} — skipped`)
   return false
+}
+
+// Copy src, srcset and alt from one <img> onto another (issue #373) — the
+// copy_media op and the reactive_media binding (the bindings feature reaches it
+// through the core handle). Only an <img> target is written, so an iframe,
+// script, object, embed or frame never receives a src from here. A source that
+// is missing, not an <img> or has no src clears the target. Each attribute is
+// written only when it changes, so the same URL twice does not reload. Returns
+// the alt copied, false when it cleared, or null when the target was skipped.
+function copyMedia(target, source) {
+  if (target?.localName !== "img") {
+    console.warn(`[phlex-reactive] copy_media targets an <img>, not <${target?.localName}> — skipped`)
+    return null
+  }
+  const src = source?.localName === "img" ? source.getAttribute("src") : null
+  const pick = (name) => (src ? source.getAttribute(name) : null)
+  for (const name of ["srcset", "src"]) {
+    const value = pick(name)
+    if (value == null) {
+      if (target.hasAttribute(name)) target.removeAttribute(name)
+    } else if (target.getAttribute(name) !== value) target.setAttribute(name, value)
+  }
+  const alt = pick("alt") ?? ""
+  if (target.getAttribute("alt") !== alt) target.setAttribute("alt", alt)
+  return src ? alt : false
 }
 
 // The first focusable descendant of `el`, in document order — the natural
@@ -1776,8 +1815,8 @@ function formNeeded(root) {
 // Show bindings and cross-root show targets, completion bindings, option
 // filtering, the bulk-selection group bindings (enable, select-all, count —
 // issue #319) and their cross-root targets (#343), the tag-chip input, draft
-// nested rows and editable text's keys and paste (#351): a form's client-only
-// bindings. The root declares one, or
+// nested rows, editable text's keys and paste (#351) and media previews
+// (#373): a form's client-only bindings. The root declares one, or
 // owns an element that does. (The probes the connect-time gates ran before
 // the split, unchanged.)
 function bindingsNeeded(root) {
@@ -1787,7 +1826,7 @@ function bindingsNeeded(root) {
     ) ||
     (root.querySelectorAll?.("[data-reactive-show-field], [data-reactive-show]") ?? []).length > 0 ||
     root.querySelector?.(
-      "[data-reactive-nested-json], [data-reactive-nested-list], [data-reactive-confirm-when-param], [data-reactive-enable], [data-reactive-select-all], [data-reactive-count], [data-reactive-editable]",
+      "[data-reactive-nested-json], [data-reactive-nested-list], [data-reactive-confirm-when-param], [data-reactive-enable], [data-reactive-select-all], [data-reactive-count], [data-reactive-editable], [data-reactive-media]",
     ) != null
   )
 }
@@ -2621,6 +2660,8 @@ export default class extends Controller {
       plain: plaintextSupported,
       text: editableValue,
       served: serverText,
+      // Copy one <img> onto another (issue #373): the reactive_media binding.
+      copyMedia,
       // The confirm gate, as dispatch() runs it: the resolver inside the chain
       // (a synchronous throw is a cancel), never a rejection out.
       confirm: (message, context) =>
