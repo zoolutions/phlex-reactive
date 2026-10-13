@@ -252,6 +252,34 @@ module Views
                 is not an `input[type=file]`, warns and is skipped.
               - **Actor-only** like `paste_into`: `on_client` and `reply.js` may use it,
                 `broadcast_to(js:)` refuses it.
+
+              **When the app rejects the file.** An upload validator (size, type) often rejects a file by clearing the input
+              itself. `input.value = ""` fires no `change`, so the op never hears about it
+              and the rejected image stays on screen. Two pieces close that gap (#382):
+
+              ```ruby
+              op = js.preview_file("#photo-file", into: "#photo", name: "#photo-name", valid: true)
+              input(type: "file", id: "photo-file", accept: "image/*",
+                **mix(on_client(:change, op), on_client("reactive:file-changed", op)))
+              ```
+
+              - **`valid: true`** treats an input whose `validity.valid` is false as empty.
+                A validator that calls `input.setCustomValidity("Too big")` before the op
+                runs means the file never gets a preview, and a preview already shown is
+                cleared and its URL revoked.
+              - **`reactive:file-changed`** is the event for "the app changed this input's
+                files without a `change` event". Bind the same op to it, and have the
+                validator dispatch it after it clears or invalidates the field:
+
+              ```js
+              input.value = ""
+              input.dispatchEvent(new CustomEvent("reactive:file-changed", { bubbles: true }))
+              ```
+
+              The event works whichever `change` listener runs first, the validator's or
+              the op's. `valid: true` on its own needs the validator to have run before the
+              op on the same `change`; when that order is not certain, dispatch the event. Without `valid:`
+              the op previews whatever file the input holds, as before.
             MD
             DocsUI::Callout(:warning) do
               md <<~MD
