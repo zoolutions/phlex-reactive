@@ -135,8 +135,9 @@ const SLACK = 250
 // telling a kept `open` from a removed one adds 78 B: 32,108 B; upgrading a root
 // that is itself the dialog adds 12 B: 32,120 B.
 // #365 and #366 together: 32,147 B.
-// Issue #374 (the set_value op) adds 75 B: 32,222 B.
-const BUNDLE_GZIP_CEILING = 32_222
+// Issue #374 (the set_value op) adds 75 B: 32,222 B; comparing a
+// <select multiple>'s whole selection adds 36 B: 32,258 B.
+const BUNDLE_GZIP_CEILING = 32_258
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -175,8 +176,9 @@ const TARGET_BUNDLE_GZIP = 22_700
 // telling a kept `open` from a removed one adds 66 B: 15,079 B; upgrading a root
 // that is itself the dialog adds 14 B: 15,093 B.
 // #365 and #366 together: 15,112 B.
-// Issue #374 (the set_value op) adds 84 B: 15,196 B.
-const CORE_GZIP_CEILING = 15_196
+// Issue #374 (the set_value op) adds 84 B: 15,196 B; comparing a
+// <select multiple>'s whole selection adds 36 B: 15,232 B.
+const CORE_GZIP_CEILING = 15_232
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -241,8 +243,9 @@ const FEATURE_GZIP_CEILINGS = {
 // telling a kept `open` from a removed one adds 66 B: 39,923 B; upgrading a root
 // that is itself the dialog adds 14 B: 39,937 B.
 // #365 and #366 together: 39,956 B.
-// Issue #374 (the set_value op, in the core) adds 84 B: 40,040 B.
-const SPLIT_TOTAL_GZIP_CEILING = 40_040
+// Issue #374 (the set_value op, in the core) adds 84 B: 40,040 B; the
+// <select multiple> comparison adds 36 B: 40,076 B.
+const SPLIT_TOTAL_GZIP_CEILING = 40_076
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

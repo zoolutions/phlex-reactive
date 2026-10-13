@@ -87,6 +87,20 @@ RSpec.describe "Set a field's live value (issue #374 js.set_value)", type: :syst
     expect(page).to have_select("tone", selected: "Warm")
   end
 
+  it "dispatches input when a <select multiple> loses options even though .value reads the same" do
+    find("[data-testid='tags-select']").select("A")
+    find("[data-testid='tags-select']").select("B")
+    page.execute_script(<<~JS)
+      window.__tagInputs = 0
+      document.getElementById("tags").addEventListener("input", () => window.__tagInputs++)
+    JS
+
+    find("[data-testid='tags']").click
+
+    expect(page).to have_select("tags[]", selected: ["A"])
+    expect(page.evaluate_script("window.__tagInputs")).to eq(1)
+  end
+
   it "refuses a non-empty value for a file input (keeps its files) and clears it with \"\"" do
     file = Tempfile.new(%w[report .txt])
     file.write("x")

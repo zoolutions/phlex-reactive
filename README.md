@@ -2103,7 +2103,10 @@ side effect** — the missing piece that used to force a bespoke controller next
 to an otherwise-declarative compute. Return an op chain (the `ops` builder
 mirrors the Ruby `js` verbs — minus `paste_into`, deliberately: a reducer runs
 on every input event, and a clipboard read per keystroke would spam permission
-prompts; `ops.set_value(selector, value)` is included — or use a raw `[[op, args], …]` array) and the
+prompts; `ops.set_value(selector, value)` is included, but its `input` re-runs
+the reducer, so a value derived from the field it writes changes the chain on
+every pass and fires again each time — return a field the reducer owns as an
+output instead — or use a raw `[[op, args], …]` array) and the
 controller runs it through the **same frozen op whitelist** `on_client` uses,
 as a final phase **after** the field writes, text sinks, and their dispatched
 `input` events settle. The canonical one-time-code field:

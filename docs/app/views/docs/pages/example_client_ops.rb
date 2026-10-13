@@ -214,6 +214,9 @@ module Views
               fires, so reducers and `reactive_show` stay stale. `set_value` is
               actor-only (refused by `broadcast_to(js:)`; render the value instead)
               and is on the reducer builder too: `$ops: ops.set_value("#notes", "…")`.
+              Its `input` re-runs the reducer, so never derive the value from the
+              field it writes (the chain changes every pass and fires again each
+              time); return a field the reducer owns as an output instead.
 
               `submit(to = :root)` (#226) commits the **target's own form** via
               `requestSubmit()` — the target itself when it *is* a form, a

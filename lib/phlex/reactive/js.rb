@@ -256,7 +256,7 @@ module Phlex
       # element (the two passes would fight over the same attribute).
 
       def paste_into(to, global: false)
-        if to == :root
+        if [:root, ROOT_SENTINEL].include?(to)
           raise ArgumentError,
             "#{self.class}: paste_into targets a field, not the component root — " \
             "pass the input's CSS selector (e.g. js.paste_into(\"[name=code]\"))"
@@ -296,7 +296,7 @@ module Phlex
       #   button(**on_client(:click, js.set_value("#notes", "Thanks"))) { "Thanks" }
 
       def set_value(to, value, global: false)
-        if to == :root
+        if [:root, ROOT_SENTINEL].include?(to)
           raise ArgumentError,
             "#{self.class}: set_value targets a field, not the component root — " \
             "pass the field's CSS selector (e.g. js.set_value(\"#notes\", \"Thanks\"))"

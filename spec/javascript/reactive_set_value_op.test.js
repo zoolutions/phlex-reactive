@@ -246,6 +246,58 @@ test("a select takes the string as .value — the matching option becomes select
   expect(tone.events).toHaveLength(1)
 })
 
+// A <select multiple> stand-in: assigning .value selects the first matching
+// option and deselects every other one (the HTML spec), so .value alone can
+// stay the same while the selection shrinks.
+function makeMultiSelect(values, selected) {
+  const options = values.map((v) => ({ value: v, selected: selected.includes(v) }))
+  const field = {
+    localName: "select",
+    type: "select-multiple",
+    options,
+    events: [],
+    closest: () => null,
+    hasAttribute: () => false,
+    get selectedOptions() {
+      return options.filter((o) => o.selected)
+    },
+    get value() {
+      return options.find((o) => o.selected)?.value ?? ""
+    },
+    set value(v) {
+      let found = false
+      for (const o of options) {
+        o.selected = !found && o.value === v
+        if (o.selected) found = true
+      }
+    },
+    dispatchEvent(event) {
+      field.events.push(event.type)
+      return true
+    },
+  }
+  return field
+}
+
+test("a <select multiple> whose selection shrank dispatches input even when .value reads the same", () => {
+  const tags = makeMultiSelect(["a", "b", "c"], ["a", "b"])
+  const { controller } = setup({ "#tags": tags })
+
+  fire(controller, [setValue("#tags", "a")])
+
+  expect(tags.selectedOptions.map((o) => o.value)).toEqual(["a"])
+  expect(tags.events).toEqual(["input"])
+})
+
+test("a <select multiple> already holding exactly that one option dispatches nothing", () => {
+  const tags = makeMultiSelect(["a", "b"], ["a"])
+  const { controller } = setup({ "#tags": tags })
+
+  fire(controller, [setValue("#tags", "a")])
+
+  expect(tags.events).toEqual([])
+})
+
 // --- Warn and skip ------------------------------------------------------------
 
 test("a contenteditable target warns and skips (reactive_editable writes those)", () => {

@@ -1105,9 +1105,16 @@ function setFieldValue(field, value) {
     console.warn("[phlex-reactive] set_value skipped: not a field it can write", field)
     return
   }
-  const before = field.value
+  const before = fieldState(field)
   field.value = value
-  if (field.value !== before) dispatchInput(field)
+  if (fieldState(field) !== before) dispatchInput(field)
+}
+
+// What set_value compares: .value, or for a <select multiple> its whole
+// selection — assigning .value deselects every other option, which .value
+// (the first selected) alone would not show.
+function fieldState(field) {
+  return field.type === "select-multiple" ? [...field.selectedOptions].map((o) => o.value).join("\n") : field.value
 }
 
 // Apply a hidden-flag change, optionally animated by a [during, from, to]

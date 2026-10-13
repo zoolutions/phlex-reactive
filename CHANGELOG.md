@@ -14,7 +14,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   already on the page, with no clipboard and no round trip. It assigns the
   IDL `.value` of an `input`, `textarea` or `select` (never the attribute,
   never parsed as HTML; the value is stringified, `nil` and `""` clear), then
-  dispatches one bubbling `input` when the value changed, so compute reducers
+  dispatches one bubbling `input` when the value changed (for a
+  `<select multiple>`, when its selection changed), so compute reducers
   and `reactive_show` react as if the user typed. It never dispatches
   `change` and never moves focus. A `select` selects the matching option; a
   file input accepts `""` only. A `contenteditable`, any other non-field, and
@@ -22,7 +23,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   render. Actor-only: `on_client`, `reply.js` and a reducer's `$ops` (the
   compute builder gains `ops.set_value`) carry it, `broadcast_to(js:)`
   refuses it. `js.set_attr(…, "value", …)` is unchanged and still writes only
-  the attribute. Client: +75 B gzipped in the default bundle, +84 B in the
+  the attribute. Client: +111 B gzipped in the default bundle, +120 B in the
   split core. Docs: the client-ops example.
 
 - **Modal dialogs — `js.show_modal` / `js.close_dialog` and

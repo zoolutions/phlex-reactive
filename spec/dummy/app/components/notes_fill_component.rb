@@ -28,6 +28,11 @@ class NotesFillComponent < ApplicationComponent
         option(value: "formal") { "Formal" }
         option(value: "warm") { "Warm" }
       end
+      select(id: "tags", name: "tags[]", multiple: true, data: { testid: "tags-select" }) do
+        option(value: "a") { "A" }
+        option(value: "b") { "B" }
+        option(value: "c") { "C" }
+      end
       input(id: "file", type: "file", name: "file", data: { testid: "file" })
       div(id: "body", contenteditable: "true", data: { testid: "body" }) { "Editable" }
     end
@@ -40,6 +45,7 @@ class NotesFillComponent < ApplicationComponent
     trigger("html", js.set_value("#notes", "<b>bold</b>"))
     trigger("clear", js.set_value("#notes", nil))
     trigger("tone", js.set_value("#tone", "warm"))
+    trigger("tags", js.set_value("#tags", "a"))
     trigger("file-bad", js.set_value("#file", "x"))
     trigger("file-clear", js.set_value("#file", ""))
     trigger("editable", js.set_value("#body", "x"))

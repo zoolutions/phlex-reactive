@@ -271,6 +271,10 @@ RSpec.describe Phlex::Reactive::JS do
       expect { js.paste_into(:root) }.to raise_error(ArgumentError, /field/)
     end
 
+    it "rejects the serialized \"@root\" sentinel the same way" do
+      expect { js.paste_into(Phlex::Reactive::JS::ROOT_SENTINEL) }.to raise_error(ArgumentError, /field/)
+    end
+
     it "rejects a target that is not a CSS selector string" do
       expect { js.paste_into(:code) }.to raise_error(ArgumentError, /:root or a CSS selector/)
     end
@@ -310,6 +314,11 @@ RSpec.describe Phlex::Reactive::JS do
 
     it "rejects :root LOUDLY, with the paste_into message shape (the root is not a field)" do
       expect { js.set_value(:root, "x") }
+        .to raise_error(ArgumentError, /set_value targets a field, not the component root/)
+    end
+
+    it "rejects the serialized \"@root\" sentinel the same way (the client resolves it to the root)" do
+      expect { js.set_value(Phlex::Reactive::JS::ROOT_SENTINEL, "x") }
         .to raise_error(ArgumentError, /set_value targets a field, not the component root/)
     end
 
