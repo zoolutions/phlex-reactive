@@ -583,6 +583,15 @@ module Views
                   plain 're-find + DB write, which is the security model working as designed (state lives in '
                   plain 'the database), not overhead to remove.'
                 end
+                li do
+                  plain 'Signing a record-backed token no longer builds a GlobalID URI. For a record whose '
+                  code { 'to_gid' }
+                  plain " is GlobalID's own and whose id is an Integer, the gid string is built directly "
+                  plain '(byte-identical, pinned by a spec); anything else still calls '
+                  code { 'to_gid' }
+                  plain '. In-place A/B: the record-backed token went from ~11.4 µs and 54 objects to '
+                  plain '~5.2 µs and 20, so a 100-row record-backed list signs its rows in about half the time.'
+                end
               end
             end
           end
@@ -1077,6 +1086,38 @@ module Views
                 plain " figures include the full dispatch() overhead around the walk (that's the price of "
                 plain 'benching through the public surface instead of a private export). They are a '
                 plain 'consistent baseline for a before/after, not the isolated cost of the walk alone.'
+              end
+              h3 { 'Connect and disconnect, in a real browser' }
+              p do
+                code { 'rake bench:browser' }
+                plain ' runs the shipped minified client with the real Stimulus in headless Chromium: '
+                plain 'the median of 15 insert+connect and disconnect runs for bare, dirty-guarded and '
+                plain 'persisted roots at 500, 2,000 and 4,000 roots, the cost of doubling N, and a heap '
+                plain 'soak (60 rounds of 500 roots mounted and unmounted, heap after a forced GC). Pass '
+                plain 'another build\'s vendor directory to compare two clients: '
+                code { 'bun run benchmark/browser/connect.mjs path/to/vendor' }
+                plain '.'
+              end
+              p do
+                plain 'Trust this one over the happy-dom connect bench. happy-dom showed a 5–10× connect '
+                plain 'regression after the early-trigger work (#273) that was mostly its own attribute and '
+                plain 'query cost (about 0.8 µs a root in Chromium), and it never showed the real problem: '
+                plain 'each '
+                code { 'warn_unsaved' }
+                plain ' root added its own '
+                code { 'window' }
+                plain ' listener pair, and each persisted root its own '
+                code { 'document' }
+                plain ' listener. A browser scans a target\'s listeners on every add and remove, so connecting '
+                plain 'N such forms was quadratic. One shared listener per window or document now serves them '
+                plain 'all: 4,000 guarded roots connect in ~227 ms instead of ~306 ms, 4,000 persisted roots in '
+                plain '~230 ms instead of ~280 ms.'
+              end
+              p do
+                plain 'What remains is linear: about 11–14 µs a root for the runtime\'s connect over what a '
+                plain 'no-op Stimulus controller costs, and ~2.5 µs at disconnect. Doubling N still costs a '
+                plain 'little over 2× because Stimulus and Chromium themselves scale that way; a no-op '
+                plain 'controller does too. The heap stays flat.'
               end
               h3 { 'Payload size (what the browser downloads)' }
               p do

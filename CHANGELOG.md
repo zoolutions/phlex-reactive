@@ -251,6 +251,27 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   first paint already were. A target with any value term keeps the skip when
   none of its fields is owned.
 
+### Performance
+
+- **Guarded and persisted forms connect in linear time.** Each `warn_unsaved`
+  root added its own `beforeunload` / `turbo:before-visit` pair on `window`,
+  and each persisted root its own `turbo:submit-end` listener on `document`.
+  A browser scans a target's listeners on every add and remove, so connecting
+  and disconnecting N of them was quadratic. One shared listener per window or
+  document now serves them all, added with the first root and removed with
+  the last; behaviour is unchanged (live dirty count, one prompt per visit,
+  #298). Headless Chromium, insert + connect: 4,000 guarded roots ~306 ->
+  ~227 ms, 4,000 persisted roots ~280 -> ~230 ms. +194 B gzipped in the
+  default bundle (110 B for the guard, 84 B for persist).
+- **A record-backed token no longer builds a GlobalID URI.** For a record
+  whose `to_gid` is GlobalID's own and whose id is an Integer, the gid is
+  built directly as `gid://<app>/<Class>/<id>` (byte-identical, pinned by
+  `identity_gid_spec.rb`); anything else still calls `to_gid`. The token goes
+  from ~11.4 µs and 54 objects to ~5.2 µs and 20 (in-place A/B).
+- **`rake bench:browser`.** Connect, disconnect and a heap soak for the
+  shipped client in headless Chromium. The happy-dom connect bench is
+  engine-relative and missed the quadratic above; this is the one to trust.
+
 ## [0.14.1] - 2026-10-07
 
 ### Added

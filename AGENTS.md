@@ -49,6 +49,7 @@ bundle exec rubocop                          # Lint (rubocop -A to autocorrect)
 bundle exec rake                             # spec + rubocop
 bundle exec rake bench                        # Performance micro-benches (render, token, coerce_params)
 bundle exec rake bench:request                # End-to-end request-cycle bench (derailed)
+bundle exec rake bench:browser                # Client connect/disconnect + heap soak in headless Chromium (trust this over happy-dom)
 rake build:js                                 # Rebuild the minified client (.min.js + .map) after editing runtime.js, an entry or a feature
 rake build:js_check                           # CI drift guard: committed .min.js must match a fresh build
 bin/release [patch|minor|major|X.Y.Z] [-n]    # Cut a release (list / --dry-run are read-only); drives rake release
