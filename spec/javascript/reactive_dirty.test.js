@@ -616,6 +616,43 @@ test("each visit asks again; disconnecting both roots removes every guard (issue
   expect(winListeners["turbo:before-visit"]).toEqual([])
 })
 
+// Every window listener is a scan for the browser on each add and remove, so a
+// listener pair PER root made connecting N guarded forms quadratic. One pair
+// serves every guarded root on the window, and leaves with the last of them.
+test("guarded roots share one window listener pair, removed with the last root", () => {
+  const winListeners = {}
+  const win = {
+    addEventListener: (name, fn) => ((winListeners[name] ??= []).push(fn)),
+    removeEventListener: (name, fn) => (winListeners[name] = (winListeners[name] ?? []).filter((f) => f !== fn)),
+    confirm: () => false,
+  }
+  const controllers = [0, 1, 2].map((i) => {
+    const root = dirtyRoot()
+    root.id = `shared-${i}`
+    root.setAttribute("data-reactive-warn-unsaved", "true")
+    root.append(new FakeNode({ tag: "input", type: "text", name: "title", value: i === 2 ? "changed" : "orig", defaultValue: "orig" }))
+    const controller = buildController(root)
+    globalThis.window = win // buildController resets it
+    controller.connect()
+    return controller
+  })
+
+  expect(winListeners.beforeunload.length).toBe(1)
+  expect(winListeners["turbo:before-visit"].length).toBe(1)
+
+  // The one handler still sees every root: the third (dirty) one blocks.
+  const event = { preventDefault: () => {} }
+  expect(winListeners.beforeunload[0](event)).toBeTruthy()
+
+  controllers[2].disconnect()
+  expect(winListeners.beforeunload[0]({ preventDefault: () => {} })).toBeUndefined()
+  controllers[0].disconnect()
+  expect(winListeners.beforeunload.length).toBe(1)
+  controllers[1].disconnect()
+  expect(winListeners.beforeunload).toEqual([])
+  expect(winListeners["turbo:before-visit"]).toEqual([])
+})
+
 test("no warn_unsaved marker → no navigate-away guard registered", () => {
   const winListeners = {}
   const win = {

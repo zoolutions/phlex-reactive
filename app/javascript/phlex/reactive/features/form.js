@@ -17,6 +17,8 @@ const wired = new WeakMap()
 // The turbo:before-visit events a warn_unsaved root already prompted for: one
 // prompt per visit, however many dirty roots guard the page (issue #298).
 const askedVisits = new WeakSet()
+// window -> its guarded roots and the removal of its one listener pair.
+const guards = new WeakMap()
 
 export function connect(controller, core) {
   const root = controller.element
@@ -55,7 +57,7 @@ export function connect(controller, core) {
       // beforeunload covers a real browser unload; turbo:before-visit covers a
       // Turbo in-app navigation (it does NOT fire on restoration visits — the
       // documented gap). Registered on window only when the marker is present.
-      if (root.getAttribute?.("data-reactive-warn-unsaved") === "true") armUnsavedGuard(root, listen)
+      if (root.getAttribute?.("data-reactive-warn-unsaved") === "true") armUnsavedGuard(root, offs)
     }
 
     // Clipboard-trigger availability gate (issue #228) — ONLY when this root
@@ -193,29 +195,59 @@ function dirtyCount(root) {
 // Arm the navigate-away guard (warn_unsaved: true, issue #103). beforeunload
 // blocks a real browser unload; turbo:before-visit blocks a Turbo in-app
 // navigation (it does NOT fire on restoration visits — the documented gap).
-// Both read the LIVE dirty count, so a clean form never blocks. Added through
-// connect()'s `listen`, so disconnect() removes exactly them.
-function armUnsavedGuard(root, listen) {
+// Both read the LIVE dirty count, so a clean form never blocks.
+//
+// One listener pair per window serves every guarded root on it: a pair per
+// root made connecting and disconnecting N guarded forms quadratic (the
+// browser scans a target's listeners on each add and remove). The pair is
+// added with the first guarded root and removed with the last, so a page
+// without one carries no beforeunload listener. The root leaves the set
+// through `offs`, which disconnect() runs.
+function armUnsavedGuard(root, offs) {
   if (typeof window === "undefined" || typeof window.addEventListener !== "function") return
 
-  listen(window, "beforeunload", (event) => {
-    if (dirtyCount(root) === 0) return undefined
-    // The spec dance: preventDefault + a truthy returnValue triggers the native
-    // "leave site?" prompt. The string is legacy (modern browsers show their own
-    // copy) but must be non-empty/truthy to arm the dialog.
-    event.preventDefault()
-    event.returnValue = "You have unsaved changes."
-    return event.returnValue
-  })
-  // Every warn_unsaved root arms its own turbo:before-visit handler, and one
-  // visit is one event dispatched to all of them: the first DIRTY root asks,
-  // and the rest see the event already asked (issue #298). A clean root never
-  // claims the event, so any dirty root on the page can still veto the visit.
-  listen(window, "turbo:before-visit", (event) => {
-    if (dirtyCount(root) === 0 || askedVisits.has(event)) return
-    askedVisits.add(event)
-    const ok = typeof window.confirm === "function" ? window.confirm("You have unsaved changes. Leave anyway?") : true
-    if (!ok) event.preventDefault?.()
+  const win = window
+  let guard = guards.get(win)
+  if (!guard) {
+    const roots = new Set()
+    const dirtyRoot = () => {
+      for (const guarded of roots) if (dirtyCount(guarded) > 0) return guarded
+      return null
+    }
+    const beforeunload = (event) => {
+      if (!dirtyRoot()) return undefined
+      // The spec dance: preventDefault + a truthy returnValue triggers the native
+      // "leave site?" prompt. The string is legacy (modern browsers show their own
+      // copy) but must be non-empty/truthy to arm the dialog.
+      event.preventDefault()
+      event.returnValue = "You have unsaved changes."
+      return event.returnValue
+    }
+    // One visit asks once (issue #298), and only when a guarded root is dirty.
+    // askedVisits still matters when two copies of this module (a bundled one
+    // beside the pinned one) each hold a pair.
+    const beforeVisit = (event) => {
+      if (askedVisits.has(event) || !dirtyRoot()) return
+      askedVisits.add(event)
+      const ok = typeof win.confirm === "function" ? win.confirm("You have unsaved changes. Leave anyway?") : true
+      if (!ok) event.preventDefault?.()
+    }
+    win.addEventListener("beforeunload", beforeunload)
+    win.addEventListener("turbo:before-visit", beforeVisit)
+    guard = {
+      roots,
+      remove: () => {
+        win.removeEventListener?.("beforeunload", beforeunload)
+        win.removeEventListener?.("turbo:before-visit", beforeVisit)
+        guards.delete(win)
+      },
+    }
+    guards.set(win, guard)
+  }
+  guard.roots.add(root)
+  offs.push(() => {
+    guard.roots.delete(root)
+    if (guard.roots.size === 0) guard.remove()
   })
 }
 
