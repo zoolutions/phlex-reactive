@@ -57,13 +57,15 @@ module Views
               take `expanded:` to keep a trigger's `aria-expanded` in sync — #271),
               `focus`/`focus_first`, `show_modal`/`close_dialog`, `text`, `dispatch`,
               `submit`, `paste_into`, `preview_file` —
-              each a local DOM mutation, with two deliberate exceptions. `submit`
+              each a local DOM mutation, with three deliberate exceptions. `submit`
               hands the form to its own native/intercepted submit path — the form
               may POST or navigate from there, but that is the form's contract,
               not the op's. `paste_into` (#228) **reads** the clipboard, behind
               the browser's own gesture and permission gates, and still only
-              writes locally. Everything else sends nothing and reads nothing
-              back.
+              writes locally. `preview_file` (#375) **reads** the chosen `File`
+              from the input's `files` and paints it through an object URL it
+              makes itself — nothing is uploaded. Everything else sends nothing
+              and reads nothing back.
 
               - **Tabs:** `js.hide(".ct-panel").show("#ct-panel-1")` plus class ops on
                 the tab buttons — the "I had to write a Stimulus controller" case, now

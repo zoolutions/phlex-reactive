@@ -8,7 +8,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- **Preview a chosen file — `js.preview_file(to, into:, name: nil)` (#375).**
+- **Preview a chosen file — `js.preview_file(to, into:, name: nil, global: false)` (#375).**
   `on_client(:change, js.preview_file("#photo-file", into: "#photo", name:
   "#photo-name"))` paints the input's first `image/*` file onto the `img`
   before any upload, through an object URL the client makes from the `File`

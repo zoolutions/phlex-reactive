@@ -1320,7 +1320,9 @@ button(**on_client(:click, js
   (a broadcast that reads every subscriber's clipboard would be hostile). The
   op is async fire-and-forget — chained siblings apply immediately, never
   waiting for the read.
-- **`preview_file(to, into:, name: nil)`** (#375) paints the file a file input
+- **`preview_file(to, into:, name: nil, global: false)`** (#375; `global: true`
+  resolves `to`, `into:` and `name:` document-wide, for an `img` outside the
+  root) paints the file a file input
   holds onto an `img` **before any upload**:
   `input(type: "file", id: "photo-file", accept: "image/*", **on_client(:change,
   js.preview_file("#photo-file", into: "#photo", name: "#photo-name")))`. On
