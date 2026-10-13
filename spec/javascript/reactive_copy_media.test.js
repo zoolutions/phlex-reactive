@@ -240,7 +240,7 @@ test("reactive_media clears the preview and writes blank_label on a key miss", a
   expect($("#caption").textContent).toBe("Unknown")
 })
 
-test("a prefix shorter than take misses", async () => {
+test("a prefix shorter than take is pending: the preview clears (issue #380)", async () => {
   const { $ } = mount(`<input name="code"><img id="logo" alt="" data-reactive-media="${BINDING}"><span id="caption"></span>${POOL}`, { connect: true })
   await flush()
 

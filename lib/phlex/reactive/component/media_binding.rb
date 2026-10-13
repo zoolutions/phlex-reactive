@@ -25,13 +25,22 @@ module Phlex
       # image's alt (`blank_label`, or "", on a miss). Client-only: no token,
       # no round trip.
       #
+      # Until the field has `take` characters, or while `match:` (a Regexp,
+      # anchored to the whole key) rejects the key, the binding is PENDING
+      # (issue #380): never `blank_label`. `pending: :clear` (the default)
+      # clears the preview and empties the label; `pending: :keep` leaves both
+      # alone. The preview's data-reactive-media-state reads pending, hit or
+      # miss, so a row can hide itself with CSS until there is an answer.
+      #
       # Named MediaBinding, not Media: this module sits in every reactive
       # component's ancestry, and a bare `Media` would shadow a host app's kit
       # component of that name (issue #233).
       module MediaBinding
-        def reactive_media(from:, pool: nil, take: nil, label: nil, blank_label: nil, **attrs)
+        def reactive_media(from:, pool: nil, take: nil, match: nil, pending: :clear, label: nil, blank_label: nil, **attrs)
           wire = { "field" => media_field!(from) }
           wire["take"] = media_take!(take) unless take.nil?
+          wire["match"] = media_match!(match) unless match.nil?
+          wire["pending"] = "keep" if media_pending!(pending) == "keep"
           wire["pool"] = media_pool!(pool)
           wire["label"] = media_selector!(:label, label) unless label.nil?
           wire["blank"] = blank_label.to_s unless blank_label.nil?
@@ -52,6 +61,46 @@ module Phlex
 
           raise ArgumentError, "reactive_media take: must be a positive Integer (or omitted for the whole value), " \
                                "got #{take.inspect}"
+        end
+
+        # Escapes Ruby reads as a class or an anchor and JS reads as a plain
+        # letter (or rejects): refused rather than silently matching wrong.
+        MEDIA_RUBY_ONLY_ESCAPES = %w[\A \z \Z \G \h \H \R \X \K \p \P].freeze
+        private_constant :MEDIA_RUBY_ONLY_ESCAPES
+
+        # A Regexp as the JS source the client anchors as ^(?:…)$ (issue #380).
+        # Tokenized so an escaped backslash is never mistaken for an escape:
+        # a leading \A and a trailing \z/\Z are dropped (the client anchors),
+        # any other Ruby-only escape raises.
+        def media_match!(match)
+          unless match.is_a?(Regexp)
+            raise ArgumentError, "reactive_media match: must be a Regexp (e.g. /\\A\\d{3}\\z/), got #{match.inspect}"
+          end
+          unless match.options.nobits?(Regexp::IGNORECASE | Regexp::EXTENDED | Regexp::MULTILINE)
+            raise ArgumentError,
+              "reactive_media match: #{match.inspect} has options (i, m, x) the client would read differently — drop them"
+          end
+
+          tokens = match.source.scan(/\\.|./m)
+          tokens.shift if tokens.first == "\\A"
+          tokens.pop if %w[\z \Z].include?(tokens.last)
+          media_ruby_only_escape!(tokens, match)
+          tokens.join
+        end
+
+        def media_ruby_only_escape!(tokens, match)
+          escape = tokens.find { MEDIA_RUBY_ONLY_ESCAPES.include?(it) }
+          return unless escape
+
+          raise ArgumentError,
+            "reactive_media match: #{escape} is Ruby-only (JavaScript reads it differently) in #{match.inspect}"
+        end
+
+        def media_pending!(pending)
+          mode = pending.to_s if pending.is_a?(Symbol) || pending.is_a?(String)
+          return mode if %w[clear keep].include?(mode)
+
+          raise ArgumentError, "reactive_media pending: must be :clear or :keep, got #{pending.inspect}"
         end
 
         def media_pool!(pool)
