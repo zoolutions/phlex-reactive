@@ -8,6 +8,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Media previews — `js.copy_media` and `reactive_media` (#373).**
+  `js.copy_media("#logo", from: "#logo-007")` copies `src`, `srcset` and `alt`
+  from an `<img>` the server rendered onto a preview `<img>`; the URL is read
+  from the live source element and is never an op argument, so `set_attr`
+  still refuses `src` (#96). A missing source, a non-`<img>` source or one
+  without `src` clears the target; a target that is not an `<img>` (an
+  `iframe`, `script`, `object`, `embed`, `frame`) is warned about and skipped;
+  the same URL twice is not written again. `img(**reactive_media(from: :code,
+  take: 3, pool: { "007" => "#logo-007" }, label: "#caption", blank_label:
+  "Unknown"))` is a binding: the field's value (its first `take:` characters)
+  picks the pool image by key, a miss clears the preview, and `label:` gets
+  the alt via `textContent`. Pool values are selectors only. `reactive_media`
+  raises at render without `pool:` or with a `take:` that is not a positive
+  Integer. Client: +399 B gzipped in the default bundle, +183 B in the split
+  core, +220 B in the bindings module. Docs: "Media previews" on the
+  client-ops example.
+
 - **Modal dialogs — `js.show_modal` / `js.close_dialog` and
   `data-reactive-modal` (#365).** `js.show_modal("#picker")` calls
   `HTMLDialogElement#showModal()`, so an `on_client` dialog gets the browser's

@@ -135,7 +135,8 @@ const SLACK = 250
 // telling a kept `open` from a removed one adds 78 B: 32,108 B; upgrading a root
 // that is itself the dialog adds 12 B: 32,120 B.
 // #365 and #366 together: 32,147 B.
-const BUNDLE_GZIP_CEILING = 32_147
+// Issue #373 (the copy_media op, the media marker and the reactive_media binding) adds 399 B: 32,546 B.
+const BUNDLE_GZIP_CEILING = 32_546
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -174,7 +175,8 @@ const TARGET_BUNDLE_GZIP = 22_700
 // telling a kept `open` from a removed one adds 66 B: 15,079 B; upgrading a root
 // that is itself the dialog adds 14 B: 15,093 B.
 // #365 and #366 together: 15,112 B.
-const CORE_GZIP_CEILING = 15_112
+// Issue #373 (the copy_media op and the media marker) adds 183 B: 15,295 B.
+const CORE_GZIP_CEILING = 15_295
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -184,7 +186,8 @@ const FEATURE_GZIP_CEILINGS = {
   // module's real size, rounded up to the next 50 B. Issue #343 (cross-root
   // group targets) takes it to 6,203 B. Issue #351 (editable text: Enter,
   // Escape, paste/drop, the plaintext-only fallback) takes it to 6,771 B.
-  "features/bindings": 6_800,
+  // Issue #373 (the reactive_media binding) takes it from 6,664 B to 6,884 B.
+  "features/bindings": 6_884,
   // Issue #336 (render a defer reply now) takes it from 2,845 B to 2,974 B.
   "features/defer": 2_974,
   "features/compute": 2_050,
@@ -239,7 +242,8 @@ const FEATURE_GZIP_CEILINGS = {
 // telling a kept `open` from a removed one adds 66 B: 39,923 B; upgrading a root
 // that is itself the dialog adds 14 B: 39,937 B.
 // #365 and #366 together: 39,956 B.
-const SPLIT_TOTAL_GZIP_CEILING = 39_956
+// Issue #373 (+183 B core, +220 B bindings) adds 403 B: 40,359 B.
+const SPLIT_TOTAL_GZIP_CEILING = 40_359
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

@@ -377,6 +377,7 @@ function showSyncEnabled(c) {
   const nodes = c.root.querySelectorAll?.(SHOW_BINDING_SELECTOR) ?? []
   for (const el of nodes) if (c.core.owns(el)) return true
   for (const el of c.root.querySelectorAll?.(GROUP_BINDING_SELECTOR) ?? []) if (c.core.owns(el)) return true
+  for (const el of c.root.querySelectorAll?.(MEDIA_BINDING_SELECTOR) ?? []) if (c.core.owns(el)) return true
   return false
 }
 
@@ -466,6 +467,7 @@ function syncShow(c) {
   // The group bindings (issue #319) and the cross-root pass (issue #164)
   // share the same owned-field memo, so a field driving several reads once.
   if (c.groups) syncGroups(c, fieldValue, owns, scope)
+  syncMedia(c, fieldValue, owns)
   syncShowTargets(c, fieldValue)
   syncGroupTargets(c, fieldValue)
 }
@@ -632,6 +634,49 @@ function fieldResolver(c, owns) {
       values.set(key, count ? groupBoxes(c, name, owns, scope).filter((box) => box.checked).length : showFieldValue(c, name, owns, scope))
     }
     return values.get(key)
+  }
+}
+
+// --- Media bindings (issue #373) ---------------------------------------------
+// data-reactive-media='{"field","take"?,"pool","label"?,"blank"?}' on a preview
+// <img>: the owned field's value (its first `take` characters, or all of it)
+// is a key into `pool`, whose value is a SELECTOR for an <img> inside the root.
+// The core's copyMedia copies that element's src, srcset and alt — a pool
+// value is never assigned to anything. A key, selector or element that misses
+// clears the preview; `label` gets the alt (or `blank`) via textContent. An
+// unowned field leaves the preview alone (the show default-deny); a malformed
+// attr warns and is skipped.
+const MEDIA_BINDING_SELECTOR = "[data-reactive-media]"
+
+function syncMedia(c, fieldValue, owns) {
+  for (const el of c.root.querySelectorAll(MEDIA_BINDING_SELECTOR)) {
+    if (!owns(el)) continue
+    let wire
+    try {
+      wire = JSON.parse(el.getAttribute("data-reactive-media"))
+    } catch {}
+    if (typeof wire?.field !== "string" || !wire.pool || typeof wire.pool !== "object") {
+      console.warn("[phlex-reactive] malformed data-reactive-media — skipped")
+      continue
+    }
+    const value = fieldValue(wire.field)
+    if (value === null) continue
+    const key = wire.take > 0 ? value.slice(0, wire.take) : value
+    const source = Object.hasOwn(wire.pool, key) ? mediaMatches(c, wire.pool[key])[0] : null
+    const alt = c.core.copyMedia(el, source ?? null)
+    if (alt === null || typeof wire.label !== "string") continue
+    const text = alt === false ? String(wire.blank ?? "") : alt
+    for (const node of mediaMatches(c, wire.label)) if (node.textContent !== text) node.textContent = text
+  }
+}
+
+// The owned elements a pool or label selector names — none when it does not
+// parse (a URL string is not a selector).
+function mediaMatches(c, selector) {
+  try {
+    return c.core.opTargets({ to: selector })
+  } catch {
+    return []
   }
 }
 

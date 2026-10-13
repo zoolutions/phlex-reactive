@@ -599,6 +599,7 @@ test("a feature receives the core handle on connect and on disconnect", async ()
     "applyOps",
     "collectFields",
     "confirm",
+    "copyMedia",
     "diagnose",
     "emit",
     "forgetToken",

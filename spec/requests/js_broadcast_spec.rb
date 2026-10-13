@@ -144,6 +144,20 @@ RSpec.describe "broadcast_js_to (issue #97)", type: :request do
       .to raise_error(ArgumentError, /show_modal/)
   end
 
+  # Issue #373: copy_media only reads elements already in each subscriber's
+  # document, so a broadcast may carry it — and it carries no URL.
+  it "broadcasts a copy_media op (selectors only, no URL)" do
+    ops = TodoItemComponent.new(todo: Todo.new).js.copy_media("#logo", from: "#logo-007", global: true)
+
+    broadcasts = capture_turbo_stream_broadcasts("alerts") do
+      TodoItemComponent.broadcast_to("alerts", js: ops)
+    end
+
+    html = broadcasts.map(&:to_s).join # rubocop:disable Style/MapJoin
+    expect(html).to include("copy_media", "#logo-007")
+    expect(html).not_to include(".svg")
+  end
+
   it "rejects an empty op chain (a dead reactive:js broadcast is a mistake)" do
     empty = TodoItemComponent.new(todo: Todo.new).js
 
