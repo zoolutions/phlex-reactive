@@ -225,6 +225,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the default bundle, −2 B in the split core; the bindings module is
   unchanged.
 
+- **`js.preview_file` follows an app's upload validation (#382).** A preview
+  ran once, on `change`, so a file the app then rejected (cleared with
+  `input.value = ""`, no new `change`) stayed on screen. Two pieces fix it.
+  `js.preview_file(…, valid: true)` treats an input whose `validity.valid` is
+  false (`setCustomValidity`, `required`) as empty: it never gets a preview,
+  and one it had is cleared and its URL revoked. And `reactive:file-changed`
+  is the documented event for "the app changed this input's files without a
+  `change` event": bind the op to it as well,
+  `mix(on_client(:change, op), on_client("reactive:file-changed", op))`, and
+  the app dispatches it after it clears or invalidates the field. That works
+  whichever `change` listener runs first. Without `valid:` the op behaves as
+  before. Client: +22 B gzipped in the default bundle, +34 B in the split
+  core (on top of #381). Docs: "Preview a chosen image" on the client-ops example.
+
 - **A stream that renders into a connected root wires what its content needs
   (#356).** A root read its feature markers only at connect and after a morph
   of itself, so a `reactive_show` target, select-all/count group, filter,
