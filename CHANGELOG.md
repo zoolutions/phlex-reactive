@@ -15,13 +15,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `ops` builder) records what the op left on each target — the class on or
   off, `hidden`, the attribute's value or its absence — and the client puts it
   back after Turbo morphs that element (a `reply.morph`, a
-  `broadcast_to(…, morph: true)`, a page refresh). A selection, an expanded row
+  `broadcast_to(…, morph: true)`, a page-refresh morph). A selection, an expanded row
   or a highlighted item now survives another viewer's broadcast. Classes and
   attributes no kept op touched still follow the render; a later kept op on the
   same class or attribute replaces the earlier one ("clear all, then select
   one"); an element a stream replaces starts clean. `broadcast_to(js:)` refuses
   `keep:` with an `ArgumentError`. Without `keep:` the wire is byte-identical.
-  Client: +249 B gzipped in the default bundle, +245 B in the split core.
+  Client: +251 B gzipped in the default bundle, +247 B in the split core.
   Docs: "Keeping client state through a morph" on the client-ops example.
 
 - **Modal dialogs — `js.show_modal` / `js.close_dialog` and

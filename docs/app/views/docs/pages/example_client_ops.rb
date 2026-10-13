@@ -168,7 +168,7 @@ module Views
         def kept_ops
           DocsUI::Section('Keeping client state through a morph') do
             md <<~'MD'
-              A morph — `reply.morph`, `broadcast_to(…, morph: true)`, a page refresh —
+              A morph — `reply.morph`, `broadcast_to(…, morph: true)`, a page-refresh morph —
               writes `class`, `hidden` and every attribute back from the server render.
               Client ops record nothing, so a selection made with `add_class` is gone the
               moment another viewer's change morphs the list. **`keep: true`** (#369)

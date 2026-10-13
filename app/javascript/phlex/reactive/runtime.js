@@ -371,15 +371,21 @@ export function __resetReactiveModalsForTest() {
 // its value, null when absent. show/hide/toggle keep the `hidden` attribute,
 // so the morph puts back the visibility without running a transition again.
 // (No attribute name starts with ".", so the two kinds of key never meet.)
+// An entry is re-inserted on every kept op, so the Map replays in op order:
+// a kept add_class after a kept set_attr("class", …) still wins.
 const kept = new WeakMap()
 
 function keepResult(el, name, args, resolveTargets) {
   const state = kept.get(el) ?? new Map()
   kept.set(el, state)
-  if (name.endsWith("_class")) for (const c of args.classes ?? []) state.set(`.${c}`, el.classList.contains(c))
-  else if (name.endsWith("_attr")) attrRefused(args.name) || state.set(args.name, el.getAttribute(args.name))
+  const put = (key, value) => {
+    state.delete(key)
+    state.set(key, value)
+  }
+  if (name.endsWith("_class")) for (const c of args.classes ?? []) put(`.${c}`, el.classList.contains(c))
+  else if (name.endsWith("_attr")) attrRefused(args.name) || put(args.name, el.getAttribute(args.name))
   else if (name === "show" || name === "hide" || name === "toggle") {
-    state.set("hidden", el.getAttribute("hidden"))
+    put("hidden", el.getAttribute("hidden"))
     // The expanded: trigger's aria-expanded is kept on the trigger: a document
     // listener has no op scope to resolve it from later.
     if (args.expanded != null) {

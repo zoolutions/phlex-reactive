@@ -469,7 +469,8 @@ module Views
               code { 'reply.js' }
               plain '). So is '
               code { 'keep: true' }
-              plain ' on any op (#369): kept state belongs to the tab that ran the op.'
+              plain ' (#369), on the visibility, class and attribute ops that take it: ' \
+                    'kept state belongs to the tab that ran the op.'
             end
           end
         end

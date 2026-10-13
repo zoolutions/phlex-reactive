@@ -19,9 +19,11 @@ let ReactiveController
 let ops
 const window = new Window()
 const SAVED = {}
+let originalDocument
 
 beforeAll(async () => {
   mock.module("@hotwired/stimulus", () => ({ Controller: class {} }))
+  originalDocument = globalThis.document
   globalThis.document = window.document
   mod = await import("../../app/javascript/phlex/reactive/reactive_controller.js")
   ;({ ops } = await import("../../app/javascript/phlex/reactive/compute.js"))
@@ -30,7 +32,11 @@ beforeAll(async () => {
   mod.registerReactiveKeep()
 })
 
-afterAll(() => mod.__resetReactiveKeepForTest())
+afterAll(() => {
+  mod.__resetReactiveKeepForTest()
+  if (originalDocument === undefined) delete globalThis.document
+  else globalThis.document = originalDocument
+})
 
 beforeEach(() => {
   for (const key of ["document", "window", "Event", "CustomEvent", "requestAnimationFrame"]) SAVED[key] = globalThis[key]
@@ -137,6 +143,20 @@ test("a kept toggle_class re-applies its result, it does not flip again", () => 
   morph(el, `<div id="a" class="item"></div>`)
 
   expect(el.classList.contains("open")).toBe(true)
+})
+
+test("the latest kept op wins between a kept class op and a kept set_attr on class", () => {
+  const { root, controller } = mount(`<div id="a" class="item"></div>`)
+  run(controller, [
+    ["add_class", { to: "#a", classes: ["selected"], keep: true }],
+    ["set_attr", { to: "#a", name: "class", value: "item", keep: true }],
+    ["add_class", { to: "#a", classes: ["selected"], keep: true }],
+  ])
+  const el = root.querySelector("#a")
+
+  morph(el, `<div id="a" class="item"></div>`)
+
+  expect([...el.classList].sort()).toEqual(["item", "selected"])
 })
 
 test("an op without keep: leaves an earlier kept record alone", () => {

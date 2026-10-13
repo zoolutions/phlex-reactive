@@ -136,8 +136,8 @@ const SLACK = 250
 // that is itself the dialog adds 12 B: 32,120 B.
 // #365 and #366 together: 32,147 B.
 // Issue #369 (keep: on client ops — the kept-result registry and its one
-// turbo:morph-element listener) adds 249 B: 32,396 B.
-const BUNDLE_GZIP_CEILING = 32_396
+// turbo:morph-element listener; entries kept in op order) adds 251 B: 32,398 B.
+const BUNDLE_GZIP_CEILING = 32_398
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -176,8 +176,8 @@ const TARGET_BUNDLE_GZIP = 22_700
 // telling a kept `open` from a removed one adds 66 B: 15,079 B; upgrading a root
 // that is itself the dialog adds 14 B: 15,093 B.
 // #365 and #366 together: 15,112 B.
-// Issue #369 (keep: on client ops, in the runtime) adds 245 B: 15,357 B.
-const CORE_GZIP_CEILING = 15_357
+// Issue #369 (keep: on client ops, in the runtime) adds 247 B: 15,359 B.
+const CORE_GZIP_CEILING = 15_359
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -242,8 +242,8 @@ const FEATURE_GZIP_CEILINGS = {
 // telling a kept `open` from a removed one adds 66 B: 39,923 B; upgrading a root
 // that is itself the dialog adds 14 B: 39,937 B.
 // #365 and #366 together: 39,956 B.
-// Issue #369 (keep: on client ops, in the core) adds 245 B: 40,201 B.
-const SPLIT_TOTAL_GZIP_CEILING = 40_201
+// Issue #369 (keep: on client ops, in the core) adds 247 B: 40,203 B.
+const SPLIT_TOTAL_GZIP_CEILING = 40_203
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

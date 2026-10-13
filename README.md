@@ -3099,8 +3099,10 @@ is not a self-render: it never counts toward the token refresh, so the reply's
 signed token still rolls forward exactly as it would without the ops.
 
 > **Ephemeral by design.** Like `on_client`, server-pushed ops are transient UI:
-> the next server re-render of the component resets whatever they toggled. State
-> that must survive a re-render belongs in a signed `action`, not an op.
+> the next server re-render of the component resets whatever they toggled. The
+> exception is an op with `keep: true` (#369), whose result survives a **morph**
+> of its target in the tab that ran it. State that must survive a replace, or
+> that the server must know, belongs in a signed `action`, not an op.
 
 #### Record-authorized, transient-state actions (issue #64)
 
