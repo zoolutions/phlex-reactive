@@ -265,6 +265,36 @@ module Phlex
         append("paste_into", target_args(to, global:))
       end
 
+      # --- Preview a chosen file (issue #375) ---
+      #
+      # preview_file(to, into:, name: nil) — on the file input's change, paint
+      # the first chosen IMAGE file onto the `into:` img through an object URL
+      # the client creates itself (URL.createObjectURL) and revokes on the next
+      # choice, on a clear, and when the img leaves the page. The op carries NO
+      # URL — there is no parameter for one, and the client never reads a `url`
+      # key — so the `src` refusal of set_attr (issue #96) stays whole. `to` is
+      # an input[type=file] (an explicit :root is refused); `into:` must
+      # resolve to an <img> (anything else warns and is skipped in the
+      # browser); `name:` optionally names a node that gets file.name as
+      # textContent. An empty selection or a non-image file clears the preview.
+      # ACTOR-ONLY like paste_into: refused in broadcast_to(js:) — a broadcast
+      # that read every subscriber's file input would be hostile.
+      #   input(type: "file", id: "photo-file", accept: "image/*",
+      #     **on_client(:change, js.preview_file("#photo-file", into: "#photo", name: "#photo-name")))
+
+      def preview_file(to, into:, name: nil, global: false)
+        if to == :root
+          raise ArgumentError,
+            "#{self.class}: preview_file reads a file input, not the component root — " \
+            "pass the input's CSS selector (e.g. js.preview_file(\"#photo-file\", into: \"#photo\"))"
+        end
+
+        args = { "to" => normalize_target(to), "into" => preview_selector(:into, into) }
+        args["name"] = preview_selector(:name, name) unless name.nil?
+        args["global"] = true if global
+        append("preview_file", args.freeze)
+      end
+
       # --- Text content (issue #159) ---
       #
       # text(to, value) — set the target's textContent (stringified; nil clears).
@@ -401,6 +431,15 @@ module Phlex
         args["transition"] = normalize_transition(transition) if transition
         args["expanded"] = normalize_target(expanded) unless expanded.nil?
         args.freeze
+      end
+
+      # preview_file's into:/name: — a non-empty CSS selector String, never
+      # :root (the root is a container, not the img or the name node).
+      def preview_selector(key, selector)
+        return selector if selector.is_a?(String) && !selector.strip.empty?
+
+        raise ArgumentError,
+          "#{self.class}: preview_file #{key}: must be a CSS selector string, got #{selector.inspect}"
       end
 
       # The [on, off] pair of a two-value toggle_attr, stringified. Loud on a

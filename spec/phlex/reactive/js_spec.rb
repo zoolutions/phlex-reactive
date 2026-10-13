@@ -276,6 +276,63 @@ RSpec.describe Phlex::Reactive::JS do
     end
   end
 
+  # --- Issue #375: preview_file — paint a chosen file onto an img ---
+
+  describe "preview_file op (#preview_file) — preview a chosen image without a URL" do
+    it "serializes the file input, the img and nothing else" do
+      expect(JSON.parse(js.preview_file("#photo-file", into: "#photo").to_json))
+        .to eq([["preview_file", { "to" => "#photo-file", "into" => "#photo" }]])
+    end
+
+    it "carries name: and global: only when asked" do
+      args = JSON.parse(js.preview_file("#f", into: "#p", name: "#n", global: true).to_json).dig(0, 1)
+      expect(args).to eq("to" => "#f", "into" => "#p", "name" => "#n", "global" => true)
+    end
+
+    it "never carries a URL (the op has nowhere to put one)" do
+      args = js.preview_file("#f", into: "#p", name: "#n").ops.dig(0, 1)
+      expect(args.keys).to contain_exactly("to", "into", "name")
+      expect(args.values).to all(satisfy { !it.to_s.match?(/\A(blob|data|https?|javascript):/i) })
+    end
+
+    it "takes no URL argument" do
+      expect { js.preview_file("#f", into: "#p", url: "blob:x") }.to raise_error(ArgumentError, /url/)
+    end
+
+    it "rejects :root as the file input LOUDLY" do
+      expect { js.preview_file(:root, into: "#photo") }.to raise_error(ArgumentError, /file input/)
+    end
+
+    it "requires into:" do
+      expect { js.preview_file("#photo-file") }.to raise_error(ArgumentError, /into/)
+    end
+
+    # The one keyword under test overrides a valid into:, so each case fails
+    # on that keyword alone.
+    def expect_preview_refused(**bad)
+      args = { into: "#p" }.merge(bad)
+      expect { js.preview_file("#f", **args) }.to raise_error(ArgumentError, /#{bad.keys.first}:/)
+    end
+
+    it "rejects an into: that is not a CSS selector string" do
+      [nil, "", :root, :photo].each { expect_preview_refused(into: it) }
+    end
+
+    it "rejects a name: that is not a CSS selector string" do
+      ["", :name, 1].each { expect_preview_refused(name: it) }
+    end
+
+    it "passes the ops allowlist" do
+      expect { described_class.assert_ops_allowed!(js.preview_file("#f", into: "#p").ops) }.not_to raise_error
+    end
+
+    it "leaves the src refusal of set_attr in place (issue #96)" do
+      expect { js.set_attr("#photo", "src", "blob:http://x/1") }.to raise_error(ArgumentError, /src/)
+      expect { described_class.assert_ops_allowed!([["set_attr", { "to" => "#p", "name" => "src", "value" => "x" }]]) }
+        .to raise_error(ArgumentError, /src/)
+    end
+  end
+
   # --- Issue #96: dispatch a bubbling CustomEvent ---
 
   describe "dispatch (#dispatch) — a bubbling CustomEvent" do

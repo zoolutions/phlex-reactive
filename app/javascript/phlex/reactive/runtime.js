@@ -1033,6 +1033,13 @@ const CLIENT_OPS = Object.freeze({
   // carries this op.
   paste_into: (el) => pasteClipboardInto(el),
 
+  // Preview a chosen file (issue #375): paint the input's first image file
+  // onto the `into` <img> through an object URL made HERE from the input's
+  // own File. The op carries no URL and `args.url` is never read, so the src
+  // refusal of set_attr (issue #96) stays whole. ACTOR-ONLY like paste_into
+  // (BROADCAST_REFUSED_OPS server-side).
+  preview_file: (el, args, resolveTargets) => previewFile(el, args, resolveTargets),
+
   // Client-only drafts (issue #239): merge a flat state bag into the root's
   // reactive_persist draft / forget the draft. ACTOR-ONLY like focus/submit
   // (BROADCAST_REFUSED_OPS server-side) — rewriting or wiping every
@@ -1081,6 +1088,73 @@ function pasteClipboardInto(field) {
       // Permission denied or the prompt dismissed — the browser's own UX said
       // no. The issue-#228 contract: a silent no-op, never an error.
     })
+}
+
+// --- Preview a chosen file (issue #375) ---
+// img -> the object URL preview_file last made for it. The runtime owns it:
+// never an op argument, never an attribute a caller sets. An entry lives
+// while the img is on the page AND still shows that URL; a re-pick, a clear,
+// a non-image file, the img leaving the page or a morph that strips its src
+// in place revokes it. One MutationObserver notices the last two, and only
+// while some preview is live.
+const previews = new Map()
+let previewObserver = null
+
+function previewFile(input, args, resolveTargets) {
+  if (input?.tagName !== "INPUT" || input.type !== "file") {
+    return warnPreview(`reads an input[type=file], not <${input?.localName}>`)
+  }
+  const img = typeof resolveTargets === "function" ? resolveTargets({ ...args, to: args.into })[0] : null
+  // Duck-typed on tagName (the isDialog precedent): only an <img> ever gets a
+  // src here — never an iframe, a script, a frame or anything else.
+  if (img?.tagName !== "IMG") {
+    return warnPreview(`paints an <img>, and ${JSON.stringify(args.into)} is ${img ? `a <${img.localName}>` : "not on the page"}`)
+  }
+  const file = [...(input.files ?? [])].find((f) => typeof f?.type === "string" && f.type.startsWith("image/"))
+  forgetPreview(img)
+  if (file) {
+    const url = URL.createObjectURL(file)
+    previews.set(img, url)
+    img.setAttribute("src", url)
+    watchPreviews()
+  } else img.removeAttribute("src")
+  if (args.name == null) return
+  for (const node of resolveTargets({ ...args, to: args.name })) node.textContent = file ? file.name : ""
+}
+
+function warnPreview(why) {
+  console.warn(`[phlex-reactive] preview_file ${why} — skipped`)
+}
+
+// Revoke the URL preview_file made for `img`, if it made one.
+function forgetPreview(img) {
+  const url = previews.get(img)
+  if (url === undefined) return
+  previews.delete(img)
+  URL.revokeObjectURL(url)
+  if (previews.size === 0) {
+    previewObserver?.disconnect()
+    previewObserver = null
+  }
+}
+
+function watchPreviews() {
+  if (previewObserver || typeof MutationObserver !== "function" || !document?.documentElement) return
+  previewObserver = new MutationObserver(() => {
+    for (const [img, url] of previews) if (!img.isConnected || img.getAttribute("src") !== url) forgetPreview(img)
+  })
+  previewObserver.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["src"],
+  })
+}
+
+export function __resetReactivePreviewsForTest() {
+  previewObserver?.disconnect()
+  previewObserver = null
+  previews.clear()
 }
 
 // Apply a hidden-flag change, optionally animated by a [during, from, to]

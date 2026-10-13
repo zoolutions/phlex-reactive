@@ -66,6 +66,7 @@ Rails.application.routes.draw do
   get "late_editable" => "demos#late_editable" # issue #351: a stream appends the first editable
   get "late_show" => "demos#late_show" # issue #356: a stream appends the first show target
   get "modal_dialog" => "demos#modal_dialog" # issue #365: show_modal / close_dialog / data-reactive-modal
+  get "photo_preview" => "demos#photo_preview" # issue #375: js.preview_file
   get "nested_editor" => "demos#nested_editor"
   get "nested_params" => "demos#nested_params"
   get "debounce" => "demos#debounce"

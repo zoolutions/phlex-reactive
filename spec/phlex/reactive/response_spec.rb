@@ -396,6 +396,14 @@ RSpec.describe Phlex::Reactive::Response do
       expect(stream).to include("&quot;paste_into&quot;")
     end
 
+    # Issue #375: preview_file is actor-only the same way — the actor's own
+    # reply may paint the file its own input holds.
+    it "allows a preview_file op (actor-scoped, mirroring paste_into)" do
+      ops = CounterComponent.new(count: 0).js.preview_file("#photo-file", into: "#photo")
+      stream = counter.reply.with.js(ops).streams.first
+      expect(stream).to include("&quot;preview_file&quot;")
+    end
+
     # Issue #342: check_group is actor-only too — the actor's own reply may
     # clear the selection it just acted on.
     it "allows a check_group op (actor-scoped, mirroring focus/submit)" do
