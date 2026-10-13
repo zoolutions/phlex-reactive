@@ -1,0 +1,105 @@
+docs/app/views/docs/pages/example_client_ops.rb
+  ai_agent 24,59-60,202-204,214-282,295,298-299,307-335
+app/javascript/phlex/reactive/compute.min.js
+  ai_agent 1,3
+spec/phlex/reactive/js_spec.rb
+  ai_agent 274-277,341-392,514-550
+spec/phlex/reactive/response_spec.rb
+  ai_agent 407-413
+app/javascript/phlex/reactive/compute.min.js.map
+  ai_agent 5,7-8
+docs/app/views/docs/pages/broadcasting.rb
+  ai_agent 124,468-469,471-473,475-478
+spec/requests/held_fields_spec.rb
+  s_f66f552428a388::t_f0d63d835fcf50 1-49
+spec/dummy/public/vendor/core.js
+  ai_agent 1,5-6,8
+docs/app/views/docs/pages/example_notifications.rb
+  s_f66f552428a388::t_f0d63d835fcf50 165
+lib/phlex/reactive/held_fields.rb
+  s_f66f552428a388::t_f0d63d835fcf50 1-87
+lib/phlex/reactive/js.rb
+  s_f66f552428a388::t_f0d63d835fcf50 14,16-22,126-133,135-136,139-140,143-144,149-150,153-154,157-158,173-174,177-178,181-182,185,272,325-352,469,474-480,513,519,547,554
+lib/phlex/reactive/test_helpers.rb
+  s_f66f552428a388::t_f0d63d835fcf50 96-104,111-112
+spec/system/kept_client_ops_spec.rb
+  s_f66f552428a388::t_f0d63d835fcf50 1-78
+spec/system/morph_normalize_spec.rb
+  s_f66f552428a388::t_f0d63d835fcf50 18,33-35
+spec/dummy/app/controllers/demos_controller.rb
+  s_f66f552428a388::t_f0d63d835fcf50 370-378,665-667
+spec/javascript/reactive_morph_focus.test.js
+  s_f66f552428a388::t_f0d63d835fcf50 36-37,170-171,249-251
+spec/phlex/reactive/component_spec.rb
+  ai_agent 1632-1644
+spec/phlex/reactive/test_helpers_spec.rb
+  s_f66f552428a388::t_f0d63d835fcf50 117-146
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,5-6,8
+app/javascript/phlex/reactive/core.min.js
+  ai_agent 1,5-6,8
+docs/app/views/docs/pages/architecture.rb
+  s_f66f552428a388::t_f0d63d835fcf50 165,169-226
+spec/dummy/app/components/kept_selection_component.rb
+  s_f66f552428a388::t_f0d63d835fcf50 1-46
+spec/dummy/config/routes.rb
+  ai_agent 70-71,120
+docs/app/views/docs/pages/security.rb
+  ai_agent 142,147-149,178-183
+app/controllers/phlex/reactive/actions_controller.rb
+  s_f66f552428a388::t_f0d63d835fcf50 353-356
+spec/javascript/reactive_set_value_op.test.js
+  s_f66f552428a388::t_f0d63d835fcf50 1-400
+lib/phlex/reactive/component/helpers.rb
+  s_f66f552428a388::t_f0d63d835fcf50 34-47
+spec/dummy/app/components/held_note_component.rb
+  s_f66f552428a388::t_f0d63d835fcf50 1-41
+app/javascript/phlex/reactive/runtime.js
+  ai_agent 203,360-421,536-538,541,543,550,559-560,562-660,862,1210-1213,1255,1332-1361,1631-1634,3622-3624,3706,3737-3739
+spec/requests/js_broadcast_spec.rb
+  ai_agent 127-140,175-191
+docs/app/views/docs/pages/examples_overview.rb
+  s_f66f552428a388::t_f0d63d835fcf50 51
+spec/javascript/reactive_keep.test.js
+  s_f66f552428a388::t_f0d63d835fcf50 1-299
+spec/javascript/bundle_budget.test.js
+  ai_agent 137-147,185-193,257-264
+spec/system/held_fields_spec.rb
+  s_f66f552428a388::t_f0d63d835fcf50 1-68
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 5,18-19
+spec/system/set_value_spec.rb
+  s_f66f552428a388::t_f0d63d835fcf50 1-140
+app/javascript/phlex/reactive/compute.js
+  s_f66f552428a388::t_f0d63d835fcf50 155-158,162,232-238
+lib/phlex/reactive/streamable.rb
+  ai_agent 43-45,52,54-57,212,218,223-233
+spec/dummy/app/components/notes_fill_component.rb
+  s_f66f552428a388::t_f0d63d835fcf50 1-58
+app/javascript/phlex/reactive/core.min.js.map
+  ai_agent 5,8-9
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,5-6,8
+spec/phlex/reactive/held_fields_spec.rb
+  s_f66f552428a388::t_f0d63d835fcf50 1-96
+spec/dummy/public/vendor/compute.js
+  ai_agent 1,3
+spec/javascript/reactive_held.test.js
+  s_f66f552428a388::t_f0d63d835fcf50 1-355
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "9c72e81cd26ba580affaade27f18b784985a74f9",
+  "prompts": {},
+  "sessions": {
+    "s_f66f552428a388": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0aa07c76-1dcb-4c80-9ad4-9494338b8ff2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
