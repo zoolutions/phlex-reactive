@@ -139,12 +139,14 @@ module Views
               (unknown ops warn-and-skip), an attribute allowlist enforced twice (build time
               AND interpret time), and an **actor-only tier** — `focus`, `focus_first`,
               `show_modal` / `close_dialog` (#365),
-              `submit` (#226), `paste_into` (#228), `persist_state` / `persist_clear` and `check_group` (#342) are allowed from the actor's own
+              `submit` (#226), `paste_into` (#228), `persist_state` / `persist_clear`, `check_group` (#342) and `set_value` (#374) are allowed from the actor's own
               gesture or reply (`on_client` / `reply.js` / a reducer's `$ops` — though the
               reducer builder deliberately omits `paste_into` and `check_group`, and has no
               `show_modal` / `close_dialog` verbs — the raw pairs still interpret) but **refused in
               broadcasts**: a broadcast op must never steal focus in, force-submit a form
-              from, or read the clipboard of, every subscriber's tab.
+              from, read the clipboard of, or overwrite a field in, every subscriber's tab. The `keep: true`
+              flag (#369) is refused in broadcasts on any op for the same reason: what
+              it records is one tab's client state.
 
               `preview_file` (#375) joins that tier — a broadcast must never read every
               subscriber's file input — and keeps the URL refusal whole: it paints the
@@ -173,6 +175,12 @@ module Views
               a string at click time. A declared value that can't be coerced to its type (a bad
               `:date`/`:decimal`, a non-file for `:file`) is dropped — never fabricated — so the
               action sees its keyword default, not a bogus value.
+
+              The same goes for `reactive_held_fields` (the `X-Reactive-Held` header, the fields
+              a morph held over a changed server value, usually another tab's edit
+              but not proof of one): names only, never values, capped, and
+              filtered to the params the action declares. Malformed reads as `[]`. It tells the
+              action what the user saw, never what they may do.
             MD
             custom_param_types
             DocsUI::Callout(:note, title: 'File params (:file / [:file])') do

@@ -271,6 +271,10 @@ RSpec.describe Phlex::Reactive::JS do
       expect { js.paste_into(:root) }.to raise_error(ArgumentError, /field/)
     end
 
+    it "rejects the serialized \"@root\" sentinel the same way" do
+      expect { js.paste_into(Phlex::Reactive::JS::ROOT_SENTINEL) }.to raise_error(ArgumentError, /field/)
+    end
+
     it "rejects a target that is not a CSS selector string" do
       expect { js.paste_into(:code) }.to raise_error(ArgumentError, /:root or a CSS selector/)
     end
@@ -331,6 +335,58 @@ RSpec.describe Phlex::Reactive::JS do
       expect { js.set_attr("#photo", "src", "blob:http://x/1") }.to raise_error(ArgumentError, /src/)
       expect { described_class.assert_ops_allowed!([["set_attr", { "to" => "#p", "name" => "src", "value" => "x" }]]) }
         .to raise_error(ArgumentError, /src/)
+    end
+  end
+
+  # --- Issue #374: set_value — a field's live value from a client op ---
+
+  describe "set_value op (#set_value) — write a field's live .value" do
+    it "serializes the field selector and the stringified value" do
+      expect(JSON.parse(js.set_value("#notes", "Thanks for your order.").to_json))
+        .to eq([["set_value", { "to" => "#notes", "value" => "Thanks for your order." }]])
+    end
+
+    it "stringifies a non-string value" do
+      expect(JSON.parse(js.set_value("#qty", 3).to_json).dig(0, 1, "value")).to eq("3")
+    end
+
+    it "stringifies nil to an empty string (nil clears the field, like \"\")" do
+      expect(JSON.parse(js.set_value("#notes", nil).to_json).dig(0, 1, "value")).to eq("")
+      expect(JSON.parse(js.set_value("#notes", "").to_json).dig(0, 1, "value")).to eq("")
+    end
+
+    it "keeps an HTML-looking value as plain characters on the wire (the client assigns text)" do
+      expect(JSON.parse(js.set_value("#notes", "<b>hi</b>").to_json).dig(0, 1, "value")).to eq("<b>hi</b>")
+    end
+
+    it "carries global: true only when asked (root-scoped is the lean default)" do
+      expect(JSON.parse(js.set_value("#notes", "x", global: true).to_json))
+        .to eq([["set_value", { "to" => "#notes", "value" => "x", "global" => true }]])
+      expect(JSON.parse(js.set_value("#notes", "x").to_json).dig(0, 1)).not_to have_key("global")
+    end
+
+    it "chains (two fields from one gesture)" do
+      chain = js.set_value("#notes", "Thanks").set_value("#template_key", "thanks")
+      expect(chain.ops.map(&:first)).to eq(%w[set_value set_value])
+    end
+
+    it "rejects :root LOUDLY, with the paste_into message shape (the root is not a field)" do
+      expect { js.set_value(:root, "x") }
+        .to raise_error(ArgumentError, /set_value targets a field, not the component root/)
+    end
+
+    it "rejects the serialized \"@root\" sentinel the same way (the client resolves it to the root)" do
+      expect { js.set_value(Phlex::Reactive::JS::ROOT_SENTINEL, "x") }
+        .to raise_error(ArgumentError, /set_value targets a field, not the component root/)
+    end
+
+    it "rejects a target that is not a CSS selector string" do
+      expect { js.set_value(:notes, "x") }.to raise_error(ArgumentError, /:root or a CSS selector/)
+    end
+
+    it "leaves set_attr(\"value\") an attribute write (a different op on the wire)" do
+      expect(JSON.parse(js.set_attr("#notes", "value", "Thanks").to_json))
+        .to eq([["set_attr", { "to" => "#notes", "name" => "value", "value" => "Thanks" }]])
     end
   end
 
@@ -452,6 +508,46 @@ RSpec.describe Phlex::Reactive::JS do
 
     it "keeps the wire byte-identical when omitted" do
       expect(js.toggle("#menu").to_json).to eq('[["toggle",{"to":"#menu"}]]')
+    end
+  end
+
+  # --- Issue #369: keep: — a morph of the target re-applies what the op did ---
+
+  describe "keep: on the class, visibility and attribute ops" do
+    it "serializes keep: true on every op that takes it" do
+      chain = js.add_class("#a", "x", keep: true).remove_class("#a", "y", keep: true)
+        .toggle_class("#a", "z", keep: true).show("#a", keep: true).hide("#a", keep: true)
+        .toggle("#a", keep: true).set_attr("#a", "aria-selected", "true", keep: true)
+        .remove_attr("#a", "data-open", keep: true).toggle_attr("#a", "aria-expanded", "true", "false", keep: true)
+
+      expect(chain.ops.map { |_, args| args["keep"] }).to all(be(true))
+      expect(chain.ops.map(&:first)).to eq(
+        %w[add_class remove_class toggle_class show hide toggle set_attr remove_attr toggle_attr]
+      )
+    end
+
+    it "puts keep after the op's own arguments" do
+      expect(js.add_class("#item-2", "selected", global: true, keep: true).to_json)
+        .to eq('[["add_class",{"to":"#item-2","classes":["selected"],"global":true,"keep":true}]]')
+      expect(js.set_attr("#row", "aria-expanded", "true", keep: true).to_json)
+        .to eq('[["set_attr",{"to":"#row","name":"aria-expanded","value":"true","keep":true}]]')
+      expect(js.show("#d", expanded: "#t", keep: true).to_json)
+        .to eq('[["show",{"to":"#d","expanded":"#t","keep":true}]]')
+    end
+
+    it "keeps the wire byte-identical when keep: is omitted or false" do
+      expect(js.add_class("#a", "x").to_json).to eq('[["add_class",{"to":"#a","classes":["x"]}]]')
+      expect(js.add_class("#a", "x", keep: false).to_json).to eq('[["add_class",{"to":"#a","classes":["x"]}]]')
+      expect(js.hide("#a", keep: false).to_json).to eq('[["hide",{"to":"#a"}]]')
+      expect(js.remove_attr("#a", "hidden", keep: false).to_json)
+        .to eq('[["remove_attr",{"to":"#a","name":"hidden"}]]')
+      expect(js.toggle_attr("#a", "aria-pressed", keep: false).to_json)
+        .to eq('[["toggle_attr",{"to":"#a","name":"aria-pressed"}]]')
+    end
+
+    it "is not an option on ops whose effect is not DOM state" do
+      expect { js.focus("#a", keep: true) }.to raise_error(ArgumentError, /keep/)
+      expect { js.text("#a", "x", keep: true) }.to raise_error(ArgumentError, /keep/)
     end
   end
 

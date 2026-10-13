@@ -152,10 +152,14 @@ export function __resetComputeRegistryForTest() {
 // wire.
 const ROOT_SENTINEL = "@root"
 
-function targetArgs(to, { global, transition } = {}) {
+// `keep: true` (issue #369) on show/hide/toggle and the class and attr ops:
+// a morph of the target re-applies the op's result (see Phlex::Reactive::JS).
+// Ignored by the other ops, as the interpreter only keeps those nine.
+function targetArgs(to, { global, transition, keep } = {}) {
   const args = { to: to ?? ROOT_SENTINEL }
   if (global) args.global = true
   if (transition) args.transition = normalizeTransition(transition)
+  if (keep) args.keep = true
   return args
 }
 
@@ -223,6 +227,15 @@ class OpsChain {
 
   text(to, value, opts) {
     return this.#append("text", { ...targetArgs(to, opts), value: String(value ?? "") })
+  }
+
+  // A field's live value (issue #374). A field selector is required: the root
+  // is not a field. For a field the reducer owns, return it as an output
+  // instead; a set_value whose value derives from the field it writes changes
+  // the chain on every pass, so it fires again on every pass.
+  set_value(to, value, opts) {
+    if (to == null || to === ROOT_SENTINEL) throw new Error("[phlex-reactive] ops.set_value targets a field — pass its CSS selector")
+    return this.#append("set_value", { ...targetArgs(to, opts), value: String(value ?? "") })
   }
 
   dispatch(name, { to, detail, global } = {}) {

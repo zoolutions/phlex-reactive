@@ -11,10 +11,15 @@ module Phlex
     #   # -> data-reactive-ops-param='[["toggle",{"to":"#menu"}]]'
     #
     # These are declarative DOM OPERATIONS, not state: nothing is shipped back
-    # to the server, nothing is trusted from the client, and any server
+    # to the server, nothing is trusted from the client, and a server
     # re-render of the component resets whatever they toggled (the LiveView
-    # JS-commands caveat — by design; use a signed action for state that must
-    # survive re-renders).
+    # JS-commands caveat; use a signed action for state the server must know).
+    # The exception is `keep: true` (issue #369) on the class, visibility and
+    # attribute ops: the client records what the op did to each target, and a
+    # MORPH of that element re-applies it, so a selection or an expanded row
+    # survives another viewer's broadcast. An element a stream REPLACES is a
+    # new element and starts clean. Kept state belongs to one tab, so
+    # broadcast_to(js:) refuses the flag.
     #
     # Targets: a CSS selector string is resolved WITHIN the component's root by
     # default (nested reactive roots excluded, issue #15 semantics); `:root`
@@ -118,31 +123,39 @@ module Phlex
       # selector, document-wide under global: true). Pair it with ONE disclosure
       # target — with several, the last one wins.
       #   js.toggle("#menu", expanded: "#menu-trigger")
+      #
+      # `keep:` (issue #369) — on show/hide/toggle, the class ops and the attr
+      # ops: a morph of the target re-applies the op's result (the class on or
+      # off, `hidden`, the attribute's value or its absence) instead of the
+      # server render's. The latest kept op on an element and a class or
+      # attribute wins, so "clear all, then select one" works:
+      #   js.remove_class(".item", "selected", keep: true).add_class("#item-2", "selected", keep: true)
+      # With `expanded:`, the trigger's aria-expanded is kept too.
 
-      def show(to, global: false, transition: nil, expanded: nil)
-        append("show", target_args(to, global:, transition:, expanded:))
+      def show(to, global: false, transition: nil, expanded: nil, keep: false)
+        append("show", target_args(to, global:, transition:, expanded:, keep:))
       end
 
-      def hide(to, global: false, transition: nil, expanded: nil)
-        append("hide", target_args(to, global:, transition:, expanded:))
+      def hide(to, global: false, transition: nil, expanded: nil, keep: false)
+        append("hide", target_args(to, global:, transition:, expanded:, keep:))
       end
 
-      def toggle(to, global: false, transition: nil, expanded: nil)
-        append("toggle", target_args(to, global:, transition:, expanded:))
+      def toggle(to, global: false, transition: nil, expanded: nil, keep: false)
+        append("toggle", target_args(to, global:, transition:, expanded:, keep:))
       end
 
       # --- Classes ---
 
-      def add_class(to, *classes, global: false)
-        append("add_class", class_args(to, classes, global:))
+      def add_class(to, *classes, global: false, keep: false)
+        append("add_class", class_args(to, classes, global:, keep:))
       end
 
-      def remove_class(to, *classes, global: false)
-        append("remove_class", class_args(to, classes, global:))
+      def remove_class(to, *classes, global: false, keep: false)
+        append("remove_class", class_args(to, classes, global:, keep:))
       end
 
-      def toggle_class(to, *classes, global: false)
-        append("toggle_class", class_args(to, classes, global:))
+      def toggle_class(to, *classes, global: false, keep: false)
+        append("toggle_class", class_args(to, classes, global:, keep:))
       end
 
       # --- Attributes (issue #96) — allowlisted names only ---
@@ -157,19 +170,19 @@ module Phlex
       # attribute becomes `on`. For aria-expanded/aria-pressed/data-state:
       #   js.toggle_attr("#trigger", "aria-expanded", "true", "false")
 
-      def set_attr(to, name, value, global: false)
-        append("set_attr", attr_args(to, name, global:, value:))
+      def set_attr(to, name, value, global: false, keep: false)
+        append("set_attr", attr_args(to, name, global:, keep:, value:))
       end
 
-      def remove_attr(to, name, global: false)
-        append("remove_attr", attr_args(to, name, global:))
+      def remove_attr(to, name, global: false, keep: false)
+        append("remove_attr", attr_args(to, name, global:, keep:))
       end
 
-      def toggle_attr(to, name, *values, global: false)
-        args = attr_args(to, name, global:)
+      def toggle_attr(to, name, *values, global: false, keep: false)
+        args = attr_args(to, name, global:, keep:)
         return append("toggle_attr", args) if values.empty?
 
-        append("toggle_attr", args.merge("values" => toggle_values(name, values)).freeze)
+        append("toggle_attr", with_keep(args.except("keep").merge("values" => toggle_values(name, values)), keep))
       end
 
       # --- Focus (issue #96) ---
@@ -256,7 +269,7 @@ module Phlex
       # element (the two passes would fight over the same attribute).
 
       def paste_into(to, global: false)
-        if to == :root
+        if [:root, ROOT_SENTINEL].include?(to)
           raise ArgumentError,
             "#{self.class}: paste_into targets a field, not the component root — " \
             "pass the input's CSS selector (e.g. js.paste_into(\"[name=code]\"))"
@@ -307,6 +320,34 @@ module Phlex
         args = { "to" => normalize_target(to), "value" => value.to_s }
         args["global"] = true if global
         append("text", args.freeze)
+      end
+
+      # --- A field's live value (issue #374) ---
+      #
+      # set_value(to, value) — assign the target field's IDL `.value` (never
+      # the attribute: that is set_attr, and a field the user typed in does not
+      # follow it), then dispatch a bubbling `input` when the value changed, so
+      # reducers and reactive_show see it as typed — the set-value contract
+      # paste_into uses (issue #183). Never `change`, never focus (chain
+      # js.focus for that), never parsed as HTML. The value is stringified; nil
+      # and "" clear the field. The target is an input, textarea or select:
+      # :root is refused loudly like paste_into, and anything else (a
+      # contenteditable — reactive_editable writes those — a non-field, a
+      # non-empty value for a file input) warns and skips in the browser.
+      # ACTOR-ONLY like paste_into: a broadcast that overwrote every
+      # subscriber's field would be hostile (BROADCAST_REFUSED_OPS).
+      #   button(**on_client(:click, js.set_value("#notes", "Thanks"))) { "Thanks" }
+
+      def set_value(to, value, global: false)
+        if [:root, ROOT_SENTINEL].include?(to)
+          raise ArgumentError,
+            "#{self.class}: set_value targets a field, not the component root — " \
+            "pass the field's CSS selector (e.g. js.set_value(\"#notes\", \"Thanks\"))"
+        end
+
+        args = { "to" => normalize_target(to), "value" => value.to_s }
+        args["global"] = true if global
+        append("set_value", args.freeze)
       end
 
       # --- Tick or untick a checkbox group (issue #342) ---
@@ -425,11 +466,18 @@ module Phlex
         self.class.new([*@ops, [name, args].freeze].freeze)
       end
 
-      def target_args(to, global:, transition: nil, expanded: nil)
+      def target_args(to, global:, transition: nil, expanded: nil, keep: false)
         args = { "to" => normalize_target(to) }
         args["global"] = true if global
         args["transition"] = normalize_transition(transition) if transition
         args["expanded"] = normalize_target(expanded) unless expanded.nil?
+        with_keep(args, keep)
+      end
+
+      # keep: (issue #369) rides LAST and only when true, so an op without it
+      # serializes byte-identically to before.
+      def with_keep(args, keep)
+        args["keep"] = true if keep
         args.freeze
       end
 
@@ -462,13 +510,13 @@ module Phlex
 
       # An attr op's args: the target, the allowlisted name, an optional
       # (stringified) value. The name is validated LOUDLY at build time.
-      def attr_args(to, name, global:, value: :__none)
+      def attr_args(to, name, global:, keep: false, value: :__none)
         name = name.to_s
         assert_allowed_attr(name)
         args = { "to" => normalize_target(to), "name" => name }
         args["value"] = value.to_s unless value == :__none
         args["global"] = true if global
-        args.freeze
+        with_keep(args, keep)
       end
 
       # Build-time attr-name allowlist for the instance builder — delegates to the
@@ -496,14 +544,14 @@ module Phlex
         [transition[:during], transition[:from], transition[:to]].map(&:to_s).freeze
       end
 
-      def class_args(to, classes, global:)
+      def class_args(to, classes, global:, keep: false)
         if classes.empty?
           raise ArgumentError, "#{self.class}: a class op needs at least one class (got none for #{to.inspect})"
         end
 
         args = { "to" => normalize_target(to), "classes" => classes.map(&:to_s).freeze }
         args["global"] = true if global
-        args.freeze
+        with_keep(args, keep)
       end
 
       # Instance-side alias for the class method (used by the op builder). See

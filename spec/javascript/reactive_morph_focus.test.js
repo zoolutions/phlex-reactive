@@ -33,6 +33,8 @@ beforeEach(async () => {
   ))
   window = new Window()
   globalThis.document = window.document
+  // A held field dispatches reactive:held (issue #370) with the page's CustomEvent.
+  globalThis.CustomEvent = window.CustomEvent
   __resetReactiveMorphFocusForTest()
   registerReactiveMorphFocus()
 })
@@ -165,7 +167,8 @@ test("only `value` is held: every other attribute of the focused field still mor
   expect(field.className).toBe("b")
   expect(field.getAttribute("data-reactive-token-value")).toBe("t2")
   expect(field.hasAttribute("aria-invalid")).toBe(false)
-  expect(asked.filter((a) => a.attributeName !== "value").every((a) => a.ok)).toBe(true)
+  // (data-reactive-held: the render changed under the typing, issue #370)
+  expect(asked.filter((a) => !["value", "data-reactive-held"].includes(a.attributeName)).every((a) => a.ok)).toBe(true)
 })
 
 test("the root's own attributes (its token) are never held, even with a field focused", () => {
@@ -243,6 +246,7 @@ test("registration is idempotent: one set of listeners however often it runs", (
   registerReactiveMorphFocus()
   registerReactiveMorphFocus()
 
-  // focusin: an editable's server text when a morph never reached it (#351).
-  expect(added.sort()).toEqual(["focusin", "turbo:before-morph-attribute", "turbo:before-morph-element"])
+  // focusin: an editable's server text when a morph never reached it (#351);
+  // input: a held field set back to its default drops its mark (#370).
+  expect(added.sort()).toEqual(["focusin", "input", "turbo:before-morph-attribute", "turbo:before-morph-element"])
 })

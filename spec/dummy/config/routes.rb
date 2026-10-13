@@ -67,6 +67,8 @@ Rails.application.routes.draw do
   get "late_show" => "demos#late_show" # issue #356: a stream appends the first show target
   get "modal_dialog" => "demos#modal_dialog" # issue #365: show_modal / close_dialog / data-reactive-modal
   get "photo_preview" => "demos#photo_preview" # issue #375: js.preview_file
+  get "notes_fill" => "demos#notes_fill" # issue #374: js.set_value
+  get "kept_selection" => "demos#kept_selection" # issue #369: keep: on client ops survives a morph
   get "nested_editor" => "demos#nested_editor"
   get "nested_params" => "demos#nested_params"
   get "debounce" => "demos#debounce"
@@ -115,6 +117,7 @@ Rails.application.routes.draw do
   get "cached_panel" => "demos#cached_panel" # issue #277: on: + cache:, Vary: Cookie
   get "morph_grid/:id" => "demos#morph_grid"
   get "morph_normalize" => "demos#morph_normalize" # issue #338: focused value survives a normalising morph
+  get "held_note/:id" => "demos#held_note" # issue #370: the action knows which focused fields a morph held
   get "js_focus/:id" => "demos#js_focus"
   get "partial_grid/:id" => "demos#partial_grid"
   get "checkbox_group" => "demos#checkbox_group"

@@ -124,6 +124,20 @@ RSpec.describe "broadcast_js_to (issue #97)", type: :request do
       .to raise_error(ArgumentError, /preview_file/)
   end
 
+  # Issue #374: set_value joins the actor-only set — a broadcast that
+  # overwrote every subscriber's field would be hostile (morph the value).
+  it "rejects a set_value op (broadcasting a field write would overwrite every subscriber's input)" do
+    ops = TodoItemComponent.new(todo: Todo.new).js.set_value("#notes", "x")
+
+    expect { TodoItemComponent.broadcast_to("alerts", js: ops) }
+      .to raise_error(ArgumentError, /set_value/)
+  end
+
+  it "rejects a raw-array set_value op the same way (escape hatch can't bypass it)" do
+    expect { TodoItemComponent.broadcast_to("alerts", js: [["set_value", { "to" => "#notes", "value" => "x" }]]) }
+      .to raise_error(ArgumentError, /set_value/)
+  end
+
   # Issue #239: the persist ops join the actor-only set — a broadcast that
   # rewrites or wipes every subscriber's localStorage draft would be hostile.
   it "rejects persist_state / persist_clear (broadcasting a draft write would be hostile)" do
@@ -156,6 +170,25 @@ RSpec.describe "broadcast_js_to (issue #97)", type: :request do
       .to raise_error(ArgumentError, /close_dialog/)
     expect { Phlex::Reactive.broadcast_to("alerts", js: [["show_modal", { "to" => "#d" }]]) }
       .to raise_error(ArgumentError, /show_modal/)
+  end
+
+  # Issue #369: keep: records client state in ONE tab — a broadcast refuses the
+  # flag (not the op), on the builder and on a raw list alike.
+  it "rejects keep: on any op (kept state belongs to one tab)" do
+    js = TodoItemComponent.new(todo: Todo.new).js
+
+    expect { TodoItemComponent.broadcast_to("alerts", js: js.add_class("#a", "x", keep: true)) }
+      .to raise_error(ArgumentError, /keep/)
+    expect { Phlex::Reactive.broadcast_to("alerts", js: [["hide", { "to" => "#a", "keep" => true }]]) }
+      .to raise_error(ArgumentError, /keep/)
+    expect { Phlex::Reactive.broadcast_to("alerts", js: [["show", { to: "#a", keep: true }]]) }
+      .to raise_error(ArgumentError, /keep/)
+  end
+
+  it "still broadcasts the same op without keep:" do
+    js = TodoItemComponent.new(todo: Todo.new).js
+
+    expect { TodoItemComponent.broadcast_to("alerts", js: js.add_class("#a", "x")) }.not_to raise_error
   end
 
   it "rejects an empty op chain (a dead reactive:js broadcast is a mistake)" do
