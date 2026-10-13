@@ -82,8 +82,10 @@ RSpec.describe Phlex::Reactive::Component::MediaBinding do
 
     it "raises unless take: is a positive Integer" do
       [0, -1, 1.5, "3", true, 3..4].each do
-        expect { view.reactive_media(from: :code, take: it, pool:) }
-          .to raise_error(ArgumentError, /take: must be a positive Integer/), "expected #{it.inspect} to raise"
+        # Bound here: a bare `it` inside the expect block is that block's own (nil) param.
+        take = it
+        expect { view.reactive_media(from: :code, take:, pool:) }
+          .to raise_error(ArgumentError, /take: must be a positive Integer/), "expected #{take.inspect} to raise"
       end
     end
 
