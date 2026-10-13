@@ -358,7 +358,7 @@ test("a morph that keeps a loaded src keeps it marked loaded", async () => {
 
 // --- an image that broke before the runtime registered ---------------------------
 
-test("registration marks an img that already failed, and one that already loaded", () => {
+test("registration marks an img that already failed, and one that already loaded", async () => {
   document.body.innerHTML =
     `<img id="broken" src="/missing.svg" alt="" data-reactive-image-fallback="${HIDE}">` +
     `<img id="fine" src="/logos/007.svg" alt="" data-reactive-image-fallback="${HIDE}">` +
@@ -370,16 +370,67 @@ test("registration marks an img that already failed, and one that already loaded
     return img
   }
   const broken = define("broken", true, 0)
+  broken.decode = () => Promise.reject(new Error("EncodingError"))
   const fine = define("fine", true, 64)
   const pending = define("pending", false, 0)
 
   mod.__resetReactiveImageFallbackForTest()
   mod.registerReactiveImageFallback()
+  await flush()
 
   expect(state(broken)).toBe("error")
   expect(broken.hidden).toBe(true)
   expect(state(fine)).toBe("loaded")
   expect(pending.hasAttribute("data-reactive-image-state")).toBe(false)
+})
+
+test("registration asks decode() before calling a complete img with naturalWidth 0 broken (a viewBox-only SVG)", async () => {
+  document.body.innerHTML =
+    `<img id="svg" src="/logos/viewbox.svg" alt="" data-reactive-image-fallback="${HIDE}">` +
+    `<img id="broken" src="/missing.svg" alt="" data-reactive-image-fallback="${HIDE}">`
+  const define = (id, decodes) => {
+    const img = document.getElementById(id)
+    Object.defineProperty(img, "complete", { value: true, configurable: true })
+    Object.defineProperty(img, "naturalWidth", { value: 0, configurable: true })
+    img.decode = () => (decodes ? Promise.resolve() : Promise.reject(new Error("EncodingError")))
+    return img
+  }
+  const svg = define("svg", true)
+  const broken = define("broken", false)
+
+  mod.__resetReactiveImageFallbackForTest()
+  mod.registerReactiveImageFallback()
+  await flush()
+
+  expect(state(svg)).toBe("loaded")
+  expect(svg.hidden).toBe(false)
+  expect(state(broken)).toBe("error")
+  expect(broken.hidden).toBe(true)
+})
+
+test("an img restored from a snapshot (hidden + error already in the DOM) is shown again by a new src", () => {
+  // A Turbo restoration visit hands back a NEW element carrying what the
+  // fallback wrote — its hidden must still be undoable.
+  const { controller, $ } = mount(
+    `<img id="logo" src="/missing.svg" alt="" hidden data-reactive-image-hidden data-reactive-image-state="error" data-reactive-image-fallback="${HIDE}">` +
+      `<img id="bank-007" src="/banks/007.svg" alt="Attijariwafa" hidden>`,
+  )
+  fail($("#logo")) // the browser re-fires error for the restored node
+
+  run(controller, [["copy_media", { to: "#logo", from: "#bank-007" }]])
+
+  expect($("#logo").hidden).toBe(false)
+  expect($("#logo").hasAttribute("data-reactive-image-hidden")).toBe(false)
+})
+
+test("a show_alt node that contains the img is never written (it would wipe the img)", () => {
+  const ALT = wire({ hide: true, alt: ".wrap" })
+  const { $ } = mount(`<div class="wrap"><img id="logo" src="/missing.svg" alt="Broken" data-reactive-image-fallback="${ALT}"></div>`)
+
+  fail($("#logo"))
+
+  expect($("#logo")).not.toBeNull()
+  expect(state($("#logo"))).toBe("error")
 })
 
 test("registering twice adds one listener", () => {

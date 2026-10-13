@@ -431,9 +431,10 @@ export function __resetReactiveKeepForTest() {
 // event bubbles); nothing per root at connect.
 const IMAGE_FALLBACK = "data-reactive-image-fallback"
 const IMAGE_STATE = "data-reactive-image-state"
+// Marks the `hidden` the fallback set, so a reset removes only that one. On
+// the element, not in a WeakSet: a Turbo snapshot restores a NEW node.
+const IMAGE_HIDDEN = "data-reactive-image-hidden"
 let imageFallbackListeners = null
-// The imgs whose `hidden` the fallback set: a reset removes only that one.
-const hiddenByFallback = new WeakSet()
 
 function imageFallback(img) {
   if (img?.localName !== "img") return null
@@ -453,7 +454,9 @@ const hasImageSrc = (img) => img.getAttribute("src") || img.getAttribute("srcset
 function imageAltNode(img, wire) {
   if (typeof wire.alt !== "string" || !wire.alt) return null
   try {
-    return img.closest('[data-controller~="reactive"]')?.querySelector(wire.alt) ?? null
+    const node = img.closest('[data-controller~="reactive"]')?.querySelector(wire.alt)
+    // Never a node that holds the img: its textContent would wipe the img.
+    return node && !node.contains(img) ? node : null
   } catch {
     return null
   }
@@ -463,7 +466,7 @@ function setImageState(img, wire, value) {
   if (value === "error") {
     if (wire.hide && !img.hasAttribute("hidden")) {
       img.setAttribute("hidden", "")
-      hiddenByFallback.add(img)
+      img.setAttribute(IMAGE_HIDDEN, "")
     }
     const node = imageAltNode(img, wire)
     if (node) {
@@ -479,11 +482,12 @@ function setImageState(img, wire, value) {
 function resetImage(img, wire = imageFallback(img)) {
   if (!wire || img.getAttribute(IMAGE_STATE) == null) return
   if (img.getAttribute(IMAGE_STATE) === "error") {
-    if (hiddenByFallback.delete(img)) img.removeAttribute("hidden")
+    if (img.hasAttribute(IMAGE_HIDDEN)) img.removeAttribute("hidden")
     const node = imageAltNode(img, wire)
     if (node) node.hidden = true
   }
   img.removeAttribute(IMAGE_STATE)
+  img.removeAttribute(IMAGE_HIDDEN)
 }
 
 function onImageEvent(event) {
@@ -526,10 +530,14 @@ export function registerReactiveImageFallback() {
   }
   for (const [name, fn] of Object.entries(imageFallbackListeners)) document.addEventListener(name, fn, true)
   // An image that finished before this ran (a cached 404) fired its event
-  // unheard: read it off the element once.
+  // unheard: read it off the element once. naturalWidth 0 is also a loaded
+  // SVG with only a viewBox, so decode() decides (it rejects a broken image).
   for (const img of document.querySelectorAll?.(`img[${IMAGE_FALLBACK}]`) ?? []) {
     if (!img.complete || !hasImageSrc(img)) continue
-    setImageState(img, imageFallback(img), img.naturalWidth > 0 ? "loaded" : "error")
+    const mark = (value) => setImageState(img, imageFallback(img) ?? {}, value)
+    if (img.naturalWidth > 0) mark("loaded")
+    else if (typeof img.decode === "function") img.decode().then(() => mark("loaded"), () => mark("error"))
+    else mark("error")
   }
 }
 

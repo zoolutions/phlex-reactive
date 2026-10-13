@@ -23,8 +23,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   images that failed before it registered; nothing runs per root at connect.
   No URL in any argument; `set_attr` still refuses `src`/`srcset`. `hide:`
   that is not a boolean, or a `show_alt:` that is not a selector (or is
-  `@root`), raises at render. Client: +516 B gzipped in the default bundle,
-  +494 B in the split core. Docs: "An image that falls back, and recovers" on
+  `@root`), raises at render. Client: +582 B gzipped in the default bundle,
+  +546 B in the split core. Docs: "An image that falls back, and recovers" on
   the client-ops example.
 
 - **Media previews — `js.copy_media` and `reactive_media` (#373).**

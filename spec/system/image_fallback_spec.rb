@@ -26,6 +26,27 @@ RSpec.describe "Image fallback (issue #383)", type: :system do
     expect(page).to have_css(broken("photo"), visible: :all)
   end
 
+  it "never hides an SVG that has only a viewBox (it loads; naturalWidth may read 0)" do
+    expect(page).to have_css(shown("viewbox"))
+    page.refresh
+    find("#image-fallback[data-reactive-connected]")
+    expect(page).to have_css(shown("viewbox"))
+  end
+
+  it "after a restoration visit (back), a broken copy is still shown again by a valid one" do
+    find(img("use-broken")).click
+    expect(page).to have_css(broken("copied"), visible: :all)
+
+    page.execute_script("Turbo.visit('/logo_preview')")
+    expect(page).to have_css("#logo-preview[data-reactive-connected]")
+    page.go_back
+    find("#image-fallback[data-reactive-connected]")
+    expect(page).to have_css(broken("copied"), visible: :all)
+
+    find(img("use-valid")).click
+    expect(page).to have_css(shown("copied"))
+  end
+
   it "reactive_media: a key whose image 404s hides the preview, the next key shows it" do
     find(img("rib")).fill_in(with: "001")
     expect(page).to have_css(broken("logo"), visible: :all)

@@ -69,6 +69,8 @@ class ImageFallbackComponent < ApplicationComponent
   def server_logo
     img(id: "server", src: @fixed ? "/logos/007.svg" : MISSING, alt: "Server",
       **reactive_image_fallback(data: { testid: "server" }))
+    # An SVG with only a viewBox: naturalWidth may read 0 once loaded.
+    img(id: "viewbox", src: "/logos/viewbox.svg", alt: "Viewbox", **reactive_image_fallback(data: { testid: "viewbox" }))
     p(data: { testid: "refreshes" }) { "Refreshed #{@refreshes}" }
     button(**mix(on(:fix), data: { testid: "fix" })) { "Fix" }
     button(**mix(on(:refresh), data: { testid: "refresh" })) { "Refresh" }
