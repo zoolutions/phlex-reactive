@@ -1,0 +1,33 @@
+spec/dummy/public/vendor/compute.js
+  ai_agent 1,3
+spec/dummy/public/vendor/core.js
+  ai_agent 1,5-6,8
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,5-6,8
+spec/dummy/config/routes.rb
+  ai_agent 70,119
+spec/javascript/bundle_budget.test.js
+  ai_agent 138-144,183-188,253-257
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 5,18-19
+app/javascript/phlex/reactive/compute.min.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/core.min.js.map
+  ai_agent 5,8-9
+docs/app/views/docs/pages/security.rb
+  ai_agent 147-149,170-175
+app/javascript/phlex/reactive/compute.min.js.map
+  ai_agent 5,7-8
+spec/dummy/app/controllers/demos_controller.rb
+  ai_agent 370-374,661-663
+app/javascript/phlex/reactive/core.min.js
+  ai_agent 1,5-6,8
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,5-6,8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "56b1ff70c234c860b63e7edc24c8b4d92de529c0",
+  "prompts": {}
+}
