@@ -214,6 +214,9 @@ module Views
               - **The latest kept op wins** per element and class or attribute, so the
                 kept `remove_class` above cancels the previous selection's kept
                 `add_class` — one item stays selected, not every item ever clicked.
+                An op **without** `keep:` leaves an earlier kept record alone: a panel
+                shown with `show(…, keep: true)` and closed with a plain `hide` opens
+                again on the next morph. Close it with `hide(…, keep: true)`.
               - **The render still lands.** A class or attribute no kept op touched
                 follows the server, so the renamed item's own changes appear.
               - **A replaced element starts clean.** `keep:` holds through a *morph*,

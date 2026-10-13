@@ -1342,7 +1342,9 @@ button(**on_client(:click, js
   the class on or off, `hidden`, the attribute's value or its absence — and puts
   it back after Turbo morphs that element. Classes and attributes no kept op
   touched still follow the render; the latest kept op on an element and a class
-  or attribute wins, so "clear all, then select one" leaves one selected; an
+  or attribute wins, so "clear all, then select one" leaves one selected (an op
+  *without* `keep:` leaves the kept record alone, so close a kept panel with a
+  kept `hide`); an
   element a stream **replaces** is a new element and starts clean. With
   `expanded:`, the trigger's `aria-expanded` is kept too. Refused in
   `broadcast_to(js:)`: kept state belongs to one tab.
