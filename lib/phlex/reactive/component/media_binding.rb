@@ -27,13 +27,22 @@ module Phlex
       # chosen image's alt (`blank_label`, or "", on a miss). Client-only: no token,
       # no round trip.
       #
+      # Until the field has `take` characters, or while `match:` (a Regexp,
+      # anchored to the whole key) rejects the key, the binding is PENDING
+      # (issue #380): never `blank_label`. `pending: :clear` (the default)
+      # clears the preview and empties the label; `pending: :keep` leaves both
+      # alone. The preview's data-reactive-media-state reads pending, hit or
+      # miss, so a row can hide itself with CSS until there is an answer.
+      #
       # Named MediaBinding, not Media: this module sits in every reactive
       # component's ancestry, and a bare `Media` would shadow a host app's kit
       # component of that name (issue #233).
       module MediaBinding
-        def reactive_media(from:, pool: nil, take: nil, label: nil, blank_label: nil, **attrs)
+        def reactive_media(from:, pool: nil, take: nil, match: nil, pending: :clear, label: nil, blank_label: nil, **attrs)
           wire = { "field" => media_field!(from) }
           wire["take"] = media_take!(take) unless take.nil?
+          wire["match"] = MediaPattern.to_js(match) unless match.nil?
+          wire["pending"] = "keep" if media_pending!(pending) == "keep"
           wire["pool"] = media_pool!(pool)
           wire["label"] = media_selector!(:label, label) unless label.nil?
           wire["blank"] = blank_label.to_s unless blank_label.nil?
@@ -54,6 +63,13 @@ module Phlex
 
           raise ArgumentError, "reactive_media take: must be a positive Integer (or omitted for the whole value), " \
                                "got #{take.inspect}"
+        end
+
+        def media_pending!(pending)
+          mode = pending.to_s if pending.is_a?(Symbol) || pending.is_a?(String)
+          return mode if %w[clear keep].include?(mode)
+
+          raise ArgumentError, "reactive_media pending: must be :clear or :keep, got #{pending.inspect}"
         end
 
         def media_pool!(pool)

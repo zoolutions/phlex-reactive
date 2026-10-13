@@ -215,6 +215,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **`reactive_media` waits for `take` characters before calling a key a miss
+  (#380).** A value shorter than `take:` sliced to a short key, missed the
+  pool and wrote `blank_label` while the user was still typing. It is now
+  *pending*: `blank_label` only names a full-length key that misses. New
+  options: `match:` (a Regexp, anchored to the whole key; a key it rejects is
+  pending too) and `pending: :clear` (default: clear the preview, empty the
+  label) or `:keep` (leave both alone). The preview carries
+  `data-reactive-media-state="pending|hit|miss"`, so a row can hide itself
+  with CSS. `match:` reaches the browser as a JS pattern: its `\A`/`\z`
+  anchors are dropped (a trailing `\Z` becomes `\n?`), and what JS reads
+  differently raises at render (options, escapes such as `\h`/`\p{…}`/`\s`/
+  `\u{…}`, POSIX and nested classes, `&&`, `(?i)`/`(?>…)`, characters above
+  U+FFFF). **Behaviour change:** with `take:`, a short value now leaves the
+  label empty instead of writing `blank_label`. Without `take:` or `match:`
+  nothing changes. Client: +160 B gzipped in the default bundle (+152 B on
+  top of #381/#382), +152 B in the bindings module, the split core unchanged. Docs: "Media
+  previews" on the client-ops example.
+
 - **A pool `<img>` with an `alt` and no `src` keeps its name (#381).**
   `js.copy_media` and `reactive_media` treated a source `<img>` without `src`
   as a clear: the preview's `alt` was emptied and `label:` got `blank_label`,

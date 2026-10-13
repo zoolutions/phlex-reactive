@@ -153,7 +153,9 @@ const SLACK = 250
 // Issue #381 (an <img> source without src is a hit: copy_media keeps its alt) adds 1 B: 34,000 B.
 // Issue #382 (preview_file valid: — an invalid input previews as empty) adds 23 B: 34,022 B;
 // on top of #381, 22 B: 34,022 B.
-const BUNDLE_GZIP_CEILING = 34_022
+// Issue #380 (reactive_media pending: take/match, pending: keep, data-reactive-media-state)
+// adds 160 B on #373 (34,159 B); on top of #381 and #382, 152 B: 34,174 B.
+const BUNDLE_GZIP_CEILING = 34_174
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -217,7 +219,8 @@ const FEATURE_GZIP_CEILINGS = {
   // Issue #373 (the reactive_media binding) takes it from 6,664 B to 6,884 B;
   // never resolving a label or pool value of @root, 6,888 B; slicing take: by
   // code point, 6,895 B.
-  "features/bindings": 6_895,
+  // Issue #380 (the pending state, match:, pending: keep, data-reactive-media-state) to 7,047 B.
+  "features/bindings": 7_047,
   // Issue #336 (render a defer reply now) takes it from 2,845 B to 2,974 B.
   "features/defer": 2_974,
   "features/compute": 2_050,
@@ -286,7 +289,8 @@ const FEATURE_GZIP_CEILINGS = {
 // One document submit-end listener for every persisted root (persist), 116 B: 41,868 B.
 // Issue #381 (copy_media keeps a src-less source's alt, in the core) saves 2 B: 41,866 B.
 // Issue #382 (preview_file valid:, in the core) adds 30 B: 41,898 B; on top of #381, 34 B: 41,900 B.
-const SPLIT_TOTAL_GZIP_CEILING = 41_900
+// Issue #380 (reactive_media pending, in bindings; the core unchanged) adds 152 B: 42,052 B.
+const SPLIT_TOTAL_GZIP_CEILING = 42_052
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

@@ -66,6 +66,7 @@ Rails.application.routes.draw do
   get "late_editable" => "demos#late_editable" # issue #351: a stream appends the first editable
   get "late_show" => "demos#late_show" # issue #356: a stream appends the first show target
   get "logo_preview" => "demos#logo_preview" # issue #373: js.copy_media / reactive_media
+  get "rib_preview" => "demos#rib_preview" # issue #380: reactive_media pending until take / match
   get "modal_dialog" => "demos#modal_dialog" # issue #365: show_modal / close_dialog / data-reactive-modal
   get "photo_preview" => "demos#photo_preview" # issue #375: js.preview_file
   get "validated_photo_preview" => "demos#validated_photo_preview" # issue #382: preview_file valid:

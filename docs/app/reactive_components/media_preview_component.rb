@@ -39,10 +39,12 @@ class MediaPreviewComponent < Phlex::HTML
 
   # The first paint matches the field's initial value (007), so the preview
   # shows without JavaScript; the binding then writes nothing until it changes.
+  # Until three digits are typed the binding is pending (issue #380): no
+  # "Unknown branch", and the figure hides itself on data-reactive-media-state.
   def preview
-    figure(class: 'flex flex-col items-center gap-1') do
+    figure(class: 'flex flex-col items-center gap-1 has-[[data-reactive-media-state=pending]]:invisible') do
       img(id: 'mpv-logo', src: '/media-demo/north.svg', alt: 'North', width: 64, height: 64, class: 'rounded',
-          **reactive_media(from: :code, take: 3, pool: REGIONS.transform_values(&:first),
+          **reactive_media(from: :code, take: 3, match: /\A\d{3}\z/, pool: REGIONS.transform_values(&:first),
                            label: '#mpv-caption', blank_label: 'Unknown branch'))
       figcaption(id: 'mpv-caption', class: 'text-sm') { 'North' }
     end

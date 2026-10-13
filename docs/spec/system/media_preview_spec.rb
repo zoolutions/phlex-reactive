@@ -19,6 +19,19 @@ RSpec.describe 'Media preview demo', type: :system do
     expect(page).to have_css('#mpv-logo:not([src])', visible: :all)
   end
 
+  # Issue #380: below three digits (or a non-digit key) the binding is pending —
+  # no "Unknown branch", and the figure hides itself on the state attribute.
+  it 'stays pending until three digits are typed' do
+    %w[00 ab1].each do |code|
+      fill_in 'code', with: '999'
+      expect(page).to have_css("#mpv-logo[data-reactive-media-state='miss']")
+      fill_in 'code', with: code
+      expect(page).to have_css("#mpv-logo[data-reactive-media-state='pending']", visible: :all)
+      expect(page).to have_no_css('#mpv-logo')
+      expect(page).to have_no_css('#mpv-caption', text: 'Unknown branch', visible: :all)
+    end
+  end
+
   it 'keeps the name of a branch with no logo file (issue #381)' do
     fill_in 'code', with: '050'
     expect(page).to have_css('#mpv-caption', text: 'Central')
