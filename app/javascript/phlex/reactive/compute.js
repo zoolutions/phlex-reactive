@@ -225,6 +225,15 @@ class OpsChain {
     return this.#append("text", { ...targetArgs(to, opts), value: String(value ?? "") })
   }
 
+  // A field's live value (issue #374). A field selector is required: the root
+  // is not a field. For a field the reducer owns, return it as an output
+  // instead; a set_value whose value derives from the field it writes changes
+  // the chain on every pass, so it fires again on every pass.
+  set_value(to, value, opts) {
+    if (to == null || to === ROOT_SENTINEL) throw new Error("[phlex-reactive] ops.set_value targets a field — pass its CSS selector")
+    return this.#append("set_value", { ...targetArgs(to, opts), value: String(value ?? "") })
+  }
+
   dispatch(name, { to, detail, global } = {}) {
     const args = { name: String(name), to: to ?? ROOT_SENTINEL, detail: detail ?? {} }
     if (global) args.global = true

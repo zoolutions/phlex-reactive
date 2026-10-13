@@ -54,8 +54,8 @@ module Views
               `remove_class`/`toggle_class`, `set_attr`/`toggle_attr`/`remove_attr`
               (`toggle_attr` also flips between two values, and `show`/`hide`/`toggle`
               take `expanded:` to keep a trigger's `aria-expanded` in sync — #271),
-              `focus`/`focus_first`, `show_modal`/`close_dialog`, `text`, `dispatch`,
-              `submit`, `paste_into` —
+              `focus`/`focus_first`, `show_modal`/`close_dialog`, `text`, `set_value`,
+              `dispatch`, `submit`, `paste_into` —
               each a local DOM mutation, with two deliberate exceptions. `submit`
               hands the form to its own native/intercepted submit path — the form
               may POST or navigate from there, but that is the form's contract,
@@ -176,17 +176,42 @@ module Views
               `to: :root` / `global: true` — when the element exists but sits
               outside the op's scope (the root itself, a nested reactive root, or
               elsewhere in the document). Production stays silent. `focus`/`focus_first`/
-              `show_modal`/`close_dialog`/`submit`/`paste_into` are allowed here (an
+              `show_modal`/`close_dialog`/`submit`/`paste_into`/`set_value` are allowed here (an
               actor's own gesture) but **rejected** from a broadcast — stealing focus
               in every subscriber's tab, opening a modal on every subscriber's screen,
-              force-submitting every subscriber's form, or reading every
-              subscriber's clipboard, would be hostile.
+              force-submitting every subscriber's form, reading every
+              subscriber's clipboard, or overwriting every subscriber's field, would be hostile.
 
               `text(to, value)` (#159) sets the target's `textContent` — stringified,
               `nil` clears, **never `innerHTML`** — so a chain can paint a label or a
               derived number without a round trip. Pair it with `global: true` to
               reach a node **outside** the component's root (the cross-root text
               escape a read-only recap needs).
+
+              `set_value(to, value)` (#374) fills a **field** — an `input`,
+              `textarea` or `select` — from text already on the page, with no
+              clipboard and no round trip. It assigns the live `.value` (never the
+              attribute, never parsed as HTML; stringified, `nil` and `""` clear),
+              then dispatches one bubbling `input` **when the value changed**, so
+              compute reducers and `reactive_show` react as if the user typed. It
+              never dispatches `change` and never moves focus: chain
+              `.focus("#notes")` for that. A `select` selects the matching option; a
+              file input accepts `""` only, which clears the chosen files. Anything
+              else (a `contenteditable`, which `reactive_editable` writes; a
+              non-field; a non-empty value for a file input) warns and is skipped.
+              `:root` raises at render: the root is not a field.
+
+              ```ruby
+              button(**on_client(:click,
+                js.set_value("#notes", "Thanks for your order.").set_value("#template_key", "thanks")
+              )) { "Thanks" }
+              ```
+
+              Why not `set_attr("#notes", "value", …)`? That writes the **attribute**:
+              a field the user has typed in keeps its live value, and no `input`
+              fires, so reducers and `reactive_show` stay stale. `set_value` is
+              actor-only (refused by `broadcast_to(js:)`; render the value instead)
+              and is on the reducer builder too: `$ops: ops.set_value("#notes", "…")`.
 
               `submit(to = :root)` (#226) commits the **target's own form** via
               `requestSubmit()` — the target itself when it *is* a form, a

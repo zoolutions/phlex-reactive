@@ -1033,6 +1033,10 @@ const CLIENT_OPS = Object.freeze({
   // carries this op.
   paste_into: (el) => pasteClipboardInto(el),
 
+  // A field's live value (issue #374): the paste_into write without the
+  // clipboard or the focus. ACTOR-ONLY (BROADCAST_REFUSED_OPS server-side).
+  set_value: (el, args) => setFieldValue(el, String(args.value ?? "")),
+
   // Client-only drafts (issue #239): merge a flat state bag into the root's
   // reactive_persist draft / forget the draft. ACTOR-ONLY like focus/submit
   // (BROADCAST_REFUSED_OPS server-side) — rewriting or wiping every
@@ -1074,13 +1078,36 @@ function pasteClipboardInto(field) {
     .then((text) => {
       if (!text) return
       field.value = text
-      if (typeof field.dispatchEvent === "function") field.dispatchEvent(new Event("input", { bubbles: true }))
+      dispatchInput(field)
       field.focus?.()
     })
     .catch(() => {
       // Permission denied or the prompt dismissed — the browser's own UX said
       // no. The issue-#228 contract: a silent no-op, never an error.
     })
+}
+
+// The set-value contract's dispatch (issue #183): a bubbling `input`, so
+// compute reducers, show bindings and on_complete run as if the user typed.
+function dispatchInput(field) {
+  if (typeof field.dispatchEvent === "function") field.dispatchEvent(new Event("input", { bubbles: true }))
+}
+
+// The body of the set_value op (issue #374). Writes the IDL .value — never the
+// attribute, never HTML — and dispatches `input` only when the field's value
+// actually moved (compared after the write: a textarea normalizes CRLF, a
+// select ends at "" for a value no option has). No `change`, no focus. Only an
+// input, textarea or select is a target, so a contenteditable (reactive_editable's
+// to write) warns and skips like any other node. A file input takes "" alone —
+// the browser throws on anything else.
+function setFieldValue(field, value) {
+  if (!/^(input|textarea|select)$/.test(field.localName) || (field.type === "file" && value !== "")) {
+    console.warn("[phlex-reactive] set_value skipped: not a field it can write", field)
+    return
+  }
+  const before = field.value
+  field.value = value
+  if (field.value !== before) dispatchInput(field)
 }
 
 // Apply a hidden-flag change, optionally animated by a [during, from, to]

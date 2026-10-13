@@ -363,6 +363,10 @@ class DemosController < ActionController::Base
     render_component ModalDialogComponent.new(open: params[:open] == "1")
   end
 
+  def notes_fill
+    render_component NotesFillComponent.new
+  end
+
   def nested_editor
     render_component NestedEditorComponent.new
   end

@@ -40,12 +40,14 @@ module Phlex
       # (issue #342) would tick or clear every subscriber's selection; presence
       # (issue #358) would write every subscriber's presence state; show_modal
       # and close_dialog (issue #365) would open or close a modal, and move
-      # focus, on every screen at once. They
+      # focus, on every screen at once; set_value (issue #374) would overwrite
+      # every subscriber's field. They
       # belong to the actor's own reply (reply.js) or gesture (on_client / a
       # reducer's $ops), never a broadcast. Names mirror Phlex::Reactive::JS's verbs.
       BROADCAST_REFUSED_OPS = %w[
         focus focus_first submit paste_into persist_state persist_clear check_group presence
         show_modal close_dialog
+        set_value
       ].freeze
 
       # The broadcast_to verb kwargs (issue #185) → their Turbo stream action.
@@ -201,6 +203,7 @@ module Phlex
               "subscriber's form; broadcasting paste_into reads every subscriber's clipboard; " \
               "broadcasting check_group ticks or clears every subscriber's selection; " \
               "broadcasting presence writes every subscriber's presence state; " \
+              "broadcasting set_value overwrites every subscriber's field (render the value instead); " \
               "broadcasting show_modal or close_dialog opens or closes a modal (and moves focus) on " \
               "every screen — render the dialog open or closed, with data: { reactive_modal: true }, instead." \
               "These are actor concerns (reply.js / on_client / $ops)."

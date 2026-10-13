@@ -8,6 +8,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`js.set_value(to, value)` — a field's live value from a client op
+  (#374).** `on_client(:click, js.set_value("#notes", "Thanks for your
+  order.").set_value("#template_key", "thanks"))` fills a field from text
+  already on the page, with no clipboard and no round trip. It assigns the
+  IDL `.value` of an `input`, `textarea` or `select` (never the attribute,
+  never parsed as HTML; the value is stringified, `nil` and `""` clear), then
+  dispatches one bubbling `input` when the value changed, so compute reducers
+  and `reactive_show` react as if the user typed. It never dispatches
+  `change` and never moves focus. A `select` selects the matching option; a
+  file input accepts `""` only. A `contenteditable`, any other non-field, and
+  a non-empty value for a file input warn and are skipped; `:root` raises at
+  render. Actor-only: `on_client`, `reply.js` and a reducer's `$ops` (the
+  compute builder gains `ops.set_value`) carry it, `broadcast_to(js:)`
+  refuses it. `js.set_attr(…, "value", …)` is unchanged and still writes only
+  the attribute. Client: +75 B gzipped in the default bundle, +84 B in the
+  split core. Docs: the client-ops example.
+
 - **Modal dialogs — `js.show_modal` / `js.close_dialog` and
   `data-reactive-modal` (#365).** `js.show_modal("#picker")` calls
   `HTMLDialogElement#showModal()`, so an `on_client` dialog gets the browser's
