@@ -135,9 +135,19 @@ const SLACK = 250
 // telling a kept `open` from a removed one adds 78 B: 32,108 B; upgrading a root
 // that is itself the dialog adds 12 B: 32,120 B.
 // #365 and #366 together: 32,147 B.
-// Issue #373 (the copy_media op, the media marker and the reactive_media binding) adds 399 B: 32,546 B;
-// refusing srcset and a label naming @root, 32,551 B.
-const BUNDLE_GZIP_CEILING = 32_551
+// Issue #369 (keep: on client ops — the kept-result registry and its one
+// turbo:morph-element listener; entries kept in op order) adds 251 B: 32,398 B.
+// Issue #370 (the held mark, reactive:held, X-Reactive-Held and the own-reply
+// release; the error reply never marks; checkboxes and radios are never held) adds 550 B on #366/#365 (32,697 B); on top of #369, 534 B: 32,932 B.
+// Issue #374 (the set_value op, comparing a <select multiple>'s whole selection)
+// adds 111 B on #366/#365 (32,258 B); on top of #369 and #370, 134 B: 33,066 B.
+// Issue #375 (js.preview_file: the op, its object-URL map and the observer that
+// revokes) adds 367 B on #366/#365 (32,514 B); on top of #369, #370 and #374,
+// 323 B: 33,389 B.
+// Issue #373 (copy_media, the media marker, the reactive_media binding, refusing srcset
+// and a media label of @root) adds 404 B on #366/#365 (32,551 B); on top of #369, #370,
+// #374 and #375, 410 B: 33,799 B.
+const BUNDLE_GZIP_CEILING = 33_799
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -176,9 +186,16 @@ const TARGET_BUNDLE_GZIP = 22_700
 // telling a kept `open` from a removed one adds 66 B: 15,079 B; upgrading a root
 // that is itself the dialog adds 14 B: 15,093 B.
 // #365 and #366 together: 15,112 B.
-// Issue #373 (the copy_media op and the media marker) adds 183 B: 15,295 B;
-// refusing srcset, 15,294 B.
-const CORE_GZIP_CEILING = 15_294
+// Issue #369 (keep: on client ops, in the runtime) adds 247 B: 15,359 B.
+// Issue #370 (the held mark, reactive:held, X-Reactive-Held and the own-reply
+// release; the error reply never marks; checkboxes and radios are never held) adds 566 B on #366/#365 (15,678 B); on top of #369, 559 B: 15,918 B.
+// Issue #374 (the set_value op) adds 120 B on #366/#365 (15,232 B); on top of
+// #369 and #370, 117 B: 16,035 B.
+// Issue #375 (js.preview_file) adds 374 B on #366/#365 (15,486 B); on top of
+// #369, #370 and #374, 356 B: 16,391 B.
+// Issue #373 (copy_media, the media marker, refusing srcset) adds 182 B on #366/#365
+// (15,294 B); on top of #369, #370, #374 and #375, 170 B: 16,561 B.
+const CORE_GZIP_CEILING = 16_561
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -245,9 +262,15 @@ const FEATURE_GZIP_CEILINGS = {
 // telling a kept `open` from a removed one adds 66 B: 39,923 B; upgrading a root
 // that is itself the dialog adds 14 B: 39,937 B.
 // #365 and #366 together: 39,956 B.
-// Issue #373 (+183 B core, +220 B bindings) adds 403 B: 40,359 B;
-// refusing srcset and @root, 40,362 B.
-const SPLIT_TOTAL_GZIP_CEILING = 40_362
+// Issue #369 (keep: on client ops, in the core) adds 247 B: 40,203 B.
+// Issue #370 (in the core) adds 566 B on #366/#365 (40,522 B); on top of #369, 559 B: 40,762 B.
+// Issue #374 (the set_value op, in the core) adds 120 B on #366/#365 (40,076 B);
+// on top of #369 and #370, 117 B: 40,879 B.
+// Issue #375 (js.preview_file, in the core) adds 374 B on #366/#365 (40,330 B);
+// on top of #369, #370 and #374, 356 B: 41,235 B.
+// Issue #373 (+170 B core, +224 B bindings) on top of #369, #370, #374 and #375
+// adds 394 B: 41,629 B.
+const SPLIT_TOTAL_GZIP_CEILING = 41_629
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

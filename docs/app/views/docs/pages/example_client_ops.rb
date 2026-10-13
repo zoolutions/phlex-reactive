@@ -21,6 +21,8 @@ module Views
           disclosure_menu
           modal_dialogs
           media_previews
+          preview_file
+          kept_ops
           ops
           value_conditional
           bulk_selection
@@ -55,15 +57,17 @@ module Views
               `remove_class`/`toggle_class`, `set_attr`/`toggle_attr`/`remove_attr`
               (`toggle_attr` also flips between two values, and `show`/`hide`/`toggle`
               take `expanded:` to keep a trigger's `aria-expanded` in sync — #271),
-              `focus`/`focus_first`, `show_modal`/`close_dialog`, `text`, `dispatch`,
-              `submit`, `paste_into` —
-              each a local DOM mutation, with two deliberate exceptions. `submit`
+              `focus`/`focus_first`, `show_modal`/`close_dialog`, `copy_media`, `text`, `set_value`,
+              `dispatch`, `submit`, `paste_into`, `preview_file` —
+              each a local DOM mutation, with three deliberate exceptions. `submit`
               hands the form to its own native/intercepted submit path — the form
               may POST or navigate from there, but that is the form's contract,
               not the op's. `paste_into` (#228) **reads** the clipboard, behind
               the browser's own gesture and permission gates, and still only
-              writes locally. Everything else sends nothing and reads nothing
-              back.
+              writes locally. `preview_file` (#375) **reads** the chosen `File`
+              from the input's `files` and paints it through an object URL it
+              makes itself — nothing is uploaded. Everything else sends nothing
+              and reads nothing back.
 
               - **Tabs:** `js.hide(".ct-panel").show("#ct-panel-1")` plus class ops on
                 the tab buttons — the "I had to write a Stimulus controller" case, now
@@ -221,6 +225,118 @@ module Views
           end
         end
 
+        def preview_file
+          DocsUI::Section('Preview a chosen image') do
+            md <<~MD
+              Choosing a file should show it **before** the upload. `js.preview_file`
+              (#375) does that on the file input's `change`, with no round trip and no
+              Stimulus controller:
+
+              ```ruby
+              input(type: "file", id: "photo-file", accept: "image/*",
+                **on_client(:change, js.preview_file("#photo-file", into: "#photo", name: "#photo-name")))
+              img(id: "photo", alt: "")
+              span(id: "photo-name")
+              ```
+
+              - The client takes the input's first `image/*` file, makes an object URL
+                from it (`URL.createObjectURL`), sets it as the `img`'s `src`, and puts
+                `file.name` in the `name:` node (optional) as `textContent`.
+              - An empty selection or a non-image file removes the `src` and clears the name.
+              - The runtime keeps the last URL per `img` and **revokes** it on the next
+                choice, on a clear, and when the `img` leaves the page or a morph strips
+                its `src` — no blob URL leaks.
+              - The op carries **no URL**. There is no parameter for one, the client never
+                reads a `url` key, and `set_attr` of `src` (and `srcset`, #373) stays refused (#96). Only an
+                `<img>` ever gets a `src`: an `into:` that is anything else, or a `to` that
+                is not an `input[type=file]`, warns and is skipped.
+              - **Actor-only** like `paste_into`: `on_client` and `reply.js` may use it,
+                `broadcast_to(js:)` refuses it.
+            MD
+            DocsUI::Callout(:warning) do
+              md <<~MD
+                The preview is client state: a server re-render of the root renders the
+                `img` without the preview's `src` and resets it, and the runtime revokes
+                the URL. `keep:` (#369) does not cover it — it keeps classes, `hidden`
+                and allowlisted attributes, and `src` is not one of them.
+              MD
+            end
+            render Views::Examples::LiveExample.new(
+              component: PhotoPreviewComponent.new,
+              filename: 'app/reactive_components/photo_preview_component.rb'
+            )
+          end
+        end
+
+        def kept_ops
+          DocsUI::Section('Keeping client state through a morph') do
+            md <<~'MD'
+              A morph — `reply.morph`, `broadcast_to(…, morph: true)`, a page-refresh morph —
+              writes `class`, `hidden` and every attribute back from the server render.
+              Client ops record nothing, so a selection made with `add_class` is gone the
+              moment another viewer's change morphs the list. **`keep: true`** (#369)
+              marks an op's result as the client's own:
+
+              ```ruby
+              class ItemList < Phlex::HTML
+                include Phlex::Reactive::Component
+
+                reactive_record :list
+                def id = "item-list"
+
+                def view_template
+                  div(**reactive_root) do
+                    @list.items.each do |item|
+                      div(**mix(on_client(:click, select(item)), id: "item-#{item.id}", class: "item")) do
+                        plain item.name
+                        div(id: "details-#{item.id}", class: "details", hidden: true) { item.notes }
+                      end
+                    end
+                  end
+                end
+
+                private
+
+                # Clear all, then select one — every op kept.
+                def select(item)
+                  js.remove_class(".item", "selected", keep: true)
+                    .hide(".details", keep: true)
+                    .add_class("#item-#{item.id}", "selected", keep: true)
+                    .show("#details-#{item.id}", keep: true)
+                end
+              end
+
+              # Another viewer renames item 3; everyone's list is morphed —
+              # and the item each viewer selected stays selected in their tab.
+              ItemList.broadcast_to(list, :items, replace: list, morph: true)
+              ```
+
+              - **What is kept** is the op's *result* on each target: the class on or
+                off, `hidden`, the attribute's value or its absence. A `toggle_class` or
+                `toggle` puts back the state it left; it does not flip again.
+              - **The latest kept op wins** per element and class or attribute, so the
+                kept `remove_class` above cancels the previous selection's kept
+                `add_class` — one item stays selected, not every item ever clicked.
+                An op **without** `keep:` leaves an earlier kept record alone: a panel
+                shown with `show(…, keep: true)` and closed with a plain `hide` opens
+                again on the next morph. Close it with `hide(…, keep: true)`.
+              - **The render still lands.** A class or attribute no kept op touched
+                follows the server, so the renamed item's own changes appear.
+              - **A replaced element starts clean.** `keep:` holds through a *morph*,
+                which keeps the element; a stream that replaces it brings a new element
+                with no kept state.
+              - `keep:` takes the same ops in the client `ops` builder:
+                `ops.add_class("#item-2", "selected", { keep: true })`. With `expanded:`,
+                the trigger's `aria-expanded` is kept too.
+
+              `broadcast_to(js:)` **refuses** `keep: true` (an `ArgumentError` naming
+              `keep`): kept state belongs to one tab, like `focus`. When the server must
+              know the selection — to filter, to show other viewers — keep it on the
+              server (an action or [presence](/docs/presence)) instead.
+            MD
+          end
+        end
+
         def ops
           DocsUI::Section('The op vocabulary') do
             md <<~MD
@@ -233,17 +349,47 @@ module Views
               `to: :root` / `global: true` — when the element exists but sits
               outside the op's scope (the root itself, a nested reactive root, or
               elsewhere in the document). Production stays silent. `focus`/`focus_first`/
-              `show_modal`/`close_dialog`/`submit`/`paste_into` are allowed here (an
+              `show_modal`/`close_dialog`/`submit`/`paste_into`/`preview_file`/`set_value` are allowed here (an
               actor's own gesture) but **rejected** from a broadcast — stealing focus
               in every subscriber's tab, opening a modal on every subscriber's screen,
-              force-submitting every subscriber's form, or reading every
-              subscriber's clipboard, would be hostile.
+              force-submitting every subscriber's form, reading every
+              subscriber's clipboard, or overwriting every subscriber's field, would be hostile.
 
               `text(to, value)` (#159) sets the target's `textContent` — stringified,
               `nil` clears, **never `innerHTML`** — so a chain can paint a label or a
               derived number without a round trip. Pair it with `global: true` to
               reach a node **outside** the component's root (the cross-root text
               escape a read-only recap needs).
+
+              `set_value(to, value)` (#374) fills a **field** — an `input`,
+              `textarea` or `select` — from text already on the page, with no
+              clipboard and no round trip. It assigns the live `.value` (never the
+              attribute, never parsed as HTML; stringified, `nil` and `""` clear),
+              then dispatches one bubbling `input` **when the value changed**, so
+              compute reducers and `reactive_show` react as if the user typed. It
+              never dispatches `change` and never moves focus: chain
+              `.focus("#notes")` for that. A `select` selects the matching option; a
+              file input accepts `""` only, which clears the chosen files. Anything
+              else (a `contenteditable`, which `reactive_editable` writes; a
+              non-field; a non-empty value for a file input) warns and is skipped.
+              `:root` raises at render: the root is not a field. On a checkbox or
+              radio it sets the submitted value, not the checked state: tick boxes
+              with `check_group` or a click.
+
+              ```ruby
+              button(**on_client(:click,
+                js.set_value("#notes", "Thanks for your order.").set_value("#template_key", "thanks")
+              )) { "Thanks" }
+              ```
+
+              Why not `set_attr("#notes", "value", …)`? That writes the **attribute**:
+              a field the user has typed in keeps its live value, and no `input`
+              fires, so reducers and `reactive_show` stay stale. `set_value` is
+              actor-only (refused by `broadcast_to(js:)`; render the value instead)
+              and is on the reducer builder too: `$ops: ops.set_value("#notes", "…")`.
+              Its `input` re-runs the reducer, so never derive the value from the
+              field it writes (the chain changes every pass and fires again each
+              time); return a field the reducer owns as an output instead.
 
               `submit(to = :root)` (#226) commits the **target's own form** via
               `requestSubmit()` — the target itself when it *is* a form, a

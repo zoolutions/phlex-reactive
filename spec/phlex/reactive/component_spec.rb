@@ -1619,6 +1619,29 @@ RSpec.describe Phlex::Reactive::Component do
 
       expect(attrs[:data]).not_to have_key(:reactive_clipboard)
     end
+
+    # Issue #375: preview_file is an actor gesture op — on_client binds it on
+    # the file input's change, with no marker and no URL on the wire.
+    it "binds a preview_file op on change (no URL, no marker)" do
+      attrs = instance.send(:on_client, :change, instance.js.preview_file("#photo-file", into: "#photo"))
+
+      expect(attrs[:data][:action]).to eq("change->reactive#runOps")
+      expect(binding_record(attrs)["ops"]).to eq([["preview_file", { "to" => "#photo-file", "into" => "#photo" }]])
+      expect(attrs[:data]).not_to have_key(:reactive_clipboard)
+    end
+
+    # Issue #374: on_client carries set_value as a plain op — no clipboard
+    # mark (it never reads the clipboard).
+    it "allows a set_value chain without the clipboard mark" do
+      chain = instance.js.set_value("#notes", "Thanks").set_value("#template_key", "thanks")
+      attrs = instance.send(:on_client, :click, chain)
+
+      expect(binding_record(attrs)["ops"]).to eq([
+        ["set_value", { "to" => "#notes", "value" => "Thanks" }],
+        ["set_value", { "to" => "#template_key", "value" => "thanks" }]
+      ])
+      expect(attrs[:data]).not_to have_key(:reactive_clipboard)
+    end
   end
 
   # A record-backed component whose record is UNSAVED (new_record?) has no

@@ -200,6 +200,7 @@ export function registerReactiveStreamRender() {
   if (typeof document === "undefined" || typeof document.addEventListener !== "function") return
   streamRenderRegistered = true
   document.addEventListener("turbo:before-stream-render", (event) => {
+    streamOwnReply(event)
     streamIntoRoots(event)
     streamModals(event)
     // The opt-in entry sees every stream (it may hold one for a module the
@@ -356,6 +357,68 @@ export function __resetReactiveModalsForTest() {
   modalsRegistered = false
 }
 
+// --- keep: a morph re-applies what a kept client op did (issue #369) ---------
+// A morph rewrites `class`, `hidden` and every attribute from the server
+// render, so a selection made with on_client ops was lost to the next reply or
+// broadcast morph. An op with keep: records its RESULT on each target — each
+// class on or off, `hidden`, an attribute's value (null: absent) — and the one
+// document listener below puts that back after Turbo morphs the element in
+// place. The result, not the op: a toggle must not flip again on every morph.
+// The latest kept op on an element and a class or attribute wins, so "clear
+// all, then select one" leaves one. Classes and attributes no kept op touched
+// follow the render. Weak: an element a stream replaces is a new element.
+//
+// One Map per element: ".name" → whether that class is on; an attribute name →
+// its value, null when absent. show/hide/toggle keep the `hidden` attribute,
+// so the morph puts back the visibility without running a transition again.
+// (No attribute name starts with ".", so the two kinds of key never meet.)
+// An entry is re-inserted on every kept op, so the Map replays in op order:
+// a kept add_class after a kept set_attr("class", …) still wins.
+const kept = new WeakMap()
+
+function keepResult(el, name, args, resolveTargets) {
+  const state = kept.get(el) ?? new Map()
+  kept.set(el, state)
+  const put = (key, value) => {
+    state.delete(key)
+    state.set(key, value)
+  }
+  if (name.endsWith("_class")) for (const c of args.classes ?? []) put(`.${c}`, el.classList.contains(c))
+  else if (name.endsWith("_attr")) attrRefused(args.name) || put(args.name, el.getAttribute(args.name))
+  else if (name === "show" || name === "hide" || name === "toggle") {
+    put("hidden", el.getAttribute("hidden"))
+    // The expanded: trigger's aria-expanded is kept on the trigger: a document
+    // listener has no op scope to resolve it from later.
+    if (args.expanded != null) {
+      for (const trigger of resolveTargets({ ...args, to: args.expanded })) {
+        keepResult(trigger, "set_attr", { name: "aria-expanded" })
+      }
+    }
+  }
+}
+
+let keepRegistered = false
+
+export function registerReactiveKeep() {
+  if (keepRegistered) return
+  if (typeof document === "undefined" || typeof document.addEventListener !== "function") return
+  keepRegistered = true
+  // turbo:morph-element fires for every element Idiomorph morphed in place,
+  // after its attributes were synced from the new render.
+  document.addEventListener("turbo:morph-element", (event) => {
+    const el = event.target
+    for (const [key, value] of kept.get(el) ?? []) {
+      if (key[0] === ".") el.classList.toggle(key.slice(1), value)
+      else if (value == null) el.removeAttribute(key)
+      else if (el.getAttribute(key) !== value) el.setAttribute(key, value)
+    }
+  })
+}
+
+export function __resetReactiveKeepForTest() {
+  keepRegistered = false
+}
+
 // For the opt-in entry: what to do with a stream before its render — hold it
 // for a module the incoming content needs. `handle(event, effects)` gets the
 // loaded effects module (or undefined) and wraps the stream with it itself.
@@ -470,18 +533,21 @@ export function registerReactiveMorphFocus() {
     const el = event.target
     const next = event.detail?.newElement // absent when Turbo asks before a removal
     if (!next || event.defaultPrevented) return
+    const holds = holdsTypedValue(el)
+    // Before the default below is overwritten (issue #370).
+    if (holds) noteHeld(el, next)
     if (el.hasAttribute?.("data-reactive-editable")) {
       serverTexts.set(el, editableValue(next))
-      if (!holdsTypedValue(el)) return
+      if (!holds) return
       for (const { name } of [...el.attributes]) {
-        if (!next.hasAttribute(name) && name !== "contenteditable") el.removeAttribute(name)
+        if (!next.hasAttribute(name) && name !== "contenteditable" && name !== HELD) el.removeAttribute(name)
       }
       for (const { name, value } of next.attributes) {
         if (name !== "contenteditable" && el.getAttribute(name) !== value) el.setAttribute(name, value)
       }
       return event.preventDefault()
     }
-    if (el.localName !== "input" || !holdsTypedValue(el)) return
+    if (el.localName !== "input" || !holds) return
     const value = next.getAttribute("value")
     if (value == null) el.removeAttribute("value")
     else if (el.getAttribute("value") !== value) el.setAttribute("value", value)
@@ -490,8 +556,108 @@ export function registerReactiveMorphFocus() {
   // text when first focused — before anything can be typed into it.
   document.addEventListener("focusin", (event) => seedServerText(event.target))
   document.addEventListener("turbo:before-morph-attribute", (event) => {
-    if (event.detail?.attributeName === "value" && holdsTypedValue(event.target)) event.preventDefault()
+    const name = event.detail?.attributeName
+    if ((name === "value" || name === HELD) && holdsTypedValue(event.target)) event.preventDefault()
   })
+  // The user took theirs: the field reads its default again.
+  document.addEventListener("input", (event) => {
+    const el = event.target
+    if (el?.hasAttribute?.(HELD) && typedValue(el) === serverValue(el)) el.removeAttribute(HELD)
+  })
+}
+
+// --- Knowing what was held (issue #370) ---
+// A morph that holds a focused field (above) over a render whose value differs
+// from the field's default — its last server value — means someone else changed
+// the field while the user typed. The field is marked data-reactive-held (kept
+// through later morphs while focused, like `value`), a bubbling reactive:held
+// { name, theirs } is dispatched, and the root's next action sends the names as
+// X-Reactive-Held. The root's own reply never marks (it answers exactly those
+// values), and once applied the root holds nothing. A morph of the field while
+// unfocused writes the server's value and drops the mark with it.
+const HELD = "data-reactive-held"
+const ROOT = '[data-controller~="reactive"]'
+let replyRoot = null
+const replying = new Map()
+
+function typedValue(el) {
+  return el.hasAttribute("data-reactive-editable") ? editableValue(el) : el.value
+}
+
+function serverValue(el) {
+  return el.hasAttribute("data-reactive-editable") ? serverText(el) : el.defaultValue
+}
+
+function renderedValue(next) {
+  if (next.hasAttribute("data-reactive-editable")) return editableValue(next)
+  return next.localName === "textarea" ? next.textContent : (next.getAttribute("value") ?? "")
+}
+
+function noteHeld(el, next) {
+  const name = el.getAttribute("name")
+  // A checkbox's or radio's value is the option, not what the user typed.
+  if (!name || /^(checkbox|radio)$/.test(el.type) || replying.has(el.closest(ROOT))) return
+  const theirs = renderedValue(next)
+  if (theirs === typedValue(el)) return el.removeAttribute(HELD)
+  if (theirs === serverValue(el)) return
+  el.setAttribute(HELD, "")
+  el.dispatchEvent(new CustomEvent("reactive:held", { bubbles: true, detail: { name, theirs } }))
+}
+
+// The names a root's next request reports: its own marked fields (not a nested
+// root's), still different from their default. As a header value: JSON with
+// every non-ASCII character escaped (fetch refuses a code point above 0xFF).
+function heldHeader(root) {
+  const names = []
+  for (const el of root.querySelectorAll(`[${HELD}]`)) {
+    if (el.closest(ROOT) !== root) continue
+    const name = el.getAttribute("name")
+    if (typedValue(el) === serverValue(el)) el.removeAttribute(HELD)
+    else if (name && !names.includes(name)) names.push(name)
+  }
+  if (names.length === 0) return null
+  return JSON.stringify(names).replace(/[\u007f-￿]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`)
+}
+
+function releaseHeld(root) {
+  for (const el of root.querySelectorAll(`[${HELD}]`)) if (el.closest(ROOT) === root) el.removeAttribute(HELD)
+}
+
+// Hand a root's own reply to Turbo: while its streams render nothing in the
+// root is marked, and once they have the root holds nothing. Turbo announces
+// each stream synchronously inside renderStreamMessage (streamOwnReply wraps
+// its render, innermost); a reply none of whose streams rendered releases now.
+// An error reply (release false) never marks either, but releases nothing: the
+// server refused those values rather than answering them.
+function renderOwnReply(root, html, release = true) {
+  const own = { root, streams: 0, release }
+  const previous = replyRoot
+  replyRoot = own
+  try {
+    window.Turbo.renderStreamMessage(html)
+  } finally {
+    replyRoot = previous
+  }
+  if (release && own.streams === 0) releaseHeld(root)
+}
+
+function streamOwnReply(event) {
+  const own = replyRoot
+  const detail = event.detail
+  const render = detail?.render
+  if (!own || typeof render !== "function") return
+  own.streams++
+  detail.render = async (el) => {
+    replying.set(own.root, (replying.get(own.root) || 0) + 1)
+    try {
+      return await render(el)
+    } finally {
+      const left = replying.get(own.root) - 1
+      if (left) replying.set(own.root, left)
+      else replying.delete(own.root)
+      if (own.release) releaseHeld(own.root)
+    }
+  }
 }
 
 export function __resetReactiveMorphFocusForTest() {
@@ -693,6 +859,7 @@ export function registerReactiveActions() {
   registerReactiveStreamRender()
   registerReactiveMorphFocus()
   registerReactiveModals()
+  registerReactiveKeep()
   registerReactivePlaintext()
   registerReactiveOffline()
   registerReactiveDev()
@@ -1047,6 +1214,17 @@ const CLIENT_OPS = Object.freeze({
   // carries this op.
   paste_into: (el) => pasteClipboardInto(el),
 
+  // Preview a chosen file (issue #375): paint the input's first image file
+  // onto the `into` <img> through an object URL made HERE from the input's
+  // own File. The op carries no URL and `args.url` is never read, so the src
+  // refusal of set_attr (issue #96) stays whole. ACTOR-ONLY like paste_into
+  // (BROADCAST_REFUSED_OPS server-side).
+  preview_file: (el, args, resolveTargets) => previewFile(el, args, resolveTargets),
+
+  // A field's live value (issue #374): the paste_into write without the
+  // clipboard or the focus. ACTOR-ONLY (BROADCAST_REFUSED_OPS server-side).
+  set_value: (el, args) => setFieldValue(el, String(args.value ?? "")),
+
   // Client-only drafts (issue #239): merge a flat state bag into the root's
   // reactive_persist draft / forget the draft. ACTOR-ONLY like focus/submit
   // (BROADCAST_REFUSED_OPS server-side) — rewriting or wiping every
@@ -1088,13 +1266,111 @@ function pasteClipboardInto(field) {
     .then((text) => {
       if (!text) return
       field.value = text
-      if (typeof field.dispatchEvent === "function") field.dispatchEvent(new Event("input", { bubbles: true }))
+      dispatchInput(field)
       field.focus?.()
     })
     .catch(() => {
       // Permission denied or the prompt dismissed — the browser's own UX said
       // no. The issue-#228 contract: a silent no-op, never an error.
     })
+}
+
+// --- Preview a chosen file (issue #375) ---
+// img -> the object URL preview_file last made for it. The runtime owns it:
+// never an op argument, never an attribute a caller sets. An entry lives
+// while the img is on the page AND still shows that URL; a re-pick, a clear,
+// a non-image file, the img leaving the page or a morph that strips its src
+// in place revokes it. One MutationObserver notices the last two, and only
+// while some preview is live: it then wakes on every DOM mutation of the page
+// (a live feed, a drag), and each wake is a walk over the few live previews.
+const previews = new Map()
+let previewObserver = null
+
+function previewFile(input, args, resolveTargets) {
+  if (input?.tagName !== "INPUT" || input.type !== "file") {
+    return warnPreview(`reads an input[type=file], not <${input?.localName}>`)
+  }
+  const img = typeof resolveTargets === "function" ? resolveTargets({ ...args, to: args.into })[0] : null
+  // Duck-typed on tagName (the isDialog precedent): only an <img> ever gets a
+  // src here — never an iframe, a script, a frame or anything else.
+  if (img?.tagName !== "IMG") {
+    return warnPreview(`paints an <img>, and ${JSON.stringify(args.into)} is ${img ? `a <${img.localName}>` : "not on the page"}`)
+  }
+  const file = [...(input.files ?? [])].find((f) => typeof f?.type === "string" && f.type.startsWith("image/"))
+  forgetPreview(img)
+  if (file) {
+    const url = URL.createObjectURL(file)
+    previews.set(img, url)
+    img.setAttribute("src", url)
+    watchPreviews()
+  } else img.removeAttribute("src")
+  if (args.name == null) return
+  for (const node of resolveTargets({ ...args, to: args.name })) node.textContent = file ? file.name : ""
+}
+
+function warnPreview(why) {
+  console.warn(`[phlex-reactive] preview_file ${why} — skipped`)
+}
+
+// Revoke the URL preview_file made for `img`, if it made one.
+function forgetPreview(img) {
+  const url = previews.get(img)
+  if (url === undefined) return
+  previews.delete(img)
+  URL.revokeObjectURL(url)
+  if (previews.size === 0) {
+    previewObserver?.disconnect()
+    previewObserver = null
+  }
+}
+
+function watchPreviews() {
+  if (previewObserver || typeof MutationObserver !== "function" || !document?.documentElement) return
+  previewObserver = new MutationObserver(() => {
+    for (const [img, url] of previews) if (!img.isConnected || img.getAttribute("src") !== url) forgetPreview(img)
+  })
+  previewObserver.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["src"],
+  })
+}
+
+export function __resetReactivePreviewsForTest() {
+  previewObserver?.disconnect()
+  previewObserver = null
+  previews.clear()
+}
+
+// The set-value contract's dispatch (issue #183): a bubbling `input`, so
+// compute reducers, show bindings and on_complete run as if the user typed.
+function dispatchInput(field) {
+  if (typeof field.dispatchEvent === "function") field.dispatchEvent(new Event("input", { bubbles: true }))
+}
+
+// The body of the set_value op (issue #374). Writes the IDL .value — never the
+// attribute, never HTML — and dispatches `input` only when the field's value
+// actually moved (compared after the write: a textarea normalizes CRLF, a
+// select ends at "" for a value no option has). No `change`, no focus. Only an
+// input, textarea or select is a target, so a contenteditable (reactive_editable's
+// to write) warns and skips like any other node. A file input takes "" alone —
+// the browser throws on anything else.
+function setFieldValue(field, value) {
+  if (!/^(input|textarea|select)$/.test(field.localName) || (field.type === "file" && value !== "")) {
+    console.warn("[phlex-reactive] set_value skipped: not a field it can write", field)
+    return
+  }
+  const before = fieldState(field)
+  field.value = value
+  if (fieldState(field) !== before) dispatchInput(field)
+}
+
+// What set_value compares: .value, or for a <select multiple> its whole
+// selection — assigning .value deselects every other option, which .value
+// (the first selected) alone would not show.
+function fieldState(field) {
+  return field.type === "select-multiple" ? [...field.selectedOptions].map((o) => o.value).join("\n") : field.value
 }
 
 // Apply a hidden-flag change, optionally animated by a [during, from, to]
@@ -1391,7 +1667,10 @@ function applyOps(list, resolveTargets, onZeroTargets) {
     }
     const targets = resolveTargets(args)
     if (targets.length === 0 && onZeroTargets) onZeroTargets(name, args)
-    for (const el of targets) CLIENT_OPS[name](el, args, resolveTargets)
+    for (const el of targets) {
+      CLIENT_OPS[name](el, args, resolveTargets)
+      if (args?.keep === true) keepResult(el, name, args, resolveTargets)
+    }
   }
 }
 
@@ -3381,6 +3660,9 @@ export default class extends Controller {
           presenceNeeded(this.element) &&
           document.getElementById(`reactive-presence-src-${this.element.id}`)?.getAttribute("connection-id")
         if (presence) headers["X-Reactive-Presence"] = presence
+        // The fields a morph held over a changed server value (issue #370).
+        const held = heldHeader(this.element)
+        if (held) headers["X-Reactive-Held"] = held
 
         // ONLY `fetch` itself is the network boundary — offline, DNS, a reset
         // connection. Everything below this inner try (reading the body,
@@ -3462,7 +3744,7 @@ export default class extends Controller {
             if (__SPLIT__) this.#devtools((devtools) => devtools.recordBody(debug, errorBody, fresh))
             else devtoolsFeature.recordBody(debug, errorBody, fresh)
           }
-          window.Turbo.renderStreamMessage(errorBody)
+          renderOwnReply(this.element, errorBody, false)
         }
         this.#markError("http")
         this.#emitError(action, params, allParams, { kind: "http", status: response.status, body: errorBody })
@@ -3493,8 +3775,9 @@ export default class extends Controller {
       // Turbo applies the <turbo-stream> ops by id. A plain replace is an
       // outerHTML swap (focus on the replaced subtree is lost); a method="morph"
       // replace (Response.morph) or an update morphs in place, preserving the
-      // focused input + caret on unchanged nodes — see issue #28.
-      window.Turbo.renderStreamMessage(html)
+      // focused input + caret on unchanged nodes — see issue #28. As the root's
+      // own reply, it clears what the root held (issue #370).
+      renderOwnReply(this.element, html)
       // Debug-only (issue #181): the morph may apply a microtask later, so check
       // the resurrected-hide case AFTER it lands. Off the debug path, resurrect is
       // null — zero cost.

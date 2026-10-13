@@ -27,6 +27,76 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   core, +224 B in the bindings module. Docs: "Media previews" on the
   client-ops example.
 
+- **Preview a chosen file — `js.preview_file(to, into:, name: nil, global: false)` (#375).**
+  `on_client(:change, js.preview_file("#photo-file", into: "#photo", name:
+  "#photo-name"))` paints the input's first `image/*` file onto the `img`
+  before any upload, through an object URL the client makes from the `File`
+  itself, and puts `file.name` in the `name:` node. An empty selection or a
+  non-image file removes the `src` and clears the name. The runtime keeps the
+  last URL per `img` and revokes it on a re-pick, a clear, and when the `img`
+  leaves the page or a morph strips its `src`. The op carries no URL (a `url`
+  key on a raw op list is ignored), `set_attr` of `src` (and, with #373, `srcset`) still raises, and only
+  an `<img>` ever gets a `src`. Actor-only: `broadcast_to(js:)` refuses it.
+  Client: +323 B gzipped in the default bundle, +356 B in the split core (on
+  top of #369, #370 and #374).
+  Docs: "Preview a chosen image" on the client-ops example.
+
+- **`js.set_value(to, value)` — a field's live value from a client op
+  (#374).** `on_client(:click, js.set_value("#notes", "Thanks for your
+  order.").set_value("#template_key", "thanks"))` fills a field from text
+  already on the page, with no clipboard and no round trip. It assigns the
+  IDL `.value` of an `input`, `textarea` or `select` (never the attribute,
+  never parsed as HTML; the value is stringified, `nil` and `""` clear), then
+  dispatches one bubbling `input` when the value changed (for a
+  `<select multiple>`, when its selection changed), so compute reducers
+  and `reactive_show` react as if the user typed. It never dispatches
+  `change` and never moves focus. A `select` selects the matching option; a
+  file input accepts `""` only. A `contenteditable`, any other non-field, and
+  a non-empty value for a file input warn and are skipped; `:root` raises at
+  render. Actor-only: `on_client`, `reply.js` and a reducer's `$ops` (the
+  compute builder gains `ops.set_value`) carry it, `broadcast_to(js:)`
+  refuses it. `js.set_attr(…, "value", …)` is unchanged and still writes only
+  the attribute. Client: +134 B gzipped in the default bundle, +117 B in the
+  split core (on top of #369 and #370). Docs: the client-ops example.
+
+- **`reactive_held_fields` — the action knows when a morph held a focused
+  field over a changed server value (#370).** Since #338 a morph keeps the
+  value of the field being typed in; when the render's value differs from the
+  field's default, another tab changed it while the user typed, and the next
+  save silently overwrote that change. The client now marks such a field
+  `data-reactive-held` (kept through later morphs while focused) and
+  dispatches a bubbling `reactive:held` with `{ name, theirs }`; a render
+  equal to the default marks nothing. The root's next action request names its
+  held fields in an `X-Reactive-Held` header (absent when nothing is held, so
+  every other request is byte-identical), and `reactive_held_fields` in the
+  action returns them (`[]` without the header), so the action can refuse or
+  merge. The marks clear once the reply to the root's own request is applied
+  (that reply never marks), or when a field is set back to its default; an
+  error reply never marks and keeps them. Broadcast with
+  `exclude: reactive_connection_id` (pgbus): without it (Action Cable), an
+  echo of an older save landing after a newer reply can mark too. The
+  header is untrusted: names only, capped, and filtered to the action's
+  declared params. `run_reactive(form, :save, held: ["title"], …)` stands in
+  for it in unit tests. Client: +534 B gzipped in the default bundle, +559 B
+  in the split core (on top of #369). Docs: "Knowing what was held" under Morphing on the
+  architecture page.
+
+- **`keep:` on client ops — a morph no longer undoes them (#369).**
+  `js.add_class("#item-2", "selected", keep: true)` (and `keep:` on
+  `remove_class`/`toggle_class`, `show`/`hide`/`toggle`,
+  `set_attr`/`remove_attr`/`toggle_attr`, in the Ruby builder and the client
+  `ops` builder) records what the op left on each target — the class on or
+  off, `hidden`, the attribute's value or its absence — and the client puts it
+  back after Turbo morphs that element (a `reply.morph`, a
+  `broadcast_to(…, morph: true)`, a page-refresh morph). A selection, an expanded row
+  or a highlighted item now survives another viewer's broadcast. Classes and
+  attributes no kept op touched still follow the render; a later kept op on the
+  same class or attribute replaces the earlier one ("clear all, then select
+  one"); an element a stream replaces starts clean. `broadcast_to(js:)` refuses
+  `keep:` with an `ArgumentError`. Without `keep:` the wire is byte-identical.
+  Client: +251 B gzipped in the default bundle, +247 B in the split core.
+  Docs: "Keeping client state through a morph" on the client-ops example.
+
 - **Modal dialogs — `js.show_modal` / `js.close_dialog` and
   `data-reactive-modal` (#365).** `js.show_modal("#picker")` calls
   `HTMLDialogElement#showModal()`, so an `on_client` dialog gets the browser's

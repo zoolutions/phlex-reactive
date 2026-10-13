@@ -40,13 +40,21 @@ module Phlex
       # (issue #342) would tick or clear every subscriber's selection; presence
       # (issue #358) would write every subscriber's presence state; show_modal
       # and close_dialog (issue #365) would open or close a modal, and move
-      # focus, on every screen at once. They
+      # focus, on every screen at once; set_value (issue #374) would overwrite
+      # every subscriber's field; preview_file (issue #375) would read every
+      # subscriber's file input. They
       # belong to the actor's own reply (reply.js) or gesture (on_client / a
       # reducer's $ops), never a broadcast. Names mirror Phlex::Reactive::JS's verbs.
       BROADCAST_REFUSED_OPS = %w[
         focus focus_first submit paste_into persist_state persist_clear check_group presence
         show_modal close_dialog
+        preview_file
+        set_value
       ].freeze
+      # Refused as a FLAG, on any op (issue #369): keep: records client state in
+      # the tab that ran the op, so a broadcast carrying it would plant that
+      # state in every subscriber's tab. The op itself broadcasts fine without it.
+      BROADCAST_REFUSED_ARG = "keep"
 
       # The broadcast_to verb kwargs (issue #185) → their Turbo stream action.
       # SELF-TARGETING verbs derive the target from the component's #id (require a
@@ -201,12 +209,28 @@ module Phlex
               "subscriber's form; broadcasting paste_into reads every subscriber's clipboard; " \
               "broadcasting check_group ticks or clears every subscriber's selection; " \
               "broadcasting presence writes every subscriber's presence state; " \
+              "broadcasting set_value overwrites every subscriber's field (render the value instead); " \
               "broadcasting show_modal or close_dialog opens or closes a modal (and moves focus) on " \
-              "every screen — render the dialog open or closed, with data: { reactive_modal: true }, instead." \
+              "every screen — render the dialog open or closed, with data: { reactive_modal: true }, instead. " \
+              "Broadcasting preview_file reads every subscriber's chosen file onto their page. " \
               "These are actor concerns (reply.js / on_client / $ops)."
           end
+          refuse_kept_broadcast_ops!(pairs)
 
           Phlex::Reactive::Response.js_ops_json(ops)
+        end
+
+        # keep: (issue #369) is per-tab client state: refuse the flag on any op.
+        def refuse_kept_broadcast_ops!(pairs)
+          kept = pairs.filter_map do |name, args|
+            name.to_s if args.is_a?(::Hash) && (args[BROADCAST_REFUSED_ARG] || args[BROADCAST_REFUSED_ARG.to_sym])
+          end
+          return if kept.empty?
+
+          raise ArgumentError,
+            "broadcast_to(js:) refuses keep: (on #{kept.uniq.join(", ")}) — kept state belongs to the tab " \
+            "that ran the op; broadcasting it would plant it in every subscriber's tab. Drop keep: from the " \
+            "broadcast, or render the state on the server."
         end
 
         # Render a built component to HTML for a broadcast, ALWAYS instrumented
