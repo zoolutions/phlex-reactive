@@ -175,6 +175,27 @@ test("set_attr of src is still refused: warns and skips (issue #96)", () => {
   expect(warnings.filter((w) => w.includes("refused client attr op")).length).toBe(2)
 })
 
+test("set_attr of srcset is refused too: warns and skips", () => {
+  const { controller, $ } = mount(`<img id="logo" alt="">`)
+  run(controller, [["set_attr", { to: "#logo", name: "srcset", value: "/evil.svg 1x" }]])
+  run(controller, [["toggle_attr", { to: "#logo", name: "SrcSet" }]])
+
+  expect($("#logo").hasAttribute("srcset")).toBe(false)
+  expect(warnings.filter((w) => w.includes("refused client attr op")).length).toBe(2)
+})
+
+test("a hand-built binding whose label is @root never rewrites the root's text", async () => {
+  const wire = media({ field: "code", pool: { a: "#logo-007" }, label: "@root", blank: "gone" })
+  const { root, $ } = mount(`<input name="code" value="zzz"><img id="logo" alt="" data-reactive-media="${wire}">${POOL}`, {
+    connect: true,
+  })
+  await flush()
+
+  type($("[name=code]"), "a")
+  expect(root.querySelector("[name=code]")).not.toBeNull()
+  expect($("#logo").getAttribute("src")).toBe("/logos/007.svg")
+})
+
 // --- the binding -----------------------------------------------------------------
 
 function media(wire) {

@@ -95,6 +95,11 @@ RSpec.describe Phlex::Reactive::Component::MediaBinding do
       expect { view.reactive_media(pool:) }.to raise_error(ArgumentError, /from/)
     end
 
+    it "raises on the @root sentinel as a label: or pool value (it would name the whole root)" do
+      expect { view.reactive_media(from: :code, pool:, label: "@root") }.to raise_error(ArgumentError, /@root/)
+      expect { view.reactive_media(from: :code, pool: { "a" => "@root" }) }.to raise_error(ArgumentError, /@root/)
+    end
+
     it "raises on a label: that is not a selector String" do
       expect { view.reactive_media(from: :code, pool:, label: :caption) }.to raise_error(ArgumentError, /label:/)
     end

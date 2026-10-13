@@ -54,6 +54,13 @@ RSpec.describe Phlex::Reactive::JS do
       expect { js.set_attr("#logo", "src", "/logos/007.svg") }.to raise_error(ArgumentError, /URL-bearing/)
     end
 
+    it "raises on set_attr of srcset too (a URL list, copied only by copy_media)" do
+      expect { js.set_attr("#logo", "srcset", "/x.svg 2x") }.to raise_error(ArgumentError, /URL-bearing/)
+      expect { js.set_attr("#logo", "SRCSET", "/x.svg 2x") }.to raise_error(ArgumentError, /URL-bearing/)
+      expect { described_class.assert_ops_allowed!([["set_attr", { "to" => "#logo", "name" => "srcset" }]]) }
+        .to raise_error(ArgumentError, /URL-bearing/)
+    end
+
     it "still raises on a raw ops list that sets src" do
       raw = [["set_attr", { "to" => "#logo", "name" => "src", "value" => "/x.svg" }]]
       expect { described_class.assert_ops_allowed!(raw) }.to raise_error(ArgumentError, /URL-bearing/)

@@ -1259,7 +1259,7 @@ button(**on_client(:click, js
   values raise at build time. The **attribute name is allowlisted, enforced twice** — at
   build time in Ruby (an offending name raises) and again in the client
   interpreter (a hand-built op is warned and skipped). Refused: **event handlers**
-  (`on*` → XSS), **URL-bearing** names (`href`, `src`, `srcdoc`, `action`,
+  (`on*` → XSS), **URL-bearing** names (`href`, `src`, `srcset`, `srcdoc`, `action`,
   `formaction`, `xlink:href` → a `javascript:` navigation surface), and **`style`**
   (CSS injection — use classes). The **intended surface** is class ops plus
   `hidden`, `disabled`, `open`, `selected`, and any `aria-*` / `data-*` attribute.
@@ -1268,8 +1268,9 @@ button(**on_client(:click, js
   already rendered while `src` stays refused. Both are elements (`:root` or a
   selector); the URL is read from the live source element, never passed. A
   missing source, a non-`<img>` source or one without `src` clears the target;
-  a non-`<img>` target is warned about and skipped; the same URL twice writes
-  nothing. Allowed in a broadcast (it only reads the subscriber's own page).
+  a non-`<img>` target is warned about and skipped; an attribute that already
+  holds the copied value is not rewritten, so the same image twice does not
+  reload. Allowed in a broadcast (it only reads the subscriber's own page).
 - **`focus(to)`** focuses the first match; **`focus_first(to)`** focuses the first
   focusable descendant of the match (e.g. the first menuitem inside an opened
   menu).

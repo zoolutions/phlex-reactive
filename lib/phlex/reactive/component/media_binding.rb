@@ -70,6 +70,10 @@ module Phlex
         # A pool value or label: is a selector, never a URL — the client only
         # ever passes it to querySelector.
         def media_selector!(kind, selector)
+          if selector == JS::ROOT_SENTINEL
+            raise ArgumentError,
+              "reactive_media #{kind}: #{selector} names the whole root — pass the selector of an element inside it"
+          end
           return selector if selector.is_a?(String) && !selector.strip.empty?
 
           raise ArgumentError,

@@ -671,10 +671,11 @@ function syncMedia(c, fieldValue, owns) {
 }
 
 // The owned elements a pool or label selector names — none when it does not
-// parse (a URL string is not a selector).
+// parse (a URL string is not a selector), and none for the "@root" sentinel:
+// a label naming the root would rewrite the whole root's text.
 function mediaMatches(c, selector) {
   try {
-    return c.core.opTargets({ to: selector })
+    return selector === "@root" ? [] : c.core.opTargets({ to: selector })
   } catch {
     return []
   }

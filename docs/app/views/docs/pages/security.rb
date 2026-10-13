@@ -146,8 +146,8 @@ module Views
               broadcasts**: a broadcast op must never steal focus in, force-submit a form
               from, or read the clipboard of, every subscriber's tab.
 
-              The allowlist refuses URL-bearing names (`href`, `src`, `srcdoc`, …) on
-              both sides. A preview image therefore never takes a URL from an op:
+              The allowlist refuses URL-bearing names (`href`, `src`, `srcset`, `srcdoc`,
+              …) on both sides. A preview image therefore never takes a URL from an op:
               `copy_media` and `reactive_media` (#373) name **elements** — a pool value
               is only ever passed to `querySelector` — and copy `src` from an `<img>`
               the server already rendered, onto an `<img>` only.

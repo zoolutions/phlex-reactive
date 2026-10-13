@@ -38,10 +38,13 @@ module Phlex
       #   * the URL set     — href/src/srcdoc/action/formaction/xlink:href can carry
       #                       a `javascript:` payload; setting them from client ops
       #                       is a navigation/injection surface, not a UI toggle.
+      #                       srcset (issue #373) is a URL list that picks what an
+      #                       <img> loads: copy_media copies it from a server-rendered
+      #                       image instead.
       #   * style           — inline CSS injection; use classes (add_class/...).
       # The INTENDED surface is class ops plus boolean/state attributes:
       #   hidden, disabled, open, selected, aria-*, data-*.
-      URL_BEARING_ATTRS = %w[href src srcdoc action formaction xlink:href].freeze
+      URL_BEARING_ATTRS = %w[href src srcset srcdoc action formaction xlink:href].freeze
       EVENT_HANDLER_ATTR = /\Aon/i
 
       # The attr ops whose args carry a "name" the allowlist must gate. Used to

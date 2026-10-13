@@ -767,7 +767,8 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
 // time; this guards a hand-built / forged ops attr from bypassing it. Refused:
 // event handlers (on*, XSS), URL-bearing names (a javascript: navigation
 // surface), and style (CSS injection). Case-insensitive, mirroring js.rb.
-const REFUSED_ATTR_URL = new Set(["href", "src", "srcdoc", "action", "formaction", "xlink:href", "style"])
+// srcset (issue #373) too: a URL list that picks what an <img> loads.
+const REFUSED_ATTR_URL = new Set(["href", "src", "srcset", "srcdoc", "action", "formaction", "xlink:href", "style"])
 function attrRefused(name) {
   const lower = String(name).toLowerCase()
   return lower.startsWith("on") || REFUSED_ATTR_URL.has(lower)
