@@ -684,7 +684,7 @@ Use in controllers: `render turbo_stream: Counter.replace(counter)`.
 | `busy_on(:save)` | Mark any element so it carries `data-reactive-busy` **only while `save` is in flight** — a spinner styled with pure CSS, zero Ruby. See [Loading states](#declarative-loading-states-loading--disable_with). |
 | `on(:action, once: true)` | Fire at most once, then unbind (Stimulus's native `:once`). |
 | `on_client(:click, js.toggle("#menu"))` | **Client-only** trigger: applies declared DOM ops with ZERO round trip — no token, no POST, ever. Takes the same `window:`/`once:`/`outside:` modifiers, plus `detail:` (run only when `event.detail` carries the listed values). See [Client-only ops](#client-only-ops-on_client--js--zero-round-trips). |
-| `js` | The immutable op builder behind `on_client`: `show`/`hide`/`toggle` (the `hidden` attribute, with an optional `transition:` and `expanded:`), `add_class`/`remove_class`/`toggle_class`, `set_attr`/`remove_attr`/`toggle_attr` (allowlisted names; `toggle_attr` also flips between two values), `focus`/`focus_first`, `show_modal`/`close_dialog` (a real modal `<dialog>`), `text` (set `textContent` — XSS-safe), `dispatch`, `submit` (requestSubmit the target's own form, optionally through a `submitter:`), `paste_into` (read the clipboard into a field, gesture-gated), `check_group` (tick or untick a checkbox group, then re-sync its bindings), and `persist_state`/`persist_clear` (the `reactive_persist` draft) — chainable. |
+| `js` | The immutable op builder behind `on_client`: `show`/`hide`/`toggle` (the `hidden` attribute, with an optional `transition:` and `expanded:`), `add_class`/`remove_class`/`toggle_class`, `set_attr`/`remove_attr`/`toggle_attr` (allowlisted names; `toggle_attr` also flips between two values), `focus`/`focus_first`, `show_modal`/`close_dialog` (a real modal `<dialog>`), `text` (set `textContent` — XSS-safe), `set_value` (set a field's live `.value` and dispatch `input`), `dispatch`, `submit` (requestSubmit the target's own form, optionally through a `submitter:`), `paste_into` (read the clipboard into a field, gesture-gated), `check_group` (tick or untick a checkbox group, then re-sync its bindings), and `persist_state`/`persist_clear` (the `reactive_persist` draft) — chainable. |
 | `reactive_field(:param, **attrs)` | The attribute hash that binds a control to an action param (no magic `name:`) — spread onto any control: `input(**reactive_field(:value, value: @record.name))`, `select(**reactive_field(:status)) { … }`. |
 | `reactive_editable(:name, multiline: false, placeholder: nil, on_enter: nil, on_escape: :revert, spellcheck: true)` | A plain-text **editable element** as a field (issue #351): `h3(**reactive_editable(:title)) { @card.title }`. Its text travels under the scope-aware `name`: with `multiline: true` its line breaks are sent as `\n`; a single-line field (the default) folds them to spaces; a morph keeps the focused element's text and caret (attributes still morph); paste is plain text; Enter runs `on_enter:` (a single-line field swallows it); Escape reverts. `reactive_dirty` and `reactive_persist` treat it like an input. See the [Editable text](https://phlex-reactive.zoolutions.llc/docs/editable-text) page. |
 | `reactive_text(:name, initial)` | Mirror a compute output (or a declared input) into a **text node** — a live preview heading, a character counter, `"Hello, {name}"` — via `textContent` (XSS-safe). The text sibling of `reactive_field`; carries no `name`, so it's never POSTed. See [Client-side computes](#client-side-computes-reactive_compute--reactive_text). |
@@ -1301,6 +1301,16 @@ button(**on_client(:click, js
   a plain `requestSubmit()`. Note that a selector target resolves *inside* the
   root, so when the form **is** the reactive root, use the default target:
   `js.submit(submitter: "#delete-submit")`.
+- **`set_value(to, value)`** fills a field — an `input`, `textarea` or
+  `select` — from text already on the page (issue #374): it assigns the live
+  `.value` (never the attribute, never parsed as HTML; `nil` and `""` clear) and
+  dispatches one bubbling `input` when the value changed, so reducers and
+  `reactive_show` react as if typed. No `change`, no focus (chain `js.focus`).
+  A `select` selects the matching option; a file input accepts `""` only. A
+  `contenteditable` or any other non-field warns and is skipped; `:root`
+  raises. On a checkbox or radio it sets the submitted value, not the checked
+  state (use `check_group` or a click for that). `js.set_attr(…, "value", …)`
+  still writes only the attribute. Actor-only: refused in broadcasts.
 - **`paste_into(to)`** reads the clipboard into a field on a **user gesture**
   (issue #228): `navigator.clipboard.readText()`, then the field gets the text
   through the **normal `input` pipeline** — `.value` is set, a bubbling `input`
@@ -2093,7 +2103,7 @@ side effect** — the missing piece that used to force a bespoke controller next
 to an otherwise-declarative compute. Return an op chain (the `ops` builder
 mirrors the Ruby `js` verbs — minus `paste_into`, deliberately: a reducer runs
 on every input event, and a clipboard read per keystroke would spam permission
-prompts — or use a raw `[[op, args], …]` array) and the
+prompts; `ops.set_value(selector, value)` is included — or use a raw `[[op, args], …]` array) and the
 controller runs it through the **same frozen op whitelist** `on_client` uses,
 as a final phase **after** the field writes, text sinks, and their dispatched
 `input` events settle. The canonical one-time-code field:
@@ -3065,10 +3075,10 @@ Notifications::Badge.broadcast_to(user, :alerts,
 ```
 
 `broadcast_to` with `js:` **refuses the actor-only ops** (`focus`/`focus_first`/
-`show_modal`/`close_dialog`/`submit`/`paste_into`/`persist_state`/`persist_clear`/`check_group` raise
+`show_modal`/`close_dialog`/`submit`/`paste_into`/`persist_state`/`persist_clear`/`check_group`/`set_value` raise
 `ArgumentError`): broadcasting focus (or a modal) would steal it in every subscriber's tab, a
 broadcast submit would force-submit every subscriber's form, and a broadcast
-clipboard read, draft write or selection change would be hostile — these
+clipboard read, draft write, selection change or field write would be hostile — these
 belong to the actor's own reply or gesture. Everything else is a fair broadcast
 (class and attribute toggles, `text`, `dispatch`). As with `on_client`, the ops are
 whitelist-interpreted client-side — an unknown op warns and is skipped — and the

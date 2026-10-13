@@ -199,7 +199,9 @@ module Views
               file input accepts `""` only, which clears the chosen files. Anything
               else (a `contenteditable`, which `reactive_editable` writes; a
               non-field; a non-empty value for a file input) warns and is skipped.
-              `:root` raises at render: the root is not a field.
+              `:root` raises at render: the root is not a field. On a checkbox or
+              radio it sets the submitted value, not the checked state: tick boxes
+              with `check_group` or a click.
 
               ```ruby
               button(**on_client(:click,
