@@ -167,9 +167,8 @@ module Views
         end
 
         def knowing_what_was_held
+          DocsUI::Prose() { h3 { 'Knowing what was held' } }
           md <<~MD
-            ### Knowing what was held
-
             A morph keeps the value of the field being typed in and writes the
             render's value as the field's default (issue #338). When that render
             differs from the old default, someone else changed the field while
