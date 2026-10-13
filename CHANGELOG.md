@@ -26,7 +26,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   echo of an older save landing after a newer reply can mark too. The
   header is untrusted: names only, capped, and filtered to the action's
   declared params. `run_reactive(form, :save, held: ["title"], …)` stands in
-  for it in unit tests. Client: +536 B gzipped in the default bundle, +547 B
+  for it in unit tests. Client: +550 B gzipped in the default bundle, +566 B
   in the split core. Docs: "Knowing what was held" under Morphing on the
   architecture page.
 

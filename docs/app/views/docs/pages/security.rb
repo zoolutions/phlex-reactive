@@ -167,7 +167,8 @@ module Views
               action sees its keyword default, not a bogus value.
 
               The same goes for `reactive_held_fields` (the `X-Reactive-Held` header, the fields
-              a morph held over another tab's change): names only, never values, capped, and
+              a morph held over a changed server value, usually another tab's edit
+              but not proof of one): names only, never values, capped, and
               filtered to the params the action declares. Malformed reads as `[]`. It tells the
               action what the user saw, never what they may do.
             MD

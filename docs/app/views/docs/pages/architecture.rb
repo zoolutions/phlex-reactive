@@ -171,23 +171,26 @@ module Views
           md <<~MD
             A morph keeps the value of the field being typed in and writes the
             render's value as the field's default (issue #338). When that render
-            differs from the old default, someone else changed the field while
-            the user typed (another tab's `broadcast_to(..., morph: true)`). The
+            differs from the old default, the server value changed while the user
+            typed (usually another tab's `broadcast_to(..., morph: true)`). The
             client then marks the field `data-reactive-held` (style it: "someone
             changed this") and dispatches a bubbling `reactive:held` event with
-            `{ name, theirs }`, the server's value. A render equal to the default
-            marks nothing.
+            `{ name, theirs }`, the server's value. A render equal to the default,
+            or to what the user typed, marks nothing (nor does a checkbox or radio:
+            its value is the option, not typing).
 
             The root's next action request names its held fields in an
             `X-Reactive-Held` header, and inside the action
             `reactive_held_fields` returns them (`[]` when nothing was held), so
             the action can refuse or merge instead of silently overwriting the
-            other change:
+            other change. Only names the action declares in its `params:` schema
+            reach it: declare the field you check.
           MD
           DocsUI::Code(held_source, lexer: :ruby, filename: 'app/components/note_form.rb')
           md <<~MD
-            The marks clear once the reply to the root's own request is applied
-            (that reply is the server's answer to exactly those values), and a
+            The marks clear once a successful reply to the root's own request is
+            applied (that reply is the server's answer to exactly those values);
+            an error reply never marks and leaves the marks in place. A
             field's mark clears when its value is set back to its default (the
             user took theirs). An unfocused field takes the server's value in a
             morph, so it is never held.

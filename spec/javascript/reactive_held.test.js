@@ -282,14 +282,33 @@ test("a held field inside a nested root belongs to that root, not the outer one"
       <div id="inner" data-controller="reactive" data-reactive-token-value="i"><input name="title" value="a"></div>
     </div>`
   const outer = connect(document.getElementById("outer"))
+  const inner = connect(document.getElementById("inner"))
   const field = document.querySelector("input")
   type(field, "mine")
   morph(field, `<input name="title" value="theirs">`)
 
   act(outer)
   await flush()
+  act(inner)
+  await flush()
 
   expect("X-Reactive-Held" in requests[0].headers).toBe(false)
+  expect(requests[1].headers["X-Reactive-Held"]).toBe('["title"]')
+})
+
+test("a focused checkbox or radio is never marked: its value is not typed", () => {
+  mount(`<input type="checkbox" name="done" value="a"><input type="radio" name="pick" value="a">`)
+  const events = heldEvents()
+  const [box, radio] = document.querySelectorAll("input")
+
+  box.focus()
+  morph(box, `<input type="checkbox" name="done" value="b">`)
+  radio.focus()
+  morph(radio, `<input type="radio" name="pick">`)
+
+  expect(box.hasAttribute("data-reactive-held")).toBe(false)
+  expect(radio.hasAttribute("data-reactive-held")).toBe(false)
+  expect(events).toEqual([])
 })
 
 test("a non-ASCII field name is escaped so the header stays a valid byte string", async () => {

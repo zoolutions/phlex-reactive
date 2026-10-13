@@ -533,7 +533,8 @@ function renderedValue(next) {
 
 function noteHeld(el, next) {
   const name = el.getAttribute("name")
-  if (!name || replying.has(el.closest(ROOT))) return
+  // A checkbox's or radio's value is the option, not what the user typed.
+  if (!name || /^(checkbox|radio)$/.test(el.type) || replying.has(el.closest(ROOT))) return
   const theirs = renderedValue(next)
   if (theirs === typedValue(el)) return el.removeAttribute(HELD)
   if (theirs === serverValue(el)) return

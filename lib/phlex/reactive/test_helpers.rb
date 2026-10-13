@@ -108,7 +108,7 @@ module Phlex
         rebuilt = rebuild_from_identity(component, klass)
         coerced = action_def.schema.coerce(stringify_params(params))
 
-        held_fields = Phlex::Reactive::HeldFields.filter(Array(held).map(&:to_s), action_def)
+        held_fields = Phlex::Reactive::HeldFields.parse(Array(held).map(&:to_s).to_json, action_def)
         returned = Phlex::Reactive::HeldFields.with(held_fields) { run_reactive_action(rebuilt, action_def, coerced) }
         Result.new(returned:, component: rebuilt)
       end

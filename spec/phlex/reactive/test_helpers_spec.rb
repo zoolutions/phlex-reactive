@@ -129,6 +129,14 @@ RSpec.describe Phlex::Reactive::TestHelpers do
         expect(Phlex::Reactive::HeldFields.current).to eq([])
       end
 
+      it "reads held: exactly as the endpoint reads the header, byte cap included" do
+        oversized = ["title"] + Array.new(1_000) { "title[#{it}]" }
+
+        result = run_reactive(HeldNoteComponent.new(todo:), :save, held: oversized, title: "mine")
+
+        expect(result.component.instance_variable_get(:@held)).to eq([])
+      end
+
       it "is [] without held:" do
         result = run_reactive(HeldNoteComponent.new(todo:), :save, title: "mine")
 
