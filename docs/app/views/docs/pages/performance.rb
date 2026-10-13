@@ -1114,10 +1114,12 @@ module Views
                 plain '~230 ms instead of ~280 ms.'
               end
               p do
-                plain 'What remains is linear: about 11–14 µs a root for the runtime\'s connect over what a '
-                plain 'no-op Stimulus controller costs, and ~2.5 µs at disconnect. Doubling N still costs a '
-                plain 'little over 2× because Stimulus and Chromium themselves scale that way; a no-op '
-                plain 'controller does too. The heap stays flat.'
+                plain 'The bench also runs the same markup under a no-op Stimulus controller (the '
+                code { 'control' }
+                plain ' rows) and prints the runtime\'s own cost per root as the difference: about 10–16 µs '
+                plain 'at connect and 1–3 µs at disconnect, flat across 500 to 4,000 roots. Doubling N still '
+                plain 'costs more than 2× in every row, the control included (~3×): that curve is Stimulus '
+                plain 'and Chromium, not the runtime. The heap stays flat.'
               end
               h3 { 'Payload size (what the browser downloads)' }
               p do

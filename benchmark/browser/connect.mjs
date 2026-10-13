@@ -10,9 +10,11 @@
 //   bun run benchmark/browser/connect.mjs <vendor dir>   # any build, e.g. main's
 //
 // Per shape and size it reports the median of 15 insert+connect runs and of
-// 15 disconnects, and the cost of doubling N (2.0x is linear). Then a heap
-// soak: 60 rounds of 500 roots mounted and unmounted, heap after a forced GC
-// (it must stay flat).
+// 15 disconnects, and the cost of doubling N (2.0x is linear). A control runs
+// the bare markup under a no-op Stimulus controller: what Stimulus and the
+// browser cost without the runtime, so the runtime's own cost per root is the
+// difference. Then a heap soak: 60 rounds of 500 roots mounted and unmounted,
+// heap after a forced GC (it must stay flat).
 import { chromium } from "playwright"
 import { readFileSync, existsSync } from "node:fs"
 import { join, resolve } from "node:path"
@@ -20,6 +22,7 @@ import { join, resolve } from "node:path"
 const vendor = resolve(process.argv[2] ?? "spec/dummy/public/vendor")
 const SIZES = [500, 2000, 4000]
 const SHAPES = {
+  control: "",
   bare: "",
   guarded: 'data-reactive-warn-unsaved="true"',
   persisted: (i) => `data-reactive-persist='{"key":"k${i}","ttl":60,"debounce":300}'`,
@@ -53,15 +56,28 @@ const cdp = await page.context().newCDPSession(page)
 // the reactive:connect event.
 await page.evaluate(async () => {
   const { Application } = await import("@hotwired/stimulus")
+  const { Controller } = await import("@hotwired/stimulus")
   const { default: Reactive } = await import("phlex/reactive/reactive_controller")
   window.connected = 0
-  Application.start().register(
+  const app = Application.start()
+  app.register(
     "reactive",
     class extends Reactive {
       connect() {
         super.connect()
         window.connected++
       }
+    },
+  )
+  // The control: the same bindings, no runtime.
+  app.register(
+    "noop",
+    class extends Controller {
+      connect() {
+        window.connected++
+      }
+      trackDirty() {}
+      dispatch() {}
     },
   )
   window.settle = () => new Promise((done) => setTimeout(done, 0))
@@ -76,10 +92,11 @@ const markup = (shape, n, start) =>
   Array.from({ length: n }, (_, k) => {
     const i = start + k
     const extra = typeof SHAPES[shape] === "function" ? SHAPES[shape](i) : SHAPES[shape]
+    const id = shape === "control" ? "noop" : "reactive"
     return (
-      `<div id="r${i}" data-controller="reactive" data-reactive-token-value="T" ${extra}>` +
-      `<input name="a" data-action="input->reactive#trackDirty"><input name="b">` +
-      `<button data-action="click->reactive#dispatch" data-reactive-action-param="go"></button></div>`
+      `<div id="r${i}" data-controller="${id}" data-${id}-token-value="T" ${extra}>` +
+      `<input name="a" data-action="input->${id}#trackDirty"><input name="b">` +
+      `<button data-action="click->${id}#dispatch" data-${id}-action-param="go"></button></div>`
     )
   }).join("")
 
@@ -105,17 +122,26 @@ async function cycle(shape, n) {
   )
 }
 
+const results = {}
 for (const shape of Object.keys(SHAPES)) {
   const connects = {}
+  const disconnects = {}
   for (const n of SIZES) {
     await cycle(shape, n) // warm
     const runs = []
     for (let k = 0; k < 15; k++) runs.push(await cycle(shape, n))
     connects[n] = median(runs.map((r) => r[0]))
-    const disconnect = median(runs.map((r) => r[1]))
-    console.log(`${shape.padEnd(10)} ${String(n).padStart(5)} roots  connect ${connects[n].toFixed(1).padStart(6)} ms  disconnect ${disconnect.toFixed(1).padStart(6)} ms`)
+    disconnects[n] = median(runs.map((r) => r[1]))
+    console.log(`${shape.padEnd(10)} ${String(n).padStart(5)} roots  connect ${connects[n].toFixed(1).padStart(6)} ms  disconnect ${disconnects[n].toFixed(1).padStart(6)} ms`)
   }
   console.log(`${shape.padEnd(10)} doubling 2000 -> 4000 costs ${(connects[4000] / connects[2000]).toFixed(2)}x (2.00x is linear)`)
+  results[shape] = { connects, disconnects }
+}
+// The runtime's own cost per root: a shape minus the no-op control.
+for (const shape of Object.keys(SHAPES).filter((name) => name !== "control")) {
+  const perRoot = (kind) =>
+    SIZES.map((n) => (((results[shape][kind][n] - results.control[kind][n]) / n) * 1000).toFixed(1)).join(" / ")
+  console.log(`${shape.padEnd(10)} runtime's own cost per root at ${SIZES.join(" / ")}: connect ${perRoot("connects")} µs, disconnect ${perRoot("disconnects")} µs`)
 }
 
 const heap = async () => {

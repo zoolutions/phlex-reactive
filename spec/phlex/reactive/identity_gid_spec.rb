@@ -59,6 +59,40 @@ RSpec.describe Phlex::Reactive::Component, "#reactive_identity_payload's gid" do
       GlobalID.app = original
     end
 
+    it "matches to_gid for a non-ASCII class name (GlobalID takes it unescaped)" do
+      klass = Class.new(IdentityGidSpec::Thing) { def self.name = "Café::Thing" }
+
+      expect(gid_of(klass.new(1))).to eq(klass.new(1).to_gid.to_s)
+    end
+
+    # globalid 1.4 has no per-class app: a class's own global_id_app method is
+    # not GlobalID's, and to_gid ignores it.
+    it "ignores a class's own global_id_app where GlobalID has none" do
+      klass = Class.new(IdentityGidSpec::Thing) do
+        def self.name = "IdentityGidSpec::OwnApp"
+        def self.global_id_app = "elsewhere"
+      end
+
+      expect(gid_of(klass.new(1))).to eq(klass.new(1).to_gid.to_s)
+    end
+
+    # A GlobalID with a per-class app (rails/globalid main: global_id_app,
+    # falling back to GlobalID.app) uses it in to_gid; so does the token.
+    it "uses the class's global_id_app where GlobalID has one" do
+      allow(Phlex::Reactive::Component::Identity).to receive(:per_class_gid_app?).and_return(true)
+      per_class = Class.new(IdentityGidSpec::Thing) do
+        def self.name = "IdentityGidSpec::PerClass"
+        def self.global_id_app = "per-class"
+      end
+      default = Class.new(IdentityGidSpec::Thing) do
+        def self.name = "IdentityGidSpec::Default"
+        def self.global_id_app = nil
+      end
+
+      expect(gid_of(per_class.new(4))).to eq("gid://per-class/IdentityGidSpec::PerClass/4")
+      expect(gid_of(default.new(4))).to eq("gid://#{GlobalID.app}/IdentityGidSpec::Default/4")
+    end
+
     it "does not build a URI::GID" do
       thing = IdentityGidSpec::Thing.new(5)
       allow(URI::GID).to receive(:create).and_call_original

@@ -18,6 +18,16 @@ module Phlex
       module Identity
         extend ActiveSupport::Concern
 
+        # Whether the installed GlobalID gives a class its own app
+        # (global_id_app, then GlobalID.app — rails/globalid after 1.4).
+        # Read once: it is a fact about the loaded gem.
+        def self.per_class_gid_app?
+          return @per_class_gid_app if defined?(@per_class_gid_app)
+
+          @per_class_gid_app = ::GlobalID::Identification.const_defined?(:ClassMethods, false) &&
+                               ::GlobalID::Identification::ClassMethods.method_defined?(:global_id_app)
+        end
+
         class_methods do
           # The record's instance-variable symbol (e.g. :@todo), computed once.
           # reactive_token reads it on every render; interpolating :"@#{key}" each
@@ -107,11 +117,16 @@ module Phlex
         def reactive_gid(record)
           if record.is_a?(::GlobalID::Identification) &&
              record.method(:to_gid).owner.equal?(::GlobalID::Identification) &&
-             (id = record.id).is_a?(Integer) && (app = ::GlobalID.app) && (name = record.class.name)
+             (id = record.id).is_a?(Integer) && (app = reactive_gid_app(record.class)) && (name = record.class.name)
             "gid://#{app}/#{name}/#{id}"
           else
             record.to_gid.to_s
           end
+        end
+
+        # The app to_gid would use: the class's own where GlobalID has one.
+        def reactive_gid_app(klass)
+          (Identity.per_class_gid_app? && klass.global_id_app) || ::GlobalID.app
         end
       end
     end
