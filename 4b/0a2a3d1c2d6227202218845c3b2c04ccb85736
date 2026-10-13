@@ -1,0 +1,85 @@
+spec/phlex/reactive/js_spec.rb
+  s_f66f552428a388::t_6f14fdfa98edac 274-277,283-392,514-550
+spec/dummy/app/components/photo_preview_component.rb
+  s_f66f552428a388::t_6f14fdfa98edac 1-53
+spec/phlex/reactive/response_spec.rb
+  s_f66f552428a388::t_6f14fdfa98edac 399-413
+spec/system/held_fields_spec.rb
+  s_f66f552428a388::t_6f14fdfa98edac 1-68
+spec/phlex/reactive/held_fields_spec.rb
+  s_f66f552428a388::t_6f14fdfa98edac 1-96
+spec/dummy/app/components/held_note_component.rb
+  s_f66f552428a388::t_6f14fdfa98edac 1-41
+docs/app/views/docs/pages/examples_overview.rb
+  s_f66f552428a388::t_6f14fdfa98edac 51
+spec/dummy/app/components/notes_fill_component.rb
+  s_f66f552428a388::t_6f14fdfa98edac 1-58
+spec/javascript/reactive_held.test.js
+  s_f66f552428a388::t_6f14fdfa98edac 1-355
+lib/phlex/reactive/test_helpers.rb
+  s_f66f552428a388::t_6f14fdfa98edac 96-104,111-112
+lib/phlex/reactive/component/helpers.rb
+  s_f66f552428a388::t_6f14fdfa98edac 35-48
+docs/app/views/docs/pages/example_notifications.rb
+  s_f66f552428a388::t_6f14fdfa98edac 165
+spec/system/morph_normalize_spec.rb
+  s_f66f552428a388::t_6f14fdfa98edac 18,33-35
+lib/phlex/reactive/held_fields.rb
+  s_f66f552428a388::t_6f14fdfa98edac 1-87
+spec/javascript/reactive_set_value_op.test.js
+  s_f66f552428a388::t_6f14fdfa98edac 1-400
+spec/javascript/reactive_preview_file.test.js
+  s_f66f552428a388::t_6f14fdfa98edac 1-330
+app/javascript/phlex/reactive/runtime.js
+  s_f66f552428a388::t_6f14fdfa98edac 203,360-421,536-538,541,543,550,559-565,569-662,862,1217-1227,1269,1278-1375,1670-1673,3663-3665,3747,3778-3780
+spec/dummy/app/components/kept_selection_component.rb
+  s_f66f552428a388::t_6f14fdfa98edac 1-46
+docs/spec/system/photo_preview_spec.rb
+  s_f66f552428a388::t_6f14fdfa98edac 1-18
+app/controllers/phlex/reactive/actions_controller.rb
+  s_f66f552428a388::t_6f14fdfa98edac 353-356
+spec/system/kept_client_ops_spec.rb
+  s_f66f552428a388::t_6f14fdfa98edac 1-78
+spec/javascript/reactive_morph_focus.test.js
+  s_f66f552428a388::t_6f14fdfa98edac 36-37,170-171,249-251
+docs/app/views/docs/pages/broadcasting.rb
+  s_f66f552428a388::t_6f14fdfa98edac 124,466-469,471-473,475-478
+spec/phlex/reactive/component_spec.rb
+  s_f66f552428a388::t_6f14fdfa98edac 1622-1644
+docs/app/reactive_components/photo_preview_component.rb
+  s_f66f552428a388::t_6f14fdfa98edac 1-28
+spec/phlex/reactive/test_helpers_spec.rb
+  s_f66f552428a388::t_6f14fdfa98edac 117-146
+spec/dummy/config/routes.rb
+  s_f66f552428a388::t_6f14fdfa98edac 70-72,121
+spec/requests/held_fields_spec.rb
+  s_f66f552428a388::t_6f14fdfa98edac 1-49
+spec/system/preview_file_spec.rb
+  s_f66f552428a388::t_6f14fdfa98edac 1-133
+spec/system/set_value_spec.rb
+  s_f66f552428a388::t_6f14fdfa98edac 1-140
+spec/javascript/reactive_keep.test.js
+  s_f66f552428a388::t_6f14fdfa98edac 1-299
+app/javascript/phlex/reactive/compute.js
+  s_f66f552428a388::t_6f14fdfa98edac 155-158,162,232-238
+docs/app/views/docs/pages/architecture.rb
+  s_f66f552428a388::t_6f14fdfa98edac 165,169-226
+lib/phlex/reactive/streamable.rb
+  s_f66f552428a388::t_6f14fdfa98edac 43-45,51-52,54-57,212,214-215,218,223-233
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "4b0a2a3d1c2d6227202218845c3b2c04ccb85736",
+  "prompts": {},
+  "sessions": {
+    "s_f66f552428a388": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0aa07c76-1dcb-4c80-9ad4-9494338b8ff2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
