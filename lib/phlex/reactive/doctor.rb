@@ -248,9 +248,15 @@ module Phlex
       # authorization / mark_authorized! call. It is :unknown, NEVER a hard fail:
       # a helper may authorize indirectly, so this is a hint, not a verdict.
       def authorization_check(components)
-        # Read once: Inspector.components builds every component's info.
-        infos = Phlex::Reactive::Inspector.components.to_h { [it.klass, it] }
-        suspects = components.flat_map { unauthorized_action_labels(it, infos) }
+        infos = nil
+        suspects = components.flat_map do
+          next [] if component_defines_authorization_method?(it)
+
+          # Read once, and only when needed: Inspector.components Prism-scans
+          # every component's actions.
+          infos ||= inspector_infos
+          unauthorized_action_labels(it, infos)
+        end
         return Check.new(:ok, "every mutating action appears to authorize", name: :authorization) if suspects.empty?
 
         Check.new(:unknown, "actions with no detected authorization call: #{suspects.join(", ")}",
@@ -396,12 +402,10 @@ module Phlex
       end
 
       # "Klass#action" for every declared action on `klass` that (advisory)
-      # appears unauthorized: the component defines no authorization method in its
-      # ancestry, the action isn't skipped, and the Prism scan (via the shared
-      # Inspector) finds no authorization / mark_authorized! call in its body.
+      # appears unauthorized (the caller has already ruled out an authorization
+      # method in its ancestry): the action isn't skipped, and the Prism scan (via
+      # the shared Inspector) finds no authorization / mark_authorized! call in its body.
       def unauthorized_action_labels(klass, infos)
-        return [] if component_defines_authorization_method?(klass)
-
         info = infos[klass]
         return [] unless info
 
@@ -419,6 +423,12 @@ module Phlex
       # Phlex::Reactive.authorization_methods and NOT the Inspector's set, which
       # folds in mark_authorized! — every component inherits that instance helper,
       # so including it would silence the check for everything.
+      def inspector_infos
+        Phlex::Reactive::Inspector.components.to_h { [it.klass, it] }
+      rescue StandardError
+        {}
+      end
+
       def component_defines_authorization_method?(klass)
         Phlex::Reactive.authorization_methods.any? do
           klass.method_defined?(it) || klass.private_method_defined?(it)
