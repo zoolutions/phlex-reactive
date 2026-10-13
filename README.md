@@ -689,7 +689,7 @@ Use in controllers: `render turbo_stream: Counter.replace(counter)`.
 | `reactive_editable(:name, multiline: false, placeholder: nil, on_enter: nil, on_escape: :revert, spellcheck: true)` | A plain-text **editable element** as a field (issue #351): `h3(**reactive_editable(:title)) { @card.title }`. Its text travels under the scope-aware `name`: with `multiline: true` its line breaks are sent as `\n`; a single-line field (the default) folds them to spaces; a morph keeps the focused element's text and caret (attributes still morph); paste is plain text; Enter runs `on_enter:` (a single-line field swallows it); Escape reverts. `reactive_dirty` and `reactive_persist` treat it like an input. See the [Editable text](https://phlex-reactive.zoolutions.llc/docs/editable-text) page. |
 | `reactive_text(:name, initial)` | Mirror a compute output (or a declared input) into a **text node** — a live preview heading, a character counter, `"Hello, {name}"` — via `textContent` (XSS-safe). The text sibling of `reactive_field`; carries no `name`, so it's never POSTed. See [Client-side computes](#client-side-computes-reactive_compute--reactive_text). |
 | `reactive_show(if:/if_any:/unless:)` | **Value-conditional visibility** (the `x-show`/`data-show` case): spread onto the element to show/hide — it toggles `hidden` from the fields' **current values**, client-only, zero round trip. One conditions language: a **Hash is an AND**, an **Array is membership**, a **Range is a threshold**, `if_any:` is OR-of-AND, `unless:` negates. `reactive_values` computes first paint; `disable:` disables a hidden section's controls. See [Value-conditional visibility](#value-conditional-visibility-reactive_show). |
-| `reactive_media(from:, pool:, take:, match:, pending:, label:, blank_label:)` | A preview `<img>` that **follows a field** (#373): the field's value (its first `take:` characters, or all of it) is a key into `pool`, whose values are **selectors** for `<img>` elements the server rendered — never URLs. A hit copies that image's `src`/`srcset`/`alt` like `js.copy_media`; a miss clears the preview. `label:` gets the `alt` (or `blank_label`) as `textContent`. Below `take:` characters, or while `match:` (a Regexp over the whole key) rejects the key, the binding is **pending** (#380) — never `blank_label`; `pending: :clear` (default) clears the preview and label, `:keep` leaves them. The preview's `data-reactive-media-state` reads `pending`/`hit`/`miss`, so CSS can hide its row. See [Media previews](https://phlex-reactive.zoolutions.llc/docs/example-client-ops). |
+| `reactive_media(from:, pool:, take:, match:, pending:, label:, blank_label:)` | A preview `<img>` that **follows a field** (#373): the field's value (its first `take:` characters, or all of it) is a key into `pool`, whose values are **selectors** for `<img>` elements the server rendered — never URLs. A hit copies that image's `src`/`srcset`/`alt` like `js.copy_media` (a pool `<img>` with an `alt` and no `src` is a hit without an image, #381); a miss clears the preview. `label:` gets the `alt` (or `blank_label`) as `textContent`. Below `take:` characters, or while `match:` (a JavaScript-compatible Regexp over the whole key) rejects the key, the binding is **pending** (#380) — never `blank_label` (Regexp options or Ruby-only syntax raise at render); `pending: :clear` (default) clears the preview and label, `:keep` leaves them. The preview's `data-reactive-media-state` reads `pending`/`hit`/`miss`, so CSS can hide its row. See [Media previews](https://phlex-reactive.zoolutions.llc/docs/example-client-ops). |
 | `reactive_enable(if:/if_any:/unless:)` | The sibling of `reactive_show` that flips the element's **own `disabled`** (a button, a fieldset) instead of `hidden` — same conditions, same `reactive_values` first paint. `button(**reactive_enable(if: { "ids[]" => { checked: 1.. } }))`. See [Bulk selection](#bulk-selection-reactive_select_all-reactive_count-reactive_enable). |
 | `reactive_select_all("ids[]")` / `reactive_count("ids[]")` | A checkbox **group**'s header box (ticks/unticks every owned box; shows checked / indeterminate / unchecked) and its ticked count as text — re-synced on every change and when rows are appended or removed. See [Bulk selection](#bulk-selection-reactive_select_all-reactive_count-reactive_enable). |
 | `reactive_group_targets("ids[]", count: "#c", enable: { "#b" => 1.. })` | Spread on the root that **owns** a checkbox group: drives a count and an enable on outside, id-allowlisted elements (a bulk bar the page renders). `reactive_group_target_attrs` gives that outside markup its first paint. See [A bulk bar outside the list's root](#a-bulk-bar-outside-the-lists-root-reactive_group_targets). |
@@ -1267,8 +1267,9 @@ button(**on_client(:click, js
   `from` `<img>` onto the `to` `<img>` — how a preview shows an image the server
   already rendered while `src` stays refused. Both are elements (`:root` or a
   selector); the URL is read from the live source element, never passed. A
-  missing source, a non-`<img>` source or one without `src` clears the target;
-  a non-`<img>` target is warned about and skipped; an attribute that already
+  missing source or a non-`<img>` source clears the target; an `<img>` source
+  without `src` removes the target's `src`/`srcset` and copies its `alt` (#381),
+  so an entry with no image keeps its name; a non-`<img>` target is warned about and skipped; an attribute that already
   holds the copied value is not rewritten, so the same image twice does not
   reload. Allowed in a broadcast (it only reads the subscriber's own page).
 - **`focus(to)`** focuses the first match; **`focus_first(to)`** focuses the first
@@ -1339,7 +1340,7 @@ button(**on_client(:click, js
   (a broadcast that reads every subscriber's clipboard would be hostile). The
   op is async fire-and-forget — chained siblings apply immediately, never
   waiting for the read.
-- **`preview_file(to, into:, name: nil, global: false)`** (#375; `global: true`
+- **`preview_file(to, into:, name: nil, global: false, valid: false)`** (#375; `global: true`
   resolves `to`, `into:` and `name:` document-wide, for an `img` outside the
   root) paints the file a file input
   holds onto an `img` **before any upload**:
@@ -1356,6 +1357,14 @@ button(**on_client(:click, js
   and revokes it on a re-pick, a clear, and when the `img` leaves the page or a
   morph strips its `src` — a server re-render resets the preview like any other
   op. **Actor-only**: refused in `broadcast_to(js:)`.
+  **Upload validation (#382):** `valid: true` treats an input whose
+  `validity.valid` is false (`setCustomValidity`, `required`) as empty, so a
+  rejected file never gets a preview. An app that clears the input itself
+  (`input.value = ""` fires no `change`) dispatches `reactive:file-changed` on
+  it; bind the op to that event too and the preview, the name and the URL are
+  cleared: `op = js.preview_file("#photo-file", into: "#photo", valid: true)`,
+  `input(type: "file", id: "photo-file", **mix(on_client(:change, op),
+  on_client("reactive:file-changed", op)))`.
 - **`expanded:`** on `show`/`hide`/`toggle` (#271) keeps a disclosure trigger's
   `aria-expanded` honest: `js.toggle("#menu", expanded: "#trigger")` writes the
   op's **intended** state (`show` → `"true"`, `hide` → `"false"`, `toggle` → the

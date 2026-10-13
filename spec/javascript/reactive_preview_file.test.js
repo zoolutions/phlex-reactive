@@ -203,6 +203,91 @@ test("global: true resolves into: and name: document-wide", () => {
   expect(document.getElementById("outside-name").textContent).toBe("a.png")
 })
 
+// --- upload validation (issue #382) ------------------------------------------
+// An app that rejects a file (size, type) clears the input without a change
+// event, or marks it invalid with setCustomValidity. valid: true treats an
+// invalid input as empty; the documented reactive:file-changed event re-runs
+// the op after a silent clear.
+
+const VALID_OP = ["preview_file", { to: "#photo-file", into: "#photo", name: "#photo-name", valid: true }]
+
+function invalidate(input, valid = false) {
+  Object.defineProperty(input, "validity", { value: { valid }, configurable: true })
+}
+
+test("valid: true never previews a file the input holds as invalid", () => {
+  const { root, controller } = mount(FIELD)
+  const input = root.querySelector("#photo-file")
+  choose(input, [png()])
+  invalidate(input)
+
+  run(controller, [VALID_OP])
+
+  expect(created).toEqual([])
+  expect(root.querySelector("#photo").hasAttribute("src")).toBe(false)
+  expect(root.querySelector("#photo-name").textContent).toBe("")
+})
+
+test("valid: true clears and revokes a preview once the input turns invalid", () => {
+  const { root, controller } = mount(FIELD)
+  const input = root.querySelector("#photo-file")
+  choose(input, [png()])
+  run(controller, [VALID_OP])
+  invalidate(input)
+
+  run(controller, [VALID_OP])
+
+  expect(revoked).toEqual(["blob:test/1"])
+  expect(root.querySelector("#photo").hasAttribute("src")).toBe(false)
+  expect(root.querySelector("#photo-name").textContent).toBe("")
+})
+
+test("valid: true still previews a valid pick", () => {
+  const { root, controller } = mount(FIELD)
+  const input = root.querySelector("#photo-file")
+  choose(input, [png()])
+  invalidate(input, true)
+
+  run(controller, [VALID_OP])
+
+  expect(root.querySelector("#photo").getAttribute("src")).toBe("blob:test/1")
+  expect(root.querySelector("#photo-name").textContent).toBe("a.png")
+})
+
+test("without valid: an invalid input still previews (today's behaviour)", () => {
+  const { root, controller } = mount(FIELD)
+  const input = root.querySelector("#photo-file")
+  choose(input, [png()])
+  invalidate(input)
+
+  run(controller, [OP])
+
+  expect(root.querySelector("#photo").getAttribute("src")).toBe("blob:test/1")
+})
+
+test("a reactive:file-changed binding clears the preview after a silent clear", () => {
+  // The wire mix() makes of two on_client calls: space-joined records.
+  const records = [
+    { on: "change", ops: [VALID_OP] },
+    { on: "reactive:file-changed", ops: [VALID_OP] },
+  ]
+    .map((record) => JSON.stringify(record).replaceAll(" ", "\\u0020"))
+    .join(" ")
+  const { root, controller } = mount(FIELD)
+  const input = root.querySelector("#photo-file")
+  const fire = (type) => controller.runOps({ type, params: { ops: records }, target: input, currentTarget: input, preventDefault() {} })
+  choose(input, [png()])
+  fire("change")
+  expect(root.querySelector("#photo").getAttribute("src")).toBe("blob:test/1")
+  choose(input, [])
+
+  fire("reactive:file-changed")
+
+  expect(revoked).toEqual(["blob:test/1"])
+  expect(root.querySelector("#photo").hasAttribute("src")).toBe(false)
+  expect(root.querySelector("#photo-name").textContent).toBe("")
+})
+
 // --- refusals ---------------------------------------------------------------
 
 test("a target that is not a file input warns and skips", () => {

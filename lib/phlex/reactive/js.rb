@@ -297,8 +297,17 @@ module Phlex
       # that read every subscriber's file input would be hostile.
       #   input(type: "file", id: "photo-file", accept: "image/*",
       #     **on_client(:change, js.preview_file("#photo-file", into: "#photo", name: "#photo-name")))
+      #
+      # Upload validation (issue #382): `valid: true` treats an input whose
+      # validity is false (setCustomValidity, required) as empty, so a rejected
+      # file never gets a preview. An app that clears the input without a
+      # change event dispatches `reactive:file-changed` on it; bind the same op
+      # to that event too and the preview clears:
+      #   op = js.preview_file("#photo-file", into: "#photo", valid: true)
+      #   input(type: "file", id: "photo-file",
+      #     **mix(on_client(:change, op), on_client("reactive:file-changed", op)))
 
-      def preview_file(to, into:, name: nil, global: false)
+      def preview_file(to, into:, name: nil, global: false, valid: false)
         if [:root, ROOT_SENTINEL].include?(to)
           raise ArgumentError,
             "#{self.class}: preview_file reads a file input, not the component root — " \
@@ -308,6 +317,7 @@ module Phlex
         args = { "to" => normalize_target(to), "into" => preview_selector(:into, into) }
         args["name"] = preview_selector(:name, name) unless name.nil?
         args["global"] = true if global
+        args["valid"] = true if valid
         append("preview_file", args.freeze)
       end
 
@@ -331,9 +341,10 @@ module Phlex
       # onto the `to` <img>. Both are ELEMENTS (:root or a CSS selector,
       # resolved with the op's own scoping, global: included): the URL is read
       # off the live source element in the browser and is never an argument,
-      # so the set_attr refusal of src (issue #96) stays. A missing source, a
-      # non-<img> source or one without src clears the target's src, srcset
-      # and alt; a target that is not an <img> is skipped. The same URL twice
+      # so the set_attr refusal of src (issue #96) stays. A missing or
+      # non-<img> source clears the target's src, srcset and alt; an <img>
+      # source without src removes the target's src and srcset and copies its
+      # alt (issue #381); a target that is not an <img> is skipped. The same URL twice
       # is not written again (no reload). Broadcast-safe: it only reads
       # elements already in the subscriber's document.
       #   button(**on_client(:click, js.copy_media("#logo", from: "#logo-007"))) { "North" }

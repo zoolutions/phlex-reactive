@@ -32,6 +32,12 @@ RSpec.describe 'Media preview demo', type: :system do
     end
   end
 
+  it 'keeps the name of a branch with no logo file (issue #381)' do
+    fill_in 'code', with: '050'
+    expect(page).to have_css('#mpv-caption', text: 'Central')
+    expect(page).to have_css("#mpv-logo[alt='Central']:not([src])", visible: :all)
+  end
+
   it 'copies a named image with js.copy_media' do
     within('#media-preview') { click_button 'East' }
     expect(page).to have_css("#mpv-copied[src='/media-demo/east.svg'][alt='East']")

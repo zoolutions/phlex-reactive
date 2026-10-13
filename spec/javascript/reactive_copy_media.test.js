@@ -118,7 +118,6 @@ test("the same URL a second time writes nothing (the image does not reload)", ()
 for (const [label, from] of [
   ["a missing source", "#nope"],
   ["a source that is not an img", "#not-img"],
-  ["a source without src", "#no-src"],
   ["a source selector that is a URL (invalid selector)", "https://example.test/a.svg"],
 ]) {
   test(`${label} clears the target's src, srcset and alt`, () => {
@@ -130,6 +129,27 @@ for (const [label, from] of [
     expect($("#logo").getAttribute("alt")).toBe("")
   })
 }
+
+// Issue #381: an <img> source with an alt and no src is a hit without an
+// image — the name survives. Only a missing or non-<img> source clears.
+test("a source img without src removes the target's src and srcset and copies its alt", () => {
+  const { controller, $ } = mount(`<img id="logo" src="/old.svg" srcset="/old.svg 1x" alt="Old">${POOL}`)
+  run(controller, [["copy_media", { to: "#logo", from: "#no-src" }]])
+
+  expect($("#logo").hasAttribute("src")).toBe(false)
+  expect($("#logo").hasAttribute("srcset")).toBe(false)
+  expect($("#logo").getAttribute("alt")).toBe("Nothing")
+})
+
+test("a source img without src ignores a stray srcset on it: no image is copied", () => {
+  const { root, controller, $ } = mount(`<img id="logo" src="/old.svg" alt="Old">`)
+  root.insertAdjacentHTML("beforeend", `<img id="odd" srcset="/odd.svg 1x" alt="Odd" hidden>`)
+  run(controller, [["copy_media", { to: "#logo", from: "#odd" }]])
+
+  expect($("#logo").hasAttribute("src")).toBe(false)
+  expect($("#logo").hasAttribute("srcset")).toBe(false)
+  expect($("#logo").getAttribute("alt")).toBe("Odd")
+})
 
 for (const tag of ["iframe", "script", "object", "embed", "frame", "video", "div"]) {
   test(`a <${tag}> target never receives src (warns and skips)`, () => {
@@ -251,10 +271,9 @@ test("a prefix shorter than take is pending: the preview clears (issue #380)", a
 for (const [label, key] of [
   ["a pool value that is a URL is only a selector", "url"],
   ["a pool selector that is not an img", "spa"],
-  ["a pool img without src", "nos"],
 ]) {
   test(`${label}: the preview clears and the value never reaches src`, async () => {
-    const wire = media({ field: "code", take: 3, pool: { url: "https://example.test/a.svg", spa: "#not-img", nos: "#no-src" } })
+    const wire = media({ field: "code", take: 3, pool: { url: "https://example.test/a.svg", spa: "#not-img" } })
     const { $ } = mount(`<input name="code" value="007"><img id="logo" src="/logos/007.svg" alt="North" data-reactive-media="${wire}">${POOL}`, { connect: true })
     await flush()
 
@@ -265,6 +284,50 @@ for (const [label, key] of [
     expect(document.documentElement.outerHTML).not.toContain('src="https://example.test')
   })
 }
+
+// Issue #381: a known entry without an image file keeps its name.
+test("a pool img without src is a hit: the preview drops its image and the label gets the alt, not blank_label", async () => {
+  const wire = media({ field: "code", take: 3, pool: { "007": "#logo-007", "050": "#no-src" }, label: "#caption", blank: "Unknown" })
+  const { $ } = mount(`<input name="code"><img id="logo" alt="" data-reactive-media="${wire}"><span id="caption"></span>${POOL}`, { connect: true })
+  await flush()
+
+  type($("[name=code]"), "007")
+  expect($("#logo").getAttribute("src")).toBe("/logos/007.svg")
+  type($("[name=code]"), "050-1")
+
+  expect($("#logo").hasAttribute("src")).toBe(false)
+  expect($("#logo").hasAttribute("srcset")).toBe(false)
+  expect($("#logo").getAttribute("alt")).toBe("Nothing")
+  expect($("#caption").textContent).toBe("Nothing")
+})
+
+test("a pool img with neither src nor alt is still a hit: the label is empty, not blank_label", async () => {
+  const wire = media({ field: "code", pool: { a: "#bare" }, label: "#caption", blank: "Unknown" })
+  const { $ } = mount(
+    `<input name="code"><img id="logo" alt="" data-reactive-media="${wire}"><span id="caption">x</span><img id="bare" hidden>`,
+    { connect: true },
+  )
+  await flush()
+
+  expect($("#caption").textContent).toBe("Unknown")
+  type($("[name=code]"), "a")
+  expect($("#caption").textContent).toBe("")
+  expect($("#logo").getAttribute("alt")).toBe("")
+})
+
+test("a missing or non-img pool source still writes blank_label", async () => {
+  const wire = media({ field: "code", pool: { gone: "#missing", spa: "#not-img", nos: "#no-src" }, label: "#caption", blank: "Unknown" })
+  const { $ } = mount(`<input name="code"><img id="logo" alt="" data-reactive-media="${wire}"><span id="caption"></span>${POOL}`, { connect: true })
+  await flush()
+
+  for (const key of ["gone", "spa"]) {
+    type($("[name=code]"), "nos")
+    expect($("#caption").textContent).toBe("Nothing")
+    type($("[name=code]"), key)
+    expect($("#caption").textContent).toBe("Unknown")
+    expect($("#logo").getAttribute("alt")).toBe("")
+  }
+})
 
 test("a pool selector that matches nothing clears the preview", async () => {
   const wire = media({ field: "code", pool: { a: "#missing" } })

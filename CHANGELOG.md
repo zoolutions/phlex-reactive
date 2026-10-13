@@ -12,8 +12,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `js.copy_media("#logo", from: "#logo-007")` copies `src`, `srcset` and `alt`
   from an `<img>` the server rendered onto a preview `<img>`; the URL is read
   from the live source element and is never an op argument, so `set_attr`
-  still refuses `src` (#96). A missing source, a non-`<img>` source or one
-  without `src` clears the target; a target that is not an `<img>` (an
+  still refuses `src` (#96). A missing source or a non-`<img>` source clears
+  the target (an `<img>` source without `src` keeps its `alt`, #381); a target that is not an `<img>` (an
   `iframe`, `script`, `object`, `embed`, `frame`) is warned about and skipped;
   the same URL twice is not written again. `img(**reactive_media(from: :code,
   take: 3, pool: { "007" => "#logo-007" }, label: "#caption", blank_label:
@@ -231,6 +231,30 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `match:` nothing changes. Client: +160 B gzipped in the default bundle,
   +152 B in the bindings module, the split core unchanged. Docs: "Media
   previews" on the client-ops example.
+
+- **A pool `<img>` with an `alt` and no `src` keeps its name (#381).**
+  `js.copy_media` and `reactive_media` treated a source `<img>` without `src`
+  as a clear: the preview's `alt` was emptied and `label:` got `blank_label`,
+  so a known entry with no logo file lost its name. Such a source is now a hit
+  without an image: the target's `src` and `srcset` are removed, its `alt` is
+  set, and `label:` gets that `alt`. Only a pool miss, a selector that matches
+  nothing, or a source that is not an `<img>` clears. Client: +1 B gzipped in
+  the default bundle, −2 B in the split core; the bindings module is
+  unchanged.
+
+- **`js.preview_file` follows an app's upload validation (#382).** A preview
+  ran once, on `change`, so a file the app then rejected (cleared with
+  `input.value = ""`, no new `change`) stayed on screen. Two pieces fix it.
+  `js.preview_file(…, valid: true)` treats an input whose `validity.valid` is
+  false (`setCustomValidity`, `required`) as empty: it never gets a preview,
+  and one it had is cleared and its URL revoked. And `reactive:file-changed`
+  is the documented event for "the app changed this input's files without a
+  `change` event": bind the op to it as well,
+  `mix(on_client(:change, op), on_client("reactive:file-changed", op))`, and
+  the app dispatches it after it clears or invalidates the field. That works
+  whichever `change` listener runs first. Without `valid:` the op behaves as
+  before. Client: +22 B gzipped in the default bundle, +34 B in the split
+  core (on top of #381). Docs: "Preview a chosen image" on the client-ops example.
 
 - **A stream that renders into a connected root wires what its content needs
   (#356).** A root read its feature markers only at connect and after a morph

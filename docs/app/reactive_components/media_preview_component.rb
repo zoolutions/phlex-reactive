@@ -3,15 +3,19 @@
 # Issue #373: a preview image that follows a field, and buttons that copy an
 # image — with no URL in any op or binding. The server renders every candidate
 # <img> (hidden); reactive_media copies the one whose key is the first three
-# characters of the code, and js.copy_media copies a named one.
+# characters of the code, and js.copy_media copies a named one. Central (050)
+# has no logo file: its pool <img> carries an alt and no src, so the preview
+# drops its image and keeps the name (issue #381).
 class MediaPreviewComponent < Phlex::HTML
   include Phlex::Reactive::Component
 
   REGIONS = {
     '007' => ['#mpv-north', 'North'],
     '011' => ['#mpv-south', 'South'],
-    '042' => ['#mpv-east', 'East']
+    '042' => ['#mpv-east', 'East'],
+    '050' => ['#mpv-central', 'Central']
   }.freeze
+  NO_LOGO = %w[Central].freeze
 
   def id = 'media-preview'
 
@@ -28,7 +32,7 @@ class MediaPreviewComponent < Phlex::HTML
 
   def field
     label(class: 'form-control w-56') do
-      span(class: 'label-text') { 'Branch code (007, 011, 042…)' }
+      span(class: 'label-text') { 'Branch code (007, 011, 042, 050…)' }
       input(name: 'code', value: '007-1234', class: 'input input-bordered input-sm', autocomplete: 'off')
     end
   end
@@ -59,7 +63,8 @@ class MediaPreviewComponent < Phlex::HTML
 
   def pool
     REGIONS.each_value do |selector, name|
-      img(id: selector.delete_prefix('#'), src: "/media-demo/#{name.downcase}.svg", alt: name, hidden: true)
+      src = "/media-demo/#{name.downcase}.svg" unless NO_LOGO.include?(name)
+      img(id: selector.delete_prefix('#'), src:, alt: name, hidden: true)
     end
   end
 end

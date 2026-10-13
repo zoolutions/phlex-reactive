@@ -371,6 +371,10 @@ class DemosController < ActionController::Base
     render_component PhotoPreviewComponent.new
   end
 
+  def validated_photo_preview
+    render_component ValidatedPhotoPreviewComponent.new
+  end
+
   def modal_dialog
     render_component ModalDialogComponent.new(open: params[:open] == "1")
   end
