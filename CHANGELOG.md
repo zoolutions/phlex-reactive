@@ -271,6 +271,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`rake bench:browser`.** Connect, disconnect and a heap soak for the
   shipped client in headless Chromium. The happy-dom connect bench is
   engine-relative and missed the quadratic above; this is the one to trust.
+- **The doctor's authorization check is linear, not quadratic.** It rebuilt
+  the Inspector's whole component list (a Prism scan per action) once for
+  every component. It now reads it once: `doctor.checks` over the dummy app's
+  90 components drops from 1,337 ms to 55 ms, and an app with a few hundred
+  components no longer waits tens of seconds on `rake phlex_reactive:doctor`.
+- **`on()` checks for removed keywords without building arrays.** Every
+  trigger ran `params.keys & REMOVED_ON_KWARGS.keys`. It now returns at once
+  when there are no extra keywords. `on(:increment)` allocates 5 objects
+  instead of 8; a 7-trigger component's `render_component` 118 instead of 136
+  (~5% faster in an in-place A/B, a method-level win that shows on broadcast
+  fan-out, not request latency).
+- **The request bench measures production, not a file watcher.** The dummy
+  app's test env left code reloading on, so every request globbed `app/`:
+  `rake bench:request` read ~1.7-2.0 ms and 1,272 objects per state-backed
+  action, against ~0.30-0.35 ms and 824 objects with it off (same machine,
+  interleaved). Test-env only; the gem is unchanged.
 
 ## [0.14.1] - 2026-10-07
 
