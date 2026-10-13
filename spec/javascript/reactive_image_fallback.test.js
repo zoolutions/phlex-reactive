@@ -408,6 +408,22 @@ test("registration asks decode() before calling a complete img with naturalWidth
   expect(broken.hidden).toBe(true)
 })
 
+test("a sweep decode() that rejects after the src was removed does not mark an error", async () => {
+  document.body.innerHTML = `<img id="logo" src="/missing.svg" alt="" data-reactive-image-fallback="${HIDE}">`
+  const img = document.getElementById("logo")
+  Object.defineProperty(img, "complete", { value: true, configurable: true })
+  Object.defineProperty(img, "naturalWidth", { value: 0, configurable: true })
+  img.decode = () => Promise.reject(new Error("EncodingError"))
+
+  mod.__resetReactiveImageFallbackForTest()
+  mod.registerReactiveImageFallback()
+  img.removeAttribute("src")
+  await flush()
+
+  expect(img.hasAttribute("data-reactive-image-state")).toBe(false)
+  expect(img.hidden).toBe(false)
+})
+
 test("an img restored from a snapshot (hidden + error already in the DOM) is shown again by a new src", () => {
   // A Turbo restoration visit hands back a NEW element carrying what the
   // fallback wrote — its hidden must still be undoable.

@@ -536,7 +536,7 @@ export function registerReactiveImageFallback() {
     if (!img.complete || !hasImageSrc(img)) continue
     const mark = (value) => setImageState(img, imageFallback(img) ?? {}, value)
     if (img.naturalWidth > 0) mark("loaded")
-    else if (typeof img.decode === "function") img.decode().then(() => mark("loaded"), () => mark("error"))
+    else if (typeof img.decode === "function") img.decode().then(() => mark("loaded"), () => hasImageSrc(img) && mark("error"))
     else mark("error")
   }
 }
