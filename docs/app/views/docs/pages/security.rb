@@ -160,7 +160,8 @@ module Views
               …) on both sides. A preview image therefore never takes a URL from an op:
               `copy_media` and `reactive_media` (#373) name **elements** — a pool value
               is only ever passed to `querySelector` — and copy `src` from an `<img>`
-              the server already rendered, onto an `<img>` only.
+              already in the page (resolved in the live DOM; normally one the server
+              rendered), onto an `<img>` only.
             MD
           end
         end

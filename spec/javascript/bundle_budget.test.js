@@ -146,8 +146,8 @@ const SLACK = 250
 // 323 B: 33,389 B.
 // Issue #373 (copy_media, the media marker, the reactive_media binding, refusing srcset
 // and a media label of @root) adds 404 B on #366/#365 (32,551 B); on top of #369, #370,
-// #374 and #375, 410 B: 33,799 B.
-const BUNDLE_GZIP_CEILING = 33_799
+// #374 and #375, 410 B: 33,799 B; slicing take: by code point, 33,805 B.
+const BUNDLE_GZIP_CEILING = 33_805
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -206,8 +206,9 @@ const FEATURE_GZIP_CEILINGS = {
   // group targets) takes it to 6,203 B. Issue #351 (editable text: Enter,
   // Escape, paste/drop, the plaintext-only fallback) takes it to 6,771 B.
   // Issue #373 (the reactive_media binding) takes it from 6,664 B to 6,884 B;
-  // never resolving a label or pool value of @root, 6,888 B.
-  "features/bindings": 6_888,
+  // never resolving a label or pool value of @root, 6,888 B; slicing take: by
+  // code point, 6,895 B.
+  "features/bindings": 6_895,
   // Issue #336 (render a defer reply now) takes it from 2,845 B to 2,974 B.
   "features/defer": 2_974,
   "features/compute": 2_050,
@@ -269,8 +270,8 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #375 (js.preview_file, in the core) adds 374 B on #366/#365 (40,330 B);
 // on top of #369, #370 and #374, 356 B: 41,235 B.
 // Issue #373 (+170 B core, +224 B bindings) on top of #369, #370, #374 and #375
-// adds 394 B: 41,629 B.
-const SPLIT_TOTAL_GZIP_CEILING = 41_629
+// adds 394 B: 41,629 B; slicing take: by code point, 41,636 B.
+const SPLIT_TOTAL_GZIP_CEILING = 41_636
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

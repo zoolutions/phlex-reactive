@@ -661,7 +661,8 @@ function syncMedia(c, fieldValue, owns) {
     }
     const value = fieldValue(wire.field)
     if (value === null) continue
-    const key = wire.take > 0 ? value.slice(0, wire.take) : value
+    // Characters (code points), as Ruby counts them — not UTF-16 code units.
+    const key = wire.take > 0 ? [...value].slice(0, wire.take).join("") : value
     const source = Object.hasOwn(wire.pool, key) ? mediaMatches(c, wire.pool[key])[0] : null
     const alt = c.core.copyMedia(el, source ?? null)
     if (alt === null || typeof wire.label !== "string") continue

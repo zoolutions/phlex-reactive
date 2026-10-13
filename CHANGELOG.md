@@ -23,8 +23,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   raises at render without `pool:` or with a `take:` that is not a positive
   Integer. `set_attr` / `toggle_attr` / `remove_attr` now refuse `srcset`
   too, on both sides (a URL list that picks what an `<img>` loads); copy it
-  with `copy_media`. Client: +404 B gzipped in the default bundle, +182 B in the split
-  core, +224 B in the bindings module. Docs: "Media previews" on the
+  with `copy_media`. Client: +416 B gzipped in the default bundle, +170 B in the split
+  core, +231 B in the bindings module. Docs: "Media previews" on the
   client-ops example.
 
 - **Preview a chosen file — `js.preview_file(to, into:, name: nil, global: false)` (#375).**

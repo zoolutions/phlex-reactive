@@ -286,6 +286,15 @@ test("a pool key from Object.prototype misses", async () => {
   expect($("#logo").hasAttribute("src")).toBe(false)
 })
 
+test("take: counts characters, not UTF-16 code units", async () => {
+  const wire = media({ field: "code", take: 1, pool: { "🦊": "#logo-007" } })
+  const { $ } = mount(`<input name="code"><img id="logo" alt="" data-reactive-media="${wire}">${POOL}`, { connect: true })
+  await flush()
+
+  type($("[name=code]"), "🦊-north")
+  expect($("#logo").getAttribute("src")).toBe("/logos/007.svg")
+})
+
 test("without take the whole field value is the key", async () => {
   const wire = media({ field: "code", pool: { "007": "#logo-007" } })
   const { $ } = mount(`<input name="code"><img id="logo" alt="" data-reactive-media="${wire}">${POOL}`, { connect: true })
