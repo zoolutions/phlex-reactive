@@ -147,6 +147,14 @@ module Views
               from, read the clipboard of, or overwrite a field in, every subscriber's tab. The `keep: true`
               flag (#369) is refused in broadcasts on any op for the same reason: what
               it records is one tab's client state.
+
+              `preview_file` (#375) joins that tier — a broadcast must never read every
+              subscriber's file input — and keeps the URL refusal whole: it paints the
+              chosen file onto an `<img>` through an object URL the **client** makes from
+              the input's own `File`. The op has no URL parameter, the client never reads a
+              `url` key off a raw pair, `set_attr` of `src` still raises, and only an
+              `<img>` ever gets a `src` (an iframe, script or frame target is skipped).
+              The reducer builder omits it too.
             MD
           end
         end

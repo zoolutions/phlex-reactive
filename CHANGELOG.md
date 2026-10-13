@@ -8,6 +8,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Preview a chosen file — `js.preview_file(to, into:, name: nil, global: false)` (#375).**
+  `on_client(:change, js.preview_file("#photo-file", into: "#photo", name:
+  "#photo-name"))` paints the input's first `image/*` file onto the `img`
+  before any upload, through an object URL the client makes from the `File`
+  itself, and puts `file.name` in the `name:` node. An empty selection or a
+  non-image file removes the `src` and clears the name. The runtime keeps the
+  last URL per `img` and revokes it on a re-pick, a clear, and when the `img`
+  leaves the page or a morph strips its `src`. The op carries no URL (a `url`
+  key on a raw op list is ignored), `set_attr` of `src` still raises, and only
+  an `<img>` ever gets a `src`. Actor-only: `broadcast_to(js:)` refuses it.
+  Client: +323 B gzipped in the default bundle, +356 B in the split core (on
+  top of #369, #370 and #374).
+  Docs: "Preview a chosen image" on the client-ops example.
+
 - **`js.set_value(to, value)` — a field's live value from a client op
   (#374).** `on_client(:click, js.set_value("#notes", "Thanks for your
   order.").set_value("#template_key", "thanks"))` fills a field from text

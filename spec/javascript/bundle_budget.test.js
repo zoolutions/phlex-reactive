@@ -141,7 +141,10 @@ const SLACK = 250
 // release; the error reply never marks; checkboxes and radios are never held) adds 550 B on #366/#365 (32,697 B); on top of #369, 534 B: 32,932 B.
 // Issue #374 (the set_value op, comparing a <select multiple>'s whole selection)
 // adds 111 B on #366/#365 (32,258 B); on top of #369 and #370, 134 B: 33,066 B.
-const BUNDLE_GZIP_CEILING = 33_066
+// Issue #375 (js.preview_file: the op, its object-URL map and the observer that
+// revokes) adds 367 B on #366/#365 (32,514 B); on top of #369, #370 and #374,
+// 323 B: 33,389 B.
+const BUNDLE_GZIP_CEILING = 33_389
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -185,7 +188,9 @@ const TARGET_BUNDLE_GZIP = 22_700
 // release; the error reply never marks; checkboxes and radios are never held) adds 566 B on #366/#365 (15,678 B); on top of #369, 559 B: 15,918 B.
 // Issue #374 (the set_value op) adds 120 B on #366/#365 (15,232 B); on top of
 // #369 and #370, 117 B: 16,035 B.
-const CORE_GZIP_CEILING = 16_035
+// Issue #375 (js.preview_file) adds 374 B on #366/#365 (15,486 B); on top of
+// #369, #370 and #374, 356 B: 16,391 B.
+const CORE_GZIP_CEILING = 16_391
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -254,7 +259,9 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #370 (in the core) adds 566 B on #366/#365 (40,522 B); on top of #369, 559 B: 40,762 B.
 // Issue #374 (the set_value op, in the core) adds 120 B on #366/#365 (40,076 B);
 // on top of #369 and #370, 117 B: 40,879 B.
-const SPLIT_TOTAL_GZIP_CEILING = 40_879
+// Issue #375 (js.preview_file, in the core) adds 374 B on #366/#365 (40,330 B);
+// on top of #369, #370 and #374, 356 B: 41,235 B.
+const SPLIT_TOTAL_GZIP_CEILING = 41_235
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

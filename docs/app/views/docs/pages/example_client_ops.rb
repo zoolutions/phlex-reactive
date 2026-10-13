@@ -20,6 +20,7 @@ module Views
           how
           disclosure_menu
           modal_dialogs
+          preview_file
           kept_ops
           ops
           value_conditional
@@ -56,14 +57,16 @@ module Views
               (`toggle_attr` also flips between two values, and `show`/`hide`/`toggle`
               take `expanded:` to keep a trigger's `aria-expanded` in sync — #271),
               `focus`/`focus_first`, `show_modal`/`close_dialog`, `text`, `set_value`,
-              `dispatch`, `submit`, `paste_into` —
-              each a local DOM mutation, with two deliberate exceptions. `submit`
+              `dispatch`, `submit`, `paste_into`, `preview_file` —
+              each a local DOM mutation, with three deliberate exceptions. `submit`
               hands the form to its own native/intercepted submit path — the form
               may POST or navigate from there, but that is the form's contract,
               not the op's. `paste_into` (#228) **reads** the clipboard, behind
               the browser's own gesture and permission gates, and still only
-              writes locally. Everything else sends nothing and reads nothing
-              back.
+              writes locally. `preview_file` (#375) **reads** the chosen `File`
+              from the input's `files` and paints it through an object URL it
+              makes itself — nothing is uploaded. Everything else sends nothing
+              and reads nothing back.
 
               - **Tabs:** `js.hide(".ct-panel").show("#ct-panel-1")` plus class ops on
                 the tab buttons — the "I had to write a Stimulus controller" case, now
@@ -165,6 +168,49 @@ module Views
           end
         end
 
+        def preview_file
+          DocsUI::Section('Preview a chosen image') do
+            md <<~MD
+              Choosing a file should show it **before** the upload. `js.preview_file`
+              (#375) does that on the file input's `change`, with no round trip and no
+              Stimulus controller:
+
+              ```ruby
+              input(type: "file", id: "photo-file", accept: "image/*",
+                **on_client(:change, js.preview_file("#photo-file", into: "#photo", name: "#photo-name")))
+              img(id: "photo", alt: "")
+              span(id: "photo-name")
+              ```
+
+              - The client takes the input's first `image/*` file, makes an object URL
+                from it (`URL.createObjectURL`), sets it as the `img`'s `src`, and puts
+                `file.name` in the `name:` node (optional) as `textContent`.
+              - An empty selection or a non-image file removes the `src` and clears the name.
+              - The runtime keeps the last URL per `img` and **revokes** it on the next
+                choice, on a clear, and when the `img` leaves the page or a morph strips
+                its `src` — no blob URL leaks.
+              - The op carries **no URL**. There is no parameter for one, the client never
+                reads a `url` key, and `set_attr` of `src` stays refused (#96). Only an
+                `<img>` ever gets a `src`: an `into:` that is anything else, or a `to` that
+                is not an `input[type=file]`, warns and is skipped.
+              - **Actor-only** like `paste_into`: `on_client` and `reply.js` may use it,
+                `broadcast_to(js:)` refuses it.
+            MD
+            DocsUI::Callout(:warning) do
+              md <<~MD
+                The preview is client state: a server re-render of the root renders the
+                `img` without the preview's `src` and resets it, and the runtime revokes
+                the URL. `keep:` (#369) does not cover it — it keeps classes, `hidden`
+                and allowlisted attributes, and `src` is not one of them.
+              MD
+            end
+            render Views::Examples::LiveExample.new(
+              component: PhotoPreviewComponent.new,
+              filename: 'app/reactive_components/photo_preview_component.rb'
+            )
+          end
+        end
+
         def kept_ops
           DocsUI::Section('Keeping client state through a morph') do
             md <<~'MD'
@@ -246,7 +292,7 @@ module Views
               `to: :root` / `global: true` — when the element exists but sits
               outside the op's scope (the root itself, a nested reactive root, or
               elsewhere in the document). Production stays silent. `focus`/`focus_first`/
-              `show_modal`/`close_dialog`/`submit`/`paste_into`/`set_value` are allowed here (an
+              `show_modal`/`close_dialog`/`submit`/`paste_into`/`preview_file`/`set_value` are allowed here (an
               actor's own gesture) but **rejected** from a broadcast — stealing focus
               in every subscriber's tab, opening a modal on every subscriber's screen,
               force-submitting every subscriber's form, reading every

@@ -110,6 +110,20 @@ RSpec.describe "broadcast_js_to (issue #97)", type: :request do
       .to raise_error(ArgumentError, /paste_into/)
   end
 
+  # Issue #375: preview_file joins the actor-only set — a broadcast that read
+  # every subscriber's file input and painted it would be hostile.
+  it "rejects preview_file (built or raw, component or module broadcast)" do
+    ops = TodoItemComponent.new(todo: Todo.new).js.preview_file("#photo-file", into: "#photo")
+    raw = [["preview_file", { "to" => "#photo-file", "into" => "#photo" }]]
+
+    expect { TodoItemComponent.broadcast_to("alerts", js: ops) }
+      .to raise_error(ArgumentError, /preview_file/)
+    expect { TodoItemComponent.broadcast_to("alerts", js: raw) }
+      .to raise_error(ArgumentError, /preview_file/)
+    expect { Phlex::Reactive.broadcast_to("alerts", js: raw) }
+      .to raise_error(ArgumentError, /preview_file/)
+  end
+
   # Issue #374: set_value joins the actor-only set — a broadcast that
   # overwrote every subscriber's field would be hostile (morph the value).
   it "rejects a set_value op (broadcasting a field write would overwrite every subscriber's input)" do
