@@ -115,6 +115,7 @@ Rails.application.routes.draw do
   get "cached_panel" => "demos#cached_panel" # issue #277: on: + cache:, Vary: Cookie
   get "morph_grid/:id" => "demos#morph_grid"
   get "morph_normalize" => "demos#morph_normalize" # issue #338: focused value survives a normalising morph
+  get "held_note/:id" => "demos#held_note" # issue #370: the action knows which focused fields a morph held
   get "js_focus/:id" => "demos#js_focus"
   get "partial_grid/:id" => "demos#partial_grid"
   get "checkbox_group" => "demos#checkbox_group"

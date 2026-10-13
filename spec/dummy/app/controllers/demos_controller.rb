@@ -654,6 +654,11 @@ class DemosController < ActionController::Base
     render_component MorphNormalizeComponent.new
   end
 
+  # Issue #370: a save whose focused field a morph held over another tab's change.
+  def held_note
+    render_component HeldNoteComponent.new(todo: Todo.find(params[:id]))
+  end
+
   # Issue #97: post-save focus lands on the freshly morphed field via
   # reply.morph.js(js.focus(...)) — the reactive:js op stream rides AFTER the
   # morph so focus targets the morphed node.
