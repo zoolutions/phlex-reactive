@@ -253,6 +253,9 @@ module Views
                 reads a `url` key, and `set_attr` of `src` (and `srcset`, #373) stays refused (#96). Only an
                 `<img>` ever gets a `src`: an `into:` that is anything else, or a `to` that
                 is not an `input[type=file]`, warns and is skipped.
+              - `to`, `into:` and `name:` resolve inside the component's root by default
+                (`global: false`). `global: true` resolves all three document-wide, for an
+                `img` outside the root.
               - **Actor-only** like `paste_into`: `on_client` and `reply.js` may use it,
                 `broadcast_to(js:)` refuses it.
 
