@@ -139,12 +139,12 @@ module Views
               (unknown ops warn-and-skip), an attribute allowlist enforced twice (build time
               AND interpret time), and an **actor-only tier** — `focus`, `focus_first`,
               `show_modal` / `close_dialog` (#365),
-              `submit` (#226), `paste_into` (#228), `persist_state` / `persist_clear` and `check_group` (#342) are allowed from the actor's own
+              `submit` (#226), `paste_into` (#228), `persist_state` / `persist_clear`, `check_group` (#342) and `set_value` (#374) are allowed from the actor's own
               gesture or reply (`on_client` / `reply.js` / a reducer's `$ops` — though the
               reducer builder deliberately omits `paste_into` and `check_group`, and has no
               `show_modal` / `close_dialog` verbs — the raw pairs still interpret) but **refused in
               broadcasts**: a broadcast op must never steal focus in, force-submit a form
-              from, or read the clipboard of, every subscriber's tab. The `keep: true`
+              from, read the clipboard of, or overwrite a field in, every subscriber's tab. The `keep: true`
               flag (#369) is refused in broadcasts on any op for the same reason: what
               it records is one tab's client state.
             MD

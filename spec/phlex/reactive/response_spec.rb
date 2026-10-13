@@ -396,6 +396,13 @@ RSpec.describe Phlex::Reactive::Response do
       expect(stream).to include("&quot;paste_into&quot;")
     end
 
+    # Issue #374: set_value is actor-only — the actor's own reply may fill a
+    # field it just rendered.
+    it "allows a set_value op (actor-scoped, mirroring paste_into)" do
+      stream = counter.reply.with.js(CounterComponent.new(count: 0).js.set_value("#notes", "x")).streams.first
+      expect(stream).to include("&quot;set_value&quot;")
+    end
+
     # Issue #342: check_group is actor-only too — the actor's own reply may
     # clear the selection it just acted on.
     it "allows a check_group op (actor-scoped, mirroring focus/submit)" do

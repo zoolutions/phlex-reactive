@@ -269,7 +269,7 @@ module Phlex
       # element (the two passes would fight over the same attribute).
 
       def paste_into(to, global: false)
-        if to == :root
+        if [:root, ROOT_SENTINEL].include?(to)
           raise ArgumentError,
             "#{self.class}: paste_into targets a field, not the component root — " \
             "pass the input's CSS selector (e.g. js.paste_into(\"[name=code]\"))"
@@ -290,6 +290,34 @@ module Phlex
         args = { "to" => normalize_target(to), "value" => value.to_s }
         args["global"] = true if global
         append("text", args.freeze)
+      end
+
+      # --- A field's live value (issue #374) ---
+      #
+      # set_value(to, value) — assign the target field's IDL `.value` (never
+      # the attribute: that is set_attr, and a field the user typed in does not
+      # follow it), then dispatch a bubbling `input` when the value changed, so
+      # reducers and reactive_show see it as typed — the set-value contract
+      # paste_into uses (issue #183). Never `change`, never focus (chain
+      # js.focus for that), never parsed as HTML. The value is stringified; nil
+      # and "" clear the field. The target is an input, textarea or select:
+      # :root is refused loudly like paste_into, and anything else (a
+      # contenteditable — reactive_editable writes those — a non-field, a
+      # non-empty value for a file input) warns and skips in the browser.
+      # ACTOR-ONLY like paste_into: a broadcast that overwrote every
+      # subscriber's field would be hostile (BROADCAST_REFUSED_OPS).
+      #   button(**on_client(:click, js.set_value("#notes", "Thanks"))) { "Thanks" }
+
+      def set_value(to, value, global: false)
+        if [:root, ROOT_SENTINEL].include?(to)
+          raise ArgumentError,
+            "#{self.class}: set_value targets a field, not the component root — " \
+            "pass the field's CSS selector (e.g. js.set_value(\"#notes\", \"Thanks\"))"
+        end
+
+        args = { "to" => normalize_target(to), "value" => value.to_s }
+        args["global"] = true if global
+        append("set_value", args.freeze)
       end
 
       # --- Tick or untick a checkbox group (issue #342) ---
