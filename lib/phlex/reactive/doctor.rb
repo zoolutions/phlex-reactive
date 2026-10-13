@@ -248,7 +248,9 @@ module Phlex
       # authorization / mark_authorized! call. It is :unknown, NEVER a hard fail:
       # a helper may authorize indirectly, so this is a hint, not a verdict.
       def authorization_check(components)
-        suspects = components.flat_map { unauthorized_action_labels(it) }
+        # Read once: Inspector.components builds every component's info.
+        infos = Phlex::Reactive::Inspector.components.to_h { [it.klass, it] }
+        suspects = components.flat_map { unauthorized_action_labels(it, infos) }
         return Check.new(:ok, "every mutating action appears to authorize", name: :authorization) if suspects.empty?
 
         Check.new(:unknown, "actions with no detected authorization call: #{suspects.join(", ")}",
@@ -397,10 +399,10 @@ module Phlex
       # appears unauthorized: the component defines no authorization method in its
       # ancestry, the action isn't skipped, and the Prism scan (via the shared
       # Inspector) finds no authorization / mark_authorized! call in its body.
-      def unauthorized_action_labels(klass)
+      def unauthorized_action_labels(klass, infos)
         return [] if component_defines_authorization_method?(klass)
 
-        info = Phlex::Reactive::Inspector.components.find { it.klass == klass }
+        info = infos[klass]
         return [] unless info
 
         info.actions

@@ -343,6 +343,16 @@ RSpec.describe Phlex::Reactive::Doctor do
       names = doctor.checks.map(&:name)
       expect(names).to include(:authorization)
     end
+
+    # Each Inspector.components call builds every component's info. Reading it
+    # once per component made the check quadratic: ~1.3 s over the dummy's 90.
+    it "reads the Inspector once for the whole component list" do
+      Rails.application.eager_load!
+      components = doctor.send(:registered_components)
+      expect(Phlex::Reactive::Inspector).to receive(:components).once.and_call_original
+
+      doctor.authorization_check(components)
+    end
   end
 
   # Issue #274: a dormant root is woken by phlex/reactive/early — without that
