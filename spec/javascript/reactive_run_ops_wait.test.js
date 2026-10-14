@@ -119,16 +119,17 @@ test("debounce: a burst runs the ops ONCE, after the last event's wait", async (
   const out = makeCounter()
   const { controller } = buildController(makeRoot({ "#out": [out] }))
   const trigger = makeTrigger()
-  const record = { on: "input", debounce: 20, ops: op }
+  // A wide window against short gaps: a slow runner can't fire it mid-burst.
+  const record = { on: "input", debounce: 200, ops: op }
 
   controller.runOps(makeEvent({ ops: record, currentTarget: trigger }))
-  await wait(10)
+  await wait(20)
   controller.runOps(makeEvent({ ops: record, currentTarget: trigger }))
-  await wait(10)
+  await wait(20)
   controller.runOps(makeEvent({ ops: record, currentTarget: trigger }))
   expect(out.runs).toBe(0) // nothing runs inside the window
 
-  await wait(40)
+  await wait(300)
   expect(out.runs).toBe(1)
 })
 
@@ -196,6 +197,30 @@ test("debounce: two waited records on one element keep their own timers", async 
 
   expect(a.runs).toBe(1)
   expect(b.runs).toBe(1)
+})
+
+test("debounce: two IDENTICAL waited records on one element keep their own timers (mix keeps both)", async () => {
+  const out = makeCounter()
+  const { controller } = buildController(makeRoot({ "#out": [out] }))
+  const trigger = makeTrigger()
+  const one = JSON.stringify({ on: "input", debounce: 15, ops: op })
+
+  controller.runOps(makeEvent({ ops: [one, one].join(" "), currentTarget: trigger }))
+  await wait(35)
+
+  expect(out.runs).toBe(2)
+})
+
+test("throttle: two IDENTICAL waited records on one element keep their own windows", () => {
+  captureTimers(250)
+  const out = makeCounter()
+  const { controller } = buildController(makeRoot({ "#out": [out] }))
+  const trigger = makeTrigger()
+  const one = JSON.stringify({ on: "input", throttle: 250, ops: op })
+
+  controller.runOps(makeEvent({ ops: [one, one].join(" "), currentTarget: trigger }))
+
+  expect(out.runs).toBe(2)
 })
 
 test("debounce: an on() debounce and an on_client debounce on one trigger never cancel each other", async () => {

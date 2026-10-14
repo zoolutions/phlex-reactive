@@ -3250,13 +3250,14 @@ export default class extends Controller {
         record.legacy ? { ...params, ops: record.ops, debounce: undefined, throttle: undefined } : record,
         event,
         trigger,
+        records.indexOf(record),
       )
     }
   }
 
   // One on_client binding (issue #95): its outside guard, preventDefault rule,
   // confirm gate, then its ops — every flag read from the binding itself.
-  #runBinding(record, event, trigger) {
+  #runBinding(record, event, trigger, ordinal) {
     const { ops, confirm, confirmWhen, outside, window: windowBound, shortcut } = record
     // Outside guard FIRST — identical semantics to dispatch() (issue #80): an
     // outside: trigger is a COMPLETE no-op for events inside this root, before
@@ -3280,7 +3281,7 @@ export default class extends Controller {
     // which must NEVER prompt. The same confirmResolver gate on(:action,
     // confirm:) uses (issues #52/#55/#178), so a themed dialog covers both.
     const message = this.#effectiveConfirmMessage(confirm, confirmWhen)
-    const apply = this.#waitedOps(record, trigger, () => this.#applyOps(this.#parseOps(ops)))
+    const apply = this.#waitedOps(record, ordinal, trigger, () => this.#applyOps(this.#parseOps(ops)))
     if (!message) return apply()
     if (message instanceof Promise) {
       return message.then((resolved) => (resolved ? this.#confirmThen(resolved, trigger, apply) : apply()))
@@ -3290,14 +3291,16 @@ export default class extends Controller {
 
   // Issue #393: an on_client record's debounce:/throttle: — on()'s timers
   // (#debounce trailing, #throttle leading), keyed on the trigger + the
-  // record, so disconnect clears them with the dispatch ones. The wait sits
+  // record's ordinal + JSON (two identical mix-ed records keep their own
+  // timers), so disconnect clears them with the dispatch ones. The wait sits
   // after the outside guard, preventDefault and confirm, as on()'s does.
-  #waitedOps(record, trigger, run) {
+  #waitedOps(record, ordinal, trigger, run) {
     const debounce = Number(record.debounce) || 0
     const throttle = Number(record.throttle) || 0
-    if (debounce > 0) return () => this.#debounce(trigger, JSON.stringify(record), debounce, run)
-    if (throttle > 0) return () => this.#throttle(trigger, JSON.stringify(record), throttle, run)
-    return run
+    if (debounce <= 0 && throttle <= 0) return run
+    const key = JSON.stringify([ordinal, record])
+    if (debounce > 0) return () => this.#debounce(trigger, key, debounce, run)
+    return () => this.#throttle(trigger, key, throttle, run)
   }
 
   // Client-side compute (issue #104) is the compute feature's (issue #275,
@@ -3589,7 +3592,7 @@ export default class extends Controller {
 
   // The one trailing-edge timer on() and on_client (issue #393) share. Timers
   // are keyed on target + key: on()'s dispatch uses DISPATCH_WAIT_KEY, an
-  // on_client record its JSON (it starts with "{"), so an on() debounce and an
+  // on_client record its ordinal + JSON (it starts with "["), so an on() debounce and an
   // on_client debounce on one input never cancel each other. A window-bound
   // trigger gets no blur flush: a window blur is a tab switch, not an edit.
   #debounce(target, key, ms, run) {
@@ -3636,7 +3639,7 @@ export default class extends Controller {
   }
 
   // The leading-edge window on() and on_client (issue #393) share; an
-  // on_client record keys on its JSON, which no action name can equal.
+  // on_client record keys on its ordinal + JSON, which no action name can equal.
   #throttle(target, key, ms, run) {
     const timers = this.#throttleTimers.get(target) ?? new Map()
     if (timers.has(key)) return // inside the window — suppress

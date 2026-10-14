@@ -162,7 +162,8 @@ const SLACK = 250
 // ignoring a stale sweep decode(), 11 B: 34,771 B.
 // Issue #393 (on_client debounce:/throttle: on on()'s timers, keyed per record) adds 150 B: 34,921 B.
 // Issue #399 (the blur op) adds 41 B: 34,962 B.
-const BUNDLE_GZIP_CEILING = 34_962
+// Keying an on_client wait on the record's ordinal too (two identical records keep their own) adds 23 B: 34,985 B.
+const BUNDLE_GZIP_CEILING = 34_985
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -218,7 +219,8 @@ const TARGET_BUNDLE_GZIP = 22_700
 // Ignoring a stale sweep decode() adds 4 B: 17,143 B.
 // Issue #393 (on_client debounce:/throttle:) adds 127 B: 17,270 B.
 // Issue #399 (the blur op) adds 39 B: 17,309 B.
-const CORE_GZIP_CEILING = 17_309
+// Keying an on_client wait on the record's ordinal too adds 22 B: 17,331 B.
+const CORE_GZIP_CEILING = 17_331
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -307,7 +309,8 @@ const FEATURE_GZIP_CEILINGS = {
 // 4 B: 42,602 B.
 // Issue #393 (on_client debounce:/throttle:, in the core) adds 127 B: 42,729 B.
 // Issue #399 (the blur op, in the core) adds 39 B: 42,768 B.
-const SPLIT_TOTAL_GZIP_CEILING = 42_768
+// Keying an on_client wait on the record's ordinal too (in the core) adds 22 B: 42,790 B.
+const SPLIT_TOTAL_GZIP_CEILING = 42_790
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 
