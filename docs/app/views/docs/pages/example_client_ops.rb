@@ -386,11 +386,16 @@ module Views
               puts the deadline on the element and the client counts it:
 
               ```ruby
-              span(id: "otp-clock", **reactive_countdown(until: deadline.iso8601, format: :ms,
-                                                          waiting: "#wait", done: "#done")) { "2:00" }
-              div(id: "wait") { "Waiting" }
-              div(id: "done", hidden: true) { "Finished" }
+              div(**reactive_root) do
+                span(id: "otp-clock", **reactive_countdown(until: deadline.iso8601, format: :ms,
+                                                            waiting: "#wait", done: "#done")) { "2:00" }
+                div(id: "wait") { "Waiting" }
+                div(id: "done", hidden: true) { "Finished" }
+              end
               ```
+
+              The countdown lives in a reactive root (the client counts the ones it
+              holds); `waiting:` and `done:` are nodes beside it in that root.
 
               - **The server renders the first paint.** The text in the block and the
                 `hidden` on the two nodes are yours, so the page reads with JavaScript
@@ -410,7 +415,8 @@ module Views
                 counts down again, and fires again at its zero. "Once" is remembered
                 for the life of the document, per root, countdown and deadline (so a
                 Turbo visit back to a page whose deadline already fired does not fire
-                again). Give the countdown an `id` when its root holds more than one:
+                again; nor does a morph that brings back a deadline that already
+                fired). Give the countdown an `id` when its root holds more than one:
                 without one it is known by its position in the root.
               - **While it runs** the client keeps `waiting:` shown and `done:` hidden
                 (it writes `hidden` only when it differs).
@@ -421,7 +427,9 @@ module Views
                 `Time`; a zoneless string would read as the browser's local time.
                 `format:` is `:ms`, the only format. Anything else raises at render, as
                 does a `waiting:`/`done:` that is not a non-blank selector (or is
-                `@root`). Both selectors resolve inside the element's reactive root.
+                `@root`). Both selectors resolve inside the element's reactive root, and
+                name nodes beside the countdown, never inside it: its text replaces its
+                content, so a root that is itself the countdown has no `waiting:`/`done:`.
               - The client is the `countdown` feature module (0.9 KB gzipped); the split
                 client fetches it when the first root holding a countdown connects.
             MD

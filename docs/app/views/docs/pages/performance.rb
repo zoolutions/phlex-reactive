@@ -1259,8 +1259,8 @@ module Views
                           ])
             DocsUI::Prose() do
               p do
-                plain 'A page that uses none of these features downloads 16.6 KB less with the split '
-                plain 'client. A page that uses every one of them downloads 7.7 KB more, in eleven requests '
+                plain 'A page that uses none of these features downloads 17.8 KB less with the split '
+                plain 'client. A page that uses every one of them downloads 8.0 KB more, in twelve requests '
                 plain 'instead of one. This is the whole split: everything that can leave the core has. '
                 plain 'The maintainer\'s target for the core was 10,240 B; the honest moves leave it at '
                 plain '14,654 B, which the budget test holds as its ratchet (and prints the target against).'
