@@ -4,7 +4,8 @@
 # characters (and, with match:, digits), so blank_label only names a full key
 # that misses. The bank row hides itself with CSS on the preview's
 # data-reactive-media-state — no controller. A second binding keeps its
-# preview while pending (pending: :keep).
+# preview while pending (pending: :keep). A third tests the whole RIB with
+# when: (issue #390) while its pool key stays the 3-digit prefix.
 class RibPreviewComponent < ApplicationComponent
   include Phlex::Reactive::Component
 
@@ -12,7 +13,7 @@ class RibPreviewComponent < ApplicationComponent
 
   def view_template
     div(**reactive_root) do
-      style { "#bank-row:has([data-reactive-media-state=pending]) { display: none }" }
+      style { "#bank-row:has([data-reactive-media-state=pending]), #whole-row:has([data-reactive-media-state=pending]) { display: none }" }
       input(name: "rib", data: { testid: "rib" }, autocomplete: "off")
       div(id: "bank-row", data: { testid: "bank-row" }) do
         img(id: "bank-logo", alt: "", **reactive_media(
@@ -26,6 +27,13 @@ class RibPreviewComponent < ApplicationComponent
         label: "#kept-name", blank_label: "Unknown bank", data: { testid: "kept" }
       ))
       span(id: "kept-name", data: { testid: "kept-name" }) { "Previous" }
+      div(id: "whole-row", data: { testid: "whole-row" }) do
+        img(id: "whole-logo", alt: "", **reactive_media(
+          from: :rib, take: 3, when: /\A\d{3,24}\z/, pool: { "007" => "#bank-007" },
+          label: "#whole-name", blank_label: "Unknown bank", data: { testid: "whole" }
+        ))
+        span(id: "whole-name", data: { testid: "whole-name" })
+      end
       img(id: "bank-007", src: "/logos/007.svg", alt: "Attijariwafa", hidden: true)
     end
   end
