@@ -47,9 +47,11 @@ RSpec.describe "Declarative code completion (issue #226 reactive_on_complete)", 
     expect(page.evaluate_script("window.__actionPosts")).to eq(1)
 
     # The post-verify render arms without firing; seven characters make the
-    # len_eq 6 condition FALSE — no fire, and the latch re-arms.
-    find("[data-testid='code']").set("1234567")
-    expect(page).to have_field("code", with: "1234567")
+    # len_eq 6 condition FALSE — no fire, and the latch re-arms. Append ONE key:
+    # the driver's set() types character by character, and typing "1234567"
+    # into the field passes through six characters, which fires (rightly).
+    find("[data-testid='code']").send_keys(:end, "7")
+    expect(page).to have_field("code", with: "1111117")
     expect(page.evaluate_script("window.__actionPosts")).to eq(1)
 
     # Back to exactly six → the rising edge fires once more.

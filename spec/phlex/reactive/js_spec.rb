@@ -104,7 +104,6 @@ RSpec.describe Phlex::Reactive::JS do
     # Each block iterates attribute NAMES; the inner expect { } blocks reference
     # that outer `name`, so the ItBlockParameter cop's implicit-`it` rewrite would
     # shadow it (the same trap vendored_controller_sync_spec.rb documents).
-    # rubocop:disable Style/ItBlockParameter
     it "rejects every URL-bearing attribute (javascript:-injection surface)" do
       %w[href src srcdoc action formaction xlink:href].each do |name|
         expect { js.set_attr("#x", name, "javascript:evil()") }
@@ -130,7 +129,6 @@ RSpec.describe Phlex::Reactive::JS do
         expect { js.remove_attr("#x", name) }.not_to raise_error
       end
     end
-    # rubocop:enable Style/ItBlockParameter
   end
 
   # The raw [op, args] escape hatch (js([...]) / broadcast_js_to([...])) skips the

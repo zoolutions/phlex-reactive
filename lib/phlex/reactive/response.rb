@@ -42,9 +42,9 @@ module Phlex
         collection_remove: "reply.remove(model, from: :name)"
       }.freeze
 
-      # rubocop:disable Style/ItBlockParameter -- `it` is illegal inside the
-      # define_singleton_method block (it takes ordinary |*, **| params), so the
-      # outer each_key must name its param explicitly.
+      # `it` is illegal inside the define_singleton_method block (it takes
+      # ordinary |*, **| params), so the outer each_key must name its param
+      # explicitly.
       REMOVED_CLASS_VERBS.each_key do |verb|
         define_singleton_method(verb) do |*, **|
           raise ArgumentError,
@@ -52,7 +52,6 @@ module Phlex
             "return #{REMOVED_CLASS_VERBS[verb]} from the action (reply is the only door)"
         end
       end
-      # rubocop:enable Style/ItBlockParameter
 
       class << self
         # Re-render the component in place (explicit form of today's default).

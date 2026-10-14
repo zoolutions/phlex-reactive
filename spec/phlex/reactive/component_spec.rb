@@ -2237,7 +2237,6 @@ RSpec.describe Phlex::Reactive::Component do
       end
 
       it "rejects a non-id selector LOUDLY at declare time (class, attribute, *, compound)" do
-        # rubocop:disable-next Style/ItBlockParameter -- `bad` is read inside the nested Class.new block, where `it` would rebind
         [".totals", "[data-x]", "*", "div#x", "#x .y", "#x,#y"].each do |bad|
           expect do
             Class.new do
@@ -3331,7 +3330,6 @@ RSpec.describe Phlex::Reactive::Component do
     end
 
     it "raises for a non-id selector (declare-time default-deny)" do
-      # rubocop:disable-next Style/ItBlockParameter
       [".panel", "#a b", "div#a", "*"].each do |selector|
         expect do
           instance.send(:reactive_show_targets, :mode, selector => "x")

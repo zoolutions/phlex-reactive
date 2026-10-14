@@ -20,7 +20,6 @@ RSpec.describe "ShowConditions parity fixture" do
     expect(vectors.size).to be >= 30
   end
 
-  # rubocop:disable-next Style/ItBlockParameter -- `vector` reads clearer than `it` next to RSpec's `it`
   vectors.each do |vector|
     it "match? agrees with the fixture: #{vector.fetch("name")}" do
       result = Phlex::Reactive::ShowConditions.match?(vector.fetch("groups"), vector.fetch("values"))

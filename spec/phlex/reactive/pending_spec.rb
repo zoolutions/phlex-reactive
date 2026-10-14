@@ -231,8 +231,7 @@ RSpec.describe Phlex::Reactive::Pending, type: :request do
 
     it "marks every pending row with data-reactive-pending + aria-busy" do
       row_ids = [todo, other].map { ActionView::RecordIdentifier.dom_id(it) }
-      # rubocop:disable-next Style/ItBlockParameter -- nested blocks: the inner
-      # `it` is the stream, the outer one the row id; they must stay distinct.
+      # Nested blocks: the inner `it` is the stream, the outer one the row id; they must stay distinct.
       row_ids.each do |dom_id|
         marker = streams.find { it.include?(%(target="#{dom_id}")) }
         expect(marker).to include('action="reactive:js"')

@@ -115,13 +115,13 @@ BenchSupport.header("verify throughput by digest/serializer (valid state token)"
 BenchSupport.ips do |bench|
   variants.each do |label, verifier|
     token = variant_tokens[label]
-    bench.report(label) { verifier.verified(token, purpose: PURPOSE) } # rubocop:disable Style/ItBlockParameter
+    bench.report(label) { verifier.verified(token, purpose: PURPOSE) }
   end
 end
 
 BenchSupport.header("sign throughput by digest/serializer (state payload)")
 BenchSupport.ips do |bench|
   variants.each do |label, verifier|
-    bench.report(label) { verifier.generate(state_payload, purpose: PURPOSE) } # rubocop:disable Style/ItBlockParameter
+    bench.report(label) { verifier.generate(state_payload, purpose: PURPOSE) }
   end
 end
