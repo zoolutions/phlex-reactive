@@ -17,6 +17,7 @@ module Phlex
         include Editable
         include MediaBinding
         include ImageFallbackBinding
+        include CountdownBinding
 
         # The acting client's SSE connection id during the current action (nil
         # outside an action, or when the client isn't subscribed to a stream).

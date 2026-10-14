@@ -36,6 +36,7 @@ const FEATURE_MARKS = {
   devtools: "latency simulator ACTIVE",
   sortable: "data-reactive-sortable-placeholder",
   presence: "data-reactive-presence-same-member",
+  countdown: "reactive:countdown-done",
 }
 const DYNAMIC_IMPORT = /import\(\s*["'][^"']+["']\s*\)/g
 

@@ -160,7 +160,9 @@ const SLACK = 250
 // the restoration-safe hidden mark and the decode() check in the sweep) adds
 // 582 B on #381; on top of #382, 584 B (34,606 B); on top of #380, 586 B: 34,760 B;
 // ignoring a stale sweep decode(), 11 B: 34,771 B.
-const BUNDLE_GZIP_CEILING = 34_771
+// Issue #400 (countdown: a NEW feature module — the Date.now tick, the wake
+// re-sync, the once-per-deadline event — plus the runtime's marker) adds 568 B: 35,339 B.
+const BUNDLE_GZIP_CEILING = 35_339
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -214,7 +216,8 @@ const TARGET_BUNDLE_GZIP = 22_700
 // Issue #383 (reactive_image_fallback, in the runtime) adds 546 B on #381; on top
 // of #382, 546 B: 17,139 B.
 // Ignoring a stale sweep decode() adds 4 B: 17,143 B.
-const CORE_GZIP_CEILING = 17_143
+// Issue #400 (the countdown marker and table entry) adds 27 B: 17,170 B.
+const CORE_GZIP_CEILING = 17_170
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -248,6 +251,8 @@ const FEATURE_GZIP_CEILINGS = {
   // fixes (the late-defined source, the re-announce, the root seat list) take it to 1,353 B;
   // on pgbus 0.18 the re-announce becomes one check: 1,297 B; logging a failed announce: 1,362 B.
   "features/presence": 1_362,
+  // Issue #400: countdown, 908 B.
+  "features/countdown": 908,
 }
 // Phase 5: 12,383 B core + 5,360 + 2,846 + 2,084 + 1,024 + 1,693 + 3,210 + 1,015 + 1,589 B of
 // features = 31,204 B. Issue #305 (the default entry's static path) costs the
@@ -301,7 +306,8 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #383 (reactive_image_fallback, in the core) adds 546 B on #381; on top of
 // #382 (42,446 B) and #380, 546 B: 42,598 B; ignoring a stale sweep decode(),
 // 4 B: 42,602 B.
-const SPLIT_TOTAL_GZIP_CEILING = 42_602
+// Issue #400 (the countdown feature module, 908 B, plus 27 B in the core) adds 935 B: 43,537 B.
+const SPLIT_TOTAL_GZIP_CEILING = 43_537
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

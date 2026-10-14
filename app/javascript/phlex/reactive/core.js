@@ -28,6 +28,7 @@ registerReactiveFeatureLoader("bindings", () => import("phlex/reactive/features/
 registerReactiveFeatureLoader("compute", () => import("phlex/reactive/features/compute"), waitingForEdit)
 registerReactiveFeatureLoader("sortable", () => import("phlex/reactive/features/sortable"))
 registerReactiveFeatureLoader("presence", () => import("phlex/reactive/features/presence"))
+registerReactiveFeatureLoader("countdown", () => import("phlex/reactive/features/countdown"))
 registerReactiveFeatureLoader("effects", () => import("phlex/reactive/features/effects"))
 registerReactiveFeatureLoader("hints", () => import("phlex/reactive/features/hints"))
 registerReactiveFeatureLoader("devtools", () => import("phlex/reactive/features/devtools"))

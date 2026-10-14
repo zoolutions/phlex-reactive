@@ -76,6 +76,7 @@ const ENTRIES = [
   "features/devtools",
   "features/sortable",
   "features/presence",
+  "features/countdown",
 ]
 
 // The default entry: the runtime + every feature in one file.
