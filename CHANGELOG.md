@@ -18,7 +18,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `reactive_count` and `reactive_enable` keep counting the leaves. A nested
   reactive root's boxes stay that root's own (#15). `reactive_select_all`
   without `under:` renders the same attrs as before and still flips every box
-  of the name. An empty `under:`, or one with an empty segment, raises at
+  of the name. A blank `under:`, or one with an empty or space-padded segment, raises at
   render. Client: +79 B gzipped in the default bundle (+63 B in
   `features/bindings`, the split core unchanged). Docs: "Bulk selection" on
   the client-ops example; demo at `/nested_selection` in the dummy app.

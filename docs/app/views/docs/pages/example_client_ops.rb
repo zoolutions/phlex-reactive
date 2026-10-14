@@ -731,8 +731,9 @@ module Views
                 checked / indeterminate / unchecked from them, so a parent
                 follows its nested headers. Without `under:` the header is
                 still every box of the name. Headers never post;
-                `reactive_count` counts leaves. An empty `under:` raises at
-                render.
+                `reactive_count` counts leaves. A blank `under:` raises at
+                render; empty segments (`"a..b"`) and space-padded segments
+                (`"a .b"`) do too.
 
                 ```ruby
                 input(type: "checkbox", **reactive_select_all("perms[]"))

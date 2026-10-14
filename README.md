@@ -1712,8 +1712,9 @@ end
   it flips) and is checked / indeterminate / unchecked from them, so a parent
   follows its nested headers. The header without `under:` is still every box
   of the name. Headers have no `name`, so they never post, and
-  `reactive_count` / `reactive_enable` keep counting the leaves. An empty
-  `under:` (or one with an empty segment, `"a..b"`) raises at render.
+  `reactive_count` / `reactive_enable` keep counting the leaves. A blank
+  `under:`, an empty segment (`"a..b"`), or a space-padded segment
+  (`"a .b"`) raises at render.
 
   ```ruby
   input(type: "checkbox", **reactive_select_all("perms[]"))                         # everything
