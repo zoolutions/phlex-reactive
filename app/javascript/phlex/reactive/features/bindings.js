@@ -103,6 +103,15 @@ export function connect(controller, core) {
         syncShow(c)
       }
       listen(c, "input change", c.show)
+      // The after: gate (issue #396): an owned field's first blur marks its
+      // name touched for this controller (a morph keeps it, a new one starts
+      // without), and re-syncs once if a binding waits on a blur.
+      listen(c, "focusout", (event) => {
+        const name = event.target?.getAttribute?.("name")
+        if (!name || c.touched?.has(name) || !c.core.owns(event.target)) return
+        ;(c.touched ??= new Set()).add(name)
+        if (c.root.querySelector?.("[data-reactive-show-after]")) syncShow(c)
+      })
       seed(c, c.show)
     }
 
@@ -441,6 +450,10 @@ function syncShow(c) {
   // several bindings (and several DNF terms) reads exactly once. Scope-aware:
   // a bare field `director` resolves as `[name="scope[director]"]` (issue #180).
   const fieldValue = fieldResolver(c, owns)
+  // Bindings whose visibility flipped this pass and that declare transition
+  // work (issue #394) — run after the pass, so the `input` a clear dispatches
+  // re-syncs from fresh values instead of this pass's memo.
+  const moved = []
   for (const el of c.root.querySelectorAll(SHOW_BINDING_SELECTOR)) {
     if (!owns(el)) continue // a nested root's binding is its own controller's job
 
@@ -450,7 +463,19 @@ function syncShow(c) {
     const payloadRaw = el.getAttribute("data-reactive-show")
     if (payloadRaw !== null) {
       const match = showPayloadMatches(parseShowCompound(payloadRaw), fieldValue)
-      if (match !== null) applyShowVisibility(el, match, owns, scope)
+      if (match === null) continue
+      // after: (issue #396) keeps it hidden until its field has blurred once.
+      const after = el.getAttribute("data-reactive-show-after")
+      const visible = match && (after == null || !!c.touched?.has(wireName(after, scope)))
+      applyShowVisibility(el, visible, owns, scope)
+      // The previous visibility lives on this controller (absent on connect,
+      // kept by a morph), so first paint never counts as a change.
+      // Tracked for every binding, so a morph that drops the transition attrs
+      // and later restores them never compares against a stale value.
+      const was = (c.shown ??= new WeakMap()).get(el)
+      c.shown.set(el, visible)
+      const moves = SHOW_MOVES.some((name) => el.hasAttribute(`data-reactive-show-${name}`))
+      if (moves && was !== undefined && was !== visible) moved.push(el)
       continue
     }
 
@@ -470,6 +495,44 @@ function syncShow(c) {
   syncMedia(c, fieldValue, owns)
   syncShowTargets(c, fieldValue)
   syncGroupTargets(c, fieldValue)
+  for (const el of moved) showMoved(c, el, owns, scope)
+}
+
+// The transition attrs a show binding may declare (issue #394).
+const SHOW_MOVES = ["clear", "focus", "scroll"]
+
+// A binding just changed visibility (issue #394). Hidden: empty each clear:
+// field with set_value's write (which announces only a real change), uncheck a
+// checkbox or radio, skip a file input. Visible: scroll the section into view,
+// then focus the first match of focus: inside the root.
+function showMoved(c, el, owns, scope) {
+  if (el.hidden) {
+    let names = []
+    try {
+      names = JSON.parse(el.getAttribute("data-reactive-show-clear") ?? "[]")
+    } catch {}
+    // Compared by attribute, not a [name="…"] selector, so a name holding a
+    // `"` or `\` clears its field instead of throwing.
+    const wires = new Set((Array.isArray(names) ? names : []).map((name) => wireName(String(name), scope)))
+    for (const field of wires.size ? c.root.querySelectorAll("[name]") : []) {
+      if (!wires.has(field.getAttribute("name")) || !owns(field) || field.type === "file") continue
+      if (field.type === "checkbox" || field.type === "radio") {
+        if (field.checked) {
+          field.checked = false
+          fireInput(field)
+        }
+      } else c.core.setValue(field, "")
+    }
+    return
+  }
+  const scroll = el.getAttribute("data-reactive-show-scroll") === "true"
+  if (scroll) el.scrollIntoView?.({ block: "nearest" })
+  const focus = el.getAttribute("data-reactive-show-focus")
+  let target = null
+  try {
+    target = focus ? c.root.querySelector(focus) : null
+  } catch {}
+  target?.focus?.(scroll ? { preventScroll: true } : undefined)
 }
 
 // Toggle `hidden` (and, when the binding declares data-reactive-show-disable,
@@ -618,7 +681,11 @@ function showFieldValue(c, name, owns, scope) {
 // "form"` resolves as `[name="form[director]"]`. A name already carrying a
 // bracket (a raw wire name the author passed, like "ids[]") is used verbatim.
 function namedSelector(name, scope) {
-  return `[name="${scope && !name.includes("[") ? `${scope}[${name}]` : name}"]`
+  return `[name="${wireName(name, scope)}"]`
+}
+
+function wireName(name, scope) {
+  return scope && !name.includes("[") ? `${scope}[${name}]` : name
 }
 
 // The per-pass field resolver every DNF fold reads (show, enable, on-complete).
@@ -638,15 +705,17 @@ function fieldResolver(c, owns) {
 }
 
 // --- Media bindings (issue #373) ---------------------------------------------
-// data-reactive-media='{"field","take"?,"match"?,"pending"?,"pool","label"?,"blank"?}'
+// data-reactive-media='{"field","take"?,"match"?,"when"?,"pending"?,"pool","label"?,"blank"?}'
 // on a preview <img>: the owned field's value (its first `take` characters, or
 // all of it) is a key into `pool`, whose value is a SELECTOR for an <img>
 // inside the root. The core's copyMedia copies that element's src, srcset and
 // alt — a pool value is never assigned to anything. A key, selector or element
 // that misses clears the preview; `label` gets the alt (or `blank`) via
-// textContent. A key shorter than `take`, or one the anchored `match` source
-// rejects, is PENDING (issue #380) and never gets `blank`: "keep" leaves the
-// preview and label alone, the default clears both. The preview's
+// textContent. A key shorter than `take`, a key the anchored `match` source
+// rejects, or a WHOLE field value the anchored `when` source rejects (issue
+// #390 — tested before the pool lookup; the key stays the prefix) is PENDING
+// (issue #380) and never gets `blank`: "keep" leaves the preview and label
+// alone, the default clears both. The preview's
 // data-reactive-media-state names the outcome (pending | hit | miss). An
 // unowned field leaves the preview alone (the show default-deny); a malformed
 // attr warns and is skipped.
@@ -655,12 +724,19 @@ const MEDIA_BINDING_SELECTOR = "[data-reactive-media]"
 function syncMedia(c, fieldValue, owns) {
   for (const el of c.root.querySelectorAll(MEDIA_BINDING_SELECTOR)) {
     if (!owns(el)) continue
-    let wire, pattern
+    let wire, pattern, whole
     try {
       wire = JSON.parse(el.getAttribute("data-reactive-media"))
       if (wire?.match != null) pattern = new RegExp(`^(?:${wire.match})$`)
+      if (wire?.when != null) whole = new RegExp(`^(?:${wire.when})$`)
     } catch {}
-    if (typeof wire?.field !== "string" || !wire.pool || typeof wire.pool !== "object" || (wire.match != null && !pattern)) {
+    if (
+      typeof wire?.field !== "string" ||
+      !wire.pool ||
+      typeof wire.pool !== "object" ||
+      (wire.match != null && !pattern) ||
+      (wire.when != null && !whole)
+    ) {
       console.warn("[phlex-reactive] malformed data-reactive-media — skipped")
       continue
     }
@@ -669,7 +745,7 @@ function syncMedia(c, fieldValue, owns) {
     // Characters (code points), as Ruby counts them — not UTF-16 code units.
     const chars = wire.take > 0 ? [...value] : null
     const key = chars ? chars.slice(0, wire.take).join("") : value
-    const pending = chars?.length < wire.take || pattern?.test(key) === false
+    const pending = chars?.length < wire.take || pattern?.test(key) === false || whole?.test(value) === false
     if (pending && wire.pending === "keep") {
       mediaState(el, "pending")
       continue
@@ -707,7 +783,9 @@ function mediaMatches(c, selector) {
 // (data-reactive-count), and the checked_* terms any condition can use —
 // reactive_enable (data-reactive-enable) flips the element's own `disabled`
 // from one. They re-sync with the show pass: on every input/change, on a
-// morph, and when boxes are added or removed (observeGroups).
+// morph, and when boxes are added or removed (observeGroups). A header with
+// data-reactive-select-all-under (issue #398) is one branch of a tree: it owns
+// the boxes of the name whose data-reactive-group is in its path.
 const GROUP_BINDING_SELECTOR = "[data-reactive-enable], [data-reactive-select-all], [data-reactive-count]"
 
 // Whether the root holds any group binding (owned or not — a stray nested
@@ -717,15 +795,25 @@ function hasGroups(c) {
 }
 
 // The owned checkboxes of a group (a nested root's boxes are its own, #15).
-function groupBoxes(c, name, owns, scope) {
-  return [...c.root.querySelectorAll(namedSelector(name, scope))].filter((el) => el.type === "checkbox" && owns(el))
+// With `under` (a nested header, issue #398) only the boxes whose
+// data-reactive-group is that path or below it, on whole segments.
+function groupBoxes(c, name, owns, scope, under) {
+  return [...c.root.querySelectorAll(namedSelector(name, scope))].filter(
+    (el) => el.type === "checkbox" && owns(el) && (!under || inGroupPath(el.getAttribute("data-reactive-group"), under)),
+  )
+}
+
+function inGroupPath(path, under) {
+  return path === under || !!path?.startsWith(`${under}.`)
 }
 
 // A header's edit ticks or unticks every owned box of its group (the header
 // itself is never a member). The show listener syncs once afterwards.
 function flipGroup(c, header) {
   const group = header?.getAttribute?.("data-reactive-select-all")
-  if (group && c.core.owns(header)) setGroup(c, group, header.checked, header)
+  if (group && c.core.owns(header)) {
+    setGroup(c, group, header.checked, header, header.getAttribute("data-reactive-select-all-under"))
+  }
 }
 
 // The check_group op (issue #342): set a root's group the way its header
@@ -745,9 +833,9 @@ export function checkGroup(root, group, checked) {
 // on each one it flips so computes, shows and on-complete bindings see a real
 // edit. The re-entrant events are skipped by the show listener while this
 // runs (c.flipping); the caller syncs once afterwards.
-function setGroup(c, group, checked, except) {
+function setGroup(c, group, checked, except, under) {
   const scope = c.root.getAttribute?.("data-reactive-scope") || null
-  const flipped = groupBoxes(c, group, c.core.ownership(), scope).filter((box) => box !== except && box.checked !== checked)
+  const flipped = groupBoxes(c, group, c.core.ownership(), scope, under).filter((box) => box !== except && box.checked !== checked)
   // Every box first, then the events: a listener (a checked-count
   // on_complete) must see the group's final count, never a half-flipped one.
   for (const box of flipped) box.checked = checked
@@ -780,7 +868,8 @@ function syncGroups(c, fieldValue, owns, scope) {
     }
     const group = el.getAttribute("data-reactive-select-all")
     if (group) {
-      const boxes = groupBoxes(c, group, owns, scope).filter((box) => box !== el)
+      const under = el.getAttribute("data-reactive-select-all-under")
+      const boxes = groupBoxes(c, group, owns, scope, under).filter((box) => box !== el)
       const ticked = boxes.filter((box) => box.checked).length
       el.checked = ticked > 0 && ticked === boxes.length
       el.indeterminate = ticked > 0 && ticked < boxes.length
@@ -1487,6 +1576,9 @@ const SHOW_LENGTH_KEYS = ["len_eq", "len_gte", "len_gt", "len_lte", "len_lt"]
 // ShowConditions::CHECKED_KEYS: how many owned boxes of a group are ticked.
 const SHOW_CHECKED_KEYS = ["checked_eq", "checked_gte", "checked_gt", "checked_lte", "checked_lt"]
 
+// The digit-count keys (issue #396) — Ruby's CompareTerms::DIGITS_KEYS.
+const SHOW_DIGITS_KEYS = ["digits_eq", "digits_gte", "digits_lt", "digits_lte"]
+
 // Evaluate one count predicate (len_* or checked_*). A count is a TOTAL
 // function (blank/absent → 0), so every field value is decidable — no
 // fail-closed special case like the numeric thresholds ({ length: 0 }
@@ -1586,6 +1678,26 @@ function dnfTermMatches(term, fieldValue) {
     const n = fieldValue(term.field, true)
     return countPredicateMatches(checked, term[checked], Array.isArray(n) ? n.length : Number(n) || 0) === true
   }
+  // A same: term (issue #395) compares this field with ANOTHER owned field,
+  // both as strings (an absent one is ""); fold lowercases ASCII A-Z only, the
+  // exact replace Ruby's tr("A-Z", "a-z") does. negate is unless:'s flip.
+  if (typeof term.same === "string") {
+    const read = (name) => {
+      const v = String(fieldValue(name) ?? "")
+      return term.fold === true ? v.replace(/[A-Z]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) + 32)) : v
+    }
+    return (read(term.field) === read(term.same)) !== (term.negate === true)
+  }
+  // A digits: term (issue #396): ASCII digits only, the count within every
+  // digits_* bound, and the optional prefix; negate flips it. A malformed
+  // literal is false either way (fail-closed, like Ruby).
+  const digits = SHOW_DIGITS_KEYS.filter((key) => key in term)
+  if (digits.length) {
+    const v = String(fieldValue(term.field) ?? "")
+    if (!digits.every((key) => Number.isInteger(term[key])) || (term.prefix != null && typeof term.prefix !== "string")) return false
+    const ok = /^[0-9]*$/.test(v) && digits.every((key) => countPredicateMatches(key, term[key], v.length)) && v.startsWith(term.prefix ?? "")
+    return ok !== (term.negate === true)
+  }
   // An absent owned field reads as "" — identical to the server evaluator
   // (ShowConditions.match? treats a missing field as blank). This keeps the
   // Ruby first-paint and the client live-toggle in exact agreement (the shared
@@ -1619,6 +1731,7 @@ function dnfGroupFields(groups) {
     if (!Array.isArray(group)) continue
     for (const term of group) {
       if (term && typeof term === "object" && typeof term.field === "string") fields.add(term.field)
+      if (typeof term?.same === "string") fields.add(term.same)
     }
   }
   return fields.size > 0 ? [...fields] : null

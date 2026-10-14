@@ -29,6 +29,87 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   bundle, +127 B in the split core. Docs: "Waiting: debounce: and throttle:"
   on the client-ops example.
 
+- **Clear, focus and scroll when `reactive_show` changes visibility — `clear:`, `focus:`, `scroll:` (#394).**
+  `div(**reactive_show(if: { kind: "other" }, clear: :notes, focus: "#notes", scroll: true))`.
+  When the section goes from visible to hidden, each `clear:` field (one
+  owned, scope-aware name or an Array) gets `js.set_value`'s write — `.value`
+  becomes `""` and one bubbling `input` is dispatched per field that changed;
+  a checkbox or radio is unchecked. (A file input is rejected at render.) When it goes from
+  hidden to visible, the first element inside the root matching `focus:` is
+  focused and `scroll: true` calls `scrollIntoView` on the section. None of it
+  runs on first paint, so a value the server rendered into a hidden section
+  stays. The previous visibility is kept on the root's controller (absent on
+  connect, kept by a morph — so a `morph: true` reply that flips the predicate
+  runs it, while a plain replace reconnects the root and counts as first
+  paint). The work runs after the show pass, so the `input`
+  a clear dispatches re-syncs from fresh values. A `clear:` name the render
+  never produced, or one that names a file input, raises at render; so does a
+  `focus:` that is not a non-empty String or a `scroll:` that is not a
+  boolean. Without these keywords, a binding behaves as before (`hidden`, and
+  `disable:` if given). The
+  feature handle gains `setValue` (the runtime's `set_value` write). Client:
+  +282 B gzipped in the default bundle, +10 B in the split core.
+
+- **A digit format, and a hint that waits for blur — `{ digits: 10, starts_with: "9" }`, `after: :blur` (#396).**
+  `digits:` (a non-negative Integer or an Integer Range, counted in
+  codepoints) holds while every character is ASCII `0-9` and the count fits;
+  `starts_with:` adds a prefix that must itself be a String of digits, so the
+  term cannot become a pattern. One wire term carries `digits_eq` (or
+  `digits_gte`/`digits_lte`/`digits_lt`) plus `prefix`, and `"negate" => true`
+  under `unless:`. `reactive_show(…, after: :blur)` keeps the section hidden
+  until the condition's one field has fired `blur` once since connect
+  (`after: :code` names it when the condition has several); after that, every
+  `input` updates it at once. The touched flag lives on the root's controller:
+  a morph keeps it, a full navigation drops it. First paint is hidden unless an
+  explicit `hidden:` says otherwise. A
+  `starts_with:` that is not a String of digits, a malformed `digits:`, an
+  `after:` that is not a field of the condition, or one the render never
+  produced, raises at render. Client: +232 B gzipped in the default bundle.
+  Docs: "A digit format, and only after blur" on the client-ops example.
+
+- **Compare two fields in a show condition — `{ same: :email, case: :fold }` (#395).**
+  `button(**reactive_enable(if: { confirm_email: { same: :email, case: :fold } }))`
+  enables the button only while the two values are equal (an empty pair is
+  equal); `reactive_show(unless: { … })` shows a hint while they differ. Both
+  sides are read as strings; `case: :fold` lowercases ASCII `A-Z` only, with
+  the same explicit replace in Ruby and the client, so a non-ASCII case
+  difference stays unequal. The wire term is
+  `{ "field", "same", "fold"? }`, plus `"negate" => true` under `unless:`. The
+  `same:` name is scope-aware and must name a field the render produces: the
+  check runs when the outermost Phlex render finishes and raises
+  `ArgumentError` for an unknown name. A `case:` other than `:fold` raises at
+  render. First paint needs both fields in `reactive_values`. Works in
+  `reactive_show`, `reactive_enable`, the `"#id" => { if: … }` form of
+  `reactive_show_targets`, `reactive_on_complete` and a conditional
+  `confirm:` (only the first two check the name at render). Client: +103 B gzipped
+  in the default bundle. Docs: "Compare two fields" on the client-ops example.
+
+- **Nested checkbox groups — `reactive_select_all(group, under: "a.b")` (#398).**
+  A header with `under: "library"` owns the boxes of the name whose
+  `data-reactive-group` is `library` or below it (`library.books`; whole
+  segments, so never `libraryx`). It ticks or unticks them, dispatching
+  `input` + `change` on each one it flips, and is checked / indeterminate /
+  unchecked from them, so a parent follows its nested headers. Every leaf still
+  posts under the one name; headers have no `name` and never post;
+  `reactive_count` and `reactive_enable` keep counting the leaves. A nested
+  reactive root's boxes stay that root's own (#15). `reactive_select_all`
+  without `under:` renders the same attrs as before and still flips every box
+  of the name. A blank `under:`, or one with an empty or space-padded segment, raises at
+  render. Client: +76 B gzipped in the default bundle (+66 B in
+  `features/bindings`, the split core unchanged). Docs: "Bulk selection" on
+  the client-ops example; demo at `/nested_selection` in the dummy app.
+
+- **`reactive_media(when:)` tests the whole field (#390).** `when:` is a
+  Regexp the client tests against the whole field value before the pool
+  lookup, while the pool key stays the `take:` prefix: with `take: 3,
+  when: /\A\d{3,24}\z/`, `007bad` is pending (no pool lookup, never
+  `blank_label`: the default clears the preview and label, `pending: :keep`
+  leaves them as they are; either way `data-reactive-media-state="pending"`) and
+  `007123` hits `"007"`. It compiles with the same rules as `match:` (a
+  refused regexp raises at render, naming `when:`). `match:` still tests the
+  key only; omit `when:` and nothing changes. Client: +25 B gzipped default
+  bundle, +22 B bindings module, core unchanged.
+
 - **An image fallback that recovers — `reactive_image_fallback(hide: true, show_alt: nil)` (#383).**
   `img(**reactive_image_fallback)` marks an `<img>` whose `src` fails with
   `data-reactive-image-state="error"` and hides it; `show_alt: "#bank-name"`

@@ -17,6 +17,8 @@ module Phlex
         include Editable
         include MediaBinding
         include ImageFallbackBinding
+        include FieldReferences
+        include ShowOptions
 
         # The acting client's SSE connection id during the current action (nil
         # outside an action, or when the client isn't subscribed to a stream).
@@ -678,13 +680,19 @@ module Phlex
           conditions = options.slice(*SHOW_CONDITION_KEYS)
           disable = options.delete(:disable)
           values_override = options.delete(:values)
-          attrs = options.except(*SHOW_CONDITION_KEYS)
+          after, clear, focus, scroll = options.values_at(:after, :clear, :focus, :scroll)
+          attrs = options.except(*SHOW_CONDITION_KEYS, *SHOW_OPTION_KEYS)
 
           groups = Phlex::Reactive::ShowConditions.normalize(**conditions)
+          reference_same_fields!(:reactive_show, groups)
           data = { reactive_show: { "any" => groups }.to_json }
           data[:reactive_show_disable] = "true" if disable
+          data.merge!(show_option_data(groups, after:, clear:, focus:, scroll:))
 
           result = mix({ data: }, attrs)
+          # after: — the server never saw a blur, so the section starts hidden.
+          return result.key?(:hidden) ? result : result.merge(hidden: true) unless after.nil?
+
           apply_first_paint_hidden(result, groups, values_override)
         end
 
@@ -1382,6 +1390,10 @@ module Phlex
         # compiled by Phlex::Reactive::ShowConditions into the DNF wire. The ONE
         # vocabulary; there are no predicate kwargs any more.
         SHOW_CONDITION_KEYS = %i[if if_any unless].freeze
+
+        # reactive_show's own keywords beyond disable:/values: (ShowOptions):
+        # the after: blur gate (#396) and the visibility transitions (#394).
+        SHOW_OPTION_KEYS = %i[after clear focus scroll].freeze
 
         # The removed 0.9.5 surface (issue #180 clean break): each of these
         # kwargs — and a positional field — now raises a GUIDED error printing
