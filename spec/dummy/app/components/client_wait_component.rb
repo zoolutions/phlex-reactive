@@ -12,7 +12,7 @@ class ClientWaitComponent < ApplicationComponent
   def view_template
     div(**reactive_root) do
       input(type: "search", **mix(
-        on_client(:input, js.dispatch("cw:debounced", to: :root), debounce: 300),
+        on_client(:input, js.dispatch("cw:debounced", to: :root), debounce: 1000),
         data: { testid: "debounced" }
       ))
       input(type: "text", **mix(

@@ -25,11 +25,11 @@ RSpec.describe "on_client debounce: / throttle: (issue #393)", type: :system do
 
   it "runs a debounced op once, after the burst" do
     find("[data-testid='debounced']").send_keys("abcde")
-    # Inside the 300 ms window nothing has run yet.
+    # Inside the 1 s window nothing has run yet.
     expect(count(:debounced)).to eq(0)
 
     expect(page).to have_css("#client-wait[data-debounced='1']")
-    sleep 0.5 # past another window: no second run
+    sleep 1.2 # past another window: no second run
     expect(count(:debounced)).to eq(1)
   end
 
