@@ -8,27 +8,27 @@ gem "rake", "~> 13.0"
 
 group :development do
   gem "rubocop", "~> 1.80", require: false
-  gem "rubocop-capybara", "~> 2.21", require: false
+  gem "rubocop-capybara", "~> 3.0", require: false
   gem "rubocop-performance", "~> 1.26", require: false
   gem "rubocop-rake", "~> 0.7", require: false
   gem "rubocop-rspec", "~> 3.0", require: false
-  gem "rubocop-thread_safety", "~> 0.7", require: false
+  gem "rubocop-thread_safety", "~> 0.8", require: false
 end
 
 group :test do
   gem "conformance-kit", "~> 0.1", require: false # concurrency conformance gates (zoolutions/phlex-reactive#363)
   gem "rspec", "~> 3.0"
-  gem "rspec-rails", "~> 7.0"
+  gem "rspec-rails", ">= 7.0", "< 9"
 
   # System tests
   gem "capybara", require: false
   gem "capybara-playwright-driver", require: false
   # The Ruby client MUST track the npm playwright version pinned in bun.lock
-  # (currently 1.61.0). Gemfile.lock is committed, but keep the pin anyway: an
+  # (currently 1.64.1). Gemfile.lock is committed, but keep the pin anyway: an
   # unpinned client drifts to a newer protocol than the installed driver speaks
   # on the next `bundle update` (symptom: "timeout: expected float, got
   # undefined" on every visit). Bump this pin and bun.lock's playwright together.
-  gem "playwright-ruby-client", "~> 1.61.0", require: false
+  gem "playwright-ruby-client", "~> 1.64.0", require: false
   gem "puma", require: false
   # Falcon is the real-server fallback for the browser suite (CAPYBARA_SERVER=falcon)
   # — an async, production-grade alternative to Puma. No webrick (not a real server).

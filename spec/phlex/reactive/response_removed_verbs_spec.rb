@@ -32,15 +32,13 @@ RSpec.describe Phlex::Reactive::Response, "class verbs are removed (issue #182)"
       .to raise_error(ArgumentError, /removed|reply\.replace/)
   end
 
-  # rubocop:disable Style/ItBlockParameter -- the block param `verb` is referenced
-  # in the `it` description AND the call; `it` would shadow RSpec's own `it`.
+  # The block param `verb` is referenced in the `it` description AND the call; `it` would shadow RSpec's own `it`.
   %i[collection_append collection_prepend collection_remove].each do |verb|
     it "Response.#{verb} raises a guided error naming reply" do
       expect { described_class.public_send(verb, counter, :items, nil) }
         .to raise_error(ArgumentError, /reply\./)
     end
   end
-  # rubocop:enable Style/ItBlockParameter
 
   it "keeps Response.new as the constructor (the value object is unchanged)" do
     response = described_class.new(streams: ["<turbo-stream></turbo-stream>"])
