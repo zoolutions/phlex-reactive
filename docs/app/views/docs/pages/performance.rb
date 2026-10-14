@@ -1201,7 +1201,7 @@ module Views
             end
             DocsUI::Table(['Module', 'Gzipped', 'Default client', 'Split client'],
                           [
-                            [[:code, 'phlex/reactive/reactive_controller'], '35.5 KB',
+                            [[:code, 'phlex/reactive/reactive_controller'], '36.2 KB',
                              'When your controllers load (or at the first trigger, for a page whose only roots are dormant).',
                              'Never.'],
                             [[:code, 'phlex/reactive/core'], '17.2 KB',
@@ -1223,7 +1223,7 @@ module Views
                              'Inside the one file.',
                              [:md, 'When the first root that declares an effect connects, or when the first stream ' \
                                    'that needs it arrives: one with an effect, or with a `dismiss_after:` flash.']],
-                            [[:code, 'phlex/reactive/features/bindings'], '7.1 KB',
+                            [[:code, 'phlex/reactive/features/bindings'], '7.8 KB',
                              'Inside the one file.',
                              [:md, 'When the first root with a `reactive_show` / show targets / ' \
                                    '`reactive_on_complete` / `reactive_filter` / `reactive_tags` / `reactive_editable` / ' \
@@ -1259,11 +1259,11 @@ module Views
                           ])
             DocsUI::Prose() do
               p do
-                plain 'A page that uses none of these features downloads 18.3 KB less with the split '
+                plain 'A page that uses none of these features downloads 19.0 KB less with the split '
                 plain 'client. A page that uses every one of them downloads 8.2 KB more, in twelve requests '
                 plain 'instead of one. This is the whole split: everything that can leave the core has. '
                 plain 'The maintainer\'s target for the core was 10,240 B; the honest moves leave it at '
-                plain '17,170 B, which the budget test holds as its ratchet (and prints the target against).'
+                plain '17,178 B, which the budget test holds as its ratchet (and prints the target against).'
               end
               p do
                 plain 'The default file is laid out for gzip (issue #310). Gzip only matches text within '

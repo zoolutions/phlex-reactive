@@ -658,6 +658,74 @@ module Views
               div(**reactive_show(if: { code: { length: 6 } }))        { "ready badge" }    # exact length
               ```
 
+              **Compare two fields (`same:`, #395).** `{ same: :email }` holds
+              while the field equals another owned field, both read as strings
+              (an empty pair is equal). `case: :fold` lowercases ASCII `A-Z` only,
+              with the same explicit replace on the server and in the client, so
+              `A` and `a` match and `Ä` and `ä` do not. `unless:` turns it into
+              "while they differ":
+
+              ```ruby
+              button(**reactive_enable(if: { confirm_email: { same: :email, case: :fold } })) { "Save" }
+              p(**reactive_show(unless: { confirm_email: { same: :email, case: :fold } })) { "The addresses differ" }
+              ```
+
+              The `same:` name is scope-aware like any show field. It must name a
+              field the render produces: the check runs when the outermost render
+              finishes, so a field below the binding counts and a typo raises at
+              render. A `case:` other than `:fold` raises too.
+
+              **A digit format, and only after blur (`digits:`, `after:`, #396).**
+              `{ digits: 10, starts_with: "9" }` holds while every character is
+              `0-9`, there are exactly ten of them (or an Integer Range,
+              `digits: 9..11`) and the value starts with `"9"`. `starts_with:` is
+              digits only, so the term never becomes a pattern. `after: :blur`
+              keeps a soft hint hidden until the field has blurred once, then it
+              follows every keystroke:
+
+              ```ruby
+              input(name: "code")
+              p(**reactive_show(unless: { code: { digits: 10, starts_with: "9" } }, after: :blur)) do
+                "Enter 10 digits starting with 9"
+              end
+              ```
+
+              `after: :blur` names the condition's one field; a condition over
+              several fields names it, `after: :code`. The touched flag lives for
+              the page view: a morph keeps it, a full navigation drops it. The
+              server never saw a blur, so the hint renders hidden. A `starts_with:`
+              that is not a String of digits, or a `digits:` that is not a
+              non-negative Integer or Integer Range, raises at render.
+
+              **Clear, focus and scroll when the section changes (`clear:`,
+              `focus:`, `scroll:`, #394).** A radio that reveals a text input should
+              empty that input when the section hides, and focus it when it shows:
+
+              ```ruby
+              div(**reactive_show(if: { kind: "other" }, clear: :notes, focus: "#notes", scroll: true)) do
+                input(id: "notes", name: "notes")
+              end
+              ```
+
+              Going hidden, each `clear:` field (one name or an Array, owned and
+              scope-aware) gets `js.set_value`'s write: its `.value` becomes `""`
+              and one bubbling `input` is dispatched per field that changed, so
+              computes, dirty tracking and other shows follow. A checkbox or radio
+              is unchecked. Going visible, the first element inside the root that
+              matches `focus:` is focused, and `scroll: true` calls
+              `scrollIntoView` on the section. None of it runs on first paint: a
+              value the server rendered into a hidden section stays until the user
+              hides the section, and an already visible section neither steals
+              focus nor scrolls. The previous visibility lives on the root's
+              controller, so a morph that changes nothing does nothing, while a
+              morph whose new values flip the predicate runs the transition like
+              any other change (a `morph: true` action reply that hides the section
+              clears its fields on the client; a plain replace reconnects the root,
+              so it counts as first paint). A `clear:`
+              name the render never produced, or a file input named there, raises
+              when the outermost render completes (a fragment render, or one that
+              calls `flush`, is not checked); so does a `focus:` that is not a non-empty String.
+
               Extra HTML attrs pass through unambiguously (conditions live in `if:`),
               so `div(**reactive_show(if: { size: %w[l xl] }, class: "note"))` works.
 

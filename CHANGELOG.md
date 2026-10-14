@@ -24,9 +24,64 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   renders the initial text and visibility. `format:` other than `:ms`, an
   `until:` that is not an ISO8601 date-time with a zone (or a `Time`), and a
   `waiting:`/`done:` that is not a non-blank selector (or is `@root`) raise at
-  render. Client: a new `countdown` feature module (966 B gzipped); +635 B in
-  the default bundle, +27 B in the split core. Docs: "Counting down to a server
+  render. Client: a new `countdown` feature module (966 B gzipped); +648 B in
+  the default bundle, +25 B in the split core. Docs: "Counting down to a server
   deadline" on the client-ops example.
+
+- **Clear, focus and scroll when `reactive_show` changes visibility — `clear:`, `focus:`, `scroll:` (#394).**
+  `div(**reactive_show(if: { kind: "other" }, clear: :notes, focus: "#notes", scroll: true))`.
+  When the section goes from visible to hidden, each `clear:` field (one
+  owned, scope-aware name or an Array) gets `js.set_value`'s write — `.value`
+  becomes `""` and one bubbling `input` is dispatched per field that changed;
+  a checkbox or radio is unchecked. (A file input is rejected at render.) When it goes from
+  hidden to visible, the first element inside the root matching `focus:` is
+  focused and `scroll: true` calls `scrollIntoView` on the section. None of it
+  runs on first paint, so a value the server rendered into a hidden section
+  stays. The previous visibility is kept on the root's controller (absent on
+  connect, kept by a morph — so a `morph: true` reply that flips the predicate
+  runs it, while a plain replace reconnects the root and counts as first
+  paint). The work runs after the show pass, so the `input`
+  a clear dispatches re-syncs from fresh values. A `clear:` name the render
+  never produced, or one that names a file input, raises at render; so does a
+  `focus:` that is not a non-empty String or a `scroll:` that is not a
+  boolean. Without these keywords, a binding behaves as before (`hidden`, and
+  `disable:` if given). The
+  feature handle gains `setValue` (the runtime's `set_value` write). Client:
+  +282 B gzipped in the default bundle, +10 B in the split core.
+
+- **A digit format, and a hint that waits for blur — `{ digits: 10, starts_with: "9" }`, `after: :blur` (#396).**
+  `digits:` (a non-negative Integer or an Integer Range, counted in
+  codepoints) holds while every character is ASCII `0-9` and the count fits;
+  `starts_with:` adds a prefix that must itself be a String of digits, so the
+  term cannot become a pattern. One wire term carries `digits_eq` (or
+  `digits_gte`/`digits_lte`/`digits_lt`) plus `prefix`, and `"negate" => true`
+  under `unless:`. `reactive_show(…, after: :blur)` keeps the section hidden
+  until the condition's one field has fired `blur` once since connect
+  (`after: :code` names it when the condition has several); after that, every
+  `input` updates it at once. The touched flag lives on the root's controller:
+  a morph keeps it, a full navigation drops it. First paint is hidden unless an
+  explicit `hidden:` says otherwise. A
+  `starts_with:` that is not a String of digits, a malformed `digits:`, an
+  `after:` that is not a field of the condition, or one the render never
+  produced, raises at render. Client: +232 B gzipped in the default bundle.
+  Docs: "A digit format, and only after blur" on the client-ops example.
+
+- **Compare two fields in a show condition — `{ same: :email, case: :fold }` (#395).**
+  `button(**reactive_enable(if: { confirm_email: { same: :email, case: :fold } }))`
+  enables the button only while the two values are equal (an empty pair is
+  equal); `reactive_show(unless: { … })` shows a hint while they differ. Both
+  sides are read as strings; `case: :fold` lowercases ASCII `A-Z` only, with
+  the same explicit replace in Ruby and the client, so a non-ASCII case
+  difference stays unequal. The wire term is
+  `{ "field", "same", "fold"? }`, plus `"negate" => true` under `unless:`. The
+  `same:` name is scope-aware and must name a field the render produces: the
+  check runs when the outermost Phlex render finishes and raises
+  `ArgumentError` for an unknown name. A `case:` other than `:fold` raises at
+  render. First paint needs both fields in `reactive_values`. Works in
+  `reactive_show`, `reactive_enable`, the `"#id" => { if: … }` form of
+  `reactive_show_targets`, `reactive_on_complete` and a conditional
+  `confirm:` (only the first two check the name at render). Client: +103 B gzipped
+  in the default bundle. Docs: "Compare two fields" on the client-ops example.
 
 - **Nested checkbox groups — `reactive_select_all(group, under: "a.b")` (#398).**
   A header with `under: "library"` owns the boxes of the name whose

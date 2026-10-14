@@ -34,6 +34,7 @@ module Phlex
           attrs = options.except(*Helpers::SHOW_CONDITION_KEYS)
 
           groups = Phlex::Reactive::ShowConditions.normalize(**conditions)
+          reference_same_fields!(:reactive_enable, groups)
           result = mix({ data: { reactive_enable: { "any" => groups }.to_json } }, attrs)
           return result if result.key?(:disabled)
 
