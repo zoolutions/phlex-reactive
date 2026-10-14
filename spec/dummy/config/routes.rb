@@ -110,6 +110,7 @@ Rails.application.routes.draw do
   get "confirm" => "demos#confirm"
   get "client_op_confirm" => "demos#client_op_confirm"
   get "client_wait" => "demos#client_wait" # issue #393: on_client debounce:/throttle:
+  get "blur_menu" => "demos#blur_menu" # issue #399: js.blur
   get "conditional_confirm" => "demos#conditional_confirm"
   get "schedule_confirm" => "demos#schedule_confirm"
   get "optimistic" => "demos#optimistic"

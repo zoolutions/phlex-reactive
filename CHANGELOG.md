@@ -8,6 +8,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`js.blur(to, global: false)` (#399).** Blurs `document.activeElement` when
+  it is the target or sits inside it, so
+  `on_client("keydown.esc", js.blur("#menu"))` ends a menu's `:focus-within`;
+  focus elsewhere is left alone, and a missing target is skipped (warned
+  under `verbose_errors`/debug). Actor-only like `focus`: `broadcast_to(js:)`
+  refuses it. Client: +41 B gzipped in the default bundle, +39 B in the
+  split core.
+
 - **`on_client` takes `debounce:` and `throttle:` like `on` (#393).**
   `input(**on_client(:input, js.submit("#search"), debounce: 300))` runs the
   ops once, 300 ms after the last `input` of a burst; `throttle: 250` runs on

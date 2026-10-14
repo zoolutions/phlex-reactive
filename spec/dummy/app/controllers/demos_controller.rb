@@ -598,6 +598,12 @@ class DemosController < ActionController::Base
     render html: render_to_string(ClientWaitComponent.new, layout: false).html_safe, layout: true
   end
 
+  # Issue #399: js.blur — Escape ends a menu's :focus-within, focus outside it
+  # stays. No actions (client-op only).
+  def blur_menu
+    render html: render_to_string(BlurMenuComponent.new, layout: false).html_safe, layout: true
+  end
+
   # Issue #179: DECLARATIVE conditional confirm — the save warns only when total
   # is 0 (the reactive_show conditions language evaluated client-side).
   def conditional_confirm

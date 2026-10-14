@@ -1247,6 +1247,13 @@ const CLIENT_OPS = Object.freeze({
   // its first focusable descendant (opened-menu → first menuitem).
   focus: (el) => el.focus?.(),
   focus_first: (el) => firstFocusable(el)?.focus?.(),
+  // Issue #399: blur the focused element when it is the target or inside it
+  // (Escape ends a menu's :focus-within); focus elsewhere is left alone.
+  // ACTOR-ONLY like focus (BROADCAST_REFUSED_OPS server-side).
+  blur: (el) => {
+    const active = el.ownerDocument?.activeElement ?? globalThis.document?.activeElement
+    if (active && (active === el || el.contains?.(active))) active.blur?.()
+  },
 
   // Modal dialog ops (issue #365): HTMLDialogElement#showModal / #close.
   // ACTOR-ONLY like focus (BROADCAST_REFUSED_OPS server-side).

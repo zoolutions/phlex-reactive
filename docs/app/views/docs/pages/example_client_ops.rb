@@ -59,7 +59,7 @@ module Views
               `remove_class`/`toggle_class`, `set_attr`/`toggle_attr`/`remove_attr`
               (`toggle_attr` also flips between two values, and `show`/`hide`/`toggle`
               take `expanded:` to keep a trigger's `aria-expanded` in sync — #271),
-              `focus`/`focus_first`, `show_modal`/`close_dialog`, `copy_media`, `text`, `set_value`,
+              `focus`/`focus_first`/`blur`, `show_modal`/`close_dialog`, `copy_media`, `text`, `set_value`,
               `dispatch`, `submit`, `paste_into`, `preview_file` —
               each a local DOM mutation, with three deliberate exceptions. `submit`
               hands the form to its own native/intercepted submit path — the form
@@ -137,6 +137,12 @@ module Views
               - **Two `on_client` calls on one element** compose through `mix`: the
                 trigger binds `click` and `keydown.down`, the root binds the
                 outside click and `keydown.esc`.
+              - **`js.blur(to)`** (#399) blurs the focused element when it is the
+                target or sits inside it, and leaves focus elsewhere alone. A menu
+                shown by `:focus-within` closes on Escape only once its field loses
+                focus — hiding it is not enough:
+                `div(id: "menu", **on_client("keydown.esc", js.blur("#menu")))`.
+                Actor-only, like `focus`.
             MD
             render Views::Examples::LiveExample.new(
               component: DisclosureMenuComponent.new,
@@ -488,7 +494,7 @@ module Views
               elements** console-warns once per unique case, with a hint —
               `to: :root` / `global: true` — when the element exists but sits
               outside the op's scope (the root itself, a nested reactive root, or
-              elsewhere in the document). Production stays silent. `focus`/`focus_first`/
+              elsewhere in the document). Production stays silent. `focus`/`focus_first`/`blur`/
               `show_modal`/`close_dialog`/`submit`/`paste_into`/`preview_file`/`set_value` are allowed here (an
               actor's own gesture) but **rejected** from a broadcast — stealing focus
               in every subscriber's tab, opening a modal on every subscriber's screen,

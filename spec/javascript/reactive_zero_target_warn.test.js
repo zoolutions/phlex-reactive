@@ -125,6 +125,16 @@ test("data-reactive-verbose gates the warning on: op, selector, and root id are 
   expect(warns[0]).toContain("#tabs")
 })
 
+test("a blur whose target is missing warns under the gate (issue #399)", () => {
+  const controller = buildController(makeRoot({ attrs: VERBOSE }))
+
+  const warns = captureWarns(() => fire(controller, [["blur", { to: "#menu" }]]))
+
+  expect(warns.length).toBe(1)
+  expect(warns[0]).toContain("blur")
+  expect(warns[0]).toContain("#menu")
+})
+
 test("data-reactive-debug ALONE also gates the warning on (debug users get no less)", () => {
   const controller = buildController(makeRoot({ attrs: { "data-reactive-debug": "true" } }))
 
