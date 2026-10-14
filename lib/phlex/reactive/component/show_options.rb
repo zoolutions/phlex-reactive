@@ -15,7 +15,7 @@ module Phlex
       # clear:, focus:, scroll: (issue #394) — work the client does when the
       # section CHANGES visibility, never on first paint. Going hidden, each
       # clear: field (owned, scope-aware) is emptied with js.set_value's write
-      # (a checkbox or radio is unchecked, a file input skipped) and a bubbling
+      # (a checkbox or radio is unchecked; a file input is rejected at render) and a bubbling
       # `input` is dispatched per field that changed. Going visible, the first
       # element inside the root matching focus: is focused, and scroll: true
       # scrolls the section into view. clear: names are checked at render: an
@@ -67,7 +67,7 @@ module Phlex
               "reactive_show after: takes :blur or the name of the condition's field to wait for, got #{after.inspect}"
           end
 
-          name = after.to_s == "blur" ? show_after_single!(fields) : after.to_s
+          name = after == :blur ? show_after_single!(fields) : after.to_s
           unless fields.include?(name)
             raise ArgumentError,
               "reactive_show after: #{after.inspect} is not a field of this condition " \

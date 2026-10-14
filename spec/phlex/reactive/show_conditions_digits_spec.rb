@@ -32,10 +32,15 @@ RSpec.describe Phlex::Reactive::ShowConditions do
 
     it "raises on a starts_with: that is not a string of digits" do
       ["9a", "", " 9", 9, :nine, nil].each do
-        bad = it # a nested block's `it` is its own (nil) parameter
+        bad = it # captured: inside the nested expect { } block, `it` would be that block's own (nil) parameter
         expect { normalize(if: { code: { digits: 10, starts_with: bad } }) }
           .to raise_error(ArgumentError, /starts_with: takes a String of digits/)
       end
+    end
+
+    it "raises ArgumentError (not NoMethodError) on a non-name option key" do
+      expect { normalize(if: { code: { digits: 10, 1 => "x" } }) }.to raise_error(ArgumentError, /digits:/)
+      expect { normalize(if: { code: { same: :email, 1 => "x" } }) }.to raise_error(ArgumentError, /same:/)
     end
 
     it "raises on a digits: that is not a non-negative Integer or Integer Range" do
@@ -104,6 +109,11 @@ RSpec.describe Phlex::Reactive::ShowConditions do
         .to raise_error(ArgumentError, /after: :zip is not a field of this condition/)
       expect { instance.send(:reactive_show, if: { code: "1" }, after: 3) }
         .to raise_error(ArgumentError, /after:/)
+    end
+
+    it "reads a String after: as a field name, even one called blur" do
+      attrs = instance.send(:reactive_show, if: { blur: "1", other: "" }, after: "blur")
+      expect(attrs[:data][:reactive_show_after]).to eq("blur")
     end
 
     it "lets an explicit hidden: win" do

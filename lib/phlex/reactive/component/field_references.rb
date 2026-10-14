@@ -23,8 +23,9 @@ module Phlex
 
         # A start tag and its attributes (quoted values may hold ">").
         TAG = %r{<[a-zA-Z][\w-]*((?:\s+[^\s"'>/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'>]+))?)*)\s*/?>}
-        ATTR_NAME = /\sname\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/
-        ATTR_TYPE_FILE = %r{\stype\s*=\s*(?:"file"|'file'|file(?=[\s>/]))}i
+        # One attribute of that list, walked in order so a "name=" inside
+        # another attribute's quoted value is never read as the name.
+        ATTR = %r{\s+([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?}
 
         private
 
@@ -104,14 +105,24 @@ module Phlex
           names = Set.new
           files = Set.new
           html.scan(TAG) do
-            attrs = Regexp.last_match(1).to_s
-            next unless (match = ATTR_NAME.match(attrs))
+            attrs = tag_attributes(Regexp.last_match(1).to_s)
+            next unless (name = attrs["name"])
 
-            name = CGI.unescapeHTML(match[1] || match[2] || match[3])
             names << name
-            files << name if ATTR_TYPE_FILE.match?(attrs)
+            files << name if attrs["type"]&.casecmp?("file")
           end
           [names, files]
+        end
+
+        # A tag's attributes by lowercased name (HTML attribute names are
+        # case-insensitive); the first occurrence wins, as in the browser.
+        def tag_attributes(text)
+          attrs = {}
+          text.scan(ATTR) do |key, double, single, bare|
+            value = double || single || bare
+            attrs[key.downcase] ||= value.nil? ? "" : CGI.unescapeHTML(value)
+          end
+          attrs
         end
       end
     end

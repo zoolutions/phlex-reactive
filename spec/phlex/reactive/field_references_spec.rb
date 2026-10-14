@@ -83,6 +83,35 @@ RSpec.describe Phlex::Reactive::Component::FieldReferences do
     expect { klass.new.call }.to raise_error(ArgumentError, /after: :code names no field/)
   end
 
+  it "does not take a name= inside another attribute's value for a field" do
+    klass = build do
+      div(**reactive_root) do
+        input(placeholder: "x name=email", name: "confirm")
+        p(**reactive_show(if: { confirm: { same: :email } })) { "ok" }
+      end
+    end
+
+    expect { klass.new.call }.to raise_error(ArgumentError, /same: :email/)
+  end
+
+  it "reads an uppercase NAME= and TYPE=FILE attribute" do
+    ok = build do
+      div(**reactive_root) do
+        raw(safe('<input NAME="email">'))
+        p(**reactive_show(if: { confirm: { same: :email } })) { "ok" }
+      end
+    end
+    file = build do
+      div(**reactive_root) do
+        raw(safe('<input TYPE="FILE" NAME="doc">'))
+        p(**reactive_show(if: { kind: "x" }, clear: :doc)) { "ok" }
+      end
+    end
+
+    expect { ok.new.call }.not_to raise_error
+    expect { file.new.call }.to raise_error(ArgumentError, /file input/)
+  end
+
   it "does not check a render that flushes (the scan would miss fields above the flush)" do
     klass = build do
       div(**reactive_root) do

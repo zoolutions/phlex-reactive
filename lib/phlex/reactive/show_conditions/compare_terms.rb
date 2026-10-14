@@ -22,7 +22,7 @@ module Phlex
         # { digits: 10, starts_with: "9" } -> ONE term (a Range's bounds sit in
         # the same term, so unless: can negate the whole format at once).
         def digits_term(name, hash, negate:)
-          options = hash.transform_keys(&:to_sym)
+          options = option_keys(hash)
           if (extra = options.keys - %i[digits starts_with]).any?
             raise ArgumentError, "reactive_show: #{name.inspect} digits: takes only starts_with: (got #{extra.inspect})"
           end
@@ -50,12 +50,18 @@ module Phlex
           ok != (term["negate"] == true)
         end
 
+        # Symbol/String keys as Symbols; any other key stays as it is, so the
+        # unknown-key check names it in an ArgumentError.
+        def option_keys(hash)
+          hash.transform_keys { it.is_a?(String) || it.is_a?(Symbol) ? it.to_sym : it }
+        end
+
         # { same: :other, case: :fold } -> one term comparing this field's
         # value with another owned field's, both read as strings. The other
         # name is a bare field like any show field (the client applies
         # reactive_scope).
         def same_term(name, hash, negate:)
-          options = hash.transform_keys(&:to_sym)
+          options = option_keys(hash)
           if (extra = options.keys - %i[same case]).any?
             raise ArgumentError, "reactive_show: #{name.inspect} same: takes only case: (got #{extra.inspect})"
           end
