@@ -390,11 +390,7 @@ module Phlex
               "(declared: #{actions.keys.inspect})"
           end
 
-          if debounce && throttle
-            raise ArgumentError,
-              "on(#{action_name.inspect}) got both debounce: and throttle: — they are mutually " \
-              "exclusive (debounce is trailing-edge, throttle is leading-edge); pick one"
-          end
+          raise ArgumentError, both_waits_message("on(#{action_name.inspect})") if debounce && throttle
 
           # Guarded here, not inside: building the caller label allocates (on() is a hot path).
           shortcut = shortcut_for!("on(#{action_name.inspect})", shortcut, event:, window:, outside:) unless shortcut.nil?
@@ -471,6 +467,13 @@ module Phlex
         # no-op (no confirm, no preventDefault). Not Turbo-specific: any
         # CustomEvent whose detail carries a flag works.
         #
+        # Issue #393: `debounce:` (trailing edge) and `throttle:` (leading edge)
+        # wait the way on()'s do — non-negative Integer milliseconds, never both,
+        # on the same client timers (a blur flushes a pending debounce). once:
+        # still means one run, after the wait:
+        #   input(**on_client(:input, js.submit("#search"), debounce: 300))
+        #   div(**on_client(:scroll, js.add_class("#bar", "stuck"), window: true, throttle: 250))
+        #
         # Ops are EPHEMERAL UI: any server re-render of the component (an action
         # reply, a broadcast, a morph) rebuilds from server state and resets
         # whatever they toggled — by design (the LiveView JS-commands caveat). Use
@@ -480,7 +483,7 @@ module Phlex
         # accepted — a dead trigger should fail at render, not no-op in the
         # browser.
         def on_client(event, ops, window: false, once: false, outside: false, confirm: nil, detail: nil,
-                      shortcut: nil)
+                      shortcut: nil, debounce: nil, throttle: nil)
           unless ops.is_a?(Phlex::Reactive::JS)
             raise ArgumentError,
               "on_client expects a Phlex::Reactive::JS chain (e.g. js.toggle(\"#menu\")), " \
@@ -500,6 +503,7 @@ module Phlex
           shortcut = client_shortcut!(event, shortcut, window:, outside:)
           window_bound = window || outside || !shortcut.nil?
           record = client_binding_record(event, ops, window_bound:, outside:, once:, confirm:, detail:)
+          client_binding_wait!(record, event, debounce, throttle) unless debounce.nil? && throttle.nil?
           # The record's `on` stays the bare keydown: the client reads a key
           # filter from `on`, and `mod` is not a key.
           record["shortcut"] = shortcut.param if shortcut
@@ -1545,6 +1549,27 @@ module Phlex
           end
           record["ops"] = ops.ops
           record
+        end
+
+        # Issue #393: the one message on() and on_client() raise when given both
+        # waits. Built only on that error path (on() is a hot path).
+        def both_waits_message(label)
+          "#{label} got both debounce: and throttle: — they are mutually exclusive " \
+            "(debounce is trailing-edge, throttle is leading-edge); pick one"
+        end
+
+        # Issue #393: on_client's debounce:/throttle: ride on the binding record,
+        # validated loud at render (non-negative Integer ms, never both).
+        def client_binding_wait!(record, event, debounce, throttle)
+          label = "on_client(#{event.inspect})"
+          raise ArgumentError, both_waits_message(label) if debounce && throttle
+
+          key, ms = debounce.nil? ? ["throttle", throttle] : ["debounce", debounce]
+          unless ms.is_a?(Integer) && !ms.negative?
+            raise ArgumentError, "#{label} #{key}: must be a non-negative Integer (ms), got #{ms.inspect}"
+          end
+
+          record[key] = ms
         end
 
         # Issue #346: validate + stringify on_client's detail: filter. Loud at

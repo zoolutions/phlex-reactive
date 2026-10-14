@@ -24,9 +24,30 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   renders the initial text and visibility. `format:` other than `:ms`, an
   `until:` that is not an ISO8601 date-time with a zone (or a `Time`), and a
   `waiting:`/`done:` that is not a non-blank selector (or is `@root`) raise at
-  render. Client: a new `countdown` feature module (966 B gzipped); +641 B in
-  the default bundle, +24 B in the split core. Docs: "Counting down to a server
+  render. Client: a new `countdown` feature module (966 B gzipped); +653 B in
+  the default bundle, +31 B in the split core. Docs: "Counting down to a server
   deadline" on the client-ops example.
+
+- **`js.blur(to, global: false)` (#399).** Blurs `document.activeElement` when
+  it is the target or sits inside it, so
+  `on_client("keydown.esc", js.blur("#menu"))` ends a menu's `:focus-within`;
+  focus elsewhere is left alone, and a missing target is skipped (warned
+  under `verbose_errors`/debug). Actor-only like `focus`: `broadcast_to(js:)`
+  refuses it. Client: +41 B gzipped in the default bundle, +39 B in the
+  split core.
+
+- **`on_client` takes `debounce:` and `throttle:` like `on` (#393).**
+  `input(**on_client(:input, js.submit("#search"), debounce: 300))` runs the
+  ops once, 300 ms after the last `input` of a burst; `throttle: 250` runs on
+  the first event and drops the rest until 250 ms have passed. Non-negative
+  Integer milliseconds; both at once raise at render with `on`'s message, and
+  a negative or non-Integer value raises too. The wait rides on the binding
+  record, so mixed bindings keep their own, and the client runs it on the
+  timers `on` uses (a blur flushes a pending debounce, except on a
+  window-bound binding; disconnect clears it). `once:` still means one run,
+  after the wait. `on` is unchanged. Client: +150 B gzipped in the default
+  bundle, +127 B in the split core. Docs: "Waiting: debounce: and throttle:"
+  on the client-ops example.
 
 - **`reactive_image_fallback(wrap:)` hides the box around a broken image
   (#392).** `img(**reactive_image_fallback(hide: false, wrap: "#badge"))` hides

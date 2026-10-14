@@ -187,6 +187,27 @@ RSpec.describe Phlex::Reactive::JS do
     end
   end
 
+  # --- Issue #399: blur ---
+
+  describe "#blur" do
+    it "serializes blur with its target" do
+      expect(JSON.parse(js.blur("#menu").to_json)).to eq([["blur", { "to" => "#menu" }]])
+    end
+
+    it "accepts :root and global:" do
+      expect(JSON.parse(js.blur(:root).to_json).dig(0, 1, "to")).to eq("@root")
+      expect(JSON.parse(js.blur("#x", global: true).to_json).dig(0, 1)).to include("global" => true)
+    end
+
+    it "chains after another op" do
+      expect(js.hide("#menu").blur("#menu").ops.map(&:first)).to eq(%w[hide blur])
+    end
+
+    it "takes no keep: (it records no state)" do
+      expect { js.blur("#a", keep: true) }.to raise_error(ArgumentError, /keep/)
+    end
+  end
+
   # --- Issue #365: modal dialog ops ---
 
   describe "dialog ops (#show_modal / #close_dialog)" do
