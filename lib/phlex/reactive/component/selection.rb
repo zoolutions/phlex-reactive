@@ -46,8 +46,21 @@ module Phlex
         # flips, so computes, shows and counts re-run); its own checked /
         # indeterminate state follows the group. Give the header NO `name` —
         # it would post, and count as a member.
-        def reactive_select_all(group, **attrs)
-          mix({ data: { reactive_select_all: selection_group!(:reactive_select_all, group) } }, attrs)
+        #
+        # Nested groups (issue #398): under: "library.books" is a GROUP PATH.
+        # The header then owns only the boxes of the name whose
+        # data-reactive-group is that path or below it ("library.books.view"),
+        # so every leaf still posts under ONE name while a tree of headers
+        # ticks, unticks and goes indeterminate per branch. A header with no
+        # under: is the whole name, as before.
+        #
+        #   input(type: "checkbox", **reactive_select_all("perms[]"))                    # everything
+        #   input(type: "checkbox", **reactive_select_all("perms[]", under: "library"))  # a branch
+        #   input(type: "checkbox", name: "perms[]", value: "books", data: { reactive_group: "library" })
+        def reactive_select_all(group, under: nil, **attrs)
+          data = { reactive_select_all: selection_group!(:reactive_select_all, group) }
+          data[:reactive_select_all_under] = selection_path!(group, under) unless under.nil?
+          mix({ data: }, attrs)
         end
 
         # A text binding that shows how many owned boxes of the group are
@@ -174,6 +187,14 @@ module Phlex
                                    "(threshold) or an if:/if_any:/unless: conditions Hash, got #{condition.inspect}"
             end
           { "any" => Phlex::Reactive::ShowConditions.normalize(**conditions) }
+        end
+
+        def selection_path!(group, under)
+          path = under.to_s
+          return path unless path.strip.empty? || path.split(".", -1).any? { it.empty? || it != it.strip }
+
+          raise ArgumentError, "reactive_select_all(#{group.to_s.inspect}) under: needs a group path like " \
+                               "\"library\" or \"library.books\" (no empty or space-padded segment), got #{under.inspect}"
         end
 
         def selection_group!(helper, group)

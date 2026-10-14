@@ -111,6 +111,64 @@ RSpec.describe Phlex::Reactive::Component::Selection do
       expect { view.reactive_select_all("") }.to raise_error(ArgumentError, /group/)
       expect { view.reactive_select_all(nil) }.to raise_error(ArgumentError, /group/)
     end
+
+    context "with under: (nested groups, issue #398)" do
+      it "adds the group path the header owns, next to the wire name" do
+        expect(view.reactive_select_all("perms[]", under: "library.books"))
+          .to eq(data: { reactive_select_all: "perms[]", reactive_select_all_under: "library.books" })
+      end
+
+      it "accepts a Symbol path and mixes extra attrs" do
+        attrs = view.reactive_select_all("perms[]", under: :library, data: { testid: "lib" })
+        expect(attrs[:data]).to eq(reactive_select_all: "perms[]", reactive_select_all_under: "library", testid: "lib")
+      end
+
+      it "leaves the flat header untouched when under: is nil" do
+        expect(view.reactive_select_all("ids[]", under: nil)).to eq(data: { reactive_select_all: "ids[]" })
+      end
+
+      it "raises on an empty or blank path" do
+        expect { view.reactive_select_all("perms[]", under: "") }.to raise_error(ArgumentError, /under:/)
+        expect { view.reactive_select_all("perms[]", under: "  ") }.to raise_error(ArgumentError, /under:/)
+      end
+
+      it "raises on a path with an empty or space-padded segment" do
+        [".library", "library.", "library..books", " library", "library .books"].each do
+          path = it
+          expect { view.reactive_select_all("perms[]", under: path) }.to raise_error(ArgumentError, /under:/)
+        end
+      end
+
+      it "renders the header with no name, so it never posts" do
+        nested = Class.new(Phlex::HTML) do
+          include Phlex::Reactive::ClientBindings
+
+          def self.name = "NestedThing"
+
+          def view_template
+            div(**reactive_root) do
+              input(type: "checkbox", **reactive_select_all("perms[]", under: "library"))
+              input(type: "checkbox", name: "perms[]", value: "books", data: { reactive_group: "library" })
+            end
+          end
+        end
+        html = nested.new.call
+        expect(html).to include('<input type="checkbox" data-reactive-select-all="perms[]" ' \
+                                'data-reactive-select-all-under="library">')
+        expect(html).to include('data-reactive-group="library"')
+      end
+
+      it "raises at render for an empty path" do
+        broken = Class.new(Phlex::HTML) do
+          include Phlex::Reactive::ClientBindings
+
+          def self.name = "BrokenThing"
+
+          def view_template = input(type: "checkbox", **reactive_select_all("perms[]", under: ""))
+        end
+        expect { broken.new.call }.to raise_error(ArgumentError, /under:/)
+      end
+    end
   end
 
   describe "#reactive_count" do
