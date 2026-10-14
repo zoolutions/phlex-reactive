@@ -8,6 +8,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`js.preview_file` hides its frame and refuses a file by size or type —
+  `wrap:`, `max_bytes:`, `accept:` (#391).** `wrap: "#photo-frame"` shows that
+  element when an image is painted and hides it when the preview clears. The
+  hide is marked `data-reactive-wrap-hidden`; only a wrapper carrying the mark
+  is shown again, so a wrapper the author hid stays hidden (render the mark
+  with `hidden` to start hidden). The wrapper's text is never written. A
+  `wrap:` that is not on the page warns and is skipped. `max_bytes:` (a
+  positive Integer) refuses a larger file before `URL.createObjectURL` runs;
+  `accept: true` reads the input's `accept` attribute (extensions, MIME types,
+  `type/*`), a String is the list for this op, and omitted keeps the `image/*`
+  rule. A refused file clears the `img` and the name, hides `wrap:`, and
+  dispatches `reactive:file-rejected` (bubbling) on the input with
+  `detail.reason` `"type"` or `"size"` and `detail.file`. A non-image file
+  under today's rule now dispatches it too. The op never clears `input.files`
+  and never calls `setCustomValidity`. The op still carries no URL, and
+  `broadcast_to(js:)` still refuses it. Client: +322 B gzipped in the default
+  bundle and in the split core.
+
 - **An image fallback that recovers — `reactive_image_fallback(hide: true, show_alt: nil)` (#383).**
   `img(**reactive_image_fallback)` marks an `<img>` whose `src` fails with
   `data-reactive-image-state="error"` and hides it; `show_alt: "#bank-name"`

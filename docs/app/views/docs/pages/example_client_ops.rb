@@ -312,6 +312,42 @@ module Views
               the op's. `valid: true` on its own needs the validator to have run before the
               op on the same `change`; when that order is not certain, dispatch the event. Without `valid:`
               the op previews whatever file the input holds, as before.
+
+              **The frame, the size and the type (#391).** The box around the preview
+              should follow the file, and a file that is too big or of the wrong type
+              should never be painted:
+
+              ```ruby
+              input(type: "file", id: "photo-file", accept: "image/png,image/jpeg",
+                **on_client(:change, js.preview_file("#photo-file", into: "#photo",
+                  wrap: "#photo-frame", max_bytes: 2_000_000, accept: true)))
+              div(id: "photo-frame", hidden: true, data: { reactive_wrap_hidden: "" }) do
+                img(id: "photo", alt: "")
+              end
+              ```
+
+              - **`wrap:`** is a CSS selector (resolved like `into:`). The client shows it
+                when it paints an image and hides it when the preview clears. It marks the
+                hide with `data-reactive-wrap-hidden` and shows again **only** a wrapper
+                carrying that mark, so a wrapper the author hid stays hidden. To start
+                hidden, render the wrapper with `hidden` and the mark, as above. It only
+                toggles `hidden`: a wrapper that holds the `img` never has its text
+                written. A `wrap:` that is not on the page warns and is skipped; the
+                preview still runs.
+              - **`max_bytes:`** (a positive Integer) refuses a larger file before any
+                object URL exists.
+              - **`accept: true`** reads the input's own `accept` attribute (extensions
+                like `.png`, MIME types, `image/*`); a String such as `"image/png"` is the
+                list for this op. Omitted, or an empty attribute, keeps the `image/*` rule.
+              - A refused file clears the `img` (and the name), hides `wrap:`, and
+                dispatches **`reactive:file-rejected`** on the input, bubbling, with
+                `detail.reason` `"type"` or `"size"` and `detail.file`. The op never
+                clears `input.files` and never sets a custom validity: the page owns the
+                message and the reset.
+
+              ```js
+              input.addEventListener("reactive:file-rejected", (event) => toast(event.detail.reason))
+              ```
             MD
             DocsUI::Callout(:warning) do
               md <<~MD

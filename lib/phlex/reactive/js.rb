@@ -306,8 +306,22 @@ module Phlex
       #   op = js.preview_file("#photo-file", into: "#photo", valid: true)
       #   input(type: "file", id: "photo-file",
       #     **mix(on_client(:change, op), on_client("reactive:file-changed", op)))
+      #
+      # The box and the refusals (issue #391): `wrap:` is a CSS selector the
+      # client shows when it paints an image and hides when the preview clears
+      # (it shows again only a wrapper it hid itself, never one the author
+      # hid, and never writes its text). `max_bytes:` (a positive Integer)
+      # refuses a larger file before any object URL exists. `accept: true`
+      # reads the input's own accept attribute (extensions, MIME types,
+      # type/*); a String is that list for this op; omitted keeps the image/*
+      # rule. A refused file clears the img, hides `wrap:` and dispatches
+      # `reactive:file-rejected` on the input (detail.reason "type" | "size").
+      # The op never clears input.files nor sets a custom validity message.
+      #   input(type: "file", id: "photo-file", accept: "image/png,image/jpeg",
+      #     **on_client(:change, js.preview_file("#photo-file", into: "#photo",
+      #       wrap: "#photo-frame", max_bytes: 2_000_000, accept: true)))
 
-      def preview_file(to, into:, name: nil, global: false, valid: false)
+      def preview_file(to, into:, name: nil, global: false, valid: false, wrap: nil, max_bytes: nil, accept: nil)
         if [:root, ROOT_SENTINEL].include?(to)
           raise ArgumentError,
             "#{self.class}: preview_file reads a file input, not the component root — " \
@@ -318,6 +332,9 @@ module Phlex
         args["name"] = preview_selector(:name, name) unless name.nil?
         args["global"] = true if global
         args["valid"] = true if valid
+        args["wrap"] = preview_selector(:wrap, wrap) unless wrap.nil?
+        args["max_bytes"] = preview_max_bytes(max_bytes) unless max_bytes.nil?
+        args["accept"] = preview_accept(accept) unless accept.nil? || accept == false
         append("preview_file", args.freeze)
       end
 
@@ -525,6 +542,22 @@ module Phlex
 
         raise ArgumentError,
           "#{self.class}: preview_file #{key}: must be a CSS selector string, got #{selector.inspect}"
+      end
+
+      def preview_max_bytes(bytes)
+        return bytes if bytes.is_a?(Integer) && bytes.positive?
+
+        raise ArgumentError,
+          "#{self.class}: preview_file max_bytes: must be a positive Integer, got #{bytes.inspect}"
+      end
+
+      # true reads the input's accept attribute; a String is the list itself.
+      def preview_accept(accept)
+        return accept if accept == true || (accept.is_a?(String) && !accept.strip.empty?)
+
+        raise ArgumentError,
+          "#{self.class}: preview_file accept: must be true or an accept list " \
+          "(e.g. \"image/png,.jpg\"), got #{accept.inspect}"
       end
 
       # The [on, off] pair of a two-value toggle_attr, stringified. Loud on a

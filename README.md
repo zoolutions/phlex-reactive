@@ -1341,7 +1341,7 @@ button(**on_client(:click, js
   (a broadcast that reads every subscriber's clipboard would be hostile). The
   op is async fire-and-forget — chained siblings apply immediately, never
   waiting for the read.
-- **`preview_file(to, into:, name: nil, global: false, valid: false)`** (#375; `global: true`
+- **`preview_file(to, into:, name: nil, global: false, valid: false, wrap: nil, max_bytes: nil, accept: nil)`** (#375; `global: true`
   resolves `to`, `into:` and `name:` document-wide, for an `img` outside the
   root) paints the file a file input
   holds onto an `img` **before any upload**:
@@ -1366,6 +1366,15 @@ button(**on_client(:click, js
   cleared: `op = js.preview_file("#photo-file", into: "#photo", valid: true)`,
   `input(type: "file", id: "photo-file", **mix(on_client(:change, op),
   on_client("reactive:file-changed", op)))`.
+  **Frame, size and type (#391):** `wrap: "#photo-frame"` shows that element
+  when an image is painted and hides it when the preview clears (marked
+  `data-reactive-wrap-hidden`; only a wrapper carrying the mark is shown again,
+  and its text is never written). `max_bytes: 2_000_000` refuses a larger file
+  before any object URL exists; `accept: true` reads the input's `accept`
+  attribute (a String is the list itself; omitted keeps `image/*`). A refused
+  file clears the preview, hides `wrap:` and dispatches `reactive:file-rejected`
+  on the input with `detail.reason` `"type"` or `"size"`; `input.files` and the
+  validity are left alone.
 - **`expanded:`** on `show`/`hide`/`toggle` (#271) keeps a disclosure trigger's
   `aria-expanded` honest: `js.toggle("#menu", expanded: "#trigger")` writes the
   op's **intended** state (`show` → `"true"`, `hide` → `"false"`, `toggle` → the

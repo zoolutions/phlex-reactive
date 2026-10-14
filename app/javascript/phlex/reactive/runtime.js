@@ -436,6 +436,26 @@ const IMAGE_STATE = "data-reactive-image-state"
 const IMAGE_HIDDEN = "data-reactive-image-hidden"
 let imageFallbackListeners = null
 
+// --- A wrapper an op hides (issues #391, #392) -------------------------------
+// preview_file's wrap: and reactive_image_fallback's wrap: hide the box around
+// an img. The mark says the runtime set that `hidden`, so a show removes only
+// a hide of its own, never one the author wrote. On the element, for the
+// IMAGE_HIDDEN reason. Visibility only: a wrapper usually holds the img, so
+// nothing here writes its text.
+const WRAP_HIDDEN = "data-reactive-wrap-hidden"
+
+function hideWrap(el) {
+  if (el.hasAttribute("hidden")) return
+  el.setAttribute("hidden", "")
+  el.setAttribute(WRAP_HIDDEN, "")
+}
+
+function showWrap(el) {
+  if (!el.hasAttribute(WRAP_HIDDEN)) return
+  el.removeAttribute("hidden")
+  el.removeAttribute(WRAP_HIDDEN)
+}
+
 function imageFallback(img) {
   if (img?.localName !== "img") return null
   const raw = img.getAttribute(IMAGE_FALLBACK)
@@ -1429,8 +1449,16 @@ function previewFile(input, args, resolveTargets) {
   // valid: true (issue #382): an input the app marked invalid (setCustomValidity,
   // required) previews as empty. validity.valid, not checkValidity(): no
   // `invalid` event fired into the app's own listeners.
-  const files = args.valid === true && input.validity?.valid === false ? [] : (input.files ?? [])
-  const file = [...files].find((f) => typeof f?.type === "string" && f.type.startsWith("image/"))
+  const files = [...(args.valid === true && input.validity?.valid === false ? [] : (input.files ?? []))]
+  const accepts = previewAccepts(input, args.accept)
+  let file = files.find((f) => typeof f?.type === "string" && accepts(f))
+  // A refused file (issue #391) clears like an empty pick and says why. The
+  // input keeps its files and its validity: the page owns the reset. Size is
+  // read BEFORE an object URL exists, so an over-size file never gets one.
+  let reason = files.length > 0 && !file ? "type" : null
+  if (file && Number.isInteger(args.max_bytes) && file.size > args.max_bytes) reason = "size"
+  const refused = reason === "size" ? file : files[0]
+  if (reason) file = null
   forgetPreview(img)
   if (file) {
     const url = URL.createObjectURL(file)
@@ -1439,8 +1467,40 @@ function previewFile(input, args, resolveTargets) {
     watchPreviews()
   } else img.removeAttribute("src")
   resetImage(img)
-  if (args.name == null) return
-  for (const node of resolveTargets({ ...args, to: args.name })) node.textContent = file ? file.name : ""
+  if (args.wrap != null) {
+    const wraps = resolveTargets({ ...args, to: args.wrap })
+    if (wraps.length === 0) warnPreview(`wrap: ${JSON.stringify(args.wrap)} is not on the page`)
+    for (const wrap of wraps) file ? showWrap(wrap) : hideWrap(wrap)
+  }
+  if (args.name != null) {
+    for (const node of resolveTargets({ ...args, to: args.name })) node.textContent = file ? file.name : ""
+  }
+  if (reason) {
+    input.dispatchEvent(new CustomEvent("reactive:file-rejected", { bubbles: true, detail: { reason, file: refused } }))
+  }
+}
+
+// Which files preview_file keeps: an image by default. accept: true reads the
+// input's own accept attribute; a string is that list for this op. A token is
+// an extension (".png"), a MIME type or a type/* wildcard, the browser's own
+// accept grammar. An absent or empty list keeps the image rule.
+function previewAccepts(input, accept) {
+  const tokens = String((accept === true ? input.getAttribute("accept") : typeof accept === "string" && accept) || "")
+    .toLowerCase()
+    .split(",")
+    .map((token) => token.trim())
+    .filter(Boolean)
+  if (tokens.length === 0) return (f) => f.type.startsWith("image/")
+  return (f) => {
+    const type = f.type.toLowerCase()
+    return tokens.some((token) =>
+      token[0] === "."
+        ? String(f.name).toLowerCase().endsWith(token)
+        : token.endsWith("/*")
+          ? type.startsWith(token.slice(0, -1))
+          : type === token,
+    )
+  }
 }
 
 function warnPreview(why) {
