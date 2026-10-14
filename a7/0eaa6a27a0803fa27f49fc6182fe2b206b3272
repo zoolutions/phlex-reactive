@@ -1,0 +1,21 @@
+spec/system/code_complete_spec.rb
+  s_b2ece0bcc7f2d2::t_3b80da7e52f947 50-52,54
+lib/phlex/reactive/response.rb
+  s_b2ece0bcc7f2d2::t_bd28b55ea7be64 45-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "a70eaa6a27a0803fa27f49fc6182fe2b206b3272",
+  "prompts": {},
+  "sessions": {
+    "s_b2ece0bcc7f2d2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "13a3aeb5-4968-425a-a858-ce46384a2ff4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
