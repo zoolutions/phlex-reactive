@@ -386,8 +386,8 @@ module Views
               puts the deadline on the element and the client counts it:
 
               ```ruby
-              span(**reactive_countdown(until: deadline.iso8601, format: :ms,
-                                        waiting: "#wait", done: "#done")) { "2:00" }
+              span(id: "otp-clock", **reactive_countdown(until: deadline.iso8601, format: :ms,
+                                                          waiting: "#wait", done: "#done")) { "2:00" }
               div(id: "wait") { "Waiting" }
               div(id: "done", hidden: true) { "Finished" }
               ```
@@ -407,7 +407,13 @@ module Views
                 deadline). The timer stops.
               - **Once per deadline.** A morph or replace that keeps `until:` paints the
                 done state again without a second event. One that changes `until:`
-                counts down again, and fires again at its zero.
+                counts down again, and fires again at its zero. "Once" is remembered
+                for the life of the document, per root, countdown and deadline (so a
+                Turbo visit back to a page whose deadline already fired does not fire
+                again). Give the countdown an `id` when its root holds more than one:
+                without one it is known by its position in the root.
+              - **While it runs** the client keeps `waiting:` shown and `done:` hidden
+                (it writes `hidden` only when it differs).
               - **No request, no reload.** The event is the hook: the page decides what
                 to fetch, e.g. `on_client("reactive:countdown-done", js.dispatch(…))` or
                 an `on(:expired, event: "reactive:countdown-done")` action.

@@ -18,12 +18,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `data-reactive-countdown-state` is `done`, `waiting:` hides, `done:` shows and
   the element dispatches `reactive:countdown-done` once per deadline: a morph
   or replace that keeps `until:` repaints the done state without a second
-  event, one that changes it counts down again. Timers are cleared on
+  event, one that changes it counts down again ("once" is remembered per
+  root, countdown id or position, and deadline for the life of the document). Timers are cleared on
   disconnect. No request and no frame reload: the event is the hook. The server
   renders the initial text and visibility. `format:` other than `:ms`, an
   `until:` that is not an ISO8601 date-time with a zone (or a `Time`), and a
   `waiting:`/`done:` that is not a non-blank selector (or is `@root`) raise at
-  render. Client: a new `countdown` feature module (908 B gzipped); +568 B in
+  render. Client: a new `countdown` feature module (915 B gzipped); +573 B in
   the default bundle, +27 B in the split core. Docs: "Counting down to a server
   deadline" on the client-ops example.
 

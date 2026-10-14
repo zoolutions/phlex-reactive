@@ -302,6 +302,22 @@ test("an unparseable deadline is left alone", () => {
   expect(jest.getTimerCount()).toBe(0)
 })
 
+test("a waiting:/done: that is not valid CSS is ignored; the clock still runs and finishes", () => {
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    `<div id="badsel" data-controller="reactive" data-reactive-token-value="t">
+       <span id="badsel-c" data-reactive-countdown="${attr({ until: iso(2), waiting: "[[", done: "##" })}">x</span>
+     </div>`,
+  )
+  const events = []
+  document.getElementById("badsel").addEventListener("reactive:countdown-done", (event) => events.push(event))
+  connect(document.getElementById("badsel"))
+  expect(document.getElementById("badsel-c").textContent).toBe("0:02")
+  jest.advanceTimersByTime(2000)
+  expect(document.getElementById("badsel-c").textContent).toBe("0:00")
+  expect(events).toHaveLength(1)
+})
+
 test("the countdown never requests the network", () => {
   const { root } = mount({ until: iso(2) })
   connect(root)

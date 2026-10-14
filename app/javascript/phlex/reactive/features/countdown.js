@@ -67,8 +67,12 @@ export function connect(controller, core) {
     el.dispatchEvent(new CustomEvent("reactive:countdown-done", { bubbles: true, detail: { until: wire.until } }))
   }
 
+  // A selector that is not valid CSS is ignored, never a stopped clock.
   const show = (selector, visible) => {
-    const node = selector && root.querySelector(selector)
+    let node
+    try {
+      node = selector && root.querySelector(selector)
+    } catch {}
     if (node && node.hidden === visible) node.hidden = !visible
   }
 
@@ -76,6 +80,8 @@ export function connect(controller, core) {
   // deadline, written the server's text back, or removed a countdown.
   const sync = () => {
     queued = false
+    // A morph that also removed the root: disconnect ran first.
+    if (!wired.has(controller)) return
     const seen = new Set()
     const els = [...(root.matches(`[${MARK}]`) ? [root] : []), ...root.querySelectorAll(`[${MARK}]`)]
     els.forEach((el, index) => {

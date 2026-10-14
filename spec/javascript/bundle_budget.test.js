@@ -161,8 +161,8 @@ const SLACK = 250
 // 582 B on #381; on top of #382, 584 B (34,606 B); on top of #380, 586 B: 34,760 B;
 // ignoring a stale sweep decode(), 11 B: 34,771 B.
 // Issue #400 (countdown: a NEW feature module — the Date.now tick, the wake
-// re-sync, the once-per-deadline event — plus the runtime's marker) adds 568 B: 35,339 B.
-const BUNDLE_GZIP_CEILING = 35_339
+// re-sync, the once-per-deadline event, ignoring a bad selector — plus the runtime's marker) adds 573 B: 35,344 B.
+const BUNDLE_GZIP_CEILING = 35_344
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -251,8 +251,8 @@ const FEATURE_GZIP_CEILINGS = {
   // fixes (the late-defined source, the re-announce, the root seat list) take it to 1,353 B;
   // on pgbus 0.18 the re-announce becomes one check: 1,297 B; logging a failed announce: 1,362 B.
   "features/presence": 1_362,
-  // Issue #400: countdown, 908 B.
-  "features/countdown": 908,
+  // Issue #400: countdown, 915 B.
+  "features/countdown": 915,
 }
 // Phase 5: 12,383 B core + 5,360 + 2,846 + 2,084 + 1,024 + 1,693 + 3,210 + 1,015 + 1,589 B of
 // features = 31,204 B. Issue #305 (the default entry's static path) costs the
@@ -306,8 +306,8 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #383 (reactive_image_fallback, in the core) adds 546 B on #381; on top of
 // #382 (42,446 B) and #380, 546 B: 42,598 B; ignoring a stale sweep decode(),
 // 4 B: 42,602 B.
-// Issue #400 (the countdown feature module, 908 B, plus 27 B in the core) adds 935 B: 43,537 B.
-const SPLIT_TOTAL_GZIP_CEILING = 43_537
+// Issue #400 (the countdown feature module, 915 B, plus 27 B in the core) adds 942 B: 43,544 B.
+const SPLIT_TOTAL_GZIP_CEILING = 43_544
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 
