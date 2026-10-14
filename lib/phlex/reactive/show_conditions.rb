@@ -199,20 +199,27 @@ module Phlex
       # --- Hash values: same: (#395, in CompareTerms) or a count -------------
 
       def hash_terms(name, hash)
-        return [same_term(name, hash, negate: false)] if same_hash?(hash)
-
-        count_terms(name, hash)
+        case hash_kind(hash)
+        when :same then [same_term(name, hash, negate: false)]
+        when :digits then [digits_term(name, hash, negate: false)]
+        else count_terms(name, hash)
+        end
       end
 
       # The complement under unless: — a list of alternative term-lists.
       def hash_complement(name, hash)
-        return [[same_term(name, hash, negate: true)]] if same_hash?(hash)
-
-        count_complement(name, hash)
+        case hash_kind(hash)
+        when :same then [[same_term(name, hash, negate: true)]]
+        when :digits then [[digits_term(name, hash, negate: true)]]
+        else count_complement(name, hash)
+        end
       end
 
-      def same_hash?(hash)
-        hash.key?(:same) || hash.key?("same")
+      def hash_kind(hash)
+        keys = hash.keys.map(&:to_s)
+        if keys.include?("same") then :same
+        elsif keys.include?("digits") || keys.include?("starts_with") then :digits
+        end
       end
 
       # --- the count predicates: length: (#226) and checked: (#319) ---------
@@ -358,6 +365,7 @@ module Phlex
         value = values.fetch(field, "")
 
         if term.key?("same") then same_matches?(term, value, values)
+        elsif CompareTerms::DIGITS_KEYS.any? { term.key?(it) } then digits_matches?(term, value)
         elsif term.key?("equals") then value == term["equals"]
         elsif term.key?("not") then value != term["not"]
         elsif term.key?("in") then term["in"].include?(value)
@@ -375,7 +383,7 @@ module Phlex
       def count_matches?(key, literal, count)
         return false unless literal.is_a?(Integer)
 
-        case key.delete_prefix("len_").delete_prefix("checked_")
+        case key.split("_", 2).last
         when "eq" then count == literal
         when "gte" then count >= literal
         when "gt" then count > literal

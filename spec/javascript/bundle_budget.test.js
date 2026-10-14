@@ -161,7 +161,8 @@ const SLACK = 250
 // 582 B on #381; on top of #382, 584 B (34,606 B); on top of #380, 586 B: 34,760 B;
 // ignoring a stale sweep decode(), 11 B: 34,771 B.
 // Issue #395 (the same: show term, in bindings) adds 103 B: 34,874 B.
-const BUNDLE_GZIP_CEILING = 34_874
+// Issue #396 (the digits: term and the after: blur gate, in bindings) adds 232 B: 35,106 B.
+const BUNDLE_GZIP_CEILING = 35_106
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -230,7 +231,8 @@ const FEATURE_GZIP_CEILINGS = {
   // code point, 6,895 B.
   // Issue #380 (the pending state, match:, pending: keep, data-reactive-media-state) to 7,047 B.
   // Issue #395 (the same: term and its ASCII fold) to 7,144 B.
-  "features/bindings": 7_144,
+  // Issue #396 (the digits: term and the after: blur gate) to 7,362 B.
+  "features/bindings": 7_362,
   // Issue #336 (render a defer reply now) takes it from 2,845 B to 2,974 B.
   "features/defer": 2_974,
   "features/compute": 2_050,
@@ -304,7 +306,8 @@ const FEATURE_GZIP_CEILINGS = {
 // #382 (42,446 B) and #380, 546 B: 42,598 B; ignoring a stale sweep decode(),
 // 4 B: 42,602 B.
 // Issue #395 (the same: show term, in bindings) adds 97 B: 42,699 B.
-const SPLIT_TOTAL_GZIP_CEILING = 42_699
+// Issue #396 (the digits: term and the after: blur gate, in bindings) adds 218 B: 42,917 B.
+const SPLIT_TOTAL_GZIP_CEILING = 42_917
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

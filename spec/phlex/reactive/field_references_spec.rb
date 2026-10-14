@@ -75,6 +75,14 @@ RSpec.describe Phlex::Reactive::Component::FieldReferences do
     expect { klass.new.call }.not_to raise_error
   end
 
+  it "raises at render when after: waits for a field the render never produced (issue #396)" do
+    klass = build do
+      div(**reactive_root) { p(**reactive_show(unless: { code: { digits: 10 } }, after: :blur)) { "bad" } }
+    end
+
+    expect { klass.new.call }.to raise_error(ArgumentError, /after: :code names no field/)
+  end
+
   it "does not check a helper called outside a render (no buffer to read)" do
     klass = build { div }
 

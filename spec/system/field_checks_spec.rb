@@ -27,4 +27,23 @@ RSpec.describe "Field checks (issues #394-#396)", type: :system do
       expect(page).to have_css(tid("differ"), visible: :hidden)
     end
   end
+
+  describe "digits: + after: :blur (issue #396)" do
+    it "keeps the hint hidden while typing, shows it on blur, then tracks every input" do
+      code = find(tid("code"))
+      code.fill_in(with: "12")
+      expect(page).to have_css(tid("code-hint"), visible: :hidden)
+
+      find(tid("email")).click # blur the code field
+      expect(page).to have_css(tid("code-hint"), text: "Enter 10 digits")
+
+      code.fill_in(with: "9123456789")
+      expect(page).to have_css(tid("code-hint"), visible: :hidden)
+      expect(page).to have_css(tid("code-ok"), text: "Looks like a code")
+
+      code.fill_in(with: "912345678a")
+      expect(page).to have_css(tid("code-hint"), text: "Enter 10 digits")
+      expect(page).to have_css(tid("code-ok"), visible: :hidden)
+    end
+  end
 end

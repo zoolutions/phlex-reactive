@@ -18,6 +18,7 @@ module Phlex
         include MediaBinding
         include ImageFallbackBinding
         include FieldReferences
+        include ShowOptions
 
         # The acting client's SSE connection id during the current action (nil
         # outside an action, or when the client isn't subscribed to a stream).
@@ -675,14 +676,19 @@ module Phlex
           conditions = options.slice(*SHOW_CONDITION_KEYS)
           disable = options.delete(:disable)
           values_override = options.delete(:values)
+          after = options.delete(:after)
           attrs = options.except(*SHOW_CONDITION_KEYS)
 
           groups = Phlex::Reactive::ShowConditions.normalize(**conditions)
           reference_same_fields!(:reactive_show, groups)
           data = { reactive_show: { "any" => groups }.to_json }
           data[:reactive_show_disable] = "true" if disable
+          data.merge!(show_option_data(groups, after:))
 
           result = mix({ data: }, attrs)
+          # after: — the server never saw a blur, so the section starts hidden.
+          return result.key?(:hidden) ? result : result.merge(hidden: true) unless after.nil?
+
           apply_first_paint_hidden(result, groups, values_override)
         end
 

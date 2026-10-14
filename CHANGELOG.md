@@ -8,6 +8,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **A digit format, and a hint that waits for blur — `{ digits: 10, starts_with: "9" }`, `after: :blur` (#396).**
+  `digits:` (a non-negative Integer or an Integer Range, counted in
+  codepoints) holds while every character is ASCII `0-9` and the count fits;
+  `starts_with:` adds a prefix that must itself be a String of digits, so the
+  term cannot become a pattern. One wire term carries `digits_eq` (or
+  `digits_gte`/`digits_lte`/`digits_lt`) plus `prefix`, and `"negate" => true`
+  under `unless:`. `reactive_show(…, after: :blur)` keeps the section hidden
+  until the condition's one field has fired `blur` once since connect
+  (`after: :code` names it when the condition has several); after that, every
+  `input` updates it at once. The touched flag lives on the root's controller:
+  a morph keeps it, a full navigation drops it. First paint is hidden. A
+  `starts_with:` that is not a String of digits, a malformed `digits:`, an
+  `after:` that is not a field of the condition, or one the render never
+  produced, raises at render. Client: +232 B gzipped in the default bundle.
+  Docs: "A digit format, and only after blur" on the client-ops example.
+
 - **Compare two fields in a show condition — `{ same: :email, case: :fold }` (#395).**
   `button(**reactive_enable(if: { confirm_email: { same: :email, case: :fold } }))`
   enables the button only while the two values are equal (an empty pair is

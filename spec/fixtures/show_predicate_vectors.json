@@ -387,6 +387,78 @@
       "groups": [[{ "field": "confirm", "same": "email", "fold": true, "negate": true }]],
       "values": { "confirm": "a@x.test", "email": "A@X.TEST" },
       "expect": false
+    },
+    {
+      "name": "digits: 10 digits starting with 9 match (issue #396)",
+      "groups": [[{"field": "code", "digits_eq": 10, "prefix": "9"}]],
+      "values": {"code": "9123456789"},
+      "expect": true
+    },
+    {
+      "name": "digits: a wrong prefix fails",
+      "groups": [[{"field": "code", "digits_eq": 10, "prefix": "9"}]],
+      "values": {"code": "8123456789"},
+      "expect": false
+    },
+    {
+      "name": "digits: one digit short fails",
+      "groups": [[{"field": "code", "digits_eq": 10, "prefix": "9"}]],
+      "values": {"code": "912345678"},
+      "expect": false
+    },
+    {
+      "name": "digits: a letter fails",
+      "groups": [[{"field": "code", "digits_eq": 10, "prefix": "9"}]],
+      "values": {"code": "912345678a"},
+      "expect": false
+    },
+    {
+      "name": "digits: a range matches its upper bound",
+      "groups": [[{"field": "code", "digits_gte": 9, "digits_lte": 11}]],
+      "values": {"code": "12345678901"},
+      "expect": true
+    },
+    {
+      "name": "digits: a range rejects letters of the right length",
+      "groups": [[{"field": "code", "digits_gte": 9, "digits_lte": 11}]],
+      "values": {"code": "abcdefghij"},
+      "expect": false
+    },
+    {
+      "name": "digits: a range rejects one past its exclusive end",
+      "groups": [[{"field": "code", "digits_gte": 2, "digits_lt": 4}]],
+      "values": {"code": "1234"},
+      "expect": false
+    },
+    {
+      "name": "digits: a non-ASCII digit is not a digit",
+      "groups": [[{"field": "code", "digits_eq": 1}]],
+      "values": {"code": "\u0663"},
+      "expect": false
+    },
+    {
+      "name": "digits: blank matches a zero count",
+      "groups": [[{"field": "code", "digits_eq": 0}]],
+      "values": {"code": ""},
+      "expect": true
+    },
+    {
+      "name": "digits: negate shows while the format fails",
+      "groups": [[{"field": "code", "digits_eq": 10, "prefix": "9", "negate": true}]],
+      "values": {"code": "912"},
+      "expect": true
+    },
+    {
+      "name": "digits: negate hides once the format holds",
+      "groups": [[{"field": "code", "digits_eq": 10, "prefix": "9", "negate": true}]],
+      "values": {"code": "9123456789"},
+      "expect": false
+    },
+    {
+      "name": "digits: a malformed literal is false even negated",
+      "groups": [[{"field": "code", "digits_eq": "10", "negate": true}]],
+      "values": {"code": "12"},
+      "expect": false
     }
   ]
 }

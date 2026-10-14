@@ -1581,6 +1581,11 @@ end
   (`{ confirm_email: { same: :email, case: :fold } }`); `case: :fold`
   lowercases ASCII `A-Z` only, on the server and in the client, and a `same:`
   name no element of the render carries raises at render.
+  **`{ digits: 10, starts_with: "9" }` is a closed digit format** — ASCII
+  `0-9` only, an exact count or an Integer Range (`digits: 9..11`), an
+  optional digit prefix. Pair it with **`after: :blur`** (or `after: :code`
+  for a multi-field condition) to keep a soft hint hidden until the field has
+  blurred once.
   `unless:` **negates** and composes with `if:`.
   Never an expression — every term is a declared literal, so there is no eval
   surface. A blank/non-numeric value fails a numeric term **closed** (hidden).

@@ -606,6 +606,28 @@ module Views
               finishes, so a field below the binding counts and a typo raises at
               render. A `case:` other than `:fold` raises too.
 
+              **A digit format, and only after blur (`digits:`, `after:`, #396).**
+              `{ digits: 10, starts_with: "9" }` holds while every character is
+              `0-9`, there are exactly ten of them (or an Integer Range,
+              `digits: 9..11`) and the value starts with `"9"`. `starts_with:` is
+              digits only, so the term never becomes a pattern. `after: :blur`
+              keeps a soft hint hidden until the field has blurred once, then it
+              follows every keystroke:
+
+              ```ruby
+              input(name: "code")
+              p(**reactive_show(unless: { code: { digits: 10, starts_with: "9" } }, after: :blur)) do
+                "Enter 10 digits starting with 9"
+              end
+              ```
+
+              `after: :blur` names the condition's one field; a condition over
+              several fields names it, `after: :code`. The touched flag lives for
+              the page view: a morph keeps it, a full navigation drops it. The
+              server never saw a blur, so the hint renders hidden. A `starts_with:`
+              that is not a String of digits, or a `digits:` that is not a
+              non-negative Integer or Integer Range, raises at render.
+
               Extra HTML attrs pass through unambiguously (conditions live in `if:`),
               so `div(**reactive_show(if: { size: %w[l xl] }, class: "note"))` works.
 

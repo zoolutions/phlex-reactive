@@ -103,6 +103,15 @@ export function connect(controller, core) {
         syncShow(c)
       }
       listen(c, "input change", c.show)
+      // The after: gate (issue #396): an owned field's first blur marks its
+      // name touched for this controller (a morph keeps it, a new one starts
+      // without), and re-syncs once if a binding waits on a blur.
+      listen(c, "focusout", (event) => {
+        const name = event.target?.getAttribute?.("name")
+        if (!name || c.touched?.has(name) || !c.core.owns(event.target)) return
+        ;(c.touched ??= new Set()).add(name)
+        if (c.root.querySelector?.("[data-reactive-show-after]")) syncShow(c)
+      })
       seed(c, c.show)
     }
 
@@ -450,7 +459,9 @@ function syncShow(c) {
     const payloadRaw = el.getAttribute("data-reactive-show")
     if (payloadRaw !== null) {
       const match = showPayloadMatches(parseShowCompound(payloadRaw), fieldValue)
-      if (match !== null) applyShowVisibility(el, match, owns, scope)
+      // after: (issue #396) keeps it hidden until its field has blurred once.
+      const after = el.getAttribute("data-reactive-show-after")
+      if (match !== null) applyShowVisibility(el, match && (after == null || !!c.touched?.has(wireName(after, scope))), owns, scope)
       continue
     }
 
@@ -618,7 +629,11 @@ function showFieldValue(c, name, owns, scope) {
 // "form"` resolves as `[name="form[director]"]`. A name already carrying a
 // bracket (a raw wire name the author passed, like "ids[]") is used verbatim.
 function namedSelector(name, scope) {
-  return `[name="${scope && !name.includes("[") ? `${scope}[${name}]` : name}"]`
+  return `[name="${wireName(name, scope)}"]`
+}
+
+function wireName(name, scope) {
+  return scope && !name.includes("[") ? `${scope}[${name}]` : name
 }
 
 // The per-pass field resolver every DNF fold reads (show, enable, on-complete).
@@ -1487,6 +1502,9 @@ const SHOW_LENGTH_KEYS = ["len_eq", "len_gte", "len_gt", "len_lte", "len_lt"]
 // ShowConditions::CHECKED_KEYS: how many owned boxes of a group are ticked.
 const SHOW_CHECKED_KEYS = ["checked_eq", "checked_gte", "checked_gt", "checked_lte", "checked_lt"]
 
+// The digit-count keys (issue #396) — Ruby's CompareTerms::DIGITS_KEYS.
+const SHOW_DIGITS_KEYS = ["digits_eq", "digits_gte", "digits_lt", "digits_lte"]
+
 // Evaluate one count predicate (len_* or checked_*). A count is a TOTAL
 // function (blank/absent → 0), so every field value is decidable — no
 // fail-closed special case like the numeric thresholds ({ length: 0 }
@@ -1595,6 +1613,16 @@ function dnfTermMatches(term, fieldValue) {
       return term.fold === true ? v.replace(/[A-Z]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) + 32)) : v
     }
     return (read(term.field) === read(term.same)) !== (term.negate === true)
+  }
+  // A digits: term (issue #396): ASCII digits only, the count within every
+  // digits_* bound, and the optional prefix; negate flips it. A malformed
+  // literal is false either way (fail-closed, like Ruby).
+  const digits = SHOW_DIGITS_KEYS.filter((key) => key in term)
+  if (digits.length) {
+    const v = String(fieldValue(term.field) ?? "")
+    if (!digits.every((key) => Number.isInteger(term[key])) || (term.prefix != null && typeof term.prefix !== "string")) return false
+    const ok = /^[0-9]*$/.test(v) && digits.every((key) => countPredicateMatches(key, term[key], v.length)) && v.startsWith(term.prefix ?? "")
+    return ok !== (term.negate === true)
   }
   // An absent owned field reads as "" — identical to the server evaluator
   // (ShowConditions.match? treats a missing field as blank). This keeps the
