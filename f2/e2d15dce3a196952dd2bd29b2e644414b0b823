@@ -1,0 +1,53 @@
+app/javascript/phlex/reactive/core.min.js.map
+  ai_agent 5,8-9
+spec/dummy/app/components/image_fallback_component.rb
+  s_a62bd6a6b1570e::t_75b34859a1cf34 42
+  s_a62bd6a6b1570e::t_4c0d45d2b28346 79-93
+app/javascript/phlex/reactive/core.min.js
+  ai_agent 1,5-6,8
+spec/javascript/bundle_budget.test.js
+  s_a62bd6a6b1570e::t_c20b0d3f29dce8 165,221,309-310
+  s_a62bd6a6b1570e::t_6cf6a36b4cef52 164,220
+README.md
+  s_a62bd6a6b1570e::t_8f28bc3dab0110 693
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,5-6,8
+app/javascript/phlex/reactive/runtime.js
+  s_a62bd6a6b1570e::t_c0541690e4c20e 474-475,477,483-488,495-499
+  s_a62bd6a6b1570e::t_c31cec2ba659e4 516-517
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,5-6,8
+spec/phlex/reactive/image_fallback_binding_spec.rb
+  s_a62bd6a6b1570e::t_0d8a6574473020 43-49,85-95
+spec/system/image_fallback_wrap_spec.rb
+  s_a62bd6a6b1570e::t_8fe09c0b356e84 1-40
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 5,18-19
+spec/javascript/reactive_image_fallback_wrap.test.js
+  s_a62bd6a6b1570e::t_e0cddaeabde262 1-189
+CHANGELOG.md
+  s_a62bd6a6b1570e::t_92f04ba0f79e00 11-23
+docs/app/views/docs/pages/example_client_ops.rb
+  s_a62bd6a6b1570e::t_23f3e7b8865973 411-430
+lib/phlex/reactive/component/image_fallback_binding.rb
+  s_a62bd6a6b1570e::t_695bf92f9a3bec 24-35,38,40-41
+  s_a62bd6a6b1570e::t_506230a751516f 54,57,62
+spec/dummy/public/vendor/core.js
+  ai_agent 1,5-6,8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f2e2d15dce3a196952dd2bd29b2e644414b0b823",
+  "prompts": {},
+  "sessions": {
+    "s_a62bd6a6b1570e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e652d418-f8d6-49e4-95fb-309bf7b07f3d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
