@@ -12,39 +12,39 @@
 
 ActiveRecord::Schema[8.1].define(version: 2026_10_12_000000) do
   create_table "cards", force: :cascade do |t|
-    t.datetime "created_at", null: false
+    t.string "title", null: false
     t.string "lane", default: "todo", null: false
     t.integer "position", default: 0, null: false
-    t.string "title", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
   end
 
   create_table "chat_messages", force: :cascade do |t|
+    t.string "room", default: "lobby", null: false
     t.string "author", default: "anon", null: false
     t.text "body", null: false
     t.datetime "created_at", null: false
-    t.string "room", default: "lobby", null: false
     t.datetime "updated_at", null: false
   end
 
   create_table "inbox_messages", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.boolean "read", default: false, null: false
-    t.string "sender", default: "system", null: false
     t.string "subject", null: false
+    t.string "sender", default: "system", null: false
+    t.boolean "read", default: false, null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
   end
 
   create_table "notifications", force: :cascade do |t|
-    t.datetime "created_at", null: false
     t.string "title", null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
   end
 
   create_table "todos", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.boolean "done", default: false, null: false
     t.string "title", null: false
+    t.boolean "done", default: false, null: false
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
   end
 end

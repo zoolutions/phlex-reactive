@@ -23,6 +23,7 @@ module Views
           media_previews
           preview_file
           image_fallback
+          countdown
           kept_ops
           ops
           value_conditional
@@ -372,6 +373,51 @@ module Views
               - The client listens once on the document (`error` and `load` do not
                 bubble, so it listens in the capture phase): nothing runs per root at
                 connect.
+            MD
+          end
+        end
+
+        def countdown
+          DocsUI::Section('Counting down to a server deadline') do
+            md <<~MD
+              A one-time code that expires, a lock that lifts, an auction that closes: the
+              server knows the deadline, and the page should tick it down without a
+              Stimulus controller or a request per second. `reactive_countdown` (#400)
+              puts the deadline on the element and the client counts it:
+
+              ```ruby
+              span(**reactive_countdown(until: deadline.iso8601, format: :ms,
+                                        waiting: "#wait", done: "#done")) { "2:00" }
+              div(id: "wait") { "Waiting" }
+              div(id: "done", hidden: true) { "Finished" }
+              ```
+
+              - **The server renders the first paint.** The text in the block and the
+                `hidden` on the two nodes are yours, so the page reads with JavaScript
+                off. On connect the client repaints from the clock at once.
+              - **Every tick reads `Date.now`.** The text is the time left, rounded up
+                to the second: unpadded minutes, a colon, padded seconds (`1:30`,
+                `0:05`, `90:00`). It is written as `textContent` only. A tab that slept
+                in the background jumps to the real time when it is shown again; it
+                never replays the ticks it missed.
+              - **At zero** (or when `until:` is already past on connect, which starts
+                no timer) the text is `0:00`, `data-reactive-countdown-state` is `done`
+                (`running` before), `waiting:` hides, `done:` shows, and the element
+                dispatches `reactive:countdown-done` (it bubbles; `detail.until` is the
+                deadline). The timer stops.
+              - **Once per deadline.** A morph or replace that keeps `until:` paints the
+                done state again without a second event. One that changes `until:`
+                counts down again, and fires again at its zero.
+              - **No request, no reload.** The event is the hook: the page decides what
+                to fetch, e.g. `on_client("reactive:countdown-done", js.dispatch(…))` or
+                an `on(:expired, event: "reactive:countdown-done")` action.
+              - `until:` is an ISO8601 date-time **with a zone** (`Z` or an offset), or a
+                `Time`; a zoneless string would read as the browser's local time.
+                `format:` is `:ms`, the only format. Anything else raises at render, as
+                does a `waiting:`/`done:` that is not a non-blank selector (or is
+                `@root`). Both selectors resolve inside the element's reactive root.
+              - The client is the `countdown` feature module (0.9 KB gzipped); the split
+                client fetches it when the first root holding a countdown connects.
             MD
           end
         end

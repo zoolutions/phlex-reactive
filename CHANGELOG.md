@@ -8,6 +8,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **A server deadline counted down on the client — `reactive_countdown(until:, format: :ms, waiting:, done:)` (#400).**
+  `span(**reactive_countdown(until: deadline.iso8601, waiting: "#wait", done: "#done")) { "2:00" }`
+  puts the deadline on the element; the client paints the time left from
+  `Date.now` at connect and on each second boundary (unpadded minutes, a colon,
+  padded seconds; `textContent` only), and re-reads it when a hidden tab is
+  shown, so a woken tab jumps to the real value. At zero, or with `until:`
+  already past on connect (no timer starts), the text is `0:00`,
+  `data-reactive-countdown-state` is `done`, `waiting:` hides, `done:` shows and
+  the element dispatches `reactive:countdown-done` once per deadline: a morph
+  or replace that keeps `until:` repaints the done state without a second
+  event, one that changes it counts down again. Timers are cleared on
+  disconnect. No request and no frame reload: the event is the hook. The server
+  renders the initial text and visibility. `format:` other than `:ms`, an
+  `until:` that is not an ISO8601 date-time with a zone (or a `Time`), and a
+  `waiting:`/`done:` that is not a non-blank selector (or is `@root`) raise at
+  render. Client: a new `countdown` feature module (908 B gzipped); +568 B in
+  the default bundle, +27 B in the split core. Docs: "Counting down to a server
+  deadline" on the client-ops example.
+
 - **An image fallback that recovers — `reactive_image_fallback(hide: true, show_alt: nil)` (#383).**
   `img(**reactive_image_fallback)` marks an `<img>` whose `src` fails with
   `data-reactive-image-state="error"` and hides it; `show_alt: "#bank-name"`

@@ -1240,6 +1240,9 @@ module Views
                             [[:code, 'phlex/reactive/features/presence'], '1.3 KB',
                              'Inside the one file.',
                              [:md, 'When the first `reactive_presence` root connects.']],
+                            [[:code, 'phlex/reactive/features/countdown'], '0.9 KB',
+                             'Inside the one file.',
+                             [:md, 'When the first root that is, or holds, a `reactive_countdown` connects.']],
                             [[:code, 'phlex/reactive/features/hints'], '1.0 KB',
                              'Inside the one file.',
                              [:md, 'When the first root whose trigger declares `optimistic:` or `busy:` ' \
