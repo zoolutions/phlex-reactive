@@ -131,6 +131,15 @@ RSpec.describe "broadcast_js_to (issue #97)", type: :request do
       .to raise_error(ArgumentError, /preview_file/)
   end
 
+  # Issue #391: the wrap:/max_bytes:/accept: keywords change nothing here.
+  it "rejects preview_file with wrap:, max_bytes: and accept:" do
+    ops = TodoItemComponent.new(todo: Todo.new).js
+      .preview_file("#photo-file", into: "#photo", wrap: "#frame", max_bytes: 10, accept: true)
+
+    expect { TodoItemComponent.broadcast_to("alerts", js: ops) }
+      .to raise_error(ArgumentError, /preview_file/)
+  end
+
   # Issue #374: set_value joins the actor-only set — a broadcast that
   # overwrote every subscriber's field would be hostile (morph the value).
   it "rejects a set_value op (broadcasting a field write would overwrite every subscriber's input)" do

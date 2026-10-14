@@ -356,6 +356,34 @@ RSpec.describe Phlex::Reactive::JS do
       ["", :name, 1, "@root"].each { expect_preview_refused(name: it) }
     end
 
+    # Issue #391: wrap:, max_bytes:, accept: ride after the existing keys and
+    # only when given, so an op without them serializes as before.
+    it "carries wrap:, max_bytes: and accept: only when given" do
+      args = JSON.parse(js.preview_file("#f", into: "#p", wrap: "#frame", max_bytes: 2_000_000, accept: true).to_json)
+      expect(args.dig(0, 1))
+        .to eq("to" => "#f", "into" => "#p", "wrap" => "#frame", "max_bytes" => 2_000_000, "accept" => true)
+      expect(js.preview_file("#f", into: "#p", accept: "image/png").ops.dig(0, 1)["accept"]).to eq("image/png")
+    end
+
+    it "never carries a URL with every keyword given" do
+      op = js.preview_file("#f", into: "#p", name: "#n", wrap: "#w", max_bytes: 10, accept: ".png", valid: true)
+      args = op.ops.dig(0, 1)
+      expect(args.keys).to contain_exactly("to", "into", "name", "wrap", "max_bytes", "accept", "valid")
+      expect(args.values).to all(satisfy { !it.to_s.match?(/\A(blob|data|https?|javascript):/i) })
+    end
+
+    it "rejects a wrap: that is not a CSS selector string" do
+      ["", " ", :root, "@root", :frame].each { expect_preview_refused(wrap: it) }
+    end
+
+    it "rejects a max_bytes: that is not a positive Integer" do
+      [0, -1, 1.5, "10", true].each { expect_preview_refused(max_bytes: it) }
+    end
+
+    it "rejects an accept: that is not true or a non-empty String" do
+      ["", " ", :png, 1].each { expect_preview_refused(accept: it) }
+    end
+
     it "passes the ops allowlist" do
       expect { described_class.assert_ops_allowed!(js.preview_file("#f", into: "#p").ops) }.not_to raise_error
     end

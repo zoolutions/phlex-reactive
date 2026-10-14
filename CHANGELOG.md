@@ -29,6 +29,38 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   bundle, +127 B in the split core. Docs: "Waiting: debounce: and throttle:"
   on the client-ops example.
 
+- **`reactive_image_fallback(wrap:)` hides the box around a broken image
+  (#392).** `img(**reactive_image_fallback(hide: false, wrap: "#badge"))` hides
+  `#badge` (a selector inside the root, like `show_alt:`) on `error` and marks
+  the hide `data-reactive-wrap-hidden`, the mark `preview_file`'s `wrap:` uses.
+  Recovery (any later `src` that loads, `copy_media`, `reactive_media`,
+  `preview_file`) shows it again only when it carries that mark, so a wrapper
+  the author hid stays hidden; a morph that keeps the broken `src` hides it
+  again. The wrapper may hold the `img`: its text is never written. `hide:
+  true` without `wrap:` still hides only the `img`. A `wrap:` that matches
+  nothing warns and is skipped (the `img` fallback still runs); a `wrap:` that
+  is not a non-blank String, or is `@root`, raises at render. Client: +45 B
+  gzipped in the default bundle, +51 B in the split core.
+
+- **`js.preview_file` hides its frame and refuses a file by size or type —
+  `wrap:`, `max_bytes:`, `accept:` (#391).** `wrap: "#photo-frame"` shows that
+  element when an image is painted and hides it when the preview clears. The
+  hide is marked `data-reactive-wrap-hidden`; only a wrapper carrying the mark
+  is shown again, so a wrapper the author hid stays hidden (render the mark
+  with `hidden` to start hidden). The wrapper's text is never written. A
+  `wrap:` that is not on the page warns and is skipped. `max_bytes:` (a
+  positive Integer) refuses a larger file before `URL.createObjectURL` runs;
+  `accept: true` reads the input's `accept` attribute (extensions, MIME types,
+  `type/*`), a String is the list for this op, and omitted keeps the `image/*`
+  rule. Only an image is painted: a listed non-image (a PDF) clears the preview
+  and hides `wrap:` without a rejection. A refused file clears the `img` and the name, hides `wrap:`, and
+  dispatches `reactive:file-rejected` (bubbling) on the input with
+  `detail.reason` `"type"` or `"size"` and `detail.file`. A non-image file
+  under today's rule now dispatches it too. The op never clears `input.files`
+  and never calls `setCustomValidity`. The op still carries no URL, and
+  `broadcast_to(js:)` still refuses it. Client: +351 B gzipped in the default
+  bundle, +336 B in the split core.
+
 - **Clear, focus and scroll when `reactive_show` changes visibility — `clear:`, `focus:`, `scroll:` (#394).**
   `div(**reactive_show(if: { kind: "other" }, clear: :notes, focus: "#notes", scroll: true))`.
   When the section goes from visible to hidden, each `clear:` field (one

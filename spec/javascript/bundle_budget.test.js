@@ -168,11 +168,13 @@ const SLACK = 250
 // its review fixes (clear: by attribute, visibility tracked for every binding) 23 B: 35,411 B;
 // on top of #390, 35,438 B; on top of #398, 35,509 B.
 // Issue #397 (reactive_persist storage: :session, in persist) on top of #394: 35,528 B.
+// Issue #391 (preview_file wrap:, max_bytes:, accept:, reactive:file-rejected, with its
+// review fix) and #392 (reactive_image_fallback wrap:) add 396 B on top of #397: 35,924 B.
 // Issue #393 (on_client debounce:/throttle: on on()'s timers, keyed per record) adds 150 B: 34,921 B.
 // Issue #399 (the blur op) adds 41 B: 34,962 B.
 // Keying an on_client wait on the record's ordinal too (two identical records keep their own) adds 23 B: 34,985 B.
-// #393/#399 on top of #390, #394, #395, #396, #397 and #398: 35,737 B.
-const BUNDLE_GZIP_CEILING = 35_737
+// #393/#399 on top of #391, #392, #394, #395, #396, #397 and #398: 36,114 B.
+const BUNDLE_GZIP_CEILING = 36_114
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -227,11 +229,13 @@ const TARGET_BUNDLE_GZIP = 22_700
 // of #382, 546 B: 17,139 B.
 // Ignoring a stale sweep decode() adds 4 B: 17,143 B.
 // Issue #394 (set_value's write on the feature handle, for reactive_show clear:) adds 10 B: 17,153 B.
+// Issue #391 (preview_file wrap:, max_bytes:, accept:, reactive:file-rejected, with its
+// review fix) and #392 (reactive_image_fallback wrap:) add 387 B on top of #394: 17,540 B.
 // Issue #393 (on_client debounce:/throttle:) adds 127 B: 17,270 B.
 // Issue #399 (the blur op) adds 39 B: 17,309 B.
 // Keying an on_client wait on the record's ordinal too adds 22 B: 17,331 B.
-// #393/#399 on top of #394: 17,336 B.
-const CORE_GZIP_CEILING = 17_336
+// #393/#399 on top of #391, #392 and #394: 17,727 B.
+const CORE_GZIP_CEILING = 17_727
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -334,11 +338,13 @@ const FEATURE_GZIP_CEILINGS = {
 // its review fixes 22 B: 43,245 B;
 // on top of #390, 43,284 B; on top of #398, 43,348 B.
 // Issue #397 (storage: :session, in persist; the core unchanged) on top of #394: 43,368 B.
+// Issue #391 (preview_file wrap:, max_bytes:, accept:, with its review fix) and #392
+// (reactive_image_fallback wrap:), both in the core, add 387 B on top of #397: 43,755 B.
 // Issue #393 (on_client debounce:/throttle:, in the core) adds 127 B: 42,729 B.
 // Issue #399 (the blur op, in the core) adds 39 B: 42,768 B.
 // Keying an on_client wait on the record's ordinal too (in the core) adds 22 B: 42,790 B.
-// #393/#399 on top of #390, #394, #395, #396, #397 and #398: 43,551 B.
-const SPLIT_TOTAL_GZIP_CEILING = 43_551
+// #393/#399 on top of #391, #392, #394, #395, #396, #397 and #398: 43,942 B.
+const SPLIT_TOTAL_GZIP_CEILING = 43_942
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 
