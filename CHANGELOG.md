@@ -8,6 +8,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`reactive_media(when:)` tests the whole field (#390).** `when:` is a
+  Regexp the client tests against the whole field value before the pool
+  lookup, while the pool key stays the `take:` prefix: with `take: 3,
+  when: /\A\d{3,24}\z/`, `007bad` is pending (no pool lookup, never
+  `blank_label`: the default clears the preview and label, `pending: :keep`
+  leaves them as they are; either way `data-reactive-media-state="pending"`) and
+  `007123` hits `"007"`. It compiles with the same rules as `match:` (a
+  refused regexp raises at render, naming `when:`). `match:` still tests the
+  key only; omit `when:` and nothing changes. Client: +25 B gzipped default
+  bundle, +22 B bindings module, core unchanged.
+
 - **A tab-only draft — `reactive_persist(storage: :session)` (#397).** The
   draft lives in `sessionStorage` instead of `localStorage`: a reload in the
   same tab restores it, another tab never sees it (a tab opened from it with
@@ -21,6 +32,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and today's wire byte-for-byte; `"local"`/`"session"` strings are accepted,
   anything else raises at render. Client: +27 B gzipped in the default
   bundle, +20 B in the persist module; the split core unchanged.
+
 - **An image fallback that recovers — `reactive_image_fallback(hide: true, show_alt: nil)` (#383).**
   `img(**reactive_image_fallback)` marks an `<img>` whose `src` fails with
   `data-reactive-image-state="error"` and hides it; `show_alt: "#bank-name"`
