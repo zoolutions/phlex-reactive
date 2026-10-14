@@ -19,9 +19,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   reactive root's boxes stay that root's own (#15). `reactive_select_all`
   without `under:` renders the same attrs as before and still flips every box
   of the name. A blank `under:`, or one with an empty or space-padded segment, raises at
-  render. Client: +79 B gzipped in the default bundle (+63 B in
+  render. Client: +76 B gzipped in the default bundle (+66 B in
   `features/bindings`, the split core unchanged). Docs: "Bulk selection" on
   the client-ops example; demo at `/nested_selection` in the dummy app.
+
+- **`reactive_media(when:)` tests the whole field (#390).** `when:` is a
+  Regexp the client tests against the whole field value before the pool
+  lookup, while the pool key stays the `take:` prefix: with `take: 3,
+  when: /\A\d{3,24}\z/`, `007bad` is pending (no pool lookup, never
+  `blank_label`: the default clears the preview and label, `pending: :keep`
+  leaves them as they are; either way `data-reactive-media-state="pending"`) and
+  `007123` hits `"007"`. It compiles with the same rules as `match:` (a
+  refused regexp raises at render, naming `when:`). `match:` still tests the
+  key only; omit `when:` and nothing changes. Client: +25 B gzipped default
+  bundle, +22 B bindings module, core unchanged.
 
 - **An image fallback that recovers — `reactive_image_fallback(hide: true, show_alt: nil)` (#383).**
   `img(**reactive_image_fallback)` marks an `<img>` whose `src` fails with

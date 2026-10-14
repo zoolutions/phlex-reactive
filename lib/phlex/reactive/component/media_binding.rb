@@ -34,14 +34,22 @@ module Phlex
       # alone. The preview's data-reactive-media-state reads pending, hit or
       # miss, so a row can hide itself with CSS until there is an answer.
       #
+      # `when:` (a Regexp, anchored to the WHOLE field value, issue #390) is
+      # tested before the pool lookup while the key stays the `take` prefix: a
+      # value it rejects is pending too ("007bad" never hits "007"). It follows
+      # match:'s MediaPattern rules; match: still tests the key only.
+      #
       # Named MediaBinding, not Media: this module sits in every reactive
       # component's ancestry, and a bare `Media` would shadow a host app's kit
       # component of that name (issue #233).
       module MediaBinding
-        def reactive_media(from:, pool: nil, take: nil, match: nil, pending: :clear, label: nil, blank_label: nil, **attrs)
+        def reactive_media(from:, pool: nil, take: nil, match: nil, when: nil, pending: :clear, label: nil,
+                           blank_label: nil, **attrs)
+          whole = binding.local_variable_get(:when)
           wire = { "field" => media_field!(from) }
           wire["take"] = media_take!(take) unless take.nil?
           wire["match"] = MediaPattern.to_js(match) unless match.nil?
+          wire["when"] = MediaPattern.to_js(whole, :when) unless whole.nil?
           wire["pending"] = "keep" if media_pending!(pending) == "keep"
           wire["pool"] = media_pool!(pool)
           wire["label"] = media_selector!(:label, label) unless label.nil?

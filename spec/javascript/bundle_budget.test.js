@@ -160,8 +160,9 @@ const SLACK = 250
 // the restoration-safe hidden mark and the decode() check in the sweep) adds
 // 582 B on #381; on top of #382, 584 B (34,606 B); on top of #380, 586 B: 34,760 B;
 // ignoring a stale sweep decode(), 11 B: 34,771 B.
-// Issue #398 (nested select-all groups: under: paths, in bindings) adds 79 B: 34,850 B.
-const BUNDLE_GZIP_CEILING = 34_850
+// Issue #390 (reactive_media when:, the whole field before the pool lookup) adds 25 B: 34,796 B.
+// Issue #398 (nested select-all groups: under: paths, in bindings) adds 76 B on #390: 34,872 B.
+const BUNDLE_GZIP_CEILING = 34_872
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -229,8 +230,9 @@ const FEATURE_GZIP_CEILINGS = {
   // never resolving a label or pool value of @root, 6,888 B; slicing take: by
   // code point, 6,895 B.
   // Issue #380 (the pending state, match:, pending: keep, data-reactive-media-state) to 7,047 B.
-  // Issue #398 (nested select-all groups: under: paths) to 7,110 B.
-  "features/bindings": 7_110,
+  // Issue #390 (reactive_media when:) to 7,069 B.
+  // Issue #398 (nested select-all groups: under: paths) to 7,135 B.
+  "features/bindings": 7_135,
   // Issue #336 (render a defer reply now) takes it from 2,845 B to 2,974 B.
   "features/defer": 2_974,
   "features/compute": 2_050,
@@ -303,8 +305,9 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #383 (reactive_image_fallback, in the core) adds 546 B on #381; on top of
 // #382 (42,446 B) and #380, 546 B: 42,598 B; ignoring a stale sweep decode(),
 // 4 B: 42,602 B.
-// Issue #398 (nested select-all groups, in bindings; the core unchanged) adds 63 B: 42,665 B.
-const SPLIT_TOTAL_GZIP_CEILING = 42_665
+// Issue #390 (reactive_media when:, in bindings; the core unchanged) adds 22 B: 42,624 B.
+// Issue #398 (nested select-all groups, in bindings; the core unchanged) adds 66 B on #390: 42,690 B.
+const SPLIT_TOTAL_GZIP_CEILING = 42_690
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 
