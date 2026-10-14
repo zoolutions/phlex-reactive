@@ -168,12 +168,15 @@ const SLACK = 250
 // its review fixes (clear: by attribute, visibility tracked for every binding) 23 B: 35,411 B;
 // on top of #390, 35,438 B; on top of #398, 35,509 B.
 // Issue #397 (reactive_persist storage: :session, in persist) on top of #394: 35,528 B.
+// Issue #391 (preview_file wrap:, max_bytes:, accept:, reactive:file-rejected, with its
+// review fix) and #392 (reactive_image_fallback wrap:) add 396 B on top of #397: 35,924 B.
 // Issue #400 (countdown: a NEW feature module — the Date.now tick, the wake
 // re-sync, the once-per-deadline event, ignoring a bad selector — plus the runtime's marker) adds 573 B: 35,344 B;
 // its review fixes (every fired deadline kept, an id-less root's own key) 67 B: 35,411 B;
 // on top of #390 (34,796 B), 643 B in all: 35,439 B; on top of #398 (34,872 B), 635 B: 35,507 B;
-// on top of #394/#395/#396 (35,509 B), 648 B: 36,157 B; on top of #397 (35,528 B), 648 B: 36,176 B.
-const BUNDLE_GZIP_CEILING = 36_176
+// on top of #394/#395/#396 (35,509 B), 648 B: 36,157 B; on top of #397 (35,528 B), 648 B: 36,176 B;
+// on top of #391/#392 (35,924 B), 641 B: 36,565 B.
+const BUNDLE_GZIP_CEILING = 36_565
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -228,8 +231,11 @@ const TARGET_BUNDLE_GZIP = 22_700
 // of #382, 546 B: 17,139 B.
 // Ignoring a stale sweep decode() adds 4 B: 17,143 B.
 // Issue #394 (set_value's write on the feature handle, for reactive_show clear:) adds 10 B: 17,153 B.
-// Issue #400 (the countdown marker and table entry) adds 27 B: 17,170 B; on top of #394, 25 B: 17,178 B.
-const CORE_GZIP_CEILING = 17_178
+// Issue #391 (preview_file wrap:, max_bytes:, accept:, reactive:file-rejected, with its
+// review fix) and #392 (reactive_image_fallback wrap:) add 387 B on top of #394: 17,540 B.
+// Issue #400 (the countdown marker and table entry) adds 27 B: 17,170 B; on top of #394, 25 B: 17,178 B;
+// on top of #391/#392 (17,540 B), 24 B: 17,564 B.
+const CORE_GZIP_CEILING = 17_564
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -335,11 +341,13 @@ const FEATURE_GZIP_CEILINGS = {
 // its review fixes 22 B: 43,245 B;
 // on top of #390, 43,284 B; on top of #398, 43,348 B.
 // Issue #397 (storage: :session, in persist; the core unchanged) on top of #394: 43,368 B.
+// Issue #391 (preview_file wrap:, max_bytes:, accept:, with its review fix) and #392
+// (reactive_image_fallback wrap:), both in the core, add 387 B on top of #397: 43,755 B.
 // Issue #400 (the countdown feature module, 915 B, plus 27 B in the core) adds 942 B: 43,544 B;
 // its review fixes, 51 B: 43,595 B; on top of #390 (42,624 B), 993 B: 43,617 B;
 // on top of #398 (42,690 B), 993 B: 43,683 B; on top of #394/#395/#396 (43,348 B), 991 B: 44,339 B;
-// on top of #397 (43,368 B), 991 B: 44,359 B.
-const SPLIT_TOTAL_GZIP_CEILING = 44_359
+// on top of #397 (43,368 B), 991 B: 44,359 B; on top of #391/#392 (43,755 B), 990 B: 44,745 B.
+const SPLIT_TOTAL_GZIP_CEILING = 44_745
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

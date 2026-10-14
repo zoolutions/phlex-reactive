@@ -691,7 +691,7 @@ Use in controllers: `render turbo_stream: Counter.replace(counter)`.
 | `reactive_text(:name, initial)` | Mirror a compute output (or a declared input) into a **text node** — a live preview heading, a character counter, `"Hello, {name}"` — via `textContent` (XSS-safe). The text sibling of `reactive_field`; carries no `name`, so it's never POSTed. See [Client-side computes](#client-side-computes-reactive_compute--reactive_text). |
 | `reactive_show(if:/if_any:/unless:)` | **Value-conditional visibility** (the `x-show`/`data-show` case): spread onto the element to show/hide — it toggles `hidden` from the fields' **current values**, client-only, zero round trip. One conditions language: a **Hash is an AND**, an **Array is membership**, a **Range is a threshold**, `if_any:` is OR-of-AND, `unless:` negates. `reactive_values` computes first paint; `disable:` disables a hidden section's controls; `{ same: :email }` compares two fields, `{ digits: 10 }` checks a digit format, `after: :blur` waits for the field's first blur, and `clear:`/`focus:`/`scroll:` run when the section changes visibility. See [Value-conditional visibility](#value-conditional-visibility-reactive_show). |
 | `reactive_media(from:, pool:, take:, match:, when:, pending:, label:, blank_label:)` | A preview `<img>` that **follows a field** (#373): the field's value (its first `take:` characters, or all of it) is a key into `pool`, whose values are **selectors** for `<img>` elements the server rendered — never URLs. A hit copies that image's `src`/`srcset`/`alt` like `js.copy_media` (a pool `<img>` with an `alt` and no `src` is a hit without an image, #381); a miss clears the preview. `label:` gets the `alt` (or `blank_label`) as `textContent`. Below `take:` characters, or while `match:` (a JavaScript-compatible Regexp over the whole key) rejects the key, the binding is **pending** (#380) — never `blank_label` (Regexp options or Ruby-only syntax raise at render); `when:` (same rules) tests the **whole field** before the pool lookup while the key stays the prefix, so `take: 3, when: /\A\d{3,24}\z/` keeps `007bad` pending (#390); `pending: :clear` (default) clears the preview and label, `:keep` leaves them. The preview's `data-reactive-media-state` reads `pending`/`hit`/`miss`, so CSS can hide its row. See [Media previews](https://phlex-reactive.zoolutions.llc/docs/example-client-ops). |
-| `reactive_image_fallback(hide: true, show_alt: nil)` | An `<img>` that **falls back and recovers** (#383): on `error` it gets `data-reactive-image-state="error"`; `hide:` (default `true`) also hides it, and `show_alt:`, independently, writes its `alt` into that node and shows it; `load` sets `"loaded"`. A later `src` (from `copy_media`, `reactive_media`, `preview_file`, a morph, or any `src` that loads) shows it again; removing the `src` is not an error. Composes with `reactive_media(…, **reactive_image_fallback)`. See [Client-only ops](https://phlex-reactive.zoolutions.llc/docs/example-client-ops). |
+| `reactive_image_fallback(hide: true, show_alt: nil, wrap: nil)` | An `<img>` that **falls back and recovers** (#383): on `error` it gets `data-reactive-image-state="error"`; `hide:` (default `true`) also hides it, and `show_alt:`, independently, writes its `alt` into that node and shows it; `wrap:` (#392) hides the box around it (marked `data-reactive-wrap-hidden`, shown again only when it carries that mark, its text never written); `load` sets `"loaded"`. A later `src` (from `copy_media`, `reactive_media`, `preview_file`, a morph, or any `src` that loads) shows it again; removing the `src` is not an error. Composes with `reactive_media(…, **reactive_image_fallback)`. See [Client-only ops](https://phlex-reactive.zoolutions.llc/docs/example-client-ops). |
 | `reactive_countdown(until:, format: :ms, waiting:, done:)` | A server **deadline counted down** on the client (#400): `until:` is an ISO8601 date-time with a zone (or a `Time`); the text is the time left from `Date.now` (`1:30`), as `textContent`, once a second and again when a hidden tab is shown. At zero (or already past on connect) it reads `0:00`, `data-reactive-countdown-state="done"`, `waiting:` hides, `done:` shows and `reactive:countdown-done` fires **once per deadline** (a morph that keeps `until:` does not fire again; a new `until:` restarts). The server renders the first text and visibility. No request, no frame reload. See [Client-only ops](https://phlex-reactive.zoolutions.llc/docs/example-client-ops). |
 | `reactive_enable(if:/if_any:/unless:)` | The sibling of `reactive_show` that flips the element's **own `disabled`** (a button, a fieldset) instead of `hidden` — same conditions, same `reactive_values` first paint. `button(**reactive_enable(if: { "ids[]" => { checked: 1.. } }))`. See [Bulk selection](#bulk-selection-reactive_select_all-reactive_count-reactive_enable). |
 | `reactive_select_all("ids[]")` / `reactive_count("ids[]")` | A checkbox **group**'s header box (ticks/unticks every owned box; shows checked / indeterminate / unchecked) and its ticked count as text — re-synced on every change and when rows are appended or removed. `under: "a.b"` makes a nested header over the leaves whose `data-reactive-group` is in that path. See [Bulk selection](#bulk-selection-reactive_select_all-reactive_count-reactive_enable). |
@@ -1343,13 +1343,14 @@ button(**on_client(:click, js
   (a broadcast that reads every subscriber's clipboard would be hostile). The
   op is async fire-and-forget — chained siblings apply immediately, never
   waiting for the read.
-- **`preview_file(to, into:, name: nil, global: false, valid: false)`** (#375; `global: true`
+- **`preview_file(to, into:, name: nil, global: false, valid: false, wrap: nil, max_bytes: nil, accept: nil)`** (#375; `global: true`
   resolves `to`, `into:` and `name:` document-wide, for an `img` outside the
   root) paints the file a file input
   holds onto an `img` **before any upload**:
   `input(type: "file", id: "photo-file", accept: "image/*", **on_client(:change,
   js.preview_file("#photo-file", into: "#photo", name: "#photo-name")))`. On
-  `change` the client takes the input's first `image/*` file, makes an object
+  `change` the client takes the input's first `image/*` file (the default list;
+  an explicit `accept:` below replaces it), makes an object
   URL from it (`URL.createObjectURL`), sets it as the `img`'s `src`, and puts
   `file.name` in the `name:` node's `textContent`. An empty selection or a
   non-image file removes the `src` and clears the name. The op carries **no
@@ -1368,6 +1369,17 @@ button(**on_client(:click, js
   cleared: `op = js.preview_file("#photo-file", into: "#photo", valid: true)`,
   `input(type: "file", id: "photo-file", **mix(on_client(:change, op),
   on_client("reactive:file-changed", op)))`.
+  **Frame, size and type (#391):** `wrap: "#photo-frame"` shows that element
+  when an image is painted and hides it when the preview clears (marked
+  `data-reactive-wrap-hidden`; only a wrapper carrying the mark is shown again,
+  and its text is never written). `max_bytes: 2_000_000` refuses a larger file
+  before any object URL exists; `accept: true` reads the input's `accept`
+  attribute (a String is the list itself; omitted keeps `image/*`). Only an
+  image is painted: a listed file that is not `image/*` (a PDF) clears the
+  preview and hides `wrap:` without a rejection. A refused
+  file clears the preview, hides `wrap:` and dispatches `reactive:file-rejected`
+  on the input with `detail.reason` `"type"` or `"size"`; `input.files` and the
+  validity are left alone.
 - **`expanded:`** on `show`/`hide`/`toggle` (#271) keeps a disclosure trigger's
   `aria-expanded` honest: `js.toggle("#menu", expanded: "#trigger")` writes the
   op's **intended** state (`show` → `"true"`, `hide` → `"false"`, `toggle` → the

@@ -72,6 +72,7 @@ Rails.application.routes.draw do
   get "image_fallback" => "demos#image_fallback" # issue #383: reactive_image_fallback
   get "countdown" => "demos#countdown" # issue #400: reactive_countdown
   get "validated_photo_preview" => "demos#validated_photo_preview" # issue #382: preview_file valid:
+  get "framed_photo_preview" => "demos#framed_photo_preview" # issue #391: preview_file wrap:/max_bytes:/accept:
   get "notes_fill" => "demos#notes_fill" # issue #374: js.set_value
   get "kept_selection" => "demos#kept_selection" # issue #369: keep: on client ops survives a morph
   get "field_checks" => "demos#field_checks" # issues #394-#396: same:, digits:/after:, show transitions
