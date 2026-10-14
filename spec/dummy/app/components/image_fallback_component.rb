@@ -39,6 +39,7 @@ class ImageFallbackComponent < ApplicationComponent
       copied_logo
       photo
       server_logo
+      badges
       img(id: "bank-001", src: MISSING, alt: "Broken Bank", hidden: true)
       img(id: "bank-007", src: "/logos/007.svg", alt: "Attijariwafa", hidden: true)
     end
@@ -74,5 +75,20 @@ class ImageFallbackComponent < ApplicationComponent
     p(data: { testid: "refreshes" }) { "Refreshed #{@refreshes}" }
     button(**mix(on(:fix), data: { testid: "fix" })) { "Fix" }
     button(**mix(on(:refresh), data: { testid: "refresh" })) { "Refresh" }
+  end
+
+  # Issue #392: wrap: hides the padded box around a broken logo, and shows it
+  # again when a later src loads. The second box is hidden by the author and
+  # must stay hidden through the recovery.
+  def badges
+    span(id: "badge", class: "rounded-full p-1", data: { testid: "badge" }) do
+      img(id: "badge-logo", src: MISSING, alt: "Bank",
+        **reactive_image_fallback(hide: false, wrap: "#badge", data: { testid: "badge-logo" }))
+    end
+    span(id: "kept-badge", hidden: true, data: { testid: "kept-badge" }) do
+      img(id: "kept-logo", src: MISSING, alt: "", **reactive_image_fallback(wrap: "#kept-badge", data: { testid: "kept-logo" }))
+    end
+    button(**mix(on_client(:click, js.copy_media("#badge-logo", from: "#bank-007").copy_media("#kept-logo", from: "#bank-007")),
+      data: { testid: "fix-badges" })) { "Fix badges" }
   end
 end
