@@ -162,7 +162,8 @@ const SLACK = 250
 // ignoring a stale sweep decode(), 11 B: 34,771 B.
 // Issue #395 (the same: show term, in bindings) adds 103 B: 34,874 B.
 // Issue #396 (the digits: term and the after: blur gate, in bindings) adds 232 B: 35,106 B.
-const BUNDLE_GZIP_CEILING = 35_106
+// Issue #394 (clear:/focus:/scroll: on a show's visibility change, in bindings) adds 282 B: 35,388 B.
+const BUNDLE_GZIP_CEILING = 35_388
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -216,7 +217,8 @@ const TARGET_BUNDLE_GZIP = 22_700
 // Issue #383 (reactive_image_fallback, in the runtime) adds 546 B on #381; on top
 // of #382, 546 B: 17,139 B.
 // Ignoring a stale sweep decode() adds 4 B: 17,143 B.
-const CORE_GZIP_CEILING = 17_143
+// Issue #394 (set_value's write on the feature handle, for reactive_show clear:) adds 10 B: 17,153 B.
+const CORE_GZIP_CEILING = 17_153
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -232,7 +234,8 @@ const FEATURE_GZIP_CEILINGS = {
   // Issue #380 (the pending state, match:, pending: keep, data-reactive-media-state) to 7,047 B.
   // Issue #395 (the same: term and its ASCII fold) to 7,144 B.
   // Issue #396 (the digits: term and the after: blur gate) to 7,362 B.
-  "features/bindings": 7_362,
+  // Issue #394 (clear:/focus:/scroll: on a show's visibility change) to 7,658 B.
+  "features/bindings": 7_658,
   // Issue #336 (render a defer reply now) takes it from 2,845 B to 2,974 B.
   "features/defer": 2_974,
   "features/compute": 2_050,
@@ -307,7 +310,8 @@ const FEATURE_GZIP_CEILINGS = {
 // 4 B: 42,602 B.
 // Issue #395 (the same: show term, in bindings) adds 97 B: 42,699 B.
 // Issue #396 (the digits: term and the after: blur gate, in bindings) adds 218 B: 42,917 B.
-const SPLIT_TOTAL_GZIP_CEILING = 42_917
+// Issue #394 (clear:/focus:/scroll: on a show's visibility change, in bindings) adds 306 B: 43,223 B.
+const SPLIT_TOTAL_GZIP_CEILING = 43_223
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

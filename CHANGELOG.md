@@ -8,6 +8,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Clear, focus and scroll when `reactive_show` changes visibility — `clear:`, `focus:`, `scroll:` (#394).**
+  `div(**reactive_show(if: { kind: "other" }, clear: :notes, focus: "#notes", scroll: true))`.
+  When the section goes from visible to hidden, each `clear:` field (one
+  owned, scope-aware name or an Array) gets `js.set_value`'s write — `.value`
+  becomes `""` and one bubbling `input` is dispatched per field that changed;
+  a checkbox or radio is unchecked, a file input skipped. When it goes from
+  hidden to visible, the first element inside the root matching `focus:` is
+  focused and `scroll: true` calls `scrollIntoView` on the section. None of it
+  runs on first paint, so a value the server rendered into a hidden section
+  stays. The previous visibility is kept on the root's controller (absent on
+  connect, kept by a morph). The work runs after the show pass, so the `input`
+  a clear dispatches re-syncs from fresh values. A `clear:` name the render
+  never produced, or one that names a file input, raises at render; so does a
+  `focus:` that is not a non-empty String or a `scroll:` that is not a
+  boolean. A binding without these keywords only toggles `hidden`. The
+  feature handle gains `setValue` (the runtime's `set_value` write). Client:
+  +282 B gzipped in the default bundle, +10 B in the split core.
+
 - **A digit format, and a hint that waits for blur — `{ digits: 10, starts_with: "9" }`, `after: :blur` (#396).**
   `digits:` (a non-negative Integer or an Integer Range, counted in
   codepoints) holds while every character is ASCII `0-9` and the count fits;

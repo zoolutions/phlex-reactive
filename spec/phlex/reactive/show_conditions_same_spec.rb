@@ -34,7 +34,8 @@ RSpec.describe Phlex::Reactive::ShowConditions do
 
     it "raises on a blank or non-name same:" do
       [nil, "", "  ", 3].each do
-        expect { normalize(if: { a: { same: it } }) }
+        bad = it # a nested block's `it` is its own (nil) parameter
+        expect { normalize(if: { a: { same: bad } }) }
           .to raise_error(ArgumentError, /same: needs the other field's name/)
       end
     end

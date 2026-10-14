@@ -1602,6 +1602,13 @@ end
   symbols while the client resolves `[name="form[field]"]`.
 - **`disable: true`** disables a hidden section's own controls so a
   switched-away value never submits (the stale-value fix).
+- **`clear:`, `focus:`, `scroll:`** run when the section **changes**
+  visibility, never on first paint: going hidden, `clear: :notes` (or an Array)
+  empties those fields with `js.set_value`'s write and dispatches `input` per
+  field that changed (a checkbox unchecks); going visible, `focus: "#notes"`
+  focuses the first match inside the root and `scroll: true` scrolls the
+  section into view. A `clear:` name the render never produced, or a file
+  input, raises at render.
 - **Field reads follow the collection rules**: a checkbox compares its *checked*
   state; a radio group reads the **checked** radio's value; everything else
   reads `.value`. Ownership is the usual rule — a nested reactive component's

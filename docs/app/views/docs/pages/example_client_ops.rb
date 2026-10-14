@@ -628,6 +628,30 @@ module Views
               that is not a String of digits, or a `digits:` that is not a
               non-negative Integer or Integer Range, raises at render.
 
+              **Clear, focus and scroll when the section changes (`clear:`,
+              `focus:`, `scroll:`, #394).** A radio that reveals a text input should
+              empty that input when the section hides, and focus it when it shows:
+
+              ```ruby
+              div(**reactive_show(if: { kind: "other" }, clear: :notes, focus: "#notes", scroll: true)) do
+                input(id: "notes", name: "notes")
+              end
+              ```
+
+              Going hidden, each `clear:` field (one name or an Array, owned and
+              scope-aware) gets `js.set_value`'s write: its `.value` becomes `""`
+              and one bubbling `input` is dispatched per field that changed, so
+              computes, dirty tracking and other shows follow. A checkbox or radio
+              is unchecked. Going visible, the first element inside the root that
+              matches `focus:` is focused, and `scroll: true` calls
+              `scrollIntoView` on the section. None of it runs on first paint: a
+              value the server rendered into a hidden section stays until the user
+              hides the section, and an already visible section neither steals
+              focus nor scrolls. The previous visibility lives on the root's
+              controller, so a morph that changes nothing does nothing. A `clear:`
+              name the render never produced, or a file input named there, raises
+              at render; so does a `focus:` that is not a non-empty String.
+
               Extra HTML attrs pass through unambiguously (conditions live in `if:`),
               so `div(**reactive_show(if: { size: %w[l xl] }, class: "note"))` works.
 

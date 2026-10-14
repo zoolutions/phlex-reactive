@@ -32,14 +32,16 @@ RSpec.describe Phlex::Reactive::ShowConditions do
 
     it "raises on a starts_with: that is not a string of digits" do
       ["9a", "", " 9", 9, :nine, nil].each do
-        expect { normalize(if: { code: { digits: 10, starts_with: it } }) }
+        bad = it # a nested block's `it` is its own (nil) parameter
+        expect { normalize(if: { code: { digits: 10, starts_with: bad } }) }
           .to raise_error(ArgumentError, /starts_with: takes a String of digits/)
       end
     end
 
     it "raises on a digits: that is not a non-negative Integer or Integer Range" do
       [-1, "10", 1.5, (1.5..2), (nil..nil)].each do
-        expect { normalize(if: { code: { digits: it } }) }.to raise_error(ArgumentError, /digits:/)
+        bad = it
+        expect { normalize(if: { code: { digits: bad } }) }.to raise_error(ArgumentError, /digits:/)
       end
     end
 

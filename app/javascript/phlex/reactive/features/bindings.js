@@ -450,6 +450,10 @@ function syncShow(c) {
   // several bindings (and several DNF terms) reads exactly once. Scope-aware:
   // a bare field `director` resolves as `[name="scope[director]"]` (issue #180).
   const fieldValue = fieldResolver(c, owns)
+  // Bindings whose visibility flipped this pass and that declare transition
+  // work (issue #394) — run after the pass, so the `input` a clear dispatches
+  // re-syncs from fresh values instead of this pass's memo.
+  const moved = []
   for (const el of c.root.querySelectorAll(SHOW_BINDING_SELECTOR)) {
     if (!owns(el)) continue // a nested root's binding is its own controller's job
 
@@ -459,9 +463,18 @@ function syncShow(c) {
     const payloadRaw = el.getAttribute("data-reactive-show")
     if (payloadRaw !== null) {
       const match = showPayloadMatches(parseShowCompound(payloadRaw), fieldValue)
+      if (match === null) continue
       // after: (issue #396) keeps it hidden until its field has blurred once.
       const after = el.getAttribute("data-reactive-show-after")
-      if (match !== null) applyShowVisibility(el, match && (after == null || !!c.touched?.has(wireName(after, scope))), owns, scope)
+      const visible = match && (after == null || !!c.touched?.has(wireName(after, scope)))
+      applyShowVisibility(el, visible, owns, scope)
+      // The previous visibility lives on this controller (absent on connect,
+      // kept by a morph), so first paint never counts as a change.
+      if (SHOW_MOVES.some((name) => el.hasAttribute(`data-reactive-show-${name}`))) {
+        const was = (c.shown ??= new WeakMap()).get(el)
+        c.shown.set(el, visible)
+        if (was !== undefined && was !== visible) moved.push(el)
+      }
       continue
     }
 
@@ -481,6 +494,43 @@ function syncShow(c) {
   syncMedia(c, fieldValue, owns)
   syncShowTargets(c, fieldValue)
   syncGroupTargets(c, fieldValue)
+  for (const el of moved) showMoved(c, el, owns, scope)
+}
+
+// The transition attrs a show binding may declare (issue #394).
+const SHOW_MOVES = ["clear", "focus", "scroll"]
+
+// A binding just changed visibility (issue #394). Hidden: empty each clear:
+// field with set_value's write (which announces only a real change), uncheck a
+// checkbox or radio, skip a file input. Visible: scroll the section into view,
+// then focus the first match of focus: inside the root.
+function showMoved(c, el, owns, scope) {
+  if (el.hidden) {
+    let names = []
+    try {
+      names = JSON.parse(el.getAttribute("data-reactive-show-clear") ?? "[]")
+    } catch {}
+    for (const name of Array.isArray(names) ? names : []) {
+      for (const field of c.root.querySelectorAll(namedSelector(String(name), scope))) {
+        if (!owns(field) || field.type === "file") continue
+        if (field.type === "checkbox" || field.type === "radio") {
+          if (field.checked) {
+            field.checked = false
+            fireInput(field)
+          }
+        } else c.core.setValue(field, "")
+      }
+    }
+    return
+  }
+  const scroll = el.getAttribute("data-reactive-show-scroll") === "true"
+  if (scroll) el.scrollIntoView?.({ block: "nearest" })
+  const focus = el.getAttribute("data-reactive-show-focus")
+  let target = null
+  try {
+    target = focus ? c.root.querySelector(focus) : null
+  } catch {}
+  target?.focus?.(scroll ? { preventScroll: true } : undefined)
 }
 
 // Toggle `hidden` (and, when the binding declares data-reactive-show-disable,
