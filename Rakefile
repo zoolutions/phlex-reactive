@@ -35,6 +35,7 @@ namespace :spec do
   split_client_specs += %w[
     spec/system/logo_preview_spec.rb
     spec/system/image_fallback_spec.rb
+    spec/system/countdown_spec.rb
     spec/system/media_pending_spec.rb
     spec/system/field_checks_spec.rb
     spec/system/persist_form_spec.rb

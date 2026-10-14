@@ -37,6 +37,7 @@ import * as hintsFeature from "phlex/reactive/features/hints"
 import * as deferFeature from "phlex/reactive/features/defer"
 import * as sortableFeature from "phlex/reactive/features/sortable"
 import * as presenceFeature from "phlex/reactive/features/presence"
+import * as countdownFeature from "phlex/reactive/features/countdown"
 
 // phlex/reactive/runtime — the reactive controller WITHOUT its feature
 // modules (issue #275): the code both client entries share. It is not an
@@ -2069,6 +2070,11 @@ function presenceNeeded(root) {
   return root.getAttribute?.("data-reactive-presence") != null
 }
 
+// Countdowns (issue #400): the root is, or holds, a reactive_countdown.
+function countdownNeeded(root) {
+  return Boolean(root.matches?.("[data-reactive-countdown]") || root.querySelector?.("[data-reactive-countdown]"))
+}
+
 const PRODUCTION_FEATURES = [
   // (Its `waiting` hook is the opt-in entry's: core.js.) The draft restore
   // writes what a request reads, so it gates.
@@ -2084,6 +2090,8 @@ const PRODUCTION_FEATURES = [
   // Its announce is a request of its own; nothing it does at connect is read
   // by another request: it never gates.
   ["presence", [presenceNeeded, null]],
+  // A countdown writes only its own text and visibility: it never gates.
+  ["countdown", [countdownNeeded, null]],
   [
     // Stream effects and dismissing flashes are document-level: the module
     // has no connect. A root that DECLARES an effect only gets it fetched
@@ -2247,7 +2255,7 @@ function featureTimeoutMs() {
 export function reactiveFeatureNames() {
   return __SPLIT__
     ? [...FEATURES.keys()]
-    : ["persist", "defer", "form", "bindings", "compute", "sortable", "presence", "effects", "hints", "devtools"]
+    : ["persist", "defer", "form", "bindings", "compute", "sortable", "presence", "countdown", "effects", "hints", "devtools"]
 }
 
 export function __setReactiveFeatureForTest(name, needs, load, waiting, gates) {
@@ -2271,6 +2279,7 @@ export function __loadReactiveFeatureForTest(name) {
     compute: computeFeature,
     sortable: sortableFeature,
     presence: presenceFeature,
+    countdown: countdownFeature,
     effects: effectsFeature,
     hints: hintsFeature,
     devtools: devtoolsFeature,
@@ -2325,6 +2334,7 @@ const BINDINGS = 8
 const COMPUTE = 16
 const SORTABLE = 32
 const PRESENCE = 64
+const COUNTDOWN = 128
 
 // The default entry's features are part of this file: install them now, as
 // the opt-in entry does when one arrives.
@@ -2550,7 +2560,7 @@ export default class extends Controller {
   #featureTurns = new Map() // name -> settles once that feature has had its turn to connect
   #featureEpoch = 0
   #featureHandle // the `core` handle features receive, built on first use
-  // The default entry (issue #305): one bit per feature, PERSIST … PRESENCE —
+  // The default entry (issue #305): one bit per feature, PERSIST … COUNTDOWN —
   // asked for (its marker read true) and connected on this connection.
   #featuresAsked = 0
   #featuresOn = 0
@@ -2653,6 +2663,7 @@ export default class extends Controller {
       this.#connectFeatureNow(COMPUTE, "compute", computeNeeded, (core) => computeFeature.connect(this, core, morphed))
       this.#connectFeatureNow(SORTABLE, "sortable", sortableNeeded, (core) => sortableFeature.connect(this, core))
       this.#connectFeatureNow(PRESENCE, "presence", presenceNeeded, (core) => presenceFeature.connect(this, core))
+      this.#connectFeatureNow(COUNTDOWN, "countdown", countdownNeeded, (core) => countdownFeature.connect(this, core))
     }
   }
 
@@ -2691,6 +2702,7 @@ export default class extends Controller {
       if (on & COMPUTE) this.#disconnectFeatureNow("compute", () => computeFeature.disconnect(this, core))
       if (on & SORTABLE) this.#disconnectFeatureNow("sortable", () => sortableFeature.disconnect(this, core))
       if (on & PRESENCE) this.#disconnectFeatureNow("presence", () => presenceFeature.disconnect(this, core))
+      if (on & COUNTDOWN) this.#disconnectFeatureNow("countdown", () => countdownFeature.disconnect(this, core))
     }
   }
 

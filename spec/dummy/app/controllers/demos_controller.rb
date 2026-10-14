@@ -375,6 +375,10 @@ class DemosController < ActionController::Base
     render_component ImageFallbackComponent.new
   end
 
+  def countdown
+    render_component OtpCountdownComponent.new(seconds: params.fetch(:seconds, 90).to_i)
+  end
+
   def validated_photo_preview
     render_component ValidatedPhotoPreviewComponent.new
   end

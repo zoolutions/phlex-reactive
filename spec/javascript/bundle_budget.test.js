@@ -174,7 +174,13 @@ const SLACK = 250
 // Issue #399 (the blur op) adds 41 B: 34,962 B.
 // Keying an on_client wait on the record's ordinal too (two identical records keep their own) adds 23 B: 34,985 B.
 // #393/#399 on top of #391, #392, #394, #395, #396, #397 and #398: 36,114 B.
-const BUNDLE_GZIP_CEILING = 36_114
+// Issue #400 (countdown: a NEW feature module — the Date.now tick, the wake
+// re-sync, the once-per-deadline event, ignoring a bad selector — plus the runtime's marker) adds 573 B: 35,344 B;
+// its review fixes (every fired deadline kept, an id-less root's own key) 67 B: 35,411 B;
+// on top of #390 (34,796 B), 643 B in all: 35,439 B; on top of #398 (34,872 B), 635 B: 35,507 B;
+// on top of #394/#395/#396 (35,509 B), 648 B: 36,157 B; on top of #397 (35,528 B), 648 B: 36,176 B;
+// on top of #391/#392 (35,924 B), 641 B: 36,565 B; on top of #393/#399 (36,114 B), 653 B: 36,767 B.
+const BUNDLE_GZIP_CEILING = 36_767
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -235,7 +241,9 @@ const TARGET_BUNDLE_GZIP = 22_700
 // Issue #399 (the blur op) adds 39 B: 17,309 B.
 // Keying an on_client wait on the record's ordinal too adds 22 B: 17,331 B.
 // #393/#399 on top of #391, #392 and #394: 17,727 B.
-const CORE_GZIP_CEILING = 17_727
+// Issue #400 (the countdown marker and table entry) adds 27 B: 17,170 B; on top of #394, 25 B: 17,178 B;
+// on top of #391/#392 (17,540 B), 24 B: 17,564 B; on top of #393/#399 (17,727 B), 31 B: 17,758 B.
+const CORE_GZIP_CEILING = 17_758
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -277,6 +285,9 @@ const FEATURE_GZIP_CEILINGS = {
   // fixes (the late-defined source, the re-announce, the root seat list) take it to 1,353 B;
   // on pgbus 0.18 the re-announce becomes one check: 1,297 B; logging a failed announce: 1,362 B.
   "features/presence": 1_362,
+  // Issue #400: countdown, 914 B; its review fixes (every fired deadline kept, an
+  // id-less root's own key) take it to 966 B.
+  "features/countdown": 966,
 }
 // Phase 5: 12,383 B core + 5,360 + 2,846 + 2,084 + 1,024 + 1,693 + 3,210 + 1,015 + 1,589 B of
 // features = 31,204 B. Issue #305 (the default entry's static path) costs the
@@ -344,7 +355,12 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #399 (the blur op, in the core) adds 39 B: 42,768 B.
 // Keying an on_client wait on the record's ordinal too (in the core) adds 22 B: 42,790 B.
 // #393/#399 on top of #391, #392, #394, #395, #396, #397 and #398: 43,942 B.
-const SPLIT_TOTAL_GZIP_CEILING = 43_942
+// Issue #400 (the countdown feature module, 915 B, plus 27 B in the core) adds 942 B: 43,544 B;
+// its review fixes, 51 B: 43,595 B; on top of #390 (42,624 B), 993 B: 43,617 B;
+// on top of #398 (42,690 B), 993 B: 43,683 B; on top of #394/#395/#396 (43,348 B), 991 B: 44,339 B;
+// on top of #397 (43,368 B), 991 B: 44,359 B; on top of #391/#392 (43,755 B), 990 B: 44,745 B;
+// on top of #393/#399 (43,942 B), 997 B: 44,939 B.
+const SPLIT_TOTAL_GZIP_CEILING = 44_939
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

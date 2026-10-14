@@ -17,6 +17,7 @@ module Phlex
         include Editable
         include MediaBinding
         include ImageFallbackBinding
+        include CountdownBinding
         include FieldReferences
         include ShowOptions
 

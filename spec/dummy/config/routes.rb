@@ -70,6 +70,7 @@ Rails.application.routes.draw do
   get "modal_dialog" => "demos#modal_dialog" # issue #365: show_modal / close_dialog / data-reactive-modal
   get "photo_preview" => "demos#photo_preview" # issue #375: js.preview_file
   get "image_fallback" => "demos#image_fallback" # issue #383: reactive_image_fallback
+  get "countdown" => "demos#countdown" # issue #400: reactive_countdown
   get "validated_photo_preview" => "demos#validated_photo_preview" # issue #382: preview_file valid:
   get "framed_photo_preview" => "demos#framed_photo_preview" # issue #391: preview_file wrap:/max_bytes:/accept:
   get "notes_fill" => "demos#notes_fill" # issue #374: js.set_value
