@@ -34,7 +34,9 @@ module Phlex
       ThreadViewContext = Struct.new(:view_context, :builder, :renderer, :generation)
 
       # Actor-only ops: a js broadcast rejects a broadcast that carries one.
-      # Focus ops steal focus in every subscriber's tab (issue #96); submit
+      # Focus ops steal focus in every subscriber's tab (issue #96); blur (issue
+      # #399) would drop focus in every subscriber whose focused element sits
+      # inside the target; submit
       # (issue #226) would force-submit every subscriber's form; paste_into
       # (issue #228) would read every subscriber's clipboard; check_group
       # (issue #342) would tick or clear every subscriber's selection; presence
@@ -205,7 +207,8 @@ module Phlex
           unless refused.empty?
             raise ArgumentError,
               "broadcast_to(js:) refuses actor-only op(s) #{refused.join(", ")} — broadcasting focus " \
-              "steals it in every subscriber's tab; broadcasting submit force-submits every " \
+              "steals it in every subscriber's tab; broadcasting blur drops focus in every subscriber " \
+              "whose focused element is inside the target; broadcasting submit force-submits every " \
               "subscriber's form; broadcasting paste_into reads every subscriber's clipboard; " \
               "broadcasting check_group ticks or clears every subscriber's selection; " \
               "broadcasting presence writes every subscriber's presence state; " \

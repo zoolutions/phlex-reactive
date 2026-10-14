@@ -78,7 +78,7 @@ RSpec.describe "broadcast_js_to (issue #97)", type: :request do
     blur_ops = TodoItemComponent.new(todo: Todo.new).js.blur("#menu")
 
     expect { TodoItemComponent.broadcast_to("alerts", js: blur_ops) }
-      .to raise_error(ArgumentError, /blur/)
+      .to raise_error(ArgumentError, /broadcasting blur drops focus in every subscriber whose focused element/)
   end
 
   it "rejects focus even when it is mixed among allowed ops (no partial broadcast)" do

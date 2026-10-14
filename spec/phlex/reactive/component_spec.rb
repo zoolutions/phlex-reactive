@@ -1461,6 +1461,7 @@ RSpec.describe Phlex::Reactive::Component do
 
       it "leaves on() unchanged (no integer check there)" do
         expect(instance.send(:on, :set, event: "input", debounce: 300)[:data][:reactive_debounce_param]).to eq(300)
+        expect(instance.send(:on, :set, event: "input", debounce: 1.5)[:data][:reactive_debounce_param]).to eq(1.5)
         expect { instance.send(:on, :set, debounce: 1, throttle: 1) }
           .to raise_error(ArgumentError, /on\(:set\) got both debounce: and throttle:/)
       end

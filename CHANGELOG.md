@@ -22,7 +22,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the first event and drops the rest until 250 ms have passed. Non-negative
   Integer milliseconds; both at once raise at render with `on`'s message, and
   a negative or non-Integer value raises too. The wait rides on the binding
-  record, so mix-ed bindings keep their own, and the client runs it on the
+  record, so mixed bindings keep their own, and the client runs it on the
   timers `on` uses (a blur flushes a pending debounce, except on a
   window-bound binding; disconnect clears it). `once:` still means one run,
   after the wait. `on` is unchanged. Client: +150 B gzipped in the default

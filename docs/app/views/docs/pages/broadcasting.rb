@@ -470,6 +470,8 @@ module Views
               plain '/'
               code { 'set_value' }
               plain " — broadcasting focus would steal it in every subscriber's tab, a broadcast " \
+                    'blur would drop focus in every subscriber whose focused element sits inside ' \
+                    'the target, a broadcast ' \
                     "submit would force-submit every subscriber's form, a broadcast clipboard " \
                     'read would be hostile, and a broadcast set_value would overwrite every ' \
                     "subscriber's field (render the value instead). These are actor-reply concerns (use "
