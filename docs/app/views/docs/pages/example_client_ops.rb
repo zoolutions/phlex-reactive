@@ -648,7 +648,10 @@ module Views
               value the server rendered into a hidden section stays until the user
               hides the section, and an already visible section neither steals
               focus nor scrolls. The previous visibility lives on the root's
-              controller, so a morph that changes nothing does nothing. A `clear:`
+              controller, so a morph that changes nothing does nothing, while a
+              morph whose new values flip the predicate runs the transition like
+              any other change (an action reply that hides the section clears its
+              fields on the client). A `clear:`
               name the render never produced, or a file input named there, raises
               at render; so does a `focus:` that is not a non-empty String.
 

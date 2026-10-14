@@ -13,7 +13,11 @@ module Phlex
       #
       # Nothing is recorded when no binding names a field, and a helper called
       # outside a render (no buffer to read) is not checked. A fragment render
-      # (only part of the template reaches the buffer) is not checked either.
+      # (only part of the template reaches the buffer) is not checked either,
+      # nor is a render that calls `flush`. The scan accepts any element with
+      # that name, including one inside a nested reactive root the client will
+      # not read (ownership is the client's rule), so it catches typos, not
+      # misplaced fields.
       module FieldReferences
         REFS_KEY = :__phlex_reactive_field_refs
 
@@ -43,12 +47,25 @@ module Phlex
           check_field_references!(refs, buffer.byteslice(start..)) if refs.is_a?(Array) && !@_state.fragments
         end
 
+        public
+
+        # A flush moves the buffer out mid-render, so the end-of-render scan
+        # would miss fields above it: record the references as unchecked.
+        def flush
+          Thread.current[REFS_KEY] = :flushed if Thread.current[REFS_KEY]
+          super
+        end
+
+        private
+
         # Record a binding's field references for the end-of-render check.
         # `names` are bare show names (scope-aware, like the client resolver);
         # `no_file` refuses a file input under the name.
         def reference_fields!(helper, key, names, no_file: false)
           refs = Thread.current[REFS_KEY]
           return unless refs
+
+          return if refs == :flushed
 
           refs = Thread.current[REFS_KEY] = [] if refs == true
           names.each { refs << [helper, key, it, field_wire_name(it), no_file] }

@@ -83,6 +83,19 @@ RSpec.describe Phlex::Reactive::Component::FieldReferences do
     expect { klass.new.call }.to raise_error(ArgumentError, /after: :code names no field/)
   end
 
+  it "does not check a render that flushes (the scan would miss fields above the flush)" do
+    klass = build do
+      div(**reactive_root) do
+        input(name: "email")
+        flush
+        input(name: "confirm")
+        p(**reactive_show(if: { confirm: { same: :email } })) { "ok" }
+      end
+    end
+
+    expect { klass.new.call }.not_to raise_error
+  end
+
   it "does not check a helper called outside a render (no buffer to read)" do
     klass = build { div }
 

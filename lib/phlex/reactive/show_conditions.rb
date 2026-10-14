@@ -293,7 +293,7 @@ module Phlex
         kind = hash.keys.first.to_s if hash.size == 1
         unless COUNT_PREFIXES.key?(kind)
           raise ArgumentError,
-            "reactive_show: #{name.inspect} Hash value supports only same:, or one of length: or checked: " \
+            "reactive_show: #{name.inspect} Hash value supports only same:, digits:, or one of length: or checked: " \
             "(got #{hash.keys.inspect})"
         end
 
