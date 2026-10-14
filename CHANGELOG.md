@@ -37,7 +37,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `detail.reason` `"type"` or `"size"` and `detail.file`. A non-image file
   under today's rule now dispatches it too. The op never clears `input.files`
   and never calls `setCustomValidity`. The op still carries no URL, and
-  `broadcast_to(js:)` still refuses it. Client: +346 B gzipped in the default
+  `broadcast_to(js:)` still refuses it. Client: +351 B gzipped in the default
   bundle, +336 B in the split core.
 
 - **Clear, focus and scroll when `reactive_show` changes visibility — `clear:`, `focus:`, `scroll:` (#394).**
@@ -120,6 +120,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   refused regexp raises at render, naming `when:`). `match:` still tests the
   key only; omit `when:` and nothing changes. Client: +25 B gzipped default
   bundle, +22 B bindings module, core unchanged.
+
+- **A tab-only draft — `reactive_persist(storage: :session)` (#397).** The
+  draft lives in `sessionStorage` instead of `localStorage`: a reload in the
+  same tab restores it, another tab never sees it (a tab opened from it with
+  an opener, or duplicated, starts with the browser's one-time copy),
+  closing the tab drops it.
+  Same key, same skipped controls, same `restore:`, and every read, write,
+  `ttl` expiry, successful-submit clear and `persist_state`/`persist_clear`
+  op goes to that store only — a `:local` draft is never restored by
+  `:session`, and a missing `sessionStorage` is "no draft", never a fallback
+  to `localStorage`. `storage: :local` (the default) keeps today's behavior
+  and today's wire byte-for-byte; `"local"`/`"session"` strings are accepted,
+  anything else raises at render. Client: +27 B gzipped in the default
+  bundle, +20 B in the persist module; the split core unchanged.
 
 - **An image fallback that recovers — `reactive_image_fallback(hide: true, show_alt: nil)` (#383).**
   `img(**reactive_image_fallback)` marks an `<img>` whose `src` fails with

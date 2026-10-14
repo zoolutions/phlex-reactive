@@ -4,8 +4,8 @@
 // persist_clear client op runs.
 //
 // A root that declares
-// data-reactive-persist='{"key","ttl","debounce"[,"fields"][,"restore"]}'
-// keeps a localStorage draft of every persistable OWNED control (write on
+// data-reactive-persist='{"key","ttl","debounce"[,"fields"][,"restore"][,"storage"]}'
+// keeps a localStorage (or, with "storage":"session", sessionStorage) draft of every persistable OWNED control (write on
 // input/change, restore on connect, clear on a successful submit / TTL / the
 // persist_clear op). The storage layer is MODULE-LEVEL and keyed on the root
 // element — the per-root connect/write path and the persist_state /
@@ -105,8 +105,12 @@ function persistPayload(root) {
   return null
 }
 
-function persistStorage() {
+// The store the root selected: sessionStorage for {"storage":"session"}
+// (issue #397 — this tab only), else localStorage. Never the other one: a
+// missing sessionStorage is "no draft", not a fallback that outlives the tab.
+function persistStorage(payload) {
   try {
+    if (payload.storage === "session") return typeof sessionStorage === "undefined" ? null : sessionStorage
     return typeof localStorage === "undefined" ? null : localStorage
   } catch {
     return null // the accessor itself can throw (blocked site data)
@@ -129,7 +133,7 @@ function persistKeyFor(payload) {
 // version, or expired (an expired draft is REMOVED on read). Returns
 // { fields, state } with state null when the draft carries none.
 function persistRead(root, payload) {
-  const store = persistStorage()
+  const store = persistStorage(payload)
   if (!store) return null
   let raw
   try {
@@ -157,7 +161,7 @@ function persistRead(root, payload) {
 }
 
 function persistWrite(root, payload, { fields, state }) {
-  const store = persistStorage()
+  const store = persistStorage(payload)
   if (!store) return false
   const draft = { v: PERSIST_VERSION, savedAt: Date.now(), fields }
   if (state) draft.state = state
@@ -172,7 +176,7 @@ function persistWrite(root, payload, { fields, state }) {
 
 function persistRemove(root, payload) {
   root?.removeAttribute?.(PERSIST_STATE_ATTR)
-  const store = persistStorage()
+  const store = persistStorage(payload)
   if (!store) return
   try {
     store.removeItem(persistKeyFor(payload))

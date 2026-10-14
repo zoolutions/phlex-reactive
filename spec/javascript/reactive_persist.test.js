@@ -44,6 +44,7 @@ const REAL = {
   document: globalThis.document,
   window: globalThis.window,
   localStorage: globalThis.localStorage,
+  sessionStorage: globalThis.sessionStorage,
   setTimeout: globalThis.setTimeout,
   clearTimeout: globalThis.clearTimeout,
   now: Date.now,
@@ -53,7 +54,7 @@ const REAL = {
   HTMLFormElement: globalThis.HTMLFormElement,
 }
 
-let window, storage, timers, now, infos, warns
+let window, storage, session, timers, now, infos, warns
 
 // Map-backed localStorage with call counters and a throw switch.
 function makeStorage() {
@@ -91,6 +92,10 @@ beforeEach(() => {
   globalThis.HTMLFormElement = window.HTMLFormElement
   storage = makeStorage()
   globalThis.localStorage = storage
+  // storage: :session (issue #397) — its own stub, so a test can prove the
+  // other store was never touched.
+  session = makeStorage()
+  globalThis.sessionStorage = session
   timers = []
   globalThis.setTimeout = (fn, ms) => {
     timers.push({ fn, ms, id: timers.length + 1 })
@@ -111,6 +116,7 @@ afterEach(() => {
   globalThis.document = REAL.document
   globalThis.window = REAL.window
   globalThis.localStorage = REAL.localStorage
+  globalThis.sessionStorage = REAL.sessionStorage
   globalThis.setTimeout = REAL.setTimeout
   globalThis.clearTimeout = REAL.clearTimeout
   globalThis.CustomEvent = REAL.CustomEvent
@@ -509,6 +515,108 @@ test("a missing localStorage global disables persistence quietly", async () => {
   const { controller, q } = mount(FORM)
   await connectCleanly(controller)
   expect(() => fire(q('[name="form[name]"]'), "change")).not.toThrow()
+})
+
+// --- storage: :session (issue #397) ----------------------------------------
+//
+// {"storage":"session"} keeps the draft in sessionStorage under the SAME key.
+// Every path — write, restore, ttl expiry, submit clear, the persist ops —
+// goes to that store and never reads or writes localStorage; a draft in one
+// store is never restored by a root that selected the other.
+
+describe("storage: session", () => {
+  const SESSION = { ...PAYLOAD, storage: "session" }
+  const untouched = { get: 0, set: 0, remove: 0 }
+
+  test("writes the draft to sessionStorage, never localStorage", async () => {
+    const { controller, q } = mount(FORM, { payload: SESSION })
+    await connect(controller)
+    q('[name="form[name]"]').value = "Ada"
+    fire(q('[name="form[name]"]'), "change")
+    expect(session.json(KEY).fields["form[name]"]).toBe("Ada")
+    expect(storage.calls).toEqual(untouched)
+  })
+
+  test("the excluded controls stay excluded", async () => {
+    const { controller, q } = mount(FORM, { payload: SESSION })
+    await connect(controller)
+    fire(q('[name="form[name]"]'), "change")
+    for (const absent of ["form[tz]", "form[pw]", "form[doc]", "commit", "fuckery", "inner"]) {
+      expect(session.json(KEY).fields).not.toHaveProperty(absent)
+    }
+  })
+
+  test("restores a sessionStorage draft on connect", async () => {
+    session.seed(KEY, { v: 1, savedAt: now - 1000, fields: { "form[name]": "Ada" }, state: { step: 2 } })
+    const { controller, el, q } = mount(FORM, { payload: SESSION })
+    await connect(controller)
+    expect(q('[name="form[name]"]').value).toBe("Ada")
+    expect(el.getAttribute("data-reactive-persist-state")).toBe('{"step":2}')
+    expect(storage.calls).toEqual(untouched)
+  })
+
+  test("a localStorage draft under the same key is not restored by a session root", async () => {
+    seedDraft({ "form[name]": "Local" })
+    const { controller, q } = mount(FORM, { payload: SESSION })
+    await connect(controller)
+    expect(q('[name="form[name]"]').value).toBe("")
+    expect(storage.calls.get).toBe(0)
+  })
+
+  test("a sessionStorage draft is not restored by a local root", async () => {
+    session.seed(KEY, { v: 1, savedAt: now - 1000, fields: { "form[name]": "Session" } })
+    const { controller, q } = mount(FORM)
+    await connect(controller)
+    expect(q('[name="form[name]"]').value).toBe("")
+    expect(session.calls).toEqual(untouched)
+  })
+
+  test("an explicit storage: local reads localStorage", async () => {
+    seedDraft({ "form[name]": "Local" })
+    const { controller, q } = mount(FORM, { payload: { ...PAYLOAD, storage: "local" } })
+    await connect(controller)
+    expect(q('[name="form[name]"]').value).toBe("Local")
+    expect(session.calls).toEqual(untouched)
+  })
+
+  test("an expired session draft is removed from sessionStorage", async () => {
+    session.seed(KEY, { v: 1, savedAt: now - 61_000, fields: { "form[name]": "Old" } })
+    const { controller, q } = mount(FORM, { payload: SESSION })
+    await connect(controller)
+    expect(q('[name="form[name]"]').value).toBe("")
+    expect(session.raw(KEY)).toBeUndefined()
+    expect(storage.calls).toEqual(untouched)
+  })
+
+  test("a successful submit removes the sessionStorage entry", async () => {
+    session.seed(KEY, { v: 1, savedAt: now - 1000, fields: { "form[name]": "Ada" } })
+    seedDraft({ "form[name]": "Local" })
+    const { controller } = mount(FORM, { payload: SESSION })
+    await connect(controller)
+    submitEnd(document.getElementById("f"), true)
+    expect(session.raw(KEY)).toBeUndefined()
+    expect(storage.json(KEY).fields["form[name]"]).toBe("Local")
+  })
+
+  test("persist_state and persist_clear act on sessionStorage", async () => {
+    const { controller } = mount(FORM, { payload: SESSION })
+    await connect(controller)
+    controller.runOps({ preventDefault() {}, params: { ops: JSON.stringify([["persist_state", { to: "@root", state: { step: 2 } }]]) } })
+    await settle()
+    expect(session.json(KEY).state).toEqual({ step: 2 })
+    controller.runOps({ preventDefault() {}, params: { ops: JSON.stringify([["persist_clear", { to: "@root" }]]) } })
+    await settle()
+    expect(session.raw(KEY)).toBeUndefined()
+    expect(storage.calls).toEqual(untouched)
+  })
+
+  test("a missing sessionStorage global disables persistence quietly, without falling back to localStorage", async () => {
+    delete globalThis.sessionStorage
+    const { controller, q } = mount(FORM, { payload: SESSION })
+    await connectCleanly(controller)
+    expect(() => fire(q('[name="form[name]"]'), "change")).not.toThrow()
+    expect(storage.calls).toEqual(untouched)
+  })
 })
 
 // --- rich editors (issue #241) --------------------------------------------
