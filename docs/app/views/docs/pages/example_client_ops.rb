@@ -820,7 +820,9 @@ module Views
 
               `storage: :session` (#397) keeps the draft in `sessionStorage`
               rather than `localStorage`: a reload in the same tab restores it,
-              another tab never sees it, and closing the tab drops it. Same key,
+              another tab never sees it, and closing the tab drops it. (A tab
+              opened from it with an opener, or duplicated, starts with the
+              browser's one-time copy of the session store.) Same key,
               same exclusions, same clears; a `:local` draft is never restored
               by a `:session` root. `:local` is the default.
 

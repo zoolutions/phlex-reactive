@@ -2028,7 +2028,10 @@ wire attr: `data-reactive-persist='{"key":"village-apply","ttl":604800,"debounce
   tab of the origin sees it, and it outlives them until `ttl`.
   `storage: :session` (#397) keeps it in `sessionStorage` instead: the same tab
   restores it on reload, another tab never sees it, and closing the tab drops
-  it. Same key, same exclusions, same `restore:`, same clears. The two stores
+  it. (A tab opened FROM this one with an opener — `window.open`, a link
+  without `noopener` — or a duplicated tab starts with a copy of the
+  browser's session store, draft included: a one-time snapshot, after which
+  the two tabs' drafts are separate.) Same key, same exclusions, same `restore:`, same clears. The two stores
   are read separately — a `:local` draft is never restored by `:session`.
   `"local"` / `"session"` strings are accepted; anything else raises at render.
 - **Clear** — a successful `turbo:submit-end` of the form that contains the
@@ -2075,7 +2078,8 @@ are replayed via `.value`/`.checked`/`.selected`, a bare contenteditable via
 `textContent`, and a rich editor through its own `value` setter (the same
 sanitizing import a paste takes). A tampered draft can only produce what the
 user could type or paste into that field. PII sits in this
-browser's `localStorage` for `ttl`; the submit-clear, `ttl` and
+browser's `localStorage` (or, with `storage: :session`, this tab's
+`sessionStorage`) for `ttl`; the submit-clear, `ttl` and
 `storage: :session` (the draft goes with the tab) are the shared-computer
 mitigation. `persist_state`/`persist_clear` are **actor-only**
 ops (refused by `broadcast_to(js:)`). See the [security page](docs/security.md).

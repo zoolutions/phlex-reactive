@@ -10,7 +10,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **A tab-only draft — `reactive_persist(storage: :session)` (#397).** The
   draft lives in `sessionStorage` instead of `localStorage`: a reload in the
-  same tab restores it, another tab never sees it, closing the tab drops it.
+  same tab restores it, another tab never sees it (a tab opened from it with
+  an opener, or duplicated, starts with the browser's one-time copy),
+  closing the tab drops it.
   Same key, same skipped controls, same `restore:`, and every read, write,
   `ttl` expiry, successful-submit clear and `persist_state`/`persist_clear`
   op goes to that store only — a `:local` draft is never restored by

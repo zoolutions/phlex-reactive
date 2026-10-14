@@ -1186,7 +1186,8 @@ module Phlex
         # Client-only browser-storage draft over the fields this root OWNS
         # (issue #239) — "don't make me start over". Spread on the ROOT (mix with
         # reactive_root, like reactive_show_targets); the generic controller
-        # then writes every owned control's value to localStorage as the user
+        # then writes every owned control's value to the selected store
+        # (localStorage, or sessionStorage with `storage: :session`) as the user
         # types (debounced on `input`, immediate on `change`, flushed on
         # disconnect), restores the draft on the NEXT connect, and forgets it
         # when the owning form submits successfully (turbo:submit-end), when
@@ -1218,13 +1219,15 @@ module Phlex
         # `storage:` — `:local` (default) keeps the draft in localStorage,
         # shared by every tab and outliving them; `:session` (issue #397) keeps
         # it in sessionStorage: this tab only, restored on reload, gone when
-        # the tab closes. A string of the same word is accepted. Each store is
+        # the tab closes (a tab opened from it with an opener, or duplicated,
+        # starts with the browser's one-time copy of the session store). A
+        # string of the same word is accepted. Each store is
         # read on its own: a `:local` draft is never restored by `:session`.
         #
         # Same posture as reactive_show: no token, no POST, no expression
         # surface. Stored values are plain user input replayed via
         # .value/.checked (never HTML) — a tampered draft can only fill what
-        # the user could type. PII sits in localStorage for `ttl`; the
+        # the user could type. PII sits in the selected store for `ttl`; the
         # successful-submit clear, `ttl` and `storage: :session` are the
         # shared-computer mitigation (see docs/security). ONE call per root — Phlex `mix` space-joins
         # duplicate string data values, so a second call would corrupt the JSON.
