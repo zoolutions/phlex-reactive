@@ -509,6 +509,18 @@ class DemosController < ActionController::Base
     redirect_to "/bulk_selection?result=#{CGI.escape(result)}", status: :see_other
   end
 
+  # Issue #398: nested select-all groups. The POST echoes every posted key (the
+  # headers have no name, so only perms) and the ticked leaves.
+  def nested_selection
+    render_component NestedSelectionComponent.new(result: params[:result])
+  end
+
+  def nested_selection_submit
+    keys = request.request_parameters.keys - ["authenticity_token"]
+    result = "#{keys.join(",")}:#{Array(params[:perms]).join(",")}"
+    redirect_to "/nested_selection?result=#{CGI.escape(result)}", status: :see_other
+  end
+
   # Issue #350: sortable lists (see SortablePageComponent).
   def sortable
     render_component SortablePageComponent.new

@@ -716,7 +716,9 @@ function mediaMatches(c, selector) {
 // (data-reactive-count), and the checked_* terms any condition can use —
 // reactive_enable (data-reactive-enable) flips the element's own `disabled`
 // from one. They re-sync with the show pass: on every input/change, on a
-// morph, and when boxes are added or removed (observeGroups).
+// morph, and when boxes are added or removed (observeGroups). A header with
+// data-reactive-select-all-under (issue #398) is one branch of a tree: it owns
+// the boxes of the name whose data-reactive-group is in its path.
 const GROUP_BINDING_SELECTOR = "[data-reactive-enable], [data-reactive-select-all], [data-reactive-count]"
 
 // Whether the root holds any group binding (owned or not — a stray nested
@@ -726,15 +728,25 @@ function hasGroups(c) {
 }
 
 // The owned checkboxes of a group (a nested root's boxes are its own, #15).
-function groupBoxes(c, name, owns, scope) {
-  return [...c.root.querySelectorAll(namedSelector(name, scope))].filter((el) => el.type === "checkbox" && owns(el))
+// With `under` (a nested header, issue #398) only the boxes whose
+// data-reactive-group is that path or below it, on whole segments.
+function groupBoxes(c, name, owns, scope, under) {
+  return [...c.root.querySelectorAll(namedSelector(name, scope))].filter(
+    (el) => el.type === "checkbox" && owns(el) && (!under || inGroupPath(el.getAttribute("data-reactive-group"), under)),
+  )
+}
+
+function inGroupPath(path, under) {
+  return path === under || !!path?.startsWith(`${under}.`)
 }
 
 // A header's edit ticks or unticks every owned box of its group (the header
 // itself is never a member). The show listener syncs once afterwards.
 function flipGroup(c, header) {
   const group = header?.getAttribute?.("data-reactive-select-all")
-  if (group && c.core.owns(header)) setGroup(c, group, header.checked, header)
+  if (group && c.core.owns(header)) {
+    setGroup(c, group, header.checked, header, header.getAttribute("data-reactive-select-all-under"))
+  }
 }
 
 // The check_group op (issue #342): set a root's group the way its header
@@ -754,9 +766,9 @@ export function checkGroup(root, group, checked) {
 // on each one it flips so computes, shows and on-complete bindings see a real
 // edit. The re-entrant events are skipped by the show listener while this
 // runs (c.flipping); the caller syncs once afterwards.
-function setGroup(c, group, checked, except) {
+function setGroup(c, group, checked, except, under) {
   const scope = c.root.getAttribute?.("data-reactive-scope") || null
-  const flipped = groupBoxes(c, group, c.core.ownership(), scope).filter((box) => box !== except && box.checked !== checked)
+  const flipped = groupBoxes(c, group, c.core.ownership(), scope, under).filter((box) => box !== except && box.checked !== checked)
   // Every box first, then the events: a listener (a checked-count
   // on_complete) must see the group's final count, never a half-flipped one.
   for (const box of flipped) box.checked = checked
@@ -789,7 +801,8 @@ function syncGroups(c, fieldValue, owns, scope) {
     }
     const group = el.getAttribute("data-reactive-select-all")
     if (group) {
-      const boxes = groupBoxes(c, group, owns, scope).filter((box) => box !== el)
+      const under = el.getAttribute("data-reactive-select-all-under")
+      const boxes = groupBoxes(c, group, owns, scope, under).filter((box) => box !== el)
       const ticked = boxes.filter((box) => box.checked).length
       el.checked = ticked > 0 && ticked === boxes.length
       el.indeterminate = ticked > 0 && ticked < boxes.length

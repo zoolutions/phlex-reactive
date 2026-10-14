@@ -94,6 +94,9 @@ Rails.application.routes.draw do
   # and a confirmed submit through a hidden submitter.
   get "bulk_selection" => "demos#bulk_selection"
   post "bulk_selection" => "demos#bulk_selection_submit"
+  # Issue #398: nested select-all groups under one wire name.
+  get "nested_selection" => "demos#nested_selection"
+  post "nested_selection" => "demos#nested_selection_submit"
   # Issue #343: a nested-root list driving an outside bulk bar (reactive_group_targets).
   get "group_targets" => "demos#group_targets"
   # Issue #346: a bulk form that clears its selection on a successful submit only.
