@@ -160,7 +160,8 @@ const SLACK = 250
 // the restoration-safe hidden mark and the decode() check in the sweep) adds
 // 582 B on #381; on top of #382, 584 B (34,606 B); on top of #380, 586 B: 34,760 B;
 // ignoring a stale sweep decode(), 11 B: 34,771 B.
-const BUNDLE_GZIP_CEILING = 34_771
+// Issue #397 (reactive_persist storage: :session, in persist) adds 27 B: 34,798 B.
+const BUNDLE_GZIP_CEILING = 34_798
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -236,7 +237,8 @@ const FEATURE_GZIP_CEILINGS = {
   "features/effects": 1_750,
   // Issue #351 (an editable drafted through the core's collector) takes it to 3,167 B.
   // One document submit-end listener for every persisted root, to 3,283 B.
-  "features/persist": 3_283,
+  // Issue #397 (storage: :session selects sessionStorage) to 3,303 B.
+  "features/persist": 3_303,
   // Issue #351 (an editable's dirty diff against its server text) takes it to 1,088 B.
   // Issue #356 (a gate wired the first time it reads true, and reseed) to 1,152 B.
   // One window listener pair for every warn_unsaved root, to 1,268 B.
@@ -301,7 +303,8 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #383 (reactive_image_fallback, in the core) adds 546 B on #381; on top of
 // #382 (42,446 B) and #380, 546 B: 42,598 B; ignoring a stale sweep decode(),
 // 4 B: 42,602 B.
-const SPLIT_TOTAL_GZIP_CEILING = 42_602
+// Issue #397 (storage: :session, in persist; the core unchanged) adds 20 B: 42,622 B.
+const SPLIT_TOTAL_GZIP_CEILING = 42_622
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

@@ -8,6 +8,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **A tab-only draft — `reactive_persist(storage: :session)` (#397).** The
+  draft lives in `sessionStorage` instead of `localStorage`: a reload in the
+  same tab restores it, another tab never sees it, closing the tab drops it.
+  Same key, same skipped controls, same `restore:`, and every read, write,
+  `ttl` expiry, successful-submit clear and `persist_state`/`persist_clear`
+  op goes to that store only — a `:local` draft is never restored by
+  `:session`, and a missing `sessionStorage` is "no draft", never a fallback
+  to `localStorage`. `storage: :local` (the default) keeps today's behavior
+  and today's wire byte-for-byte; `"local"`/`"session"` strings are accepted,
+  anything else raises at render. Client: +27 B gzipped in the default
+  bundle, +20 B in the persist module; the split core unchanged.
 - **An image fallback that recovers — `reactive_image_fallback(hide: true, show_alt: nil)` (#383).**
   `img(**reactive_image_fallback)` marks an `<img>` whose `src` fails with
   `data-reactive-image-state="error"` and hides it; `show_alt: "#bank-name"`

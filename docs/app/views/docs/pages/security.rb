@@ -521,7 +521,9 @@ module Views
               - **PII sits on disk for `ttl`.** Default 7 days; an expired draft
                 is removed on read, a successful submit clears it. On a shared
                 computer `ttl` + the submit-clear are the mitigation — shorten
-                `ttl:` for sensitive forms.
+                `ttl:` for sensitive forms, or pass `storage: :session` (#397)
+                so the draft lives in `sessionStorage` and goes when the tab
+                closes (another tab never sees it).
               - **Secrets are excluded by default** — `type=password`, `hidden`
                 and `file` controls never reach storage. **Honeypots are not
                 detectable**: an invisible-captcha text input looks like any

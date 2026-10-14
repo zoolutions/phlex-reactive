@@ -818,6 +818,18 @@ module Views
               `ttl` expiry, or via `js.persist_clear` — never on a successful
               reactive action by itself (chain `reply.js(js.persist_clear)`).
 
+              `storage: :session` (#397) keeps the draft in `sessionStorage`
+              rather than `localStorage`: a reload in the same tab restores it,
+              another tab never sees it, and closing the tab drops it. Same key,
+              same exclusions, same clears; a `:local` draft is never restored
+              by a `:session` root. `:local` is the default.
+
+              ```ruby
+              div(**mix(reactive_root(id: "apply"), reactive_persist(key: "apply-draft", storage: :session))) do
+                input(**reactive_field(:name))
+              end
+              ```
+
               Never persisted: `hidden`/`file`/`password`/`submit` controls,
               anything carrying `reactive_persist_skip`, and a nested root's
               controls. Rich editors (#241) — a named `lexxy-editor`,

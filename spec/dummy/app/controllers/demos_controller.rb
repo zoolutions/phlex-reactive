@@ -489,8 +489,9 @@ class DemosController < ActionController::Base
   # root — the #164 cross-root target the component declares by id.
   # Issue #239: reactive_persist. ?name= renders a server value the draft must
   # not overwrite; the POST redirects (a successful Turbo submit → draft cleared).
+  # ?storage=session (issue #397) selects the sessionStorage draft.
   def persist_form
-    render_component PersistFormComponent.new(name: params[:name])
+    render_component PersistFormComponent.new(name: params[:name], storage: params[:storage] || :local)
   end
 
   def persist_form_submit
