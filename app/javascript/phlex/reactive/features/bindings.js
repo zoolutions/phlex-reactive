@@ -470,11 +470,12 @@ function syncShow(c) {
       applyShowVisibility(el, visible, owns, scope)
       // The previous visibility lives on this controller (absent on connect,
       // kept by a morph), so first paint never counts as a change.
-      if (SHOW_MOVES.some((name) => el.hasAttribute(`data-reactive-show-${name}`))) {
-        const was = (c.shown ??= new WeakMap()).get(el)
-        c.shown.set(el, visible)
-        if (was !== undefined && was !== visible) moved.push(el)
-      }
+      // Tracked for every binding, so a morph that drops the transition attrs
+      // and later restores them never compares against a stale value.
+      const was = (c.shown ??= new WeakMap()).get(el)
+      c.shown.set(el, visible)
+      const moves = SHOW_MOVES.some((name) => el.hasAttribute(`data-reactive-show-${name}`))
+      if (moves && was !== undefined && was !== visible) moved.push(el)
       continue
     }
 
@@ -510,16 +511,17 @@ function showMoved(c, el, owns, scope) {
     try {
       names = JSON.parse(el.getAttribute("data-reactive-show-clear") ?? "[]")
     } catch {}
-    for (const name of Array.isArray(names) ? names : []) {
-      for (const field of c.root.querySelectorAll(namedSelector(String(name), scope))) {
-        if (!owns(field) || field.type === "file") continue
-        if (field.type === "checkbox" || field.type === "radio") {
-          if (field.checked) {
-            field.checked = false
-            fireInput(field)
-          }
-        } else c.core.setValue(field, "")
-      }
+    // Compared by attribute, not a [name="…"] selector, so a name holding a
+    // `"` or `\` clears its field instead of throwing.
+    const wires = new Set((Array.isArray(names) ? names : []).map((name) => wireName(String(name), scope)))
+    for (const field of wires.size ? c.root.querySelectorAll("[name]") : []) {
+      if (!wires.has(field.getAttribute("name")) || !owns(field) || field.type === "file") continue
+      if (field.type === "checkbox" || field.type === "radio") {
+        if (field.checked) {
+          field.checked = false
+          fireInput(field)
+        }
+      } else c.core.setValue(field, "")
     }
     return
   }

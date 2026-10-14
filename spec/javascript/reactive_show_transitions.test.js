@@ -19,6 +19,7 @@ import { Window } from "happy-dom"
 const window = new Window()
 let ReactiveController
 const SAVED = {}
+const SCROLL_INTO_VIEW = window.HTMLElement.prototype.scrollIntoView
 
 beforeAll(async () => {
   mock.module("@hotwired/stimulus", () => ({ Controller: class {} }))
@@ -37,6 +38,7 @@ beforeEach(() => {
 
 afterEach(() => {
   for (const [key, value] of Object.entries(SAVED)) globalThis[key] = value
+  window.HTMLElement.prototype.scrollIntoView = SCROLL_INTO_VIEW
 })
 
 function mount(html) {
@@ -148,5 +150,36 @@ test("a binding without these attrs only toggles hidden", () => {
     </form>`)
   choose($("#listed"))
   expect($("#plain").hidden).toBe(true)
+  expect($("#notes").value).toBe("kept")
+})
+
+test("a clear: name with CSS-special characters clears its field without throwing", () => {
+  const { $ } = mount(`
+    <form id="q" data-controller="reactive">
+      <input type="radio" id="other" name="kind" value="other" checked>
+      <input type="radio" id="listed" name="kind" value="listed">
+      <div id="section" data-reactive-show="${attr(OTHER)}" data-reactive-show-clear="${attr(['a"b\\c'])}">
+        <input id="odd" name='a"b\\c' value="typed">
+      </div>
+    </form>`)
+  expect($("#odd").getAttribute("name")).toBe('a"b\\c')
+  choose($("#listed"))
+  expect($("#section").hidden).toBe(true)
+  expect($("#odd").value).toBe("")
+})
+
+test("a morph that drops then restores the attrs does not replay a stale transition", () => {
+  const { $ } = mount(FORM({ kind: "other", notes: "typed", hidden: false }))
+  const section = $("#section")
+  const clear = section.getAttribute("data-reactive-show-clear")
+  for (const name of ["clear", "focus", "scroll"]) section.removeAttribute(`data-reactive-show-${name}`)
+  fire(section, "turbo:morph-element")
+
+  choose($("#listed")) // hidden while the binding declares no transition work
+  expect(section.hidden).toBe(true)
+  $("#notes").value = "kept"
+
+  section.setAttribute("data-reactive-show-clear", clear)
+  fire(section, "turbo:morph-element") // still hidden: no change, nothing to clear
   expect($("#notes").value).toBe("kept")
 })

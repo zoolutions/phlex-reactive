@@ -162,8 +162,9 @@ const SLACK = 250
 // ignoring a stale sweep decode(), 11 B: 34,771 B.
 // Issue #395 (the same: show term, in bindings) adds 103 B: 34,874 B.
 // Issue #396 (the digits: term and the after: blur gate, in bindings) adds 232 B: 35,106 B.
-// Issue #394 (clear:/focus:/scroll: on a show's visibility change, in bindings) adds 282 B: 35,388 B.
-const BUNDLE_GZIP_CEILING = 35_388
+// Issue #394 (clear:/focus:/scroll: on a show's visibility change, in bindings) adds 282 B: 35,388 B;
+// its review fixes (clear: by attribute, visibility tracked for every binding) 23 B: 35,411 B.
+const BUNDLE_GZIP_CEILING = 35_411
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -234,8 +235,9 @@ const FEATURE_GZIP_CEILINGS = {
   // Issue #380 (the pending state, match:, pending: keep, data-reactive-media-state) to 7,047 B.
   // Issue #395 (the same: term and its ASCII fold) to 7,144 B.
   // Issue #396 (the digits: term and the after: blur gate) to 7,362 B.
-  // Issue #394 (clear:/focus:/scroll: on a show's visibility change) to 7,658 B.
-  "features/bindings": 7_658,
+  // Issue #394 (clear:/focus:/scroll: on a show's visibility change) to 7,658 B;
+  // its review fixes to 7,680 B.
+  "features/bindings": 7_680,
   // Issue #336 (render a defer reply now) takes it from 2,845 B to 2,974 B.
   "features/defer": 2_974,
   "features/compute": 2_050,
@@ -310,8 +312,9 @@ const FEATURE_GZIP_CEILINGS = {
 // 4 B: 42,602 B.
 // Issue #395 (the same: show term, in bindings) adds 97 B: 42,699 B.
 // Issue #396 (the digits: term and the after: blur gate, in bindings) adds 218 B: 42,917 B.
-// Issue #394 (clear:/focus:/scroll: on a show's visibility change, in bindings) adds 306 B: 43,223 B.
-const SPLIT_TOTAL_GZIP_CEILING = 43_223
+// Issue #394 (clear:/focus:/scroll: on a show's visibility change, in bindings) adds 306 B: 43,223 B;
+// its review fixes 22 B: 43,245 B.
+const SPLIT_TOTAL_GZIP_CEILING = 43_245
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 
