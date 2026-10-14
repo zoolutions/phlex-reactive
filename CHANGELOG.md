@@ -8,6 +8,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`on_client` takes `debounce:` and `throttle:` like `on` (#393).**
+  `input(**on_client(:input, js.submit("#search"), debounce: 300))` runs the
+  ops once, 300 ms after the last `input` of a burst; `throttle: 250` runs on
+  the first event and drops the rest until 250 ms have passed. Non-negative
+  Integer milliseconds; both at once raise at render with `on`'s message, and
+  a negative or non-Integer value raises too. The wait rides on the binding
+  record, so mix-ed bindings keep their own, and the client runs it on the
+  timers `on` uses (a blur flushes a pending debounce, except on a
+  window-bound binding; disconnect clears it). `once:` still means one run,
+  after the wait. `on` is unchanged. Client: +150 B gzipped in the default
+  bundle, +127 B in the split core. Docs: "Waiting: debounce: and throttle:"
+  on the client-ops example.
+
 - **An image fallback that recovers — `reactive_image_fallback(hide: true, show_alt: nil)` (#383).**
   `img(**reactive_image_fallback)` marks an `<img>` whose `src` fails with
   `data-reactive-image-state="error"` and hides it; `show_alt: "#bank-name"`

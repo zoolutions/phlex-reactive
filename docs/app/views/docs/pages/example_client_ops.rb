@@ -18,6 +18,7 @@ module Views
         def content
           try_it
           how
+          waiting
           disclosure_menu
           modal_dialogs
           media_previews
@@ -81,6 +82,37 @@ module Views
                 trigger, and `focus_first("#ct-drawer")` moves focus to the first
                 control inside — the exact accessible-disclosure pattern, one chain.
             MD
+          end
+        end
+
+        def waiting
+          DocsUI::Section('Waiting: debounce: and throttle:') do
+            md <<~MD
+              `on_client` takes the same `debounce:` and `throttle:` keywords as `on`
+              (#393): non-negative Integer milliseconds, never both at once (that
+              raises at render, as `on` does). The client waits on the same timers
+              `on` uses, then runs the ops locally — no round trip.
+
+              - **`debounce: 300`** is trailing-edge: a burst of events runs the ops
+                **once**, 300 ms after the last one. A new event inside the window
+                replaces the pending run, and leaving the field (blur) runs it now.
+              - **`throttle: 250`** is leading-edge: the first event runs the ops at
+                once, and further events are dropped until 250 ms have passed.
+              - **`once: true`** still means one run for the life of the element,
+                after the wait.
+
+              ```ruby
+              input(**on_client(:input, js.submit("#search"), debounce: 300))
+              div(**on_client(:scroll, js.add_class("#bar", "stuck"), window: true, throttle: 250))
+              ```
+
+              Type below and stop: the plain binding runs on every key, the debounced
+              one once. Both sit on one input through `mix`.
+            MD
+            render Views::Examples::LiveExample.new(
+              component: TypingPauseComponent.new,
+              filename: 'app/components/typing_pause_component.rb'
+            )
           end
         end
 

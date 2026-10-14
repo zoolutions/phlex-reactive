@@ -1411,6 +1411,61 @@ RSpec.describe Phlex::Reactive::Component do
       expect(attrs[:data]).not_to have_key(:reactive_token_value)
     end
 
+    # Issue #393: debounce:/throttle: ride on the binding record (never as
+    # element-wide params — they would leak across mix-ed bindings).
+    describe "debounce: / throttle: (issue #393)" do
+      it "carries debounce: on the record" do
+        record = binding_record(instance.send(:on_client, :input, ops, debounce: 300))
+
+        expect(record).to include("on" => "input", "debounce" => 300)
+        expect(record).not_to have_key("throttle")
+      end
+
+      it "carries throttle: on the record" do
+        record = binding_record(instance.send(:on_client, :scroll, ops, window: true, throttle: 250))
+
+        expect(record).to include("throttle" => 250, "window" => true)
+        expect(record).not_to have_key("debounce")
+      end
+
+      it "omits both keys when neither is given (ops run on every event)" do
+        record = binding_record(instance.send(:on_client, :input, ops))
+
+        expect(record.keys).not_to include("debounce", "throttle")
+      end
+
+      it "accepts 0" do
+        expect(binding_record(instance.send(:on_client, :input, ops, debounce: 0))).to include("debounce" => 0)
+      end
+
+      it "keeps the wait out of the element-wide params" do
+        attrs = instance.send(:on_client, :input, ops, debounce: 300)
+
+        expect(attrs[:data].keys).to contain_exactly(:action, :reactive_ops_param)
+      end
+
+      it "raises on both at once, with on()'s message shape" do
+        expect { instance.send(:on_client, :input, ops, debounce: 300, throttle: 250) }
+          .to raise_error(ArgumentError,
+            'on_client("input") got both debounce: and throttle: — they are mutually exclusive ' \
+            "(debounce is trailing-edge, throttle is leading-edge); pick one")
+      end
+
+      # Two block params (not `it`, which would shadow RSpec's example method).
+      %i[debounce throttle].product([-1, 1.5, "300", true]).each do |key, bad|
+        it "raises on #{key}: #{bad.inspect}" do
+          expect { instance.send(:on_client, :input, ops, key => bad) }
+            .to raise_error(ArgumentError, /on_client\("input"\) #{key}: must be a non-negative Integer \(ms\)/)
+        end
+      end
+
+      it "leaves on() unchanged (no integer check there)" do
+        expect(instance.send(:on, :set, event: "input", debounce: 300)[:data][:reactive_debounce_param]).to eq(300)
+        expect { instance.send(:on, :set, debounce: 1, throttle: 1) }
+          .to raise_error(ArgumentError, /on\(:set\) got both debounce: and throttle:/)
+      end
+    end
+
     it "no longer writes the element-wide outside/window/confirm params (they would leak across bindings)" do
       attrs = instance.send(:on_client, :click, ops, outside: true, confirm: "Sure?")
 

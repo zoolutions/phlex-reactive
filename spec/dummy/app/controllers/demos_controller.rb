@@ -592,6 +592,12 @@ class DemosController < ActionController::Base
     render html: render_to_string(ClientOpConfirmComponent.new, layout: false).html_safe, layout: true
   end
 
+  # Issue #393: debounce:/throttle: on on_client — counted CustomEvents, no
+  # actions (client-op only).
+  def client_wait
+    render html: render_to_string(ClientWaitComponent.new, layout: false).html_safe, layout: true
+  end
+
   # Issue #179: DECLARATIVE conditional confirm — the save warns only when total
   # is 0 (the reactive_show conditions language evaluated client-side).
   def conditional_confirm
