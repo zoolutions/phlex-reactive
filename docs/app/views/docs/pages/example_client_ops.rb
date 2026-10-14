@@ -439,7 +439,7 @@ module Views
                 `@root`). Both selectors resolve inside the element's reactive root, and
                 name nodes beside the countdown, never inside it: its text replaces its
                 content, so a root that is itself the countdown has no `waiting:`/`done:`.
-              - The client is the `countdown` feature module (0.9 KB gzipped); the split
+              - The client is the `countdown` feature module (1.0 KB gzipped); the split
                 client fetches it when the first root holding a countdown connects.
             MD
           end

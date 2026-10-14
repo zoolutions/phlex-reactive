@@ -1201,21 +1201,21 @@ module Views
             end
             DocsUI::Table(['Module', 'Gzipped', 'Default client', 'Split client'],
                           [
-                            [[:code, 'phlex/reactive/reactive_controller'], '30.9 KB',
+                            [[:code, 'phlex/reactive/reactive_controller'], '35.4 KB',
                              'When your controllers load (or at the first trigger, for a page whose only roots are dormant).',
                              'Never.'],
-                            [[:code, 'phlex/reactive/core'], '14.3 KB',
+                            [[:code, 'phlex/reactive/core'], '17.2 KB',
                              'Never: it is inside the one file.',
                              'When your controllers load (or at the first trigger, for a page whose only roots are dormant).'],
-                            [[:code, 'phlex/reactive/features/persist'], '3.1 KB',
+                            [[:code, 'phlex/reactive/features/persist'], '3.3 KB',
                              'Inside the one file.',
                              [:md, 'When the first root that declares `reactive_persist` connects, or a `persist_state` / ' \
                                    '`persist_clear` op runs.']],
-                            [[:code, 'phlex/reactive/features/defer'], '2.8 KB',
+                            [[:code, 'phlex/reactive/features/defer'], '3.0 KB',
                              'Inside the one file.',
                              [:md, 'When the first `reactive_lazy` shell connects, a morph turns a root into one, or a ' \
                                    '`reply.defer` arrives.']],
-                            [[:code, 'phlex/reactive/features/form'], '1.0 KB',
+                            [[:code, 'phlex/reactive/features/form'], '1.3 KB',
                              'Inside the one file.',
                              [:md, 'When the first root that tracks dirty fields (`track_dirty:`, `warn_unsaved:`) or ' \
                                    'holds a `paste_into` trigger connects.']],
@@ -1223,7 +1223,7 @@ module Views
                              'Inside the one file.',
                              [:md, 'When the first root that declares an effect connects, or when the first stream ' \
                                    'that needs it arrives: one with an effect, or with a `dismiss_after:` flash.']],
-                            [[:code, 'phlex/reactive/features/bindings'], '6.7 KB',
+                            [[:code, 'phlex/reactive/features/bindings'], '7.1 KB',
                              'Inside the one file.',
                              [:md, 'When the first root with a `reactive_show` / show targets / ' \
                                    '`reactive_on_complete` / `reactive_filter` / `reactive_tags` / `reactive_editable` / ' \
@@ -1237,10 +1237,10 @@ module Views
                              'Inside the one file.',
                              [:md, 'When the first root that is, or holds, a `reactive_sortable` or ' \
                                    '`reactive_sortable_source` list connects.']],
-                            [[:code, 'phlex/reactive/features/presence'], '1.3 KB',
+                            [[:code, 'phlex/reactive/features/presence'], '1.4 KB',
                              'Inside the one file.',
                              [:md, 'When the first `reactive_presence` root connects.']],
-                            [[:code, 'phlex/reactive/features/countdown'], '0.9 KB',
+                            [[:code, 'phlex/reactive/features/countdown'], '1.0 KB',
                              'Inside the one file.',
                              [:md, 'When the first root that is, or holds, a `reactive_countdown` connects.']],
                             [[:code, 'phlex/reactive/features/hints'], '1.0 KB',
@@ -1253,17 +1253,17 @@ module Views
                                    '`phlex-reactive-env` development meta or while a latency delay is stored; ' \
                                    'at connect for a root in debug mode; otherwise the first time a verbose root ' \
                                    'has something to warn about. In production with none of these, never.']],
-                            [[:code, 'phlex/reactive/early'], '1.5 KB',
+                            [[:code, 'phlex/reactive/early'], '1.6 KB',
                              'On every page, if you import it.',
                              'The same.']
                           ])
             DocsUI::Prose() do
               p do
-                plain 'A page that uses none of these features downloads 17.8 KB less with the split '
-                plain 'client. A page that uses every one of them downloads 8.0 KB more, in twelve requests '
+                plain 'A page that uses none of these features downloads 18.3 KB less with the split '
+                plain 'client. A page that uses every one of them downloads 8.2 KB more, in twelve requests '
                 plain 'instead of one. This is the whole split: everything that can leave the core has. '
                 plain 'The maintainer\'s target for the core was 10,240 B; the honest moves leave it at '
-                plain '14,654 B, which the budget test holds as its ratchet (and prints the target against).'
+                plain '17,170 B, which the budget test holds as its ratchet (and prints the target against).'
               end
               p do
                 plain 'The default file is laid out for gzip (issue #310). Gzip only matches text within '
