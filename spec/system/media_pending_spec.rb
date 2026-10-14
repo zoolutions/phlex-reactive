@@ -61,6 +61,25 @@ RSpec.describe "Media binding pending state (issue #380)", type: :system do
     expect(caption).to eq("")
   end
 
+  # Issue #390: when: tests the whole RIB; the pool key stays the prefix.
+  def whole(state) = "[data-testid='whole'][data-reactive-media-state='#{state}']"
+
+  it "with when:, a pool prefix whose whole value fails is pending; a passing one hits, or misses with blank_label" do
+    type_rib("007bad")
+    expect(page).to have_css("#{whole("pending")}:not([src])", visible: :all)
+    expect(page).to have_no_css("[data-testid='whole-row']")
+    # match: tests the key only, so the first binding still hits on the prefix.
+    expect(page).to have_css(preview("hit"))
+
+    type_rib("007123")
+    expect(page).to have_css("#{whole("hit")}[src='/logos/007.svg'][alt='Attijariwafa']")
+    expect(page).to have_css("[data-testid='whole-name']", exact_text: "Attijariwafa")
+
+    type_rib("009123")
+    expect(page).to have_css(whole("miss"))
+    expect(page).to have_css("[data-testid='whole-name']", exact_text: "Unknown bank")
+  end
+
   it "pending: :keep leaves the preview and its label alone" do
     expect(page).to have_css("[data-testid='kept'][data-reactive-media-state='pending'][src='/logos/011.svg']")
     expect(page).to have_css("[data-testid='kept-name']", exact_text: "Previous")

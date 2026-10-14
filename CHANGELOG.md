@@ -24,9 +24,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   renders the initial text and visibility. `format:` other than `:ms`, an
   `until:` that is not an ISO8601 date-time with a zone (or a `Time`), and a
   `waiting:`/`done:` that is not a non-blank selector (or is `@root`) raise at
-  render. Client: a new `countdown` feature module (915 B gzipped); +573 B in
+  render. Client: a new `countdown` feature module (966 B gzipped); +643 B in
   the default bundle, +27 B in the split core. Docs: "Counting down to a server
   deadline" on the client-ops example.
+
+- **`reactive_media(when:)` tests the whole field (#390).** `when:` is a
+  Regexp the client tests against the whole field value before the pool
+  lookup, while the pool key stays the `take:` prefix: with `take: 3,
+  when: /\A\d{3,24}\z/`, `007bad` is pending (no pool lookup, never
+  `blank_label`: the default clears the preview and label, `pending: :keep`
+  leaves them as they are; either way `data-reactive-media-state="pending"`) and
+  `007123` hits `"007"`. It compiles with the same rules as `match:` (a
+  refused regexp raises at render, naming `when:`). `match:` still tests the
+  key only; omit `when:` and nothing changes. Client: +25 B gzipped default
+  bundle, +22 B bindings module, core unchanged.
 
 - **An image fallback that recovers — `reactive_image_fallback(hide: true, show_alt: nil)` (#383).**
   `img(**reactive_image_fallback)` marks an `<img>` whose `src` fails with

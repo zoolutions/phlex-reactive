@@ -190,7 +190,7 @@ module Views
                 URL the target already shows writes nothing, so the image does not
                 reload. A broadcast may carry it: it only reads elements that are
                 already on each subscriber's page.
-              - **`reactive_media(from:, pool:, take: nil, match: nil, pending: :clear, label: nil, blank_label: nil)`**
+              - **`reactive_media(from:, pool:, take: nil, match: nil, when: nil, pending: :clear, label: nil, blank_label: nil)`**
                 is a binding, read the way `reactive_show` reads a field: a text field
                 gives its value, a radio group its checked value, `reactive_scope`
                 applies. `take: n` (a positive Integer) keeps the first *n* characters
@@ -218,6 +218,15 @@ module Views
                 U+FFFF. The state is written once the client connects; to hide the
                 row on first paint too, render the preview with
                 `data: { reactive_media_state: "pending" }`.
+              - **The whole field (#390).** `match:` only sees the key, so with
+                `take: 3` a value `"007bad"` still hits `"007"`. `when:` (a Regexp,
+                matched against the *whole* field value, before the pool lookup)
+                keeps such a value pending, even under `pending: :keep`, while the
+                key stays the prefix: `when: /\\A\\d{3,24}\\z/` is pending for
+                `"007bad"`, a hit for `"007123"`, and a miss (with `blank_label`)
+                for `"009123"`. It follows the same JavaScript-pattern rules as
+                `match:`, and the two compose (the key must pass `match:`, the value
+                `when:`).
 
               ```ruby
               input(name: "code")

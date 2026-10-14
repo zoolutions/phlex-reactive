@@ -160,10 +160,12 @@ const SLACK = 250
 // the restoration-safe hidden mark and the decode() check in the sweep) adds
 // 582 B on #381; on top of #382, 584 B (34,606 B); on top of #380, 586 B: 34,760 B;
 // ignoring a stale sweep decode(), 11 B: 34,771 B.
+// Issue #390 (reactive_media when:, the whole field before the pool lookup) adds 25 B: 34,796 B.
 // Issue #400 (countdown: a NEW feature module — the Date.now tick, the wake
 // re-sync, the once-per-deadline event, ignoring a bad selector — plus the runtime's marker) adds 573 B: 35,344 B;
-// its review fixes (every fired deadline kept, an id-less root's own key) 67 B: 35,411 B.
-const BUNDLE_GZIP_CEILING = 35_411
+// its review fixes (every fired deadline kept, an id-less root's own key) 67 B: 35,411 B;
+// on top of #390 (34,796 B), 643 B in all: 35,439 B.
+const BUNDLE_GZIP_CEILING = 35_439
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -232,7 +234,8 @@ const FEATURE_GZIP_CEILINGS = {
   // never resolving a label or pool value of @root, 6,888 B; slicing take: by
   // code point, 6,895 B.
   // Issue #380 (the pending state, match:, pending: keep, data-reactive-media-state) to 7,047 B.
-  "features/bindings": 7_047,
+  // Issue #390 (reactive_media when:) to 7,069 B.
+  "features/bindings": 7_069,
   // Issue #336 (render a defer reply now) takes it from 2,845 B to 2,974 B.
   "features/defer": 2_974,
   "features/compute": 2_050,
@@ -308,9 +311,10 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #383 (reactive_image_fallback, in the core) adds 546 B on #381; on top of
 // #382 (42,446 B) and #380, 546 B: 42,598 B; ignoring a stale sweep decode(),
 // 4 B: 42,602 B.
+// Issue #390 (reactive_media when:, in bindings; the core unchanged) adds 22 B: 42,624 B.
 // Issue #400 (the countdown feature module, 915 B, plus 27 B in the core) adds 942 B: 43,544 B;
-// its review fixes, 51 B: 43,595 B.
-const SPLIT_TOTAL_GZIP_CEILING = 43_595
+// its review fixes, 51 B: 43,595 B; on top of #390 (42,624 B), 993 B: 43,617 B.
+const SPLIT_TOTAL_GZIP_CEILING = 43_617
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 
