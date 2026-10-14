@@ -167,7 +167,8 @@ const SLACK = 250
 // Issue #394 (clear:/focus:/scroll: on a show's visibility change, in bindings) adds 282 B: 35,388 B;
 // its review fixes (clear: by attribute, visibility tracked for every binding) 23 B: 35,411 B;
 // on top of #390, 35,438 B; on top of #398, 35,509 B.
-const BUNDLE_GZIP_CEILING = 35_509
+// Issue #397 (reactive_persist storage: :session, in persist) on top of #394: 35,528 B.
+const BUNDLE_GZIP_CEILING = 35_528
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -251,7 +252,8 @@ const FEATURE_GZIP_CEILINGS = {
   "features/effects": 1_750,
   // Issue #351 (an editable drafted through the core's collector) takes it to 3,167 B.
   // One document submit-end listener for every persisted root, to 3,283 B.
-  "features/persist": 3_283,
+  // Issue #397 (storage: :session selects sessionStorage) to 3,303 B.
+  "features/persist": 3_303,
   // Issue #351 (an editable's dirty diff against its server text) takes it to 1,088 B.
   // Issue #356 (a gate wired the first time it reads true, and reseed) to 1,152 B.
   // One window listener pair for every warn_unsaved root, to 1,268 B.
@@ -323,7 +325,8 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #394 (clear:/focus:/scroll: on a show's visibility change, in bindings) adds 306 B: 43,223 B;
 // its review fixes 22 B: 43,245 B;
 // on top of #390, 43,284 B; on top of #398, 43,348 B.
-const SPLIT_TOTAL_GZIP_CEILING = 43_348
+// Issue #397 (storage: :session, in persist; the core unchanged) on top of #394: 43,368 B.
+const SPLIT_TOTAL_GZIP_CEILING = 43_368
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 
