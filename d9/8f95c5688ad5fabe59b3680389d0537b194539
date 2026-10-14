@@ -1,0 +1,56 @@
+app/javascript/phlex/reactive/features/bindings.min.js
+  ai_agent 1,3
+spec/dummy/app/components/rib_preview_component.rb
+  s_a62bd6a6b1570e::t_d6cf0409c8e989 7-8,16,30-36
+docs/app/views/docs/pages/example_client_ops.rb
+  s_a62bd6a6b1570e::t_2c187e64e8ca2d 224
+  s_a62bd6a6b1570e::t_9fcaf0eaa530aa 192,220-223,225-228
+app/javascript/phlex/reactive/features/bindings.min.js.map
+  ai_agent 5,7-8
+spec/system/media_pending_spec.rb
+  s_a62bd6a6b1570e::t_748a3bce721890 64-82
+CHANGELOG.md
+  s_a62bd6a6b1570e::t_9fcaf0eaa530aa 11-20
+README.md
+  s_a62bd6a6b1570e::t_9fcaf0eaa530aa 692
+spec/phlex/reactive/media_binding_when_spec.rb
+  s_a62bd6a6b1570e::t_ebcb78a9eda2bc 1-52
+spec/dummy/public/vendor/features/bindings.js
+  ai_agent 1,3
+spec/javascript/bundle_budget.test.js
+  s_a62bd6a6b1570e::t_f36f74c18b60d5 163-164,232-233,306-307
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 6,18-19
+spec/javascript/reactive_media_when.test.js
+  s_a62bd6a6b1570e::t_e15f3c77007638 1-165
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,6,8
+lib/phlex/reactive/component/media_binding.rb
+  s_a62bd6a6b1570e::t_ae034d9398cdda 37-41
+  s_a62bd6a6b1570e::t_050722dab572d6 46-48,52
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,6,8
+lib/phlex/reactive/component/media_pattern.rb
+  s_a62bd6a6b1570e::t_b254be71c6ed45 74
+  s_a62bd6a6b1570e::t_3a24458507d760 6-8
+  s_a62bd6a6b1570e::t_962cd135b51f96 22,25,29,36,41,45,48,50,55,59,66,70,73
+app/javascript/phlex/reactive/features/bindings.js
+  s_a62bd6a6b1570e::t_3469968a7c8d72 647-651
+  s_a62bd6a6b1570e::t_84cf63b2047299 641,660,664,666-672,681
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d98f95c5688ad5fabe59b3680389d0537b194539",
+  "prompts": {},
+  "sessions": {
+    "s_a62bd6a6b1570e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e652d418-f8d6-49e4-95fb-309bf7b07f3d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
