@@ -1608,7 +1608,10 @@ end
   field that changed (a checkbox unchecks); going visible, `focus: "#notes"`
   focuses the first match inside the root and `scroll: true` scrolls the
   section into view. A `clear:` name the render never produced, or a file
-  input, raises at render.
+  input, raises when the outermost render completes (a fragment render, or
+  one that calls `flush`, is not checked). These run on a controller that
+  saw the previous visibility: a `morph: true` reply that flips it runs them,
+  a plain replace reconnects the root and counts as first paint.
 - **Field reads follow the collection rules**: a checkbox compares its *checked*
   state; a radio group reads the **checked** radio's value; everything else
   reads `.value`. Ownership is the usual rule — a nested reactive component's

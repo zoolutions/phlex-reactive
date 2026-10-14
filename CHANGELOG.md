@@ -13,16 +13,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   When the section goes from visible to hidden, each `clear:` field (one
   owned, scope-aware name or an Array) gets `js.set_value`'s write — `.value`
   becomes `""` and one bubbling `input` is dispatched per field that changed;
-  a checkbox or radio is unchecked, a file input skipped. When it goes from
+  a checkbox or radio is unchecked. (A file input is rejected at render.) When it goes from
   hidden to visible, the first element inside the root matching `focus:` is
   focused and `scroll: true` calls `scrollIntoView` on the section. None of it
   runs on first paint, so a value the server rendered into a hidden section
   stays. The previous visibility is kept on the root's controller (absent on
-  connect, kept by a morph). The work runs after the show pass, so the `input`
+  connect, kept by a morph — so a `morph: true` reply that flips the predicate
+  runs it, while a plain replace reconnects the root and counts as first
+  paint). The work runs after the show pass, so the `input`
   a clear dispatches re-syncs from fresh values. A `clear:` name the render
   never produced, or one that names a file input, raises at render; so does a
   `focus:` that is not a non-empty String or a `scroll:` that is not a
-  boolean. A binding without these keywords only toggles `hidden`. The
+  boolean. Without these keywords, a binding behaves as before (`hidden`, and
+  `disable:` if given). The
   feature handle gains `setValue` (the runtime's `set_value` write). Client:
   +282 B gzipped in the default bundle, +10 B in the split core.
 
@@ -36,7 +39,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   until the condition's one field has fired `blur` once since connect
   (`after: :code` names it when the condition has several); after that, every
   `input` updates it at once. The touched flag lives on the root's controller:
-  a morph keeps it, a full navigation drops it. First paint is hidden. A
+  a morph keeps it, a full navigation drops it. First paint is hidden unless an
+  explicit `hidden:` says otherwise. A
   `starts_with:` that is not a String of digits, a malformed `digits:`, an
   `after:` that is not a field of the condition, or one the render never
   produced, raises at render. Client: +232 B gzipped in the default bundle.

@@ -650,10 +650,12 @@ module Views
               focus nor scrolls. The previous visibility lives on the root's
               controller, so a morph that changes nothing does nothing, while a
               morph whose new values flip the predicate runs the transition like
-              any other change (an action reply that hides the section clears its
-              fields on the client). A `clear:`
+              any other change (a `morph: true` action reply that hides the section
+              clears its fields on the client; a plain replace reconnects the root,
+              so it counts as first paint). A `clear:`
               name the render never produced, or a file input named there, raises
-              at render; so does a `focus:` that is not a non-empty String.
+              when the outermost render completes (a fragment render, or one that
+              calls `flush`, is not checked); so does a `focus:` that is not a non-empty String.
 
               Extra HTML attrs pass through unambiguously (conditions live in `if:`),
               so `div(**reactive_show(if: { size: %w[l xl] }, class: "note"))` works.
