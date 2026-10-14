@@ -302,11 +302,37 @@ test("valid: true on an invalid input previews as empty: wrap hidden, no rejecti
 
 test("accept: true keeps a file whose extension is listed", () => {
   const { root, controller } = mount(field(".PNG, .webp"))
-  choose(root.querySelector("#photo-file"), [sized("shot.png", "", 3)])
+  // Its type is an image, but not a listed one: only the extension matches.
+  choose(root.querySelector("#photo-file"), [sized("shot.png", "image/png", 3)])
 
   run(controller, [op({ accept: true })])
 
   expect(root.querySelector("#photo").getAttribute("src")).toBe("blob:test/1")
+})
+
+test("an accepted file that is not an image clears the preview without a rejection", () => {
+  const { root, controller } = mount(field("image/png,application/pdf"))
+  const input = root.querySelector("#photo-file")
+  const seen = rejections(input)
+  choose(input, [png()])
+  run(controller, [op({ accept: true })])
+  choose(input, [sized("report.pdf", "application/pdf", 3)])
+
+  run(controller, [op({ accept: true })])
+
+  expect(created.map((f) => f.name)).toEqual(["a.png"])
+  expect(root.querySelector("#photo").hasAttribute("src")).toBe(false)
+  expect(root.querySelector("#photo-frame").hidden).toBe(true)
+  expect(seen).toEqual([])
+})
+
+test("an accepted non-image ahead of an accepted image previews the image", () => {
+  const { root, controller } = mount(field("image/png,application/pdf"))
+  choose(root.querySelector("#photo-file"), [sized("report.pdf", "application/pdf", 3), png("photo.png")])
+
+  run(controller, [op({ accept: true })])
+
+  expect(created.map((f) => f.name)).toEqual(["photo.png"])
 })
 
 test("accept: true honours a type/* wildcard", () => {

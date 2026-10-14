@@ -1347,7 +1347,8 @@ button(**on_client(:click, js
   holds onto an `img` **before any upload**:
   `input(type: "file", id: "photo-file", accept: "image/*", **on_client(:change,
   js.preview_file("#photo-file", into: "#photo", name: "#photo-name")))`. On
-  `change` the client takes the input's first `image/*` file, makes an object
+  `change` the client takes the input's first `image/*` file (the default list;
+  an explicit `accept:` below replaces it), makes an object
   URL from it (`URL.createObjectURL`), sets it as the `img`'s `src`, and puts
   `file.name` in the `name:` node's `textContent`. An empty selection or a
   non-image file removes the `src` and clears the name. The op carries **no
@@ -1371,7 +1372,9 @@ button(**on_client(:click, js
   `data-reactive-wrap-hidden`; only a wrapper carrying the mark is shown again,
   and its text is never written). `max_bytes: 2_000_000` refuses a larger file
   before any object URL exists; `accept: true` reads the input's `accept`
-  attribute (a String is the list itself; omitted keeps `image/*`). A refused
+  attribute (a String is the list itself; omitted keeps `image/*`). Only an
+  image is painted: a listed file that is not `image/*` (a PDF) clears the
+  preview and hides `wrap:` without a rejection. A refused
   file clears the preview, hides `wrap:` and dispatches `reactive:file-rejected`
   on the input with `detail.reason` `"type"` or `"size"`; `input.files` and the
   validity are left alone.

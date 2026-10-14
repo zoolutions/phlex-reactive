@@ -314,7 +314,9 @@ module Phlex
       # refuses a larger file before any object URL exists. `accept: true`
       # reads the input's own accept attribute (extensions, MIME types,
       # type/*); a String is that list for this op; omitted keeps the image/*
-      # rule. A refused file clears the img, hides `wrap:` and dispatches
+      # rule. Only an image is painted: a listed non-image (a PDF) clears the
+      # preview and hides `wrap:`, unrefused. A refused file clears the img,
+      # hides `wrap:` and dispatches
       # `reactive:file-rejected` on the input (detail.reason "type" | "size").
       # The op never clears input.files nor sets a custom validity message.
       #   input(type: "file", id: "photo-file", accept: "image/png,image/jpeg",

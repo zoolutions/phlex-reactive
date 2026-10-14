@@ -339,6 +339,8 @@ module Views
               - **`accept: true`** reads the input's own `accept` attribute (extensions
                 like `.png`, MIME types, `image/*`); a String such as `"image/png"` is the
                 list for this op. Omitted, or an empty attribute, keeps the `image/*` rule.
+                Only an image is painted: a listed file that is not `image/*` (a PDF)
+                clears the preview and hides `wrap:` without a rejection.
               - A refused file clears the `img` (and the name), hides `wrap:`, and
                 dispatches **`reactive:file-rejected`** on the input, bubbling, with
                 `detail.reason` `"type"` or `"size"` and `detail.file`. The op never

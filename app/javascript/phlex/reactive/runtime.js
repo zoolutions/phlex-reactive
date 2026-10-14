@@ -1463,11 +1463,13 @@ function previewFile(input, args, resolveTargets) {
   // `invalid` event fired into the app's own listeners.
   const files = [...(args.valid === true && input.validity?.valid === false ? [] : (input.files ?? []))]
   const accepts = previewAccepts(input, args.accept)
-  let file = files.find((f) => typeof f?.type === "string" && accepts(f))
+  const listed = files.filter((f) => typeof f?.type === "string" && accepts(f))
+  // Only an image is painted: a listed PDF clears the preview, unrefused.
+  let file = listed.find((f) => f.type.startsWith("image/"))
   // A refused file (issue #391) clears like an empty pick and says why. The
   // input keeps its files and its validity: the page owns the reset. Size is
   // read BEFORE an object URL exists, so an over-size file never gets one.
-  let reason = files.length > 0 && !file ? "type" : null
+  let reason = files.length > 0 && listed.length === 0 ? "type" : null
   if (file && Number.isInteger(args.max_bytes) && file.size > args.max_bytes) reason = "size"
   const refused = reason === "size" ? file : files[0]
   if (reason) file = null
@@ -1492,7 +1494,7 @@ function previewFile(input, args, resolveTargets) {
   }
 }
 
-// Which files preview_file keeps: an image by default. accept: true reads the
+// Which files the page takes: an image by default. accept: true reads the
 // input's own accept attribute; a string is that list for this op. A token is
 // an extension (".png"), a MIME type or a type/* wildcard, the browser's own
 // accept grammar. An absent or empty list keeps the image rule.

@@ -162,7 +162,8 @@ const SLACK = 250
 // ignoring a stale sweep decode(), 11 B: 34,771 B.
 // Issue #391 (preview_file wrap:, max_bytes:, accept:, reactive:file-rejected) adds 322 B on the 34,760 B real size: 35,082 B.
 // Issue #392 (reactive_image_fallback wrap:) adds 45 B: 35,127 B.
-const BUNDLE_GZIP_CEILING = 35_127
+// Painting only an image of an accept: list (#391 review) adds 21 B: 35,148 B.
+const BUNDLE_GZIP_CEILING = 35_148
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -218,7 +219,8 @@ const TARGET_BUNDLE_GZIP = 22_700
 // Ignoring a stale sweep decode() adds 4 B: 17,143 B.
 // Issue #391 (preview_file wrap:, max_bytes:, accept:, reactive:file-rejected) adds 322 B: 17,465 B.
 // Issue #392 (reactive_image_fallback wrap:) adds 51 B: 17,516 B.
-const CORE_GZIP_CEILING = 17_516
+// Painting only an image of an accept: list (#391 review) adds 11 B: 17,527 B.
+const CORE_GZIP_CEILING = 17_527
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -307,7 +309,8 @@ const FEATURE_GZIP_CEILINGS = {
 // 4 B: 42,602 B.
 // Issue #391 (preview_file wrap:, max_bytes:, accept:, in the core) adds 322 B: 42,924 B.
 // Issue #392 (reactive_image_fallback wrap:, in the core) adds 51 B: 42,975 B.
-const SPLIT_TOTAL_GZIP_CEILING = 42_975
+// Painting only an image of an accept: list (#391 review) adds 11 B: 42,986 B.
+const SPLIT_TOTAL_GZIP_CEILING = 42_986
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

@@ -19,7 +19,9 @@ RSpec.describe "Preview a chosen file inside a frame (issue #391)", type: :syste
       window.__rejected = []
       const create = URL.createObjectURL.bind(URL)
       URL.createObjectURL = (file) => { window.__created += 1; return create(file) }
-      document.addEventListener("reactive:file-rejected", (event) => window.__rejected.push(event.detail.reason))
+      document.addEventListener("reactive:file-rejected", (event) => window.__rejected.push(
+        { reason: event.detail.reason, target: event.target.id, file: event.detail.file?.name }
+      ))
     JS
   end
 
@@ -51,7 +53,7 @@ RSpec.describe "Preview a chosen file inside a frame (issue #391)", type: :syste
     expect(page).to have_css("[data-testid='framed-box'][hidden]", visible: :all)
     expect(page).to have_no_css("[data-testid='framed-photo'][src]", visible: :all)
     expect(page).to have_css("[data-testid='framed-name']", exact_text: "", visible: :all)
-    expect(rejected).to eq(["type"])
+    expect(rejected).to eq([{ "reason" => "type", "target" => "framed-file", "file" => "receipt.txt" }])
     expect(input_state).to eq("files" => 1, "message" => "")
   end
 
@@ -60,7 +62,7 @@ RSpec.describe "Preview a chosen file inside a frame (issue #391)", type: :syste
 
     expect(page).to have_css("[data-testid='framed-box'][hidden]", visible: :all)
     expect(page).to have_no_css("[data-testid='framed-photo'][src]", visible: :all)
-    expect(rejected).to eq(["size"])
+    expect(rejected).to eq([{ "reason" => "size", "target" => "framed-file", "file" => "photo_large.png" }])
     expect(created).to eq(0)
     expect(input_state).to eq("files" => 1, "message" => "")
   end

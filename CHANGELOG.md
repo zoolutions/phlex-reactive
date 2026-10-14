@@ -31,7 +31,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   positive Integer) refuses a larger file before `URL.createObjectURL` runs;
   `accept: true` reads the input's `accept` attribute (extensions, MIME types,
   `type/*`), a String is the list for this op, and omitted keeps the `image/*`
-  rule. A refused file clears the `img` and the name, hides `wrap:`, and
+  rule. Only an image is painted: a listed non-image (a PDF) clears the preview
+  and hides `wrap:` without a rejection. A refused file clears the `img` and the name, hides `wrap:`, and
   dispatches `reactive:file-rejected` (bubbling) on the input with
   `detail.reason` `"type"` or `"size"` and `detail.file`. A non-image file
   under today's rule now dispatches it too. The op never clears `input.files`
