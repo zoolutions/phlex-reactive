@@ -132,9 +132,10 @@ RSpec.describe Phlex::Reactive::Component::Selection do
         expect { view.reactive_select_all("perms[]", under: "  ") }.to raise_error(ArgumentError, /under:/)
       end
 
-      it "raises on a path with an empty segment" do
-        %w[.library library. library..books].each do
-          expect { view.reactive_select_all("perms[]", under: it) }.to raise_error(ArgumentError, /under:/)
+      it "raises on a path with an empty or space-padded segment" do
+        [".library", "library.", "library..books", " library", "library .books"].each do
+          path = it
+          expect { view.reactive_select_all("perms[]", under: path) }.to raise_error(ArgumentError, /under:/)
         end
       end
 

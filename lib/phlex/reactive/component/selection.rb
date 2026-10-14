@@ -191,10 +191,10 @@ module Phlex
 
         def selection_path!(group, under)
           path = under.to_s
-          return path unless path.strip.empty? || path.split(".", -1).any? { it.strip.empty? }
+          return path unless path.strip.empty? || path.split(".", -1).any? { it.empty? || it != it.strip }
 
           raise ArgumentError, "reactive_select_all(#{group.to_s.inspect}) under: needs a group path like " \
-                               "\"library\" or \"library.books\" (no empty segment), got #{under.inspect}"
+                               "\"library\" or \"library.books\" (no empty or space-padded segment), got #{under.inspect}"
         end
 
         def selection_group!(helper, group)
