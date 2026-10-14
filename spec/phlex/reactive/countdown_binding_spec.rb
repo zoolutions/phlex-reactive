@@ -47,7 +47,11 @@ RSpec.describe Phlex::Reactive::Component::CountdownBinding do
 
   it "takes a Time (or TimeWithZone) and writes its ISO8601 form" do
     time = Time.utc(2026, 10, 14, 12, 2, 0)
-    expect(wire(view.reactive_countdown(until: time))["until"]).to eq("2026-10-14T12:02:00Z")
+    zoned = time.in_time_zone("Europe/Stockholm")
+    expect(zoned.to_s).to include("+0200")
+    [time, zoned].each do
+      expect(wire(view.reactive_countdown(until: it))["until"]).to eq("2026-10-14T12:02:00Z")
+    end
   end
 
   it "deep-merges extra attrs (mix), keeping the binding" do

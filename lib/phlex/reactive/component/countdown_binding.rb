@@ -21,6 +21,10 @@ module Phlex
       # does not dispatch again; one that changes it counts down again. No
       # request and no frame reload: the event is the hook.
       #
+      # The countdown's content is its text, so waiting: and done: name nodes
+      # beside it, never inside it: a reactive root that is itself the
+      # countdown has nowhere to put them.
+      #
       # The server renders the initial text and visibility, so the page reads
       # with JavaScript off. until: is an ISO8601 date-time WITH a zone (Z or an
       # offset), or a Time, which is written as one: a zoneless string would
