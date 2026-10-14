@@ -611,6 +611,7 @@ test("a feature receives the core handle on connect and on disconnect", async ()
     "proceed",
     "reseed",
     "served",
+    "setValue",
     "text",
   ])
   expect(events).toEqual([{ n: 1 }])

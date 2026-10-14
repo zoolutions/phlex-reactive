@@ -2875,6 +2875,8 @@ export default class extends Controller {
       served: serverText,
       // Copy one <img> onto another (issue #373): the reactive_media binding.
       copyMedia,
+      // set_value's write (issue #374): reactive_show clear: (issue #394).
+      setValue: setFieldValue,
       // The confirm gate, as dispatch() runs it: the resolver inside the chain
       // (a synchronous throw is a cancel), never a rejection out.
       confirm: (message, context) =>

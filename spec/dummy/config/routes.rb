@@ -74,6 +74,7 @@ Rails.application.routes.draw do
   get "framed_photo_preview" => "demos#framed_photo_preview" # issue #391: preview_file wrap:/max_bytes:/accept:
   get "notes_fill" => "demos#notes_fill" # issue #374: js.set_value
   get "kept_selection" => "demos#kept_selection" # issue #369: keep: on client ops survives a morph
+  get "field_checks" => "demos#field_checks" # issues #394-#396: same:, digits:/after:, show transitions
   get "nested_editor" => "demos#nested_editor"
   get "nested_params" => "demos#nested_params"
   get "debounce" => "demos#debounce"
@@ -95,6 +96,9 @@ Rails.application.routes.draw do
   # and a confirmed submit through a hidden submitter.
   get "bulk_selection" => "demos#bulk_selection"
   post "bulk_selection" => "demos#bulk_selection_submit"
+  # Issue #398: nested select-all groups under one wire name.
+  get "nested_selection" => "demos#nested_selection"
+  post "nested_selection" => "demos#nested_selection_submit"
   # Issue #343: a nested-root list driving an outside bulk bar (reactive_group_targets).
   get "group_targets" => "demos#group_targets"
   # Issue #346: a bulk form that clears its selection on a successful submit only.
