@@ -351,6 +351,82 @@ test("focus_first focuses the first focusable descendant of the match", () => {
   expect(firstItem.focused).toBe(1)
 })
 
+// --- blur (issue #399) -------------------------------------------------------
+
+// A focusable node whose blur() clears document.activeElement, the way the
+// browser does. `contains` answers the subtree check.
+function makeFocusable({ owner, inside = [] } = {}) {
+  const el = makeEl({ owner })
+  el.blurred = 0
+  el.blur = () => {
+    el.blurred += 1
+    if (globalThis.document.activeElement === el) globalThis.document.activeElement = null
+  }
+  el.contains = (node) => node === el || inside.includes(node)
+  return el
+}
+
+test("blur blurs the active element when it sits inside the target", () => {
+  const root = makeRoot()
+  const query = makeFocusable({ owner: root })
+  const menu = makeFocusable({ owner: root, inside: [query] })
+  root.querySelectorAll = (sel) => (sel === "#menu" ? [menu] : [])
+  const controller = buildController(root)
+  query.focus()
+
+  fire(controller, { ops: [["blur", { to: "#menu" }]] })
+
+  expect(query.blurred).toBe(1)
+  expect(globalThis.document.activeElement).toBe(null)
+})
+
+test("blur blurs the target itself when it is the active element", () => {
+  const root = makeRoot()
+  const query = makeFocusable({ owner: root })
+  root.querySelectorAll = (sel) => (sel === "#query" ? [query] : [])
+  const controller = buildController(root)
+  query.focus()
+
+  fire(controller, { ops: [["blur", { to: "#query" }]] })
+
+  expect(query.blurred).toBe(1)
+})
+
+test("blur leaves focus alone when the active element is outside the target", () => {
+  const root = makeRoot()
+  const elsewhere = makeFocusable({ owner: root })
+  const menu = makeFocusable({ owner: root })
+  root.querySelectorAll = (sel) => (sel === "#menu" ? [menu] : [])
+  const controller = buildController(root)
+  elsewhere.focus()
+
+  fire(controller, { ops: [["blur", { to: "#menu" }]] })
+
+  expect(elsewhere.blurred).toBe(0)
+  expect(globalThis.document.activeElement).toBe(elsewhere)
+})
+
+test("blur with nothing focused is a no-op", () => {
+  const root = makeRoot()
+  const menu = makeFocusable({ owner: root })
+  root.querySelectorAll = (sel) => (sel === "#menu" ? [menu] : [])
+  const controller = buildController(root)
+
+  expect(() => fire(controller, { ops: [["blur", { to: "#menu" }]] })).not.toThrow()
+  expect(menu.blurred).toBe(0)
+})
+
+test("a missing blur target is skipped, and the rest of the chain still runs", () => {
+  const root = makeRoot()
+  const panel = makeEl({ owner: root })
+  root.querySelectorAll = (sel) => (sel === "#panel" ? [panel] : [])
+  const controller = buildController(root)
+
+  fire(controller, { ops: [["blur", { to: "#gone" }], ["hide", { to: "#panel" }]] })
+
+  expect(panel.hidden).toBe(true)
+})
+
 // --- dispatch ---------------------------------------------------------------
 
 test("dispatch emits a bubbling CustomEvent on the root by default, with detail", () => {

@@ -193,6 +193,9 @@ module Phlex
       # focus(to)        — focus the FIRST match of the selector.
       # focus_first(to)  — focus the first FOCUSABLE DESCENDANT of the match
       #                    (e.g. focus the first menuitem inside an opened menu).
+      # blur(to)         — blur the focused element when it IS the match or sits
+      #                    inside it (issue #399): Escape ends a menu's
+      #                    :focus-within. Focus elsewhere is left alone.
 
       def focus(to, global: false)
         append("focus", target_args(to, global:))
@@ -200,6 +203,10 @@ module Phlex
 
       def focus_first(to, global: false)
         append("focus_first", target_args(to, global:))
+      end
+
+      def blur(to, global: false)
+        append("blur", target_args(to, global:))
       end
 
       # --- Modal dialogs (issue #365) ---

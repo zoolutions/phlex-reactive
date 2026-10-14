@@ -137,7 +137,7 @@ module Views
 
               The **client-op vocabulary** carries the same posture: a fixed frozen whitelist
               (unknown ops warn-and-skip), an attribute allowlist enforced twice (build time
-              AND interpret time), and an **actor-only tier** — `focus`, `focus_first`,
+              AND interpret time), and an **actor-only tier** — `focus`, `focus_first`, `blur` (#399),
               `show_modal` / `close_dialog` (#365),
               `submit` (#226), `paste_into` (#228), `persist_state` / `persist_clear`, `check_group` (#342) and `set_value` (#374) are allowed from the actor's own
               gesture or reply (`on_client` / `reply.js` / a reducer's `$ops` — though the

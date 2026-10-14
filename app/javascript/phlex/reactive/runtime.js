@@ -1279,6 +1279,13 @@ const CLIENT_OPS = Object.freeze({
   // its first focusable descendant (opened-menu → first menuitem).
   focus: (el) => el.focus?.(),
   focus_first: (el) => firstFocusable(el)?.focus?.(),
+  // Issue #399: blur the focused element when it is the target or inside it
+  // (Escape ends a menu's :focus-within); focus elsewhere is left alone.
+  // ACTOR-ONLY like focus (BROADCAST_REFUSED_OPS server-side).
+  blur: (el) => {
+    const active = el.ownerDocument?.activeElement ?? globalThis.document?.activeElement
+    if (active && (active === el || el.contains?.(active))) active.blur?.()
+  },
 
   // Modal dialog ops (issue #365): HTMLDialogElement#showModal / #close.
   // ACTOR-ONLY like focus (BROADCAST_REFUSED_OPS server-side).
@@ -2343,6 +2350,10 @@ const WINDOW_EARLY_TTL_MS = 1500
 // which a replay built from its trigger element's document carries).
 const isWindow = (target) => target != null && (target === globalThis.window || target.window === target)
 
+// Issue #393: the key on()'s dispatch debounce uses in #debounceTimers. An
+// on_client record keys on its JSON, which starts with "{", so never this.
+const DISPATCH_WAIT_KEY = "dispatch"
+
 function earlyState() {
   globalThis[EARLY_KEY] ??= { queue: [], connected: new WeakSet() }
   return globalThis[EARLY_KEY]
@@ -2499,8 +2510,8 @@ export default class extends Controller {
   }
 
   #tokenCache // freshest token, threaded synchronously across queued requests
-  #debounceTimers = new Map() // trigger element -> { timer, flush } pending dispatch
-  #throttleTimers = new Map() // trigger element -> Map(action -> suppression timer)
+  #debounceTimers = new Map() // trigger element -> Map(key -> { timer, flush }) pending run
+  #throttleTimers = new Map() // trigger element -> Map(action or record key -> suppression timer)
   #actionPathCache // page-stable action path, resolved once per controller
   #timeoutMsCache // page-stable request timeout (ms), resolved once per controller (issue #101)
   #tokenRegexCache // { id, token, self } — #extractToken's two per-id RegExps, rebuilt on id change (issue #118)
@@ -3309,13 +3320,21 @@ export default class extends Controller {
       if (record.shortcut != null && !shortcutApplies(record.shortcut, event, this.application?.schema?.keyMappings))
         continue
       if (onceBindingSpent(this, event, record)) continue
-      this.#runBinding(record.legacy ? { ...params, ops: record.ops } : record, event, trigger)
+      // A legacy attr reads its flags element-wide — but never a mix-ed on()'s
+      // debounce/throttle params (issue #393): those belong to the dispatch.
+      this.#runBinding(
+        record.legacy ? { ...params, ops: record.ops, debounce: undefined, throttle: undefined } : record,
+        event,
+        trigger,
+        records.indexOf(record),
+      )
     }
   }
 
   // One on_client binding (issue #95): its outside guard, preventDefault rule,
   // confirm gate, then its ops — every flag read from the binding itself.
-  #runBinding({ ops, confirm, confirmWhen, outside, window: windowBound, shortcut }, event, trigger) {
+  #runBinding(record, event, trigger, ordinal) {
+    const { ops, confirm, confirmWhen, outside, window: windowBound, shortcut } = record
     // Outside guard FIRST — identical semantics to dispatch() (issue #80): an
     // outside: trigger is a COMPLETE no-op for events inside this root, before
     // preventDefault and before any op runs.
@@ -3338,12 +3357,26 @@ export default class extends Controller {
     // which must NEVER prompt. The same confirmResolver gate on(:action,
     // confirm:) uses (issues #52/#55/#178), so a themed dialog covers both.
     const message = this.#effectiveConfirmMessage(confirm, confirmWhen)
-    const apply = () => this.#applyOps(this.#parseOps(ops))
+    const apply = this.#waitedOps(record, ordinal, trigger, () => this.#applyOps(this.#parseOps(ops)))
     if (!message) return apply()
     if (message instanceof Promise) {
       return message.then((resolved) => (resolved ? this.#confirmThen(resolved, trigger, apply) : apply()))
     }
     this.#confirmThen(message, trigger, apply)
+  }
+
+  // Issue #393: an on_client record's debounce:/throttle: — on()'s timers
+  // (#debounce trailing, #throttle leading), keyed on the trigger + the
+  // record's ordinal + JSON (two identical mix-ed records keep their own
+  // timers), so disconnect clears them with the dispatch ones. The wait sits
+  // after the outside guard, preventDefault and confirm, as on()'s does.
+  #waitedOps(record, ordinal, trigger, run) {
+    const debounce = Number(record.debounce) || 0
+    const throttle = Number(record.throttle) || 0
+    if (debounce <= 0 && throttle <= 0) return run
+    const key = JSON.stringify([ordinal, record])
+    if (debounce > 0) return () => this.#debounce(trigger, key, debounce, run)
+    return () => this.#throttle(trigger, key, throttle, run)
   }
 
   // Client-side compute (issue #104) is the compute feature's (issue #275,
@@ -3630,30 +3663,45 @@ export default class extends Controller {
   // Also flush immediately on blur so leaving the field never drops the last
   // edit (a long debounce shouldn't swallow a value the user tabbed away from).
   #debounceDispatch(target, ms, action, params, optimistic, busy) {
-    this.#clearDebounce(target)
-
-    const flush = () => {
-      this.#clearDebounce(target)
-      this.#enqueue(action, params, optimistic, target, busy)
-    }
-    const timer = setTimeout(flush, ms)
-    target?.addEventListener?.("blur", flush, { once: true })
-    this.#debounceTimers.set(target, { timer, flush })
+    this.#debounce(target, DISPATCH_WAIT_KEY, ms, () => this.#enqueue(action, params, optimistic, target, busy))
   }
 
-  #clearDebounce(target) {
-    const pending = this.#debounceTimers.get(target)
+  // The one trailing-edge timer on() and on_client (issue #393) share. Timers
+  // are keyed on target + key: on()'s dispatch uses DISPATCH_WAIT_KEY, an
+  // on_client record its ordinal + JSON (it starts with "["), so an on() debounce and an
+  // on_client debounce on one input never cancel each other. A window-bound
+  // trigger gets no blur flush: a window blur is a tab switch, not an edit.
+  #debounce(target, key, ms, run) {
+    this.#clearDebounce(target, key)
+
+    const flush = () => {
+      this.#clearDebounce(target, key)
+      run()
+    }
+    const timer = setTimeout(flush, ms)
+    if (!isWindow(target)) target?.addEventListener?.("blur", flush, { once: true })
+    let pending = this.#debounceTimers.get(target)
+    if (!pending) this.#debounceTimers.set(target, (pending = new Map()))
+    pending.set(key, { timer, flush })
+  }
+
+  #clearDebounce(target, key) {
+    const byKey = this.#debounceTimers.get(target)
+    const pending = byKey?.get(key)
     if (!pending) return
     clearTimeout(pending.timer)
     target?.removeEventListener?.("blur", pending.flush)
-    this.#debounceTimers.delete(target)
+    byKey.delete(key)
+    if (byKey.size === 0) this.#debounceTimers.delete(target)
   }
 
   // Clear every pending debounce timer (used on disconnect). Reuses
   // #clearDebounce so all timer/listener teardown stays in one place. Snapshot
-  // the keys first — #clearDebounce mutates the map as it goes.
+  // the entries first — #clearDebounce mutates the maps as it goes.
   #clearAllDebounces() {
-    for (const target of [...this.#debounceTimers.keys()]) this.#clearDebounce(target)
+    for (const [target, byKey] of [...this.#debounceTimers]) {
+      for (const key of [...byKey.keys()]) this.#clearDebounce(target, key)
+    }
   }
 
   // Leading-edge throttle (issue #80), mirroring #debounceDispatch: the FIRST
@@ -3663,16 +3711,22 @@ export default class extends Controller {
   // events all share event.target === document, so two window-bound triggers
   // on one component would otherwise collide on one timer.
   #throttleDispatch(target, ms, action, params, optimistic, busy) {
+    return this.#throttle(target, action, ms, () => this.#enqueue(action, params, optimistic, target, busy))
+  }
+
+  // The leading-edge window on() and on_client (issue #393) share; an
+  // on_client record keys on its ordinal + JSON, which no action name can equal.
+  #throttle(target, key, ms, run) {
     const timers = this.#throttleTimers.get(target) ?? new Map()
-    if (timers.has(action)) return // inside the window — suppress
+    if (timers.has(key)) return // inside the window — suppress
 
     const timer = setTimeout(() => {
-      timers.delete(action)
+      timers.delete(key)
       if (timers.size === 0) this.#throttleTimers.delete(target)
     }, ms)
-    timers.set(action, timer)
+    timers.set(key, timer)
     this.#throttleTimers.set(target, timers)
-    return this.#enqueue(action, params, optimistic, target, busy) // leading edge: fire NOW
+    return run() // leading edge: fire NOW
   }
 
   // Clear every throttle suppression timer (used on disconnect, alongside
