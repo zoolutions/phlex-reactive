@@ -160,7 +160,7 @@ const SLACK = 250
 // the restoration-safe hidden mark and the decode() check in the sweep) adds
 // 582 B on #381; on top of #382, 584 B (34,606 B); on top of #380, 586 B: 34,760 B;
 // ignoring a stale sweep decode(), 11 B: 34,771 B.
-// Issue #391 (preview_file wrap:, max_bytes:, accept:, reactive:file-rejected) adds 322 B: 35,082 B.
+// Issue #391 (preview_file wrap:, max_bytes:, accept:, reactive:file-rejected) adds 322 B on the 34,760 B real size: 35,082 B.
 // Issue #392 (reactive_image_fallback wrap:) adds 45 B: 35,127 B.
 const BUNDLE_GZIP_CEILING = 35_127
 const TARGET_BUNDLE_GZIP = 22_700
