@@ -392,6 +392,10 @@ class DemosController < ActionController::Base
     render_component KeptSelectionComponent.new(renamed: params[:renamed]&.to_i)
   end
 
+  def field_checks
+    render_component FieldChecksComponent.new
+  end
+
   def nested_editor
     render_component NestedEditorComponent.new
   end
