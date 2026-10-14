@@ -6,6 +6,7 @@ require "active_support"
 require "active_support/core_ext"
 require "globalid"
 require "phlex/reactive"
+require "conformance_kit/rspec"
 
 GlobalID.app = "phlex-reactive-test"
 
