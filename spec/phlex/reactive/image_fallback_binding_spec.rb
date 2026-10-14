@@ -40,6 +40,13 @@ RSpec.describe Phlex::Reactive::Component::ImageFallbackBinding do
     expect(wire(view.reactive_image_fallback(show_alt: "#bank-name"))).to eq("hide" => true, "alt" => "#bank-name")
   end
 
+  # Issue #392: wrap: names the box around the img; it rides last, only when given.
+  it "carries wrap: as the wrapper's selector" do
+    expect(wire(view.reactive_image_fallback(hide: false, wrap: "#badge"))).to eq("hide" => false, "wrap" => "#badge")
+    expect(view.reactive_image_fallback(show_alt: "#n", wrap: "#badge")[:data][:reactive_image_fallback])
+      .to eq('{"hide":true,"alt":"#n","wrap":"#badge"}')
+  end
+
   it "deep-merges extra attrs (mix), keeping the binding" do
     attrs = view.reactive_image_fallback(class: "logo", data: { testid: "logo" })
     expect(attrs[:class]).to eq("logo")
@@ -74,6 +81,18 @@ RSpec.describe Phlex::Reactive::Component::ImageFallbackBinding do
 
     it "raises on the @root sentinel as show_alt: (it would rewrite the whole root's text)" do
       expect { view.reactive_image_fallback(show_alt: "@root") }.to raise_error(ArgumentError, /@root/)
+    end
+
+    it "raises on a wrap: that is not a non-empty selector String" do
+      [:badge, "", " ", 1, true].each do
+        wrap = it
+        expect { view.reactive_image_fallback(wrap:) }
+          .to raise_error(ArgumentError, /wrap:/), "expected #{wrap.inspect} to raise"
+      end
+    end
+
+    it "raises on the @root sentinel as wrap: (hiding the whole root is not a fallback)" do
+      expect { view.reactive_image_fallback(wrap: "@root") }.to raise_error(ArgumentError, /wrap: @root/)
     end
   end
 end

@@ -408,6 +408,26 @@ module Views
               - The client listens once on the document (`error` and `load` do not
                 bubble, so it listens in the capture phase): nothing runs per root at
                 connect.
+
+              **The box around it (#392).** A padded, coloured wrapper stays on screen
+              when only the `img` is hidden. `wrap:` hides that wrapper too:
+
+              ```ruby
+              span(id: "badge", class: "rounded-full bg-base-100 p-1") do
+                img(id: "logo", alt: "", **reactive_image_fallback(hide: false, wrap: "#badge"))
+              end
+              ```
+
+              - On `error` the wrapper is hidden and the hide marked
+                `data-reactive-wrap-hidden` (the same mark as `preview_file`'s `wrap:`).
+                Recovery shows it again **only** when that mark is there: a wrapper the
+                author hid stays hidden.
+              - `hide: false` with `wrap:` hides the wrapper only; `hide: true` hides the
+                `img` too.
+              - `wrap:` resolves inside the root like `show_alt:`, and it may hold the
+                `img`: only its `hidden` changes, its text is never written. A `wrap:`
+                that matches nothing warns and is skipped; the `img` fallback still runs.
+                A `wrap:` that is not a non-blank String, or is `@root`, raises at render.
             MD
           end
         end

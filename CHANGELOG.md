@@ -8,6 +8,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`reactive_image_fallback(wrap:)` hides the box around a broken image
+  (#392).** `img(**reactive_image_fallback(hide: false, wrap: "#badge"))` hides
+  `#badge` (a selector inside the root, like `show_alt:`) on `error` and marks
+  the hide `data-reactive-wrap-hidden`, the mark `preview_file`'s `wrap:` uses.
+  Recovery (any later `src` that loads, `copy_media`, `reactive_media`,
+  `preview_file`) shows it again only when it carries that mark, so a wrapper
+  the author hid stays hidden; a morph that keeps the broken `src` hides it
+  again. The wrapper may hold the `img`: its text is never written. `hide:
+  true` without `wrap:` still hides only the `img`. A `wrap:` that matches
+  nothing warns and is skipped (the `img` fallback still runs); a `wrap:` that
+  is not a non-blank String, or is `@root`, raises at render. Client: +45 B
+  gzipped in the default bundle, +51 B in the split core.
+
 - **`js.preview_file` hides its frame and refuses a file by size or type —
   `wrap:`, `max_bytes:`, `accept:` (#391).** `wrap: "#photo-frame"` shows that
   element when an image is painted and hides it when the preview clears. The

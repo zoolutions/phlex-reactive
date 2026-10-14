@@ -471,15 +471,19 @@ const hasImageSrc = (img) => img.getAttribute("src") || img.getAttribute("srcset
 
 // The node that shows the alt text: a selector resolved inside the img's own
 // root only (a document listener has no op scope).
-function imageAltNode(img, wire) {
-  if (typeof wire.alt !== "string" || !wire.alt) return null
+function imageRootNode(img, selector) {
+  if (typeof selector !== "string" || !selector) return null
   try {
-    const node = img.closest('[data-controller~="reactive"]')?.querySelector(wire.alt)
-    // Never a node that holds the img: its textContent would wipe the img.
-    return node && !node.contains(img) ? node : null
+    return img.closest('[data-controller~="reactive"]')?.querySelector(selector) ?? null
   } catch {
     return null
   }
+}
+
+function imageAltNode(img, wire) {
+  const node = imageRootNode(img, wire.alt)
+  // Never a node that holds the img: its textContent would wipe the img.
+  return node && !node.contains(img) ? node : null
 }
 
 function setImageState(img, wire, value) {
@@ -487,6 +491,12 @@ function setImageState(img, wire, value) {
     if (wire.hide && !img.hasAttribute("hidden")) {
       img.setAttribute("hidden", "")
       img.setAttribute(IMAGE_HIDDEN, "")
+    }
+    // wrap: (issue #392) may hold the img: only its visibility changes.
+    if (wire.wrap) {
+      const wrap = imageRootNode(img, wire.wrap)
+      if (wrap) hideWrap(wrap)
+      else console.warn(`[phlex-reactive] reactive_image_fallback wrap: ${JSON.stringify(wire.wrap)} is not in the root — skipped`)
     }
     const node = imageAltNode(img, wire)
     if (node) {
@@ -503,6 +513,8 @@ function resetImage(img, wire = imageFallback(img)) {
   if (!wire || img.getAttribute(IMAGE_STATE) == null) return
   if (img.getAttribute(IMAGE_STATE) === "error") {
     if (img.hasAttribute(IMAGE_HIDDEN)) img.removeAttribute("hidden")
+    const wrap = imageRootNode(img, wire.wrap)
+    if (wrap) showWrap(wrap)
     const node = imageAltNode(img, wire)
     if (node) node.hidden = true
   }
