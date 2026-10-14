@@ -16,10 +16,13 @@
 // At zero (or with the deadline already past on connect, which starts no
 // timer) the text is "0:00", data-reactive-countdown-state is "done", the
 // waiting: node hides, the done: node shows, and the element dispatches
-// reactive:countdown-done (bubbling) once. "Once" is per root id, countdown
-// (its id, else its place in the root) and deadline, kept for the life of the
-// document: a morph or a replace that keeps the deadline paints the done
-// state again without a second event; a new deadline counts down afresh.
+// reactive:countdown-done (bubbling) once. "Once" is per root id (a root
+// without one is its own element), countdown (its id, else its place in the
+// root) and deadline, kept for the life of the document: a morph or a replace
+// that keeps the deadline, or brings back one that already fired, paints the
+// done state again without a second event; a new deadline counts down afresh.
+// The countdown's content is its text: waiting: and done: are nodes beside it,
+// so a root that is itself the countdown has none.
 // No request, no frame reload: the page decides what the event does.
 //
 // This module never imports the core: it reaches a controller through the
@@ -28,13 +31,18 @@
 const MARK = "data-reactive-countdown"
 const STATE = "data-reactive-countdown-state"
 
-// "<root id>|<countdown key>" -> the deadline it already dispatched for.
+// "<root id>|<countdown key>" -> every deadline it already dispatched for.
 const finished = new Map()
+// A root without an id: a number of its own, so two never share a key.
+const anonymous = new WeakMap()
+let anonymousSeq = 0
 // controller -> the removal of what connect() added.
 const wired = new WeakMap()
 
 export function connect(controller, core) {
   const root = controller.element
+  if (!root.id && !anonymous.has(root)) anonymous.set(root, `#${++anonymousSeq}`)
+  const rootKey = root.id || anonymous.get(root)
   // countdown element -> its pending timer.
   const timers = new Map()
   let queued = false
@@ -62,8 +70,9 @@ export function connect(controller, core) {
     paint(el, "0:00", "done")
     show(wire.waiting, false)
     show(wire.done, true)
-    if (finished.get(key) === wire.until) return
-    finished.set(key, wire.until)
+    const fired = finished.get(key) ?? new Set()
+    if (fired.has(wire.until)) return
+    finished.set(key, fired.add(wire.until))
     el.dispatchEvent(new CustomEvent("reactive:countdown-done", { bubbles: true, detail: { until: wire.until } }))
   }
 
@@ -94,7 +103,7 @@ export function connect(controller, core) {
       }
       if (Number.isNaN(Date.parse(wire?.until))) return
       seen.add(el)
-      tick(el, wire, `${root.id}|${el.id || index}`)
+      tick(el, wire, `${rootKey}|${el.id || index}`)
     })
     for (const el of timers.keys()) if (!seen.has(el)) clear(el)
   }

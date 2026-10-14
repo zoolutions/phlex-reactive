@@ -324,3 +324,74 @@ test("the countdown never requests the network", () => {
   jest.advanceTimersByTime(5000)
   expect(requests).toEqual([])
 })
+
+test("a morph back to a deadline that already fired does not fire it again", async () => {
+  const { root, span, events } = mount({ until: iso(1) })
+  const first = JSON.parse(span.getAttribute("data-reactive-countdown")).until
+  connect(root)
+  jest.advanceTimersByTime(1000)
+  expect(events).toHaveLength(1)
+
+  const morphTo = async (until) => {
+    span.setAttribute("data-reactive-countdown", JSON.stringify({ until, format: "ms", waiting: "#w", done: "#d" }))
+    root.dispatchEvent(new window.CustomEvent("turbo:morph-element", { bubbles: true }))
+    await microtasks()
+  }
+  await morphTo(iso(1))
+  jest.advanceTimersByTime(1000)
+  expect(events).toHaveLength(2)
+
+  await morphTo(first)
+  expect(span.textContent).toBe("0:00")
+  expect(events).toHaveLength(2)
+})
+
+test("two roots without an id each fire their own countdown-done", () => {
+  const until = iso(1)
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    `<div class="anon" data-controller="reactive"><span data-reactive-countdown="${attr({ until })}">x</span></div>
+     <div class="anon" data-controller="reactive"><span data-reactive-countdown="${attr({ until })}">x</span></div>`,
+  )
+  const warn = console.warn
+  console.warn = () => {}
+  try {
+    const events = []
+    for (const root of document.querySelectorAll(".anon")) {
+      root.addEventListener("reactive:countdown-done", (event) => events.push(event))
+      connect(root)
+    }
+    jest.advanceTimersByTime(1000)
+    expect(events).toHaveLength(2)
+  } finally {
+    console.warn = warn
+  }
+})
+
+test("a root that is its own countdown counts down; its text replaces whatever it held", () => {
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    `<span id="self-wd" data-controller="reactive" data-reactive-token-value="t" data-reactive-countdown="${attr({ until: iso(1), waiting: "#w2", done: "#d2" })}"><b id="w2">W</b><b id="d2" hidden>D</b></span>`,
+  )
+  const root = document.getElementById("self-wd")
+  const events = []
+  root.addEventListener("reactive:countdown-done", (event) => events.push(event))
+  connect(root)
+  expect(root.textContent).toBe("0:01")
+  jest.advanceTimersByTime(1000)
+  expect(root.textContent).toBe("0:00")
+  expect(events).toHaveLength(1)
+})
+
+test("a countdown a stream renders into a connected root starts counting", async () => {
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    `<div id="streamed-into" data-controller="reactive" data-reactive-token-value="t"></div>`,
+  )
+  const root = document.getElementById("streamed-into")
+  connect(root)
+  root.insertAdjacentHTML("beforeend", `<span id="streamed-c" data-reactive-countdown="${attr({ until: iso(30) })}">x</span>`)
+  root.dispatchEvent(new window.Event("reactive:streamed"))
+  await microtasks()
+  expect(document.getElementById("streamed-c").textContent).toBe("0:30")
+})
