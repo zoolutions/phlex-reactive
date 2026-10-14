@@ -11,8 +11,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`reactive_media(when:)` tests the whole field (#390).** `when:` is a
   Regexp the client tests against the whole field value before the pool
   lookup, while the pool key stays the `take:` prefix: with `take: 3,
-  when: /\A\d{3,24}\z/`, `007bad` is pending (no preview, no `blank_label`,
-  `data-reactive-media-state="pending"` even under `pending: :keep`) and
+  when: /\A\d{3,24}\z/`, `007bad` is pending (no pool lookup, never
+  `blank_label`: the default clears the preview and label, `pending: :keep`
+  leaves them as they are; either way `data-reactive-media-state="pending"`) and
   `007123` hits `"007"`. It compiles with the same rules as `match:` (a
   refused regexp raises at render, naming `when:`). `match:` still tests the
   key only; omit `when:` and nothing changes. Client: +25 B gzipped default
