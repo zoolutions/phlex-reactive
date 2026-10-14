@@ -57,6 +57,29 @@ RSpec.describe Phlex::Reactive::Component::Helpers, "#reactive_persist (issue #2
     expect(payload(key: "k", debounce: 50)["debounce"]).to eq(50)
   end
 
+  # Issue #397: storage: picks the browser store. :local (the default) keeps
+  # today's wire byte-identical; :session adds one key.
+  describe "storage: (issue #397)" do
+    it "omits storage for the default, :local and \"local\" (byte-stable wire)" do
+      expect(payload(key: "k")).not_to have_key("storage")
+      expect(payload(key: "k", storage: :local)).not_to have_key("storage")
+      expect(payload(key: "k", storage: "local")).not_to have_key("storage")
+      expect(component.send(:reactive_persist, key: "k", storage: :local))
+        .to eq(component.send(:reactive_persist, key: "k"))
+    end
+
+    it "emits storage: session for :session and \"session\"" do
+      expect(payload(key: "k", storage: :session)["storage"]).to eq("session")
+      expect(payload(key: "k", storage: "session")["storage"]).to eq("session")
+    end
+
+    it "rejects any other store at render" do
+      expect { payload(key: "k", storage: :cookie) }.to raise_error(ArgumentError, /storage/)
+      expect { payload(key: "k", storage: "Session") }.to raise_error(ArgumentError, /storage/)
+      expect { payload(key: "k", storage: nil) }.to raise_error(ArgumentError, /storage/)
+    end
+  end
+
   it "is a client-only binding: no token, no id, works from ClientBindings" do
     attrs = component.send(:reactive_persist, key: "k")
     expect(attrs.keys).to eq([:data])

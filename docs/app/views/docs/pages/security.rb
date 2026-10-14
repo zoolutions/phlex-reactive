@@ -500,10 +500,11 @@ module Views
         end
 
         def client_drafts
-          DocsUI::Section('Client-only drafts (reactive_persist) — what lives in localStorage') do
+          DocsUI::Section('Client-only drafts (reactive_persist) — what lives in browser storage') do
             md <<~MD
               `reactive_persist` (#239) keeps a draft of a root's owned field
-              values in **this browser's `localStorage`**. It is client-only in
+              values in **this browser's `localStorage`** (or, with
+              `storage: :session`, this tab's `sessionStorage`). It is client-only in
               the same sense as `reactive_show`: nothing leaves the browser, no
               token is minted, no endpoint is touched. What the threat model
               *does* cover:
@@ -521,7 +522,11 @@ module Views
               - **PII sits on disk for `ttl`.** Default 7 days; an expired draft
                 is removed on read, a successful submit clears it. On a shared
                 computer `ttl` + the submit-clear are the mitigation — shorten
-                `ttl:` for sensitive forms.
+                `ttl:` for sensitive forms, or pass `storage: :session` (#397)
+                so the draft lives in `sessionStorage` and goes when the tab
+                closes (another tab never sees it, though a tab opened from it
+                with an opener, or duplicated, starts with the browser's
+                one-time copy of the session store).
               - **Secrets are excluded by default** — `type=password`, `hidden`
                 and `file` controls never reach storage. **Honeypots are not
                 detectable**: an invisible-captcha text input looks like any

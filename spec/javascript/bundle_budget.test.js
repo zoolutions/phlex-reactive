@@ -167,11 +167,12 @@ const SLACK = 250
 // Issue #394 (clear:/focus:/scroll: on a show's visibility change, in bindings) adds 282 B: 35,388 B;
 // its review fixes (clear: by attribute, visibility tracked for every binding) 23 B: 35,411 B;
 // on top of #390, 35,438 B; on top of #398, 35,509 B.
+// Issue #397 (reactive_persist storage: :session, in persist) on top of #394: 35,528 B.
 // Issue #393 (on_client debounce:/throttle: on on()'s timers, keyed per record) adds 150 B: 34,921 B.
 // Issue #399 (the blur op) adds 41 B: 34,962 B.
 // Keying an on_client wait on the record's ordinal too (two identical records keep their own) adds 23 B: 34,985 B.
-// #393/#399 on top of #390, #394, #395, #396 and #398: 35,715 B.
-const BUNDLE_GZIP_CEILING = 35_715
+// #393/#399 on top of #390, #394, #395, #396, #397 and #398: 35,737 B.
+const BUNDLE_GZIP_CEILING = 35_737
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -259,7 +260,8 @@ const FEATURE_GZIP_CEILINGS = {
   "features/effects": 1_750,
   // Issue #351 (an editable drafted through the core's collector) takes it to 3,167 B.
   // One document submit-end listener for every persisted root, to 3,283 B.
-  "features/persist": 3_283,
+  // Issue #397 (storage: :session selects sessionStorage) to 3,303 B.
+  "features/persist": 3_303,
   // Issue #351 (an editable's dirty diff against its server text) takes it to 1,088 B.
   // Issue #356 (a gate wired the first time it reads true, and reseed) to 1,152 B.
   // One window listener pair for every warn_unsaved root, to 1,268 B.
@@ -331,11 +333,12 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #394 (clear:/focus:/scroll: on a show's visibility change, in bindings) adds 306 B: 43,223 B;
 // its review fixes 22 B: 43,245 B;
 // on top of #390, 43,284 B; on top of #398, 43,348 B.
+// Issue #397 (storage: :session, in persist; the core unchanged) on top of #394: 43,368 B.
 // Issue #393 (on_client debounce:/throttle:, in the core) adds 127 B: 42,729 B.
 // Issue #399 (the blur op, in the core) adds 39 B: 42,768 B.
 // Keying an on_client wait on the record's ordinal too (in the core) adds 22 B: 42,790 B.
-// #393/#399 on top of #390, #394, #395, #396 and #398: 43,531 B.
-const SPLIT_TOTAL_GZIP_CEILING = 43_531
+// #393/#399 on top of #390, #394, #395, #396, #397 and #398: 43,551 B.
+const SPLIT_TOTAL_GZIP_CEILING = 43_551
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 
