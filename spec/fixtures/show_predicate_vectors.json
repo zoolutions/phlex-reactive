@@ -339,6 +339,54 @@
       "groups": [[{ "field": "ids[]", "checked_gte": 1 }, { "field": "mode", "equals": "bulk" }]],
       "values": { "ids[]": ["1"], "mode": "single" },
       "expect": false
+    },
+    {
+      "name": "same: equal values match (issue #395)",
+      "groups": [[{ "field": "confirm", "same": "email" }]],
+      "values": { "confirm": "a@x.test", "email": "a@x.test" },
+      "expect": true
+    },
+    {
+      "name": "same: an empty pair is equal",
+      "groups": [[{ "field": "confirm", "same": "email" }]],
+      "values": { "confirm": "", "email": "" },
+      "expect": true
+    },
+    {
+      "name": "same: is case-sensitive without fold",
+      "groups": [[{ "field": "confirm", "same": "email" }]],
+      "values": { "confirm": "A@X.test", "email": "a@x.test" },
+      "expect": false
+    },
+    {
+      "name": "same: fold treats ASCII A and a as equal",
+      "groups": [[{ "field": "confirm", "same": "email", "fold": true }]],
+      "values": { "confirm": "A@X.TEST", "email": "a@x.test" },
+      "expect": true
+    },
+    {
+      "name": "same: fold leaves a non-ASCII case difference unequal",
+      "groups": [[{ "field": "confirm", "same": "email", "fold": true }]],
+      "values": { "confirm": "\u00c4", "email": "\u00e4" },
+      "expect": false
+    },
+    {
+      "name": "same: an absent other field reads as blank",
+      "groups": [[{ "field": "confirm", "same": "email" }]],
+      "values": { "confirm": "x" },
+      "expect": false
+    },
+    {
+      "name": "same: negate shows while the folded values differ",
+      "groups": [[{ "field": "confirm", "same": "email", "fold": true, "negate": true }]],
+      "values": { "confirm": "b@x.test", "email": "A@X.TEST" },
+      "expect": true
+    },
+    {
+      "name": "same: negate hides once the folded values agree",
+      "groups": [[{ "field": "confirm", "same": "email", "fold": true, "negate": true }]],
+      "values": { "confirm": "a@x.test", "email": "A@X.TEST" },
+      "expect": false
     }
   ]
 }

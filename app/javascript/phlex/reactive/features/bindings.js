@@ -1586,6 +1586,16 @@ function dnfTermMatches(term, fieldValue) {
     const n = fieldValue(term.field, true)
     return countPredicateMatches(checked, term[checked], Array.isArray(n) ? n.length : Number(n) || 0) === true
   }
+  // A same: term (issue #395) compares this field with ANOTHER owned field,
+  // both as strings (an absent one is ""); fold lowercases ASCII A-Z only, the
+  // exact replace Ruby's tr("A-Z", "a-z") does. negate is unless:'s flip.
+  if (typeof term.same === "string") {
+    const read = (name) => {
+      const v = String(fieldValue(name) ?? "")
+      return term.fold === true ? v.replace(/[A-Z]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) + 32)) : v
+    }
+    return (read(term.field) === read(term.same)) !== (term.negate === true)
+  }
   // An absent owned field reads as "" — identical to the server evaluator
   // (ShowConditions.match? treats a missing field as blank). This keeps the
   // Ruby first-paint and the client live-toggle in exact agreement (the shared
@@ -1619,6 +1629,7 @@ function dnfGroupFields(groups) {
     if (!Array.isArray(group)) continue
     for (const term of group) {
       if (term && typeof term === "object" && typeof term.field === "string") fields.add(term.field)
+      if (typeof term?.same === "string") fields.add(term.same)
     }
   }
   return fields.size > 0 ? [...fields] : null

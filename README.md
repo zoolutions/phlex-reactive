@@ -1577,6 +1577,10 @@ end
   blank field has length 0. **`{ checked: … }` counts the ticked boxes of a
   checkbox group** — `{ "ids[]" => { checked: 1.. } }` (see
   [Bulk selection](#bulk-selection-reactive_select_all-reactive_count-reactive_enable)).
+  **`{ same: :email }` compares the field with another owned field**
+  (`{ confirm_email: { same: :email, case: :fold } }`); `case: :fold`
+  lowercases ASCII `A-Z` only, on the server and in the client, and a `same:`
+  name no element of the render carries raises at render.
   `unless:` **negates** and composes with `if:`.
   Never an expression — every term is a declared literal, so there is no eval
   surface. A blank/non-numeric value fails a numeric term **closed** (hidden).

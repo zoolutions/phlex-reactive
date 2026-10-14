@@ -17,6 +17,7 @@ module Phlex
         include Editable
         include MediaBinding
         include ImageFallbackBinding
+        include FieldReferences
 
         # The acting client's SSE connection id during the current action (nil
         # outside an action, or when the client isn't subscribed to a stream).
@@ -677,6 +678,7 @@ module Phlex
           attrs = options.except(*SHOW_CONDITION_KEYS)
 
           groups = Phlex::Reactive::ShowConditions.normalize(**conditions)
+          reference_same_fields!(:reactive_show, groups)
           data = { reactive_show: { "any" => groups }.to_json }
           data[:reactive_show_disable] = "true" if disable
 

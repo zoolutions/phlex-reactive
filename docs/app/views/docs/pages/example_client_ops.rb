@@ -589,6 +589,23 @@ module Views
               div(**reactive_show(if: { code: { length: 6 } }))        { "ready badge" }    # exact length
               ```
 
+              **Compare two fields (`same:`, #395).** `{ same: :email }` holds
+              while the field equals another owned field, both read as strings
+              (an empty pair is equal). `case: :fold` lowercases ASCII `A-Z` only,
+              with the same explicit replace on the server and in the client, so
+              `A` and `a` match and `Ä` and `ä` do not. `unless:` turns it into
+              "while they differ":
+
+              ```ruby
+              button(**reactive_enable(if: { confirm_email: { same: :email, case: :fold } })) { "Save" }
+              p(**reactive_show(unless: { confirm_email: { same: :email, case: :fold } })) { "The addresses differ" }
+              ```
+
+              The `same:` name is scope-aware like any show field. It must name a
+              field the render produces: the check runs when the outermost render
+              finishes, so a field below the binding counts and a typo raises at
+              render. A `case:` other than `:fold` raises too.
+
               Extra HTML attrs pass through unambiguously (conditions live in `if:`),
               so `div(**reactive_show(if: { size: %w[l xl] }, class: "note"))` works.
 

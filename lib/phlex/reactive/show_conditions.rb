@@ -23,6 +23,9 @@ module Phlex
     #   { checked: 1.. } / { checked: 0 } -> checked_* (issue #319 — how many
     #                                   owned boxes of a checkbox GROUP are
     #                                   ticked; same Integer/Range shapes)
+    #   { same: :email }             -> same "email" (issue #395 — equal to
+    #   { same: :email, case: :fold }   ANOTHER owned field; fold lowercases
+    #                                   ASCII A-Z only, on both sides)
     # Under unless: each term is NEGATED (De Morgan):
     #   scalar -> not; Array -> ∉ (AND of nots); Range -> the complement
     #   predicate (¬gte→lt, ¬lte→gt, ¬lt→gte), and a BOUNDED range complements
@@ -48,6 +51,8 @@ module Phlex
 
       # A Hash value's one key -> its wire-key prefix.
       COUNT_PREFIXES = { "length" => "len", "checked" => "checked" }.freeze
+
+      extend CompareTerms
 
       module_function
 
@@ -83,7 +88,7 @@ module Phlex
       # Every field named across all groups/terms — drives reactive_values
       # coverage (server first paint only fires when every field is provided).
       def fields(groups)
-        groups.flat_map { |group| group.map { |term| term.fetch("field") } }.uniq
+        groups.flat_map { |group| group.flat_map { |term| [term.fetch("field"), term["same"]].compact } }.uniq
       end
       # rubocop:enable Style/ItBlockParameter
 
@@ -147,7 +152,7 @@ module Phlex
         case value
         when Range then range_terms(name, value)
         when Array then [membership_term(name, value)]
-        when Hash then count_terms(name, value)
+        when Hash then hash_terms(name, value)
         else [{ "field" => name, "equals" => equals_literal(value) }]
         end
       end
@@ -189,6 +194,25 @@ module Phlex
             "reactive_show: #{name.inspect} Range endpoints must be numbers " \
             "(an ordered threshold), got #{it.inspect}"
         end
+      end
+
+      # --- Hash values: same: (#395, in CompareTerms) or a count -------------
+
+      def hash_terms(name, hash)
+        return [same_term(name, hash, negate: false)] if same_hash?(hash)
+
+        count_terms(name, hash)
+      end
+
+      # The complement under unless: — a list of alternative term-lists.
+      def hash_complement(name, hash)
+        return [[same_term(name, hash, negate: true)]] if same_hash?(hash)
+
+        count_complement(name, hash)
+      end
+
+      def same_hash?(hash)
+        hash.key?(:same) || hash.key?("same")
       end
 
       # --- the count predicates: length: (#226) and checked: (#319) ---------
@@ -262,7 +286,7 @@ module Phlex
         kind = hash.keys.first.to_s if hash.size == 1
         unless COUNT_PREFIXES.key?(kind)
           raise ArgumentError,
-            "reactive_show: #{name.inspect} Hash value supports only length: or checked: " \
+            "reactive_show: #{name.inspect} Hash value supports only same:, or one of length: or checked: " \
             "(got #{hash.keys.inspect})"
         end
 
@@ -294,7 +318,7 @@ module Phlex
         name = field.to_s
         case value
         when Range then range_complement(name, value)
-        when Hash then count_complement(name, value)
+        when Hash then hash_complement(name, value)
         when Array
           list = value.map(&:to_s)
           raise ArgumentError, "reactive_show: #{name.inspect} Array needs at least one value" if list.empty?
@@ -333,7 +357,8 @@ module Phlex
         field = term.fetch("field")
         value = values.fetch(field, "")
 
-        if term.key?("equals") then value == term["equals"]
+        if term.key?("same") then same_matches?(term, value, values)
+        elsif term.key?("equals") then value == term["equals"]
         elsif term.key?("not") then value != term["not"]
         elsif term.key?("in") then term["in"].include?(value)
         elsif (key = LENGTH_KEYS.find { term.key?(it) }) then count_matches?(key, term[key], value.to_s.length)

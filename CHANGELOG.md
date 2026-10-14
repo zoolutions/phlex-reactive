@@ -8,6 +8,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Compare two fields in a show condition — `{ same: :email, case: :fold }` (#395).**
+  `button(**reactive_enable(if: { confirm_email: { same: :email, case: :fold } }))`
+  enables the button only while the two values are equal (an empty pair is
+  equal); `reactive_show(unless: { … })` shows a hint while they differ. Both
+  sides are read as strings; `case: :fold` lowercases ASCII `A-Z` only, with
+  the same explicit replace in Ruby and the client, so a non-ASCII case
+  difference stays unequal. The wire term is
+  `{ "field", "same", "fold"? }`, plus `"negate" => true` under `unless:`. The
+  `same:` name is scope-aware and must name a field the render produces: the
+  check runs when the outermost Phlex render finishes and raises
+  `ArgumentError` for an unknown name. A `case:` other than `:fold` raises at
+  render. First paint needs both fields in `reactive_values`. Works in
+  `reactive_show`, `reactive_enable`, the `"#id" => { if: … }` form of
+  `reactive_show_targets`, `reactive_on_complete` and a conditional
+  `confirm:` (only the first two check the name at render). Client: +103 B gzipped
+  in the default bundle. Docs: "Compare two fields" on the client-ops example.
+
 - **An image fallback that recovers — `reactive_image_fallback(hide: true, show_alt: nil)` (#383).**
   `img(**reactive_image_fallback)` marks an `<img>` whose `src` fails with
   `data-reactive-image-state="error"` and hides it; `show_alt: "#bank-name"`
