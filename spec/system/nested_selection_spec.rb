@@ -19,16 +19,18 @@ RSpec.describe "Nested selection groups (issue #398)", type: :system do
   before { visit "/nested_selection" }
 
   it "ticks and unticks a branch's descendant leaves from its header" do
+    box("nested").click
     box("library").click
     %w[notes view edit].each { expect(box(it)).to be_checked }
     expect(box("billing")).not_to be_checked
-    expect(box("nested")).not_to be_checked
+    expect(box("nested")).to be_checked
     expect(page).to have_css("[data-testid='count']", text: "3")
     expect(state("books")).to eq([true, false])
     expect(state("all")).to eq([false, true])
 
     box("library").click
     %w[notes view edit].each { expect(box(it)).not_to be_checked }
+    expect(box("nested")).to be_checked
     expect(page).to have_css("[data-testid='count']", text: "0")
     expect(state("library")).to eq([false, false])
   end
