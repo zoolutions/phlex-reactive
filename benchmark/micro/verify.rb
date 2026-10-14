@@ -109,19 +109,19 @@ variant_tokens = variants.transform_values { it.generate(state_payload, purpose:
 # `variants.each do |label, verifier|` whose ordinary params make a bare `it` a
 # Ruby SyntaxError ("`it` is not allowed when an ordinary parameter is defined").
 # The inner report blocks reference the captured `verifier`/`token`, so `it` there
-# would be the report block's own (nil) param, not the verifier — Style/ItBlock
-# Parameter can't see either, so disable it on the two report lines.
+# would be the report block's own (nil) param, not the verifier. (RuboCop 1.92's
+# Style/ItBlockParameter leaves these nested blocks alone; no disable needed.)
 BenchSupport.header("verify throughput by digest/serializer (valid state token)")
 BenchSupport.ips do |bench|
   variants.each do |label, verifier|
     token = variant_tokens[label]
-    bench.report(label) { verifier.verified(token, purpose: PURPOSE) } # rubocop:disable Style/ItBlockParameter
+    bench.report(label) { verifier.verified(token, purpose: PURPOSE) }
   end
 end
 
 BenchSupport.header("sign throughput by digest/serializer (state payload)")
 BenchSupport.ips do |bench|
   variants.each do |label, verifier|
-    bench.report(label) { verifier.generate(state_payload, purpose: PURPOSE) } # rubocop:disable Style/ItBlockParameter
+    bench.report(label) { verifier.generate(state_payload, purpose: PURPOSE) }
   end
 end

@@ -36,7 +36,7 @@ class ReactiveInputComponent < ApplicationComponent
       select(**reactive_field(:status, data: { testid: "status" })) do
         # Named param required: the inner Phlex content block reuses `s`, so `it`
         # would collapse both blocks onto one implicit param (wrong output).
-        STATUSES.each { |s| option(value: s) { s } } # rubocop:disable Style/ItBlockParameter
+        STATUSES.each { |s| option(value: s) { s } }
       end
 
       button(**mix(on(:save), data: { testid: "save" })) { "Save" }

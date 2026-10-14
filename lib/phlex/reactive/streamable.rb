@@ -625,7 +625,6 @@ module Phlex
         # Define the guided-error stub for each removed broadcast method (issue
         # #185). `verb` is referenced in define_method AND the message, so the outer
         # block param must be named — `it` is illegal here.
-        # rubocop:disable-next Style/ItBlockParameter
         Phlex::Reactive::Streamable::REMOVED_BROADCASTS.each_key do |verb|
           define_method(verb) do |*, **|
             raise NoMethodError,
