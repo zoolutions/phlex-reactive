@@ -1201,7 +1201,7 @@ module Views
             end
             DocsUI::Table(['Module', 'Gzipped', 'Default client', 'Split client'],
                           [
-                            [[:code, 'phlex/reactive/reactive_controller'], '35.4 KB',
+                            [[:code, 'phlex/reactive/reactive_controller'], '35.5 KB',
                              'When your controllers load (or at the first trigger, for a page whose only roots are dormant).',
                              'Never.'],
                             [[:code, 'phlex/reactive/core'], '17.2 KB',

@@ -694,7 +694,7 @@ Use in controllers: `render turbo_stream: Counter.replace(counter)`.
 | `reactive_image_fallback(hide: true, show_alt: nil)` | An `<img>` that **falls back and recovers** (#383): on `error` it gets `data-reactive-image-state="error"`; `hide:` (default `true`) also hides it, and `show_alt:`, independently, writes its `alt` into that node and shows it; `load` sets `"loaded"`. A later `src` (from `copy_media`, `reactive_media`, `preview_file`, a morph, or any `src` that loads) shows it again; removing the `src` is not an error. Composes with `reactive_media(…, **reactive_image_fallback)`. See [Client-only ops](https://phlex-reactive.zoolutions.llc/docs/example-client-ops). |
 | `reactive_countdown(until:, format: :ms, waiting:, done:)` | A server **deadline counted down** on the client (#400): `until:` is an ISO8601 date-time with a zone (or a `Time`); the text is the time left from `Date.now` (`1:30`), as `textContent`, once a second and again when a hidden tab is shown. At zero (or already past on connect) it reads `0:00`, `data-reactive-countdown-state="done"`, `waiting:` hides, `done:` shows and `reactive:countdown-done` fires **once per deadline** (a morph that keeps `until:` does not fire again; a new `until:` restarts). The server renders the first text and visibility. No request, no frame reload. See [Client-only ops](https://phlex-reactive.zoolutions.llc/docs/example-client-ops). |
 | `reactive_enable(if:/if_any:/unless:)` | The sibling of `reactive_show` that flips the element's **own `disabled`** (a button, a fieldset) instead of `hidden` — same conditions, same `reactive_values` first paint. `button(**reactive_enable(if: { "ids[]" => { checked: 1.. } }))`. See [Bulk selection](#bulk-selection-reactive_select_all-reactive_count-reactive_enable). |
-| `reactive_select_all("ids[]")` / `reactive_count("ids[]")` | A checkbox **group**'s header box (ticks/unticks every owned box; shows checked / indeterminate / unchecked) and its ticked count as text — re-synced on every change and when rows are appended or removed. See [Bulk selection](#bulk-selection-reactive_select_all-reactive_count-reactive_enable). |
+| `reactive_select_all("ids[]")` / `reactive_count("ids[]")` | A checkbox **group**'s header box (ticks/unticks every owned box; shows checked / indeterminate / unchecked) and its ticked count as text — re-synced on every change and when rows are appended or removed. `under: "a.b"` makes a nested header over the leaves whose `data-reactive-group` is in that path. See [Bulk selection](#bulk-selection-reactive_select_all-reactive_count-reactive_enable). |
 | `reactive_group_targets("ids[]", count: "#c", enable: { "#b" => 1.. })` | Spread on the root that **owns** a checkbox group: drives a count and an enable on outside, id-allowlisted elements (a bulk bar the page renders). `reactive_group_target_attrs` gives that outside markup its first paint. See [A bulk bar outside the list's root](#a-bulk-bar-outside-the-lists-root-reactive_group_targets). |
 | `reactive_show_targets(:field, "#id" => value)` | **Cross-root visibility**: the component that owns the field declares which **outside**, id-allowlisted elements it governs (a nav tab, a panel in another pane) — the visibility parallel of `mirror:`. Spread on the **root** via `mix(reactive_root, …)`, **once per root** — several fields go in one call via the hash form. The value uses the same `where`-style vocabulary (`"advanced"`, `%w[a b]`, `10..`); a `"#id"` **key** takes a full conditions Hash for a **multi-field** predicate (`"#warn" => { if: { type: "trade", price: ..0 } }`). Id selectors only (raise at render + client warn-skip); toggles `hidden` only. See [Value-conditional visibility](#value-conditional-visibility-reactive_show). |
 | `reactive_persist(key:, ttl: 7.days)` | **Client-only drafts**: spread on the **root** (once) and the generic controller keeps a `localStorage` draft of every **owned** control — debounced write on `input`, immediate on `change`, flushed on disconnect, restored into **blank** controls on the next connect (`restore: :always` lets the draft win), cleared by a successful Turbo submit / `ttl` / `js.persist_clear`. Never hidden/file/password; `reactive_persist_skip` opts a control out; `fields:` narrows. See [Client-only drafts](#client-only-drafts-reactive_persist). |
@@ -1705,6 +1705,26 @@ end
   flips, so computes, shows and completions re-run. Its own state follows the
   group: **checked** when all are ticked, **indeterminate** when some are,
   unchecked when none are. Give the header no `name` (it would post).
+- **Nested groups — `reactive_select_all(group, under: "library.books")`**
+  (#398). A tree of headers over leaves that still post as **one** array. Each
+  leaf names the path of its nearest parent with `data-reactive-group`; a
+  header with `under:` owns the boxes of the name whose group is that path or
+  below it (`library` owns `library` and `library.books`, never `libraryx`).
+  The header ticks or unticks those leaves (with `input` + `change` on each one
+  it flips) and is checked / indeterminate / unchecked from them, so a parent
+  follows its nested headers. The header without `under:` is still every box
+  of the name. Headers have no `name`, so they never post, and
+  `reactive_count` / `reactive_enable` keep counting the leaves. A blank
+  `under:`, an empty segment (`"a..b"`), or a space-padded segment
+  (`"a .b"`) raises at render.
+
+  ```ruby
+  input(type: "checkbox", **reactive_select_all("perms[]"))                         # everything
+  input(type: "checkbox", **reactive_select_all("perms[]", under: "library"))       # a branch
+  input(type: "checkbox", name: "perms[]", value: "notes", data: { reactive_group: "library" })
+  input(type: "checkbox", **reactive_select_all("perms[]", under: "library.books")) # a sub-branch
+  input(type: "checkbox", name: "perms[]", value: "view", data: { reactive_group: "library.books" })
+  ```
 - **`reactive_count(group)`** — writes the ticked count via `textContent`
   (change-guarded). Seed the first paint in its block.
 - **`{ checked: n }` / `{ checked: 1.. }`** — a term in the shared conditions

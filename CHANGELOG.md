@@ -24,9 +24,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   renders the initial text and visibility. `format:` other than `:ms`, an
   `until:` that is not an ISO8601 date-time with a zone (or a `Time`), and a
   `waiting:`/`done:` that is not a non-blank selector (or is `@root`) raise at
-  render. Client: a new `countdown` feature module (966 B gzipped); +643 B in
+  render. Client: a new `countdown` feature module (966 B gzipped); +635 B in
   the default bundle, +27 B in the split core. Docs: "Counting down to a server
   deadline" on the client-ops example.
+
+- **Nested checkbox groups — `reactive_select_all(group, under: "a.b")` (#398).**
+  A header with `under: "library"` owns the boxes of the name whose
+  `data-reactive-group` is `library` or below it (`library.books`; whole
+  segments, so never `libraryx`). It ticks or unticks them, dispatching
+  `input` + `change` on each one it flips, and is checked / indeterminate /
+  unchecked from them, so a parent follows its nested headers. Every leaf still
+  posts under the one name; headers have no `name` and never post;
+  `reactive_count` and `reactive_enable` keep counting the leaves. A nested
+  reactive root's boxes stay that root's own (#15). `reactive_select_all`
+  without `under:` renders the same attrs as before and still flips every box
+  of the name. A blank `under:`, or one with an empty or space-padded segment, raises at
+  render. Client: +76 B gzipped in the default bundle (+66 B in
+  `features/bindings`, the split core unchanged). Docs: "Bulk selection" on
+  the client-ops example; demo at `/nested_selection` in the dummy app.
 
 - **`reactive_media(when:)` tests the whole field (#390).** `when:` is a
   Regexp the client tests against the whole field value before the pool
