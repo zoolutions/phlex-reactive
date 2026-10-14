@@ -692,7 +692,7 @@ Use in controllers: `render turbo_stream: Counter.replace(counter)`.
 | `reactive_media(from:, pool:, take:, match:, pending:, label:, blank_label:)` | A preview `<img>` that **follows a field** (#373): the field's value (its first `take:` characters, or all of it) is a key into `pool`, whose values are **selectors** for `<img>` elements the server rendered — never URLs. A hit copies that image's `src`/`srcset`/`alt` like `js.copy_media` (a pool `<img>` with an `alt` and no `src` is a hit without an image, #381); a miss clears the preview. `label:` gets the `alt` (or `blank_label`) as `textContent`. Below `take:` characters, or while `match:` (a JavaScript-compatible Regexp over the whole key) rejects the key, the binding is **pending** (#380) — never `blank_label` (Regexp options or Ruby-only syntax raise at render); `pending: :clear` (default) clears the preview and label, `:keep` leaves them. The preview's `data-reactive-media-state` reads `pending`/`hit`/`miss`, so CSS can hide its row. See [Media previews](https://phlex-reactive.zoolutions.llc/docs/example-client-ops). |
 | `reactive_image_fallback(hide: true, show_alt: nil)` | An `<img>` that **falls back and recovers** (#383): on `error` it gets `data-reactive-image-state="error"`; `hide:` (default `true`) also hides it, and `show_alt:`, independently, writes its `alt` into that node and shows it; `load` sets `"loaded"`. A later `src` (from `copy_media`, `reactive_media`, `preview_file`, a morph, or any `src` that loads) shows it again; removing the `src` is not an error. Composes with `reactive_media(…, **reactive_image_fallback)`. See [Client-only ops](https://phlex-reactive.zoolutions.llc/docs/example-client-ops). |
 | `reactive_enable(if:/if_any:/unless:)` | The sibling of `reactive_show` that flips the element's **own `disabled`** (a button, a fieldset) instead of `hidden` — same conditions, same `reactive_values` first paint. `button(**reactive_enable(if: { "ids[]" => { checked: 1.. } }))`. See [Bulk selection](#bulk-selection-reactive_select_all-reactive_count-reactive_enable). |
-| `reactive_select_all("ids[]")` / `reactive_count("ids[]")` | A checkbox **group**'s header box (ticks/unticks every owned box; shows checked / indeterminate / unchecked) and its ticked count as text — re-synced on every change and when rows are appended or removed. See [Bulk selection](#bulk-selection-reactive_select_all-reactive_count-reactive_enable). |
+| `reactive_select_all("ids[]")` / `reactive_count("ids[]")` | A checkbox **group**'s header box (ticks/unticks every owned box; shows checked / indeterminate / unchecked) and its ticked count as text — re-synced on every change and when rows are appended or removed. `under: "a.b"` makes a nested header over the leaves whose `data-reactive-group` is in that path. See [Bulk selection](#bulk-selection-reactive_select_all-reactive_count-reactive_enable). |
 | `reactive_group_targets("ids[]", count: "#c", enable: { "#b" => 1.. })` | Spread on the root that **owns** a checkbox group: drives a count and an enable on outside, id-allowlisted elements (a bulk bar the page renders). `reactive_group_target_attrs` gives that outside markup its first paint. See [A bulk bar outside the list's root](#a-bulk-bar-outside-the-lists-root-reactive_group_targets). |
 | `reactive_show_targets(:field, "#id" => value)` | **Cross-root visibility**: the component that owns the field declares which **outside**, id-allowlisted elements it governs (a nav tab, a panel in another pane) — the visibility parallel of `mirror:`. Spread on the **root** via `mix(reactive_root, …)`, **once per root** — several fields go in one call via the hash form. The value uses the same `where`-style vocabulary (`"advanced"`, `%w[a b]`, `10..`); a `"#id"` **key** takes a full conditions Hash for a **multi-field** predicate (`"#warn" => { if: { type: "trade", price: ..0 } }`). Id selectors only (raise at render + client warn-skip); toggles `hidden` only. See [Value-conditional visibility](#value-conditional-visibility-reactive_show). |
 | `reactive_persist(key:, ttl: 7.days)` | **Client-only drafts**: spread on the **root** (once) and the generic controller keeps a `localStorage` draft of every **owned** control — debounced write on `input`, immediate on `change`, flushed on disconnect, restored into **blank** controls on the next connect (`restore: :always` lets the draft win), cleared by a successful Turbo submit / `ttl` / `js.persist_clear`. Never hidden/file/password; `reactive_persist_skip` opts a control out; `fields:` narrows. See [Client-only drafts](#client-only-drafts-reactive_persist). |
@@ -1703,6 +1703,25 @@ end
   flips, so computes, shows and completions re-run. Its own state follows the
   group: **checked** when all are ticked, **indeterminate** when some are,
   unchecked when none are. Give the header no `name` (it would post).
+- **Nested groups — `reactive_select_all(group, under: "library.books")`**
+  (#398). A tree of headers over leaves that still post as **one** array. Each
+  leaf names the path of its nearest parent with `data-reactive-group`; a
+  header with `under:` owns the boxes of the name whose group is that path or
+  below it (`library` owns `library` and `library.books`, never `libraryx`).
+  The header ticks or unticks those leaves (with `input` + `change` on each one
+  it flips) and is checked / indeterminate / unchecked from them, so a parent
+  follows its nested headers. The header without `under:` is still every box
+  of the name. Headers have no `name`, so they never post, and
+  `reactive_count` / `reactive_enable` keep counting the leaves. An empty
+  `under:` (or one with an empty segment, `"a..b"`) raises at render.
+
+  ```ruby
+  input(type: "checkbox", **reactive_select_all("perms[]"))                         # everything
+  input(type: "checkbox", **reactive_select_all("perms[]", under: "library"))       # a branch
+  input(type: "checkbox", name: "perms[]", value: "notes", data: { reactive_group: "library" })
+  input(type: "checkbox", **reactive_select_all("perms[]", under: "library.books")) # a sub-branch
+  input(type: "checkbox", name: "perms[]", value: "view", data: { reactive_group: "library.books" })
+  ```
 - **`reactive_count(group)`** — writes the ticked count via `textContent`
   (change-guarded). Seed the first paint in its block.
 - **`{ checked: n }` / `{ checked: 1.. }`** — a term in the shared conditions

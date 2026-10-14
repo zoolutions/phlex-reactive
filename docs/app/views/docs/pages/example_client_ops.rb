@@ -723,6 +723,24 @@ module Views
                 re-run). Its own state follows the group: checked when all are
                 ticked, **indeterminate** when some are, unchecked when none are.
                 Give it no `name`.
+              - **Nested groups — `reactive_select_all(group, under: "a.b")`**
+                (#398). Leaves keep one `name` and declare the path of their
+                nearest parent with `data-reactive-group`. A header with
+                `under:` ticks or unticks the leaves in its path and below it
+                (`library` owns `library.books`, never `libraryx`) and is
+                checked / indeterminate / unchecked from them, so a parent
+                follows its nested headers. Without `under:` the header is
+                still every box of the name. Headers never post;
+                `reactive_count` counts leaves. An empty `under:` raises at
+                render.
+
+                ```ruby
+                input(type: "checkbox", **reactive_select_all("perms[]"))
+                input(type: "checkbox", **reactive_select_all("perms[]", under: "library"))
+                input(type: "checkbox", name: "perms[]", value: "notes", data: { reactive_group: "library" })
+                input(type: "checkbox", **reactive_select_all("perms[]", under: "library.books"))
+                input(type: "checkbox", name: "perms[]", value: "view", data: { reactive_group: "library.books" })
+                ```
               - **`reactive_count(group)`** — the ticked count via `textContent`,
                 change-guarded. Seed first paint in its block.
               - **`{ checked: n }` / `{ checked: 1.. }`** — a term in the shared
