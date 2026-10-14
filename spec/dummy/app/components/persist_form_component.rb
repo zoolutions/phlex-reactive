@@ -13,8 +13,11 @@ class PersistFormComponent < ApplicationComponent
 
   reactive_scope :apply
 
-  def initialize(name: nil)
+  # storage: :session (issue #397) keeps the SAME key in sessionStorage, so
+  # the spec can prove the two stores never share a lookup.
+  def initialize(name: nil, storage: :local)
     @name = name
+    @storage = storage
   end
 
   def reactive_values = { size: nil }
@@ -22,7 +25,7 @@ class PersistFormComponent < ApplicationComponent
   def view_template
     form(action: "/persist_form", method: "post", data: { testid: "form" }) do
       div(**mix(reactive_root(id: "persist-form"),
-        reactive_persist(key: "dummy-apply", ttl: 1.hour, debounce: 100))) do
+        reactive_persist(key: "dummy-apply", ttl: 1.hour, debounce: 100, storage: @storage))) do
         # A server-rendered value (?name=…) must WIN over the draft (restore: :blank).
         input(**reactive_field(:name, type: "text", value: @name, data: { testid: "name" }))
         textarea(**reactive_field(:bio, data: { testid: "bio" }))

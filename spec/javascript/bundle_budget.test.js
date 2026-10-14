@@ -167,12 +167,13 @@ const SLACK = 250
 // Issue #394 (clear:/focus:/scroll: on a show's visibility change, in bindings) adds 282 B: 35,388 B;
 // its review fixes (clear: by attribute, visibility tracked for every binding) 23 B: 35,411 B;
 // on top of #390, 35,438 B; on top of #398, 35,509 B.
+// Issue #397 (reactive_persist storage: :session, in persist) on top of #394: 35,528 B.
 // Issue #400 (countdown: a NEW feature module — the Date.now tick, the wake
 // re-sync, the once-per-deadline event, ignoring a bad selector — plus the runtime's marker) adds 573 B: 35,344 B;
 // its review fixes (every fired deadline kept, an id-less root's own key) 67 B: 35,411 B;
 // on top of #390 (34,796 B), 643 B in all: 35,439 B; on top of #398 (34,872 B), 635 B: 35,507 B;
-// on top of #394/#395/#396 (35,509 B), 648 B: 36,157 B.
-const BUNDLE_GZIP_CEILING = 36_157
+// on top of #394/#395/#396 (35,509 B), 648 B: 36,157 B; on top of #397 (35,528 B), 648 B: 36,176 B.
+const BUNDLE_GZIP_CEILING = 36_176
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -257,7 +258,8 @@ const FEATURE_GZIP_CEILINGS = {
   "features/effects": 1_750,
   // Issue #351 (an editable drafted through the core's collector) takes it to 3,167 B.
   // One document submit-end listener for every persisted root, to 3,283 B.
-  "features/persist": 3_283,
+  // Issue #397 (storage: :session selects sessionStorage) to 3,303 B.
+  "features/persist": 3_303,
   // Issue #351 (an editable's dirty diff against its server text) takes it to 1,088 B.
   // Issue #356 (a gate wired the first time it reads true, and reseed) to 1,152 B.
   // One window listener pair for every warn_unsaved root, to 1,268 B.
@@ -332,10 +334,12 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #394 (clear:/focus:/scroll: on a show's visibility change, in bindings) adds 306 B: 43,223 B;
 // its review fixes 22 B: 43,245 B;
 // on top of #390, 43,284 B; on top of #398, 43,348 B.
+// Issue #397 (storage: :session, in persist; the core unchanged) on top of #394: 43,368 B.
 // Issue #400 (the countdown feature module, 915 B, plus 27 B in the core) adds 942 B: 43,544 B;
 // its review fixes, 51 B: 43,595 B; on top of #390 (42,624 B), 993 B: 43,617 B;
-// on top of #398 (42,690 B), 993 B: 43,683 B; on top of #394/#395/#396 (43,348 B), 991 B: 44,339 B.
-const SPLIT_TOTAL_GZIP_CEILING = 44_339
+// on top of #398 (42,690 B), 993 B: 43,683 B; on top of #394/#395/#396 (43,348 B), 991 B: 44,339 B;
+// on top of #397 (43,368 B), 991 B: 44,359 B.
+const SPLIT_TOTAL_GZIP_CEILING = 44_359
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

@@ -697,7 +697,7 @@ Use in controllers: `render turbo_stream: Counter.replace(counter)`.
 | `reactive_select_all("ids[]")` / `reactive_count("ids[]")` | A checkbox **group**'s header box (ticks/unticks every owned box; shows checked / indeterminate / unchecked) and its ticked count as text — re-synced on every change and when rows are appended or removed. `under: "a.b"` makes a nested header over the leaves whose `data-reactive-group` is in that path. See [Bulk selection](#bulk-selection-reactive_select_all-reactive_count-reactive_enable). |
 | `reactive_group_targets("ids[]", count: "#c", enable: { "#b" => 1.. })` | Spread on the root that **owns** a checkbox group: drives a count and an enable on outside, id-allowlisted elements (a bulk bar the page renders). `reactive_group_target_attrs` gives that outside markup its first paint. See [A bulk bar outside the list's root](#a-bulk-bar-outside-the-lists-root-reactive_group_targets). |
 | `reactive_show_targets(:field, "#id" => value)` | **Cross-root visibility**: the component that owns the field declares which **outside**, id-allowlisted elements it governs (a nav tab, a panel in another pane) — the visibility parallel of `mirror:`. Spread on the **root** via `mix(reactive_root, …)`, **once per root** — several fields go in one call via the hash form. The value uses the same `where`-style vocabulary (`"advanced"`, `%w[a b]`, `10..`); a `"#id"` **key** takes a full conditions Hash for a **multi-field** predicate (`"#warn" => { if: { type: "trade", price: ..0 } }`). Id selectors only (raise at render + client warn-skip); toggles `hidden` only. See [Value-conditional visibility](#value-conditional-visibility-reactive_show). |
-| `reactive_persist(key:, ttl: 7.days)` | **Client-only drafts**: spread on the **root** (once) and the generic controller keeps a `localStorage` draft of every **owned** control — debounced write on `input`, immediate on `change`, flushed on disconnect, restored into **blank** controls on the next connect (`restore: :always` lets the draft win), cleared by a successful Turbo submit / `ttl` / `js.persist_clear`. Never hidden/file/password; `reactive_persist_skip` opts a control out; `fields:` narrows. See [Client-only drafts](#client-only-drafts-reactive_persist). |
+| `reactive_persist(key:, ttl: 7.days)` | **Client-only drafts**: spread on the **root** (once) and the generic controller keeps a `localStorage` draft of every **owned** control — debounced write on `input`, immediate on `change`, flushed on disconnect, restored into **blank** controls on the next connect (`restore: :always` lets the draft win), cleared by a successful Turbo submit / `ttl` / `js.persist_clear`. Never hidden/file/password; `reactive_persist_skip` opts a control out; `fields:` narrows; `storage: :session` keeps the draft in this tab's `sessionStorage` instead. See [Client-only drafts](#client-only-drafts-reactive_persist). |
 | `js.persist_state(step: 2)` / `js.persist_clear` | The draft ops (actor-only): merge a flat state bag into the draft (restored as `data-reactive-persist-state` + the `reactive:persist-restored` event) / forget the draft. |
 | `reactive_filter(:field, option: nil, group: nil, empty: nil)` | **Client-side option filtering** for a preloaded combobox: spread onto the root and name the **field** that drives it — `reactive_filter(:q)` compiles `:q` to `[name="q"]` (scope-aware) and typing shows/hides the options by their `data-reactive-filter-text` haystack, **zero round trips**. `option:` defaults to `[role=option]`; optional `group:` collapses an all-hidden group header; `empty:` reveals a no-matches node. `input:` is the escape hatch — a raw CSS selector for a **name-less** driving input (`input: "#tags_query"`), the form-builder case. See [Client-side option filtering](#client-side-option-filtering-reactive_filter). |
 | `reactive_listnav("[role=option]")` | The **standalone** combobox keyboard wiring (Arrow/Enter/Escape) for an input that fires **no action** — the preload-and-filter case. Same behavior as `on(…, listnav:)`, minus the POST. `reactive_listnav(focus: true)` is the **roving-focus** variant for a `role="menu"` container: Arrow Down/Up move real focus among `[role=menuitem]` (wrapping), Home/End jump to the edges; Enter/Space stay native and Escape is yours to bind. |
@@ -2065,6 +2065,16 @@ wire attr: `data-reactive-persist='{"key":"village-apply","ttl":604800,"debounce
 - **`restore: :blank`** (default) — a draft value lands only in a control the
   server rendered **blank**, so a 422 re-render's submitted values beat an
   older draft. `restore: :always` lets the draft win.
+- **`storage: :local`** (default) — the draft lives in `localStorage`: every
+  tab of the origin sees it, and it outlives them until `ttl`.
+  `storage: :session` (#397) keeps it in `sessionStorage` instead: the same tab
+  restores it on reload, another tab never sees it, and closing the tab drops
+  it. (A tab opened FROM this one with an opener — `window.open`, a link
+  without `noopener` — or a duplicated tab starts with a copy of the
+  browser's session store, draft included: a one-time snapshot, after which
+  the two tabs' drafts are separate.) Same key, same exclusions, same `restore:`, same clears. The two stores
+  are read separately — a `:local` draft is never restored by `:session`.
+  `"local"` / `"session"` strings are accepted; anything else raises at render.
 - **Clear** — a successful `turbo:submit-end` of the form that contains the
   root, `ttl` expiry (checked on read; default `7.days`), or `js.persist_clear`.
   A successful *reactive* action does **not** clear on its own — chain
@@ -2109,8 +2119,10 @@ are replayed via `.value`/`.checked`/`.selected`, a bare contenteditable via
 `textContent`, and a rich editor through its own `value` setter (the same
 sanitizing import a paste takes). A tampered draft can only produce what the
 user could type or paste into that field. PII sits in this
-browser's `localStorage` for `ttl`; the submit-clear and `ttl` are the
-shared-computer mitigation. `persist_state`/`persist_clear` are **actor-only**
+browser's `localStorage` (or, with `storage: :session`, this tab's
+`sessionStorage`) for `ttl`; the submit-clear, `ttl` and
+`storage: :session` (the draft goes with the tab) are the shared-computer
+mitigation. `persist_state`/`persist_clear` are **actor-only**
 ops (refused by `broadcast_to(js:)`). See the [security page](docs/security.md).
 
 ### Client-side computes (`reactive_compute` + `reactive_text`)
