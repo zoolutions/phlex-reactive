@@ -1,0 +1,61 @@
+spec/dummy/public/vendor/features/persist.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/features/persist.min.js
+  ai_agent 1,3
+spec/dummy/app/controllers/demos_controller.rb
+  s_a62bd6a6b1570e::t_6929f5cc3527d3 492,494
+docs/app/views/docs/pages/example_client_ops.rb
+  s_a62bd6a6b1570e::t_373eb7c937b0e7 821-832
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 8,18-19
+spec/system/persist_session_spec.rb
+  s_a62bd6a6b1570e::t_4674e5c1e971a8 1-84
+docs/app/views/docs/pages/security.rb
+  s_a62bd6a6b1570e::t_b0532aa5a8ce33 524-526
+app/javascript/phlex/reactive/features/persist.js
+  s_a62bd6a6b1570e::t_9e86dfe10ad0c5 164
+  s_a62bd6a6b1570e::t_49d203e4cd431e 179
+  s_a62bd6a6b1570e::t_1d302699b8f607 108-111,113
+  s_a62bd6a6b1570e::t_e6f94cc1974c0f 136
+  s_a62bd6a6b1570e::t_d0354c36ad6a3a 7-8
+app/javascript/phlex/reactive/features/persist.min.js.map
+  ai_agent 5,7-8
+lib/phlex/reactive/component/helpers.rb
+  s_a62bd6a6b1570e::t_09f78b0de56a9f 1186-1187,1218-1223,1228-1229,1231,1239,1276-1283
+spec/dummy/app/components/persist_form_component.rb
+  s_a62bd6a6b1570e::t_6016b119177412 16-18,20,28
+spec/phlex/reactive/persist_helper_spec.rb
+  s_a62bd6a6b1570e::t_932b2423f76198 60-82
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,8
+CHANGELOG.md
+  s_a62bd6a6b1570e::t_64292d3cec5b93 11-21
+spec/javascript/reactive_persist.test.js
+  s_a62bd6a6b1570e::t_89dacaa0402c4d 47,57,95-98,119,520-619
+spec/javascript/bundle_budget.test.js
+  s_a62bd6a6b1570e::t_be97f9c7a3dfde 306-307
+  s_a62bd6a6b1570e::t_48c0d2554fd9c1 240-241
+  s_a62bd6a6b1570e::t_2fab09cad51125 163-164
+README.md
+  s_a62bd6a6b1570e::t_9163aab701391b 2027-2033
+  s_a62bd6a6b1570e::t_50bb7354dda442 2078-2080
+  s_a62bd6a6b1570e::t_262df6a46ee2e3 698
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "7b362a480877f023e13ca2cd0ac5f5f0e77c95b1",
+  "prompts": {},
+  "sessions": {
+    "s_a62bd6a6b1570e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e652d418-f8d6-49e4-95fb-309bf7b07f3d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}

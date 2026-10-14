@@ -1,0 +1,42 @@
+docs/app/views/docs/pages/example_client_ops.rb
+  s_60062f487bc921::t_6bc2fdd09925b2 139-141,156-157
+spec/javascript/bundle_budget.test.js
+  s_60062f487bc921::t_e1ed30f3ea5757 131-133,168-170,231-233
+app/javascript/phlex/reactive/runtime.js
+  s_60062f487bc921::t_b3f6ffb27af396 291-292,294
+  s_60062f487bc921::t_53182c1bf39188 295-297
+lib/phlex/reactive/streamable.rb
+  s_60062f487bc921::t_5214dac5e6d020 205
+docs/app/reactive_components/modal_picker_component.rb
+  s_60062f487bc921::t_746622faec643c 67-69
+  s_60062f487bc921::t_6bc2fdd09925b2 63-65
+spec/system/modal_dialog_spec.rb
+  s_60062f487bc921::t_7f505fb0f38bf4 19-24,54-56
+  s_60062f487bc921::t_b410c8250e8811 25-26
+  s_60062f487bc921::t_39781b9b022b1d 27-30,32-33,57-58
+README.md
+  s_60062f487bc921::t_7f817096fb923f 1268
+docs/spec/system/modal_picker_spec.rb
+  s_60062f487bc921::t_6bc2fdd09925b2 33-36,38-41,44-48
+  s_60062f487bc921::t_fc1ec6ed1052a4 37
+  s_60062f487bc921::t_cf5542bba0abd9 42-43
+spec/dummy/app/components/modal_dialog_component.rb
+  s_60062f487bc921::t_21bebe3095abd5 76
+  s_60062f487bc921::t_72f4918cfee580 75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "33dba97a0179e7b41e7a802fe6c8ad06812e1b65",
+  "prompts": {},
+  "sessions": {
+    "s_60062f487bc921": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f956092a-7df4-4097-8bbf-5f35b468a7f8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}

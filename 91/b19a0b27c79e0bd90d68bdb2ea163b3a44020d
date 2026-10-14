@@ -1,0 +1,45 @@
+lib/phlex/reactive/component/countdown_binding.rb
+  s_a62bd6a6b1570e::t_495985e8a8e142 3-4
+app/javascript/phlex/reactive/features/countdown.js
+  s_a62bd6a6b1570e::t_798b9e796acb0d 70,72-75
+  s_a62bd6a6b1570e::t_495985e8a8e142 83-84
+CHANGELOG.md
+  s_a62bd6a6b1570e::t_495985e8a8e142 21-22
+  s_a62bd6a6b1570e::t_023a3459d22c82 27
+docs/app/views/docs/pages/example_client_ops.rb
+  s_a62bd6a6b1570e::t_495985e8a8e142 389-390,410-416
+app/javascript/phlex/reactive/features/countdown.min.js
+  ai_agent 1,3
+docs/db/schema.rb
+  s_a62bd6a6b1570e::t_495985e8a8e142 15,18,26,32-34,40,46-47
+spec/javascript/bundle_budget.test.js
+  s_a62bd6a6b1570e::t_023a3459d22c82 164-165,254-255,309-310
+app/javascript/phlex/reactive/features/countdown.min.js.map
+  ai_agent 5,7-8
+spec/javascript/reactive_countdown.test.js
+  s_a62bd6a6b1570e::t_3d20c05e4c140a 305-320
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,5-6,8
+spec/dummy/public/vendor/features/countdown.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 16,19-20
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,5-6,8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "91b19a0b27c79e0bd90d68bdb2ea163b3a44020d",
+  "prompts": {},
+  "sessions": {
+    "s_a62bd6a6b1570e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e652d418-f8d6-49e4-95fb-309bf7b07f3d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}

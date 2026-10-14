@@ -1,0 +1,22 @@
+CHANGELOG.md
+  s_a62bd6a6b1570e::t_023a3459d22c82 27
+  s_a62bd6a6b1570e::t_1938439d88e898 28,31-85
+spec/javascript/bundle_budget.test.js
+  s_a62bd6a6b1570e::t_90c9fb9c8b3fc7 229
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "47edbb49f8a9670aff689dda9fc3a4a6d33ab5f5",
+  "prompts": {},
+  "sessions": {
+    "s_a62bd6a6b1570e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e652d418-f8d6-49e4-95fb-309bf7b07f3d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}

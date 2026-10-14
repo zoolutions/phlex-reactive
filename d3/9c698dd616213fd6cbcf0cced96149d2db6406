@@ -1,0 +1,63 @@
+spec/phlex/reactive/js_spec.rb
+  s_a62bd6a6b1570e::t_2e21735c0ba55b 355,359,363
+  s_a62bd6a6b1570e::t_9d04c2e044b257 348-349
+  s_a62bd6a6b1570e::t_002ea3167756e1 338-341,344-347,350-354,356-358,360-362,364-365
+  s_a62bd6a6b1570e::t_cbe051845ec899 342-343
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 5,18-19
+docs/app/views/docs/pages/example_client_ops.rb
+  s_a62bd6a6b1570e::t_52110ac6040c33 315-350
+spec/dummy/public/vendor/core.js
+  ai_agent 1,5-6,8
+spec/dummy/app/controllers/demos_controller.rb
+  s_a62bd6a6b1570e::t_079b6224711981 382-385
+spec/dummy/app/components/framed_photo_preview_component.rb
+  s_a62bd6a6b1570e::t_a919952b722025 1-41
+CHANGELOG.md
+  s_a62bd6a6b1570e::t_da76fcabd1db1a 11-28
+spec/requests/js_broadcast_spec.rb
+  s_a62bd6a6b1570e::t_21393be45cd6af 127-135
+app/javascript/phlex/reactive/core.min.js
+  ai_agent 1,5-6,8
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,5-6,8
+app/javascript/phlex/reactive/core.min.js.map
+  ai_agent 5,8-9
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,5-6,8
+spec/dummy/config/routes.rb
+  s_a62bd6a6b1570e::t_b1eeecdd1138f7 74
+lib/phlex/reactive/js.rb
+  s_a62bd6a6b1570e::t_3df7348756df38 309-324,335-337
+  s_a62bd6a6b1570e::t_be1496caeb301d 547-562
+spec/system/preview_file_wrap_spec.rb
+  s_a62bd6a6b1570e::t_2062815e360e11 1-74
+README.md
+  s_a62bd6a6b1570e::t_347742477a7df0 1344
+  s_a62bd6a6b1570e::t_7c4c7ce22aa32e 1369-1377
+app/javascript/phlex/reactive/runtime.js
+  s_a62bd6a6b1570e::t_cb4a13125eacd5 1488-1489,1491,1496-1502
+  s_a62bd6a6b1570e::t_82f7a5f31ef04c 439-458
+  s_a62bd6a6b1570e::t_0e9bfc450b656a 1452-1461,1470-1487,1490,1492-1495,1503
+spec/javascript/reactive_preview_file_wrap.test.js
+  s_a62bd6a6b1570e::t_6aba528ac25275 1-383
+spec/javascript/bundle_budget.test.js
+  s_a62bd6a6b1570e::t_4151704cd962de 163
+  s_a62bd6a6b1570e::t_1acaca1e3d7783 164,218-219,306-307
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d39c698dd616213fd6cbcf0cced96149d2db6406",
+  "prompts": {},
+  "sessions": {
+    "s_a62bd6a6b1570e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e652d418-f8d6-49e4-95fb-309bf7b07f3d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}

@@ -1,0 +1,55 @@
+app/javascript/phlex/reactive/runtime.js
+  s_f66f552428a388::t_50d6eaac497fc2 1407-1409,1417-1418,1420,1425,1427
+spec/system/logo_preview_spec.rb
+  s_f66f552428a388::t_b46c9508dabae5 92-113
+spec/dummy/public/vendor/core.js
+  ai_agent 1,3-6,8
+docs/app/reactive_components/media_preview_component.rb
+  s_f66f552428a388::t_0438a64006e6ff 6-8,15-16,18,35,64-65
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 6,8
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 6,8
+spec/dummy/app/components/logo_preview_component.rb
+  s_f66f552428a388::t_b46c9508dabae5 15,39,47
+lib/phlex/reactive/component/media_binding.rb
+  s_f66f552428a388::t_b4d8f0f8ef8d67 23-27
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 5,18-19
+spec/javascript/bundle_budget.test.js
+  s_f66f552428a388::t_95c2eb47751d04 153-154,202-203,283-284
+docs/app/views/docs/pages/example_client_ops.rb
+  s_f66f552428a388::t_b4d8f0f8ef8d67 183-186,198-199
+lib/phlex/reactive/js.rb
+  s_f66f552428a388::t_b4d8f0f8ef8d67 334-337
+spec/javascript/reactive_copy_media.test.js
+  s_f66f552428a388::t_742aef15d682ab 290-291,295-296
+  s_f66f552428a388::t_bb3cd75ab8899b 133-153,276,288-289,292-294,297-330
+app/javascript/phlex/reactive/core.min.js
+  ai_agent 1,3-6,8
+docs/spec/system/media_preview_spec.rb
+  s_f66f552428a388::t_0438a64006e6ff 22-27
+README.md
+  s_f66f552428a388::t_b4d8f0f8ef8d67 692,1270-1272
+app/javascript/phlex/reactive/core.min.js.map
+  ai_agent 5,8-9
+CHANGELOG.md
+  s_f66f552428a388::t_cf89f42930d809 218-227
+  s_f66f552428a388::t_b4d8f0f8ef8d67 15-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "65a3a151476be5108a27b906967ef0ccb64cd642",
+  "prompts": {},
+  "sessions": {
+    "s_f66f552428a388": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0aa07c76-1dcb-4c80-9ad4-9494338b8ff2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}

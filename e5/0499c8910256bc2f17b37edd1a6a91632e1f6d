@@ -1,0 +1,85 @@
+docs/public/media-demo/north.svg
+  s_f66f552428a388::t_87420311d9bcb9 1
+spec/javascript/reactive_features.test.js
+  s_f66f552428a388::t_5160088966be37 602
+docs/spec/system/media_preview_spec.rb
+  s_f66f552428a388::t_9f37409933b2f4 1-26
+spec/javascript/bundle_budget.test.js
+  s_f66f552428a388::t_df3465a1b9e412 138-139,178-179,189-190,245-246
+lib/phlex/reactive/js.rb
+  s_f66f552428a388::t_80b3e483cda0be 282-303
+spec/dummy/public/logos/007.svg
+  s_f66f552428a388::t_7d1ac3370c980d 1
+spec/phlex/reactive/js_copy_media_spec.rb
+  s_f66f552428a388::t_0001e5667fb146 1-62
+app/javascript/phlex/reactive/features/bindings.js
+  s_f66f552428a388::t_1f2e5919815c6f 380,470,640-679
+spec/dummy/app/components/logo_preview_component.rb
+  s_f66f552428a388::t_643526a9679365 1-23,26-41,46-48
+  s_f66f552428a388::t_f350034bc57127 24-25
+  s_f66f552428a388::t_97b3d7f8c945a3 42-45
+lib/phlex/reactive/component/media_binding.rb
+  s_f66f552428a388::t_ff84cce1a6aaf1 63-64,75-76
+  s_f66f552428a388::t_4378d2686a722c 1-62,65-74,77-81
+spec/dummy/config/routes.rb
+  s_f66f552428a388::t_4c62c2f33bd397 68
+docs/public/media-demo/east.svg
+  s_f66f552428a388::t_87420311d9bcb9 1
+docs/app/views/docs/pages/example_client_ops.rb
+  s_f66f552428a388::t_ecc53dd1f727f6 23,165-169,171-218
+  s_f66f552428a388::t_ce9f5aa77259c1 219
+  s_f66f552428a388::t_a3018d170ccbe4 170
+lib/phlex/reactive/component/helpers.rb
+  s_f66f552428a388::t_ccdb6e2c633b0e 18
+docs/app/reactive_components/media_preview_component.rb
+  s_f66f552428a388::t_10bae83d6dda04 1-61
+CHANGELOG.md
+  s_f66f552428a388::t_2c19a3e26311fe 11-27
+spec/dummy/app/controllers/demos_controller.rb
+  s_f66f552428a388::t_4c62c2f33bd397 362-365
+app/javascript/phlex/reactive/runtime.js
+  s_f66f552428a388::t_563ac1604cb61c 967-979
+  s_f66f552428a388::t_9b6c18e713045d 1126-1131,1134-1141,1145-1147,1149-1150
+  s_f66f552428a388::t_ec3afb7a1d7467 1132,1148
+  s_f66f552428a388::t_1f1aa8ff6b8bc9 1133,1142-1144,1549,2383-2384
+  s_f66f552428a388::t_b35860f0ae5432 1538-1539
+spec/requests/js_broadcast_spec.rb
+  s_f66f552428a388::t_dc733ed060d5b9 147-160
+Rakefile
+  s_f66f552428a388::t_54f7d2fea42024 36
+spec/dummy/public/logos/011.svg
+  s_f66f552428a388::t_2b0dde6f3ff51d 1
+docs/public/media-demo/south.svg
+  s_f66f552428a388::t_87420311d9bcb9 1
+spec/phlex/reactive/media_binding_spec.rb
+  s_f66f552428a388::t_adbbc142790991 1-83,87-100
+  s_f66f552428a388::t_a3018d170ccbe4 84-86
+spec/system/logo_preview_spec.rb
+  s_f66f552428a388::t_f2399b2b4c7f47 12,14-17
+  s_f66f552428a388::t_4a4e288f545d31 1-6,13,18-36,38-105
+  s_f66f552428a388::t_54f7d2fea42024 7-11
+  s_f66f552428a388::t_ff84cce1a6aaf1 37
+README.md
+  s_f66f552428a388::t_2c19a3e26311fe 687,692,1266-1272
+docs/app/views/docs/pages/security.rb
+  s_f66f552428a388::t_8de31fb8d4257c 148-153
+spec/javascript/reactive_copy_media.test.js
+  s_f66f552428a388::t_a276c93c253320 1-135,141-356
+  s_f66f552428a388::t_b868b2126bc8b7 136-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e50499c8910256bc2f17b37edd1a6a91632e1f6d",
+  "prompts": {},
+  "sessions": {
+    "s_f66f552428a388": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0aa07c76-1dcb-4c80-9ad4-9494338b8ff2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}

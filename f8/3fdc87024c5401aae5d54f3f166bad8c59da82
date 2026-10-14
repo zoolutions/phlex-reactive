@@ -1,0 +1,27 @@
+docs/app/views/docs/pages/example_client_ops.rb
+  s_a62bd6a6b1570e::t_c1598c696018e4 651-654
+lib/phlex/reactive/show_conditions.rb
+  s_a62bd6a6b1570e::t_815b26c23ecaf1 296
+spec/phlex/reactive/field_references_spec.rb
+  s_a62bd6a6b1570e::t_70c2f66c969465 86-98
+lib/phlex/reactive/component/field_references.rb
+  s_a62bd6a6b1570e::t_964cde79d3ab84 50-60
+  s_a62bd6a6b1570e::t_54c9a57c8390a4 68-69
+  s_a62bd6a6b1570e::t_10d8fec55ff1c8 16-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f83fdc87024c5401aae5d54f3f166bad8c59da82",
+  "prompts": {},
+  "sessions": {
+    "s_a62bd6a6b1570e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e652d418-f8d6-49e4-95fb-309bf7b07f3d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}

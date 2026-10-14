@@ -1,0 +1,21 @@
+benchmark/browser/connect.mjs
+  s_f66f552428a388::t_afb3601ba7bcf3 1-135
+Rakefile
+  s_f66f552428a388::t_44acd7a757d6ac 193-208
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "b215e099dc85e9adc89908a8d7d8559bde9ea1b9",
+  "prompts": {},
+  "sessions": {
+    "s_f66f552428a388": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0aa07c76-1dcb-4c80-9ad4-9494338b8ff2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
