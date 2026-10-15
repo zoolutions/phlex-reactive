@@ -8,6 +8,41 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **The configuration is finalized at boot: `Phlex::Reactive.finalize!` (#364).**
+  The engine calls it once the app has booted, after every initializer and
+  every `after_initialize` block the app registered. It freezes the param-type
+  and named-schema registries and stores every setting as a deep-frozen,
+  Ractor-shareable copy (the objects an app handed in are never frozen), so a
+  non-main Ractor can read the configuration. The verifier (an
+  `ActiveSupport::MessageVerifier`) and Procs whose `self` is not shareable (a
+  block written in an initializer) stay as they are, main-Ractor only.
+  `finalized?`, and a test-only `reset_finalization!`. Writers keep working
+  afterwards, and what they write is shared too.
+
+- **`Phlex::Reactive.renderer` takes a name (#364).** `renderer =
+  "ApplicationController"`, like `base_controller_name`, resolves on every read,
+  so a class Zeitwerk reloaded in development is picked up (and the per-thread
+  view contexts rebuild for it). A class keeps working, and keeps rendering the
+  class object it was given. The README and the install template show the name.
+
+- **`phlex_reactive:doctor` reports Ractor readiness (#364).** An advisory line
+  (never a failure): eager loading on, the configuration finalized, and each
+  setting that holds a value a non-main Ractor cannot read, with its class.
+
+- **RBS signatures (#364).** `sig/` covers the configuration and token surface
+  of `Phlex::Reactive`, a component's class-level DSL, Streamable's class
+  methods, `Response` and `ParamSchema`, and ships with the gem. Lint runs
+  `rbs -I sig validate`; a spec fails when a public method has no signature.
+
+- **Concurrency conformance (#364).** conformance-kit's gates run in CI: every
+  `rubocop-thread_safety` cop with no file or directory excludes, thread and
+  Async contention examples over rendering, tokens, params and broadcasts, a
+  Ruby 4.0 Ractor canary (param coercion, Stream wrapping, `Streamable#dom_id`,
+  configuration reads and token upgrades run in a non-main Ractor; rendering and
+  signing are pending on Phlex and ActiveSupport), and `conformance-audit
+  --strict`. A report-only kino smoke serves the dummy app in Ractor mode and
+  records the first blocker. Docs: a new "Concurrency & Ractors" guide page.
+
 - **A server deadline counted down on the client — `reactive_countdown(until:, format: :ms, waiting:, done:)` (#400).**
   `span(**reactive_countdown(until: deadline.iso8601, waiting: "#wait", done: "#done")) { "2:00" }`
   puts the deadline on the element; the client paints the time left from
@@ -401,7 +436,37 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Hash, or `detail:` with `once:` raises at render. Records without `detail`
   are byte-identical.
 
+### Changed
+
+- **The configuration's lists are frozen once the app has booted (#364).**
+  Append to `authorization_errors` in an initializer or an `after_initialize`
+  block, as before; after boot, assign a new list (`<<` raises `FrozenError`).
+  `around_action`, `on_action_error` and `register_token_upgrader` now replace
+  a frozen list instead of appending to it; `around_actions`,
+  `on_action_error_hooks` and `token_upgraders` are frozen, and
+  `authorization_methods`' default is a frozen list.
+
+- **No reader writes on first use (#364).** Every setting starts at its default
+  when the gem loads (the param-type registry is seeded then too; the verifier,
+  which needs `Rails.application`, is built by `finalize!` at boot). With eager
+  loading the engine also prepends `verify_authorized`'s interceptor to every
+  component and resolves every component's registries and render memos at
+  boot, so a request writes no class.
+
+- **Per-Ractor state instead of `Concurrent::Map` and lock constants (#364).**
+  The fragment viewer warnings, the CSRF-name patterns, the once-per-process
+  config warnings, the APM adapter memo, the Streamable class registry, the
+  pending-markup variants and the registry's write lock live in
+  `Phlex::Reactive::Store` (`Ractor.store_if_absent`, with a Mutex-guarded
+  table on an engine without Ractors). `lib/` and `app/` no longer reference
+  `concurrent-ruby`, which was never a declared dependency.
+
 ### Fixed
+
+- **`verify_authorized` could prepend two interceptors to one class (#364).**
+  The lazy, request-path `Authorization.instrument!` checked and prepended
+  without a lock; two threads first-calling it for one class both prepended.
+  It now holds a lock across the check and the prepend.
 
 - **A server trigger inside a client-only root reaches the component around it
   (#410).** A `ClientBindings` component (a `reactive_filter` list, a
