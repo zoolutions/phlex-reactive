@@ -123,7 +123,9 @@ jobs:
         if: always()
         with:
           name: kino-smoke
-          path: tmp/kino-smoke/*.txt
+          path: |
+            tmp/kino-smoke/*.txt
+            tmp/kino-smoke/server.log
           if-no-files-found: warn
 
   site:

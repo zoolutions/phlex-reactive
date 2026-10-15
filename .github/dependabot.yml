@@ -6,6 +6,7 @@ version: 2
 multi-ecosystem-groups:
   conformance-kit:
     schedule: { interval: weekly }
+    labels: ["dependencies", "devops"]
 updates:
   - package-ecosystem: github-actions
     directory: /

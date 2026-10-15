@@ -24,13 +24,15 @@ check=$?
 bundle exec kino -m ractor -w 2 -p "$port" spec/dummy/config/kino.ru > "$out/server.log" 2>&1 &
 server=$!
 for _ in $(seq 1 90); do
-  curl -s -o /dev/null "http://127.0.0.1:$port/up" && break
+  curl -s --max-time 2 -o /dev/null "http://127.0.0.1:$port/up" && break
   sleep 1
 done
 
-up=$(curl -s -o "$out/up.body" -w '%{http_code}' "http://127.0.0.1:$port/up")
+# Every request is bounded: a worker Ractor that accepts and never answers is
+# recorded (HTTP 000), not left to hang the job.
+up=$(curl -s --max-time 30 -o "$out/up.body" -w '%{http_code}' "http://127.0.0.1:$port/up")
 token=$(bundle exec ruby -e "$boot; print Phlex::Reactive.sign('c' => 'CounterComponent', 's' => { 'count' => 1 })" 2>/dev/null)
-action=$(curl -s -o "$out/action.body" -w '%{http_code}' -H 'Content-Type: application/json' \
+action=$(curl -s --max-time 30 -o "$out/action.body" -w '%{http_code}' -H 'Content-Type: application/json' \
   -H 'Accept: text/vnd.turbo-stream.html' --data "{\"token\":\"$token\",\"act\":\"increment\",\"params\":{}}" \
   "http://127.0.0.1:$port/reactive/actions")
 kill "$server" 2>/dev/null
