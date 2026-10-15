@@ -46,6 +46,10 @@ group :development, :test do
   gem "memory_profiler", "~> 1.0", require: false
   gem "stackprof", "~> 0.2", require: false # derailed_benchmarks profiling backend
 
+  # The RBS signatures in sig/ (zoolutions/phlex-reactive#364): `rbs -I sig
+  # validate` in the Lint job, and spec/phlex/rbs_spec.rb's reflection diff.
+  gem "rbs", require: false
+
   gem "actioncable", ">= 7.1", "< 9.0"
   gem "activejob", ">= 7.1", "< 9.0"
   gem "activerecord", ">= 7.1", "< 9.0"

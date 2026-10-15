@@ -24,6 +24,9 @@ jobs:
           bundler-cache: true
       - name: RuboCop
         run: bundle exec rubocop
+      - name: RBS signatures
+        # sig/ (issue #364); spec/phlex/rbs_spec.rb checks every public method has one.
+        run: bundle exec rbs -I sig validate
       - name: Verify gem builds
         run: gem build phlex-reactive.gemspec --strict
 

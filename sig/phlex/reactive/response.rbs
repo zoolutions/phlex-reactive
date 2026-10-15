@@ -1,0 +1,69 @@
+module Phlex
+  module Reactive
+    # What an action returns to govern its reply (`reply`): immutable, every
+    # builder returns a new Response.
+    class Response
+      attr_reader streams: Array[String]
+      attr_reader redirect_url: String?
+      attr_reader token_component: untyped
+      attr_reader subject_component: untyped
+      attr_reader deferred_segments: Array[untyped]
+      attr_reader pending_segments: Array[untyped]
+
+      # --- chaining ---
+      def stream: (*String more) -> Response
+      def flash: (Symbol | String level, untyped content, ?target: String, ?dismiss_after: Integer?) -> Response
+      def js: (untyped ops, ?target: untyped) -> Response
+      def also: (?untyped companion, ?morph: bool, **untyped targets) -> Response
+      def defer: (untyped component, ?placeholder: untyped, ?morph: bool) -> Response
+      def pending: (untyped records, ?peers: bool, ?job: untyped, ?args: untyped, **untyped opts) ?{ (?) -> untyped } -> Response
+
+      # Removed: each raises a guided error naming its replacement.
+      def also_update: (untyped target, **untyped) -> bot
+      def also_replace: (*untyped, **untyped) -> bot
+
+      # --- what the endpoint reads ---
+      def redirect?: () -> bool
+      def render_self?: () -> bool
+      def refresh_token?: () -> bool
+      def deferred?: () -> bool
+      def pending?: () -> bool
+
+      # --- the builders `reply` delegates to ---
+      def self.build_replace: (untyped component, ?morph: bool, ?effect: untyped) -> Response
+      def self.build_update: (untyped component, ?morph: bool, ?effect: untyped) -> Response
+      def self.build_morph: (untyped component, ?effect: untyped) -> Response
+      def self.build_remove: (untyped component, ?effect: untyped) -> Response
+      def self.build_redirect: (String url) -> Response
+      def self.build_with: (*untyped strings) -> Response
+      def self.build_streams: (untyped component, *untyped strings) -> Response
+      def self.build_collection_append: (untyped component, Symbol | String name, untyped model, ?effect: untyped,
+                                         **untyped row_kwargs) -> Response
+      def self.build_collection_prepend: (untyped component, Symbol | String name, untyped model, ?effect: untyped,
+                                          **untyped row_kwargs) -> Response
+      def self.build_collection_remove: (untyped component, Symbol | String name, untyped model, ?effect: untyped) -> Response
+      def self.build_pending: (untyped component, untyped records, collection: untyped, peers: untyped, job: untyped,
+                               args: untyped, enqueue: untyped) -> Response
+      def self.pending_collection!: (Hash[Symbol, untyped] opts) -> untyped
+
+      # --- stream helpers ---
+      def self.render_html: (untyped content) -> String
+      def self.update_stream: (String target, untyped content) -> String
+      def self.js_stream: (untyped ops, ?target: untyped) -> String
+      def self.js_ops_json: (untyped ops) -> String
+      def self.dismiss_attr: (Integer? dismiss_after) -> Hash[Symbol, untyped]
+      def self.wrap_dismiss: (String html, Integer? dismiss_after) -> String
+
+      # Removed in issue #182: each raises a guided error naming its `reply` form.
+      def self.replace: (*untyped, **untyped) -> bot
+      def self.update: (*untyped, **untyped) -> bot
+      def self.morph: (*untyped, **untyped) -> bot
+      def self.remove: (*untyped, **untyped) -> bot
+      def self.redirect: (*untyped, **untyped) -> bot
+      def self.streams: (*untyped, **untyped) -> bot
+      def self.collection_append: (*untyped, **untyped) -> bot
+      def self.collection_prepend: (*untyped, **untyped) -> bot
+      def self.collection_remove: (*untyped, **untyped) -> bot
+    end
+  end
+end

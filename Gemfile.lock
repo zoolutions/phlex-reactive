@@ -424,6 +424,7 @@ DEPENDENCIES
   playwright-ruby-client (~> 1.64.0)
   puma
   rake (~> 13.0)
+  rbs
   rspec (~> 3.0)
   rspec-rails (>= 7.0, < 9)
   rubocop (~> 1.80)

@@ -1,0 +1,49 @@
+module Phlex
+  module Reactive
+    # include Phlex::Reactive::Streamable: a stable #id, Turbo Stream builders
+    # and broadcasts. Components and models are `untyped` (Phlex and Rails
+    # ship no RBS).
+    module Streamable
+      module ClassMethods
+        # --- Turbo Streams targeting the component's own id ---
+        def replace: (?untyped model, ?morph: bool, ?effect: untyped, **untyped options) -> String
+        def update: (?untyped model, ?morph: bool, ?effect: untyped, **untyped options) -> String
+        def remove: (?untyped model, ?effect: untyped, **untyped options) -> String
+        def append: (target: String, ?model: untyped, ?effect: untyped, **untyped options) -> String
+        def prepend: (target: String, ?model: untyped, ?effect: untyped, **untyped options) -> String
+
+        # --- broadcasts ---
+        def broadcast_to: (*untyped streamables, ?morph: bool, ?target: String?, ?exclude: untyped, ?visible_to: untyped,
+                           ?each: untyped, ?effect: untyped, **untyped verb) -> untyped
+        def broadcast_collection_to: (*untyped streamables, container: untyped, ?exclude: untyped, ?visible_to: untyped,
+                                      ?coalesce: untyped, ?effect: untyped, ?row: untyped, **untyped opts) -> untyped
+
+        # Removed in issue #185: each raises a guided error naming broadcast_to.
+        def broadcast_replace_to: (*untyped, **untyped) -> bot
+        def broadcast_update_to: (*untyped, **untyped) -> bot
+        def broadcast_append_to: (*untyped, **untyped) -> bot
+        def broadcast_prepend_to: (*untyped, **untyped) -> bot
+        def broadcast_remove_to: (*untyped, **untyped) -> bot
+        def broadcast_js_to: (*untyped, **untyped) -> bot
+        def broadcast_replace_to_each: (*untyped, **untyped) -> bot
+        def broadcast_update_to_each: (*untyped, **untyped) -> bot
+        def broadcast_append_to_each: (*untyped, **untyped) -> bot
+        def broadcast_prepend_to_each: (*untyped, **untyped) -> bot
+        def broadcast_remove_to_each: (*untyped, **untyped) -> bot
+
+        # --- rendering ---
+        def render_component: (untyped component) -> String
+        def model_param_name: () -> Symbol
+        def component_args: (untyped model, Hash[Symbol, untyped] options) -> Hash[Symbol, untyped]
+
+        # --- the per-thread view context and stream builder ---
+        def turbo_view_context: () -> untyped
+        def turbo_stream_builder: () -> untyped
+        def turbo_view_context_generation: () -> Integer?
+        def reset_turbo_view_context!: () -> Integer
+
+        def inherited: (Class subclass) -> void
+      end
+    end
+  end
+end

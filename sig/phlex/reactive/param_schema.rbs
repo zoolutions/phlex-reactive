@@ -1,0 +1,23 @@
+module Phlex
+  module Reactive
+    # A compiled param schema: the coercion every action's params go through.
+    class ParamSchema
+      # The sentinel a caster returns to drop a value (the keyword default applies).
+      DROP: Object
+
+      type schema = Hash[Symbol | String, untyped]
+
+      def self.compile: (schema? schema) -> ParamSchema
+      def self.built_in_types: () -> Hash[Symbol, (^(untyped) -> untyped)?]
+      def self.expand: (untyped value) -> Hash[String, untyped]
+
+      attr_reader schema: schema
+
+      def initialize: (schema schema) -> void
+
+      # `dropped` collects [bracketed path, :undeclared | :uncoercible] pairs (verbose_errors).
+      def coerce: (untyped params, ?Array[[String, Symbol]]? dropped) -> Hash[Symbol, untyped]
+      def array_param: (String | Symbol name) -> (String | Symbol)?
+    end
+  end
+end
