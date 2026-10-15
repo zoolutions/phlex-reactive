@@ -12,7 +12,8 @@ ractor:
     TRANSPORT: pgbus
     DATABASE_URL: postgres://localhost:5432/phlex_reactive_pgbus_test
   setup: bin/conformance-db
-  test_command: bundle exec rspec --tag ractor
+  # The Ractor canaries, and the thread/Async contention examples (over pgbus here).
+  test_command: bundle exec rspec --tag ractor --tag concurrency
 probes:
   gem_name: phlex-reactive
   roundhouse_app: spec/dummy
