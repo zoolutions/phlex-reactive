@@ -2,14 +2,20 @@
 
 require "rails_helper"
 
+module ContentionSpec
+  TOKEN = /data-reactive-token-value="[^"]*"/
+
+  # A render carries a fresh signed token; compare the markup around it.
+  def self.same_markup?(renders) = renders.map { it.to_s.gsub(TOKEN, "") }.uniq.one?
+end
+
 # Tiers 1 and 2 of conformance-kit (zoolutions/phlex-reactive#364): the hot
 # paths under thread contention (Puma) and inside one Async reactor (Falcon).
 # Tagged :concurrency so the conformance run (`ractor.test_command`, with pgbus
 # present) runs them too: the broadcast examples then go over pgbus, and over
 # Action Cable everywhere else.
 RSpec.describe "phlex-reactive under contention", :concurrency do # rubocop:disable RSpec/DescribeClass
-  # A render carries a fresh signed token; compare the markup around it.
-  same_markup = -> { it.map { it.to_s.gsub(/data-reactive-token-value="[^"]*"/, "") }.uniq.one? }
+  same_markup = ContentionSpec.method(:same_markup?)
 
   context "when rendering a component" do
     let(:subject_call) { -> { CounterComponent.render_component(CounterComponent.new(count: 3)) } }
