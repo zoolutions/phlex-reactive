@@ -1,0 +1,19 @@
+spec/phlex/reactive/shareable_spec.rb
+  s_4786a62cd35147::t_44777c2a01f1c4 1-6,8-20,22-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "515b8f8e2ae03619c159e0ea0105d3e3fec274ad",
+  "prompts": {},
+  "sessions": {
+    "s_4786a62cd35147": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d1e58604-bb1b-456c-ace0-8fe7f151dae8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
