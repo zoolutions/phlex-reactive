@@ -1,0 +1,19 @@
+spec/phlex/component/registry_warm_spec.rb
+  s_4786a62cd35147::t_0beb5d932b85eb 1-49,51,54,57-103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "5c3475d3fd5c4eed086e702546cfc15c1df36638",
+  "prompts": {},
+  "sessions": {
+    "s_4786a62cd35147": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d1e58604-bb1b-456c-ace0-8fe7f151dae8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
