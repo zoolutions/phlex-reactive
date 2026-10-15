@@ -82,6 +82,50 @@ jobs:
           path: tmp/benchmarks/*.txt
           if-no-files-found: warn
 
+  kino-smoke:
+    runs-on: ubuntu-26.04
+    name: kino smoke (Ractor mode, report only)
+    # Issue #364: the dummy app served by kino in Ractor mode through
+    # ractor-rails-shim — GET /up, then one reactive action. It cannot pass
+    # until Rails and Phlex run in a non-main Ractor; it exists to record how
+    # far it gets (the first blocker, in the job summary and an artifact), and
+    # never fails the build. kino and the shim are in gemfiles/kino.gemfile
+    # only, never the gem's bundle; that gemfile keeps no lockfile, so the
+    # bundle is installed fresh (no bundler-cache).
+    continue-on-error: true
+    timeout-minutes: 20
+    env:
+      BUNDLE_GEMFILE: ${{ github.workspace }}/gemfiles/kino.gemfile
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          # ractor-rails-shim needs Ruby >= 4.0.6.
+          ruby-version: "4.0.6"
+      - name: Install the kino bundle
+        run: bundle install --jobs 4
+      - name: Smoke
+        run: scripts/kino_smoke.sh
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## kino smoke (Ractor mode, report only)"
+            echo '```'
+            cat tmp/kino-smoke/report.txt 2>/dev/null || echo "no report: the smoke did not run"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload the smoke's logs
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: kino-smoke
+          path: tmp/kino-smoke/*.txt
+          if-no-files-found: warn
+
   site:
     runs-on: ubuntu-26.04
     name: Demo site (${{ matrix.server }})

@@ -7,6 +7,9 @@ Rails.application.routes.draw do
   # endpoint (/pgbus/streams) is live and turbo_stream_from routes over it.
   mount Pgbus::Engine => "/pgbus" if ENV["TRANSPORT"] == "pgbus" && defined?(Pgbus::Engine)
 
+  # Rails' health check: what the report-only kino-smoke job (issue #364) GETs first.
+  get "up" => "rails/health#show", as: :rails_health_check
+
   # Example pages exercised by system specs.
   get "counter" => "demos#counter"
   get "early_triggers" => "demos#early_triggers" # issue #273: lazily loaded controller
