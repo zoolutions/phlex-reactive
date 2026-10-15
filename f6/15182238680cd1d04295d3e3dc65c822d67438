@@ -1,0 +1,21 @@
+lib/phlex/reactive/store.rb
+  s_4786a62cd35147::t_d98edbc58ae3b7 1-45,47-73
+spec/phlex/reactive/store_spec.rb
+  s_4786a62cd35147::t_464e9a814c1715 1-13,16-58,62,65-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f615182238680cd1d04295d3e3dc65c822d67438",
+  "prompts": {},
+  "sessions": {
+    "s_4786a62cd35147": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d1e58604-bb1b-456c-ace0-8fe7f151dae8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
