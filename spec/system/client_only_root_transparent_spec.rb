@@ -31,12 +31,21 @@ RSpec.describe "Client-only roots are transparent to server round trips (issue #
   end
 
   it "the client-only root still filters its own options without a round trip" do
+    page.execute_script(<<~JS)
+      window.__actionPosts = 0
+      const fetch = window.fetch
+      window.fetch = (input, init) => {
+        if (String(input?.url ?? input).includes("/reactive/actions")) window.__actionPosts++
+        return fetch(input, init)
+      }
+    JS
     find("[data-testid='search-colours']").fill_in(with: "gre")
 
     expect(page).to have_css("[data-testid='option-green']")
     expect(page).to have_no_css("[data-testid='option-blue']")
     expect(page).to have_css("[data-testid='option-circle']")
     expect(page).to have_css("[data-testid='picked']", text: "picked:")
+    expect(page.evaluate_script("window.__actionPosts")).to eq(0)
 
     find("[data-testid='tag-green']").check
     expect(page).to have_css("[data-testid='picked']", text: "picked:green")

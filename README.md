@@ -910,7 +910,10 @@ has no token and no action, so it is transparent to server round trips: an
 `on(...)` trigger inside it dispatches on the nearest server component above,
 and that component's actions collect the controls inside it. Wrap a long
 checkbox list in a searchable helper and its boxes still post to the form
-around it (#410). The helper's own bindings stay on the helper's root.
+around it (#410). The helper's own bindings stay on the helper's root. A
+lazy or deferred shell (`reactive_lazy`, `reply.defer`) is tokenless too but
+is not client-only: it is a server component still loading, so it stays a
+boundary.
 
 **Debounced triggers (live-as-you-type).** Pass `debounce:` (milliseconds) to
 coalesce rapid events — typically keystrokes on an `"input"` trigger — into a

@@ -78,7 +78,7 @@ function mount(html) {
 async function trigger(el, type = "change") {
   const root = el.closest('[data-controller~="reactive"]')
   const event = new window.Event(type, { bubbles: true, cancelable: true })
-  Object.defineProperty(event, "currentTarget", { value: el })
+  Object.defineProperty(event, "currentTarget", { value: el, configurable: true })
   event.params = { action: el.dataset.reactiveActionParam, params: "{}" }
   root.__controller.dispatch(event)
   await flush()
@@ -112,8 +112,8 @@ test("a trigger inside a nested client-only root dispatches on the token-bearing
 
   expect(posts).toHaveLength(1)
   expect(posts[0].token).toBe("outer-token")
-  expect(posts[0].act ?? posts[0].action).toBe("pick")
-  expect(posts[0].params["tags[]"] ?? posts[0].params.tags).toEqual(["blue"])
+  expect(posts[0].act).toBe("pick")
+  expect(posts[0].params["tags[]"]).toEqual(["blue"])
 })
 
 test("several client-only roots between the trigger and the server root resolve to it", async () => {
@@ -123,7 +123,7 @@ test("several client-only roots between the trigger and the server root resolve 
 
   expect(posts).toHaveLength(1)
   expect(posts[0].token).toBe("outer-token")
-  expect(posts[0].params["tags[]"] ?? posts[0].params.tags).toEqual(["green"])
+  expect(posts[0].params["tags[]"]).toEqual(["green"])
 })
 
 test("a trigger on the server root collects controls under its nested client-only roots", async () => {
@@ -134,7 +134,7 @@ test("a trigger on the server root collects controls under its nested client-onl
   await tick(document.getElementById("red"))
 
   expect(posts).toHaveLength(1)
-  expect(posts[0].params["tags[]"] ?? posts[0].params.tags).toEqual(["red", "blue", "green"])
+  expect(posts[0].params["tags[]"]).toEqual(["red", "blue", "green"])
 })
 
 test("a nested token-bearing root keeps its own fields and its own triggers (issue #15)", async () => {
@@ -161,13 +161,19 @@ test("a server field under a client-only root inside a nested server root stays 
     <div id="outer" data-controller="reactive" data-reactive-token-value="outer-token">
       <button id="save" data-reactive-action-param="save">Save</button>
       <div id="row" data-controller="reactive" data-reactive-token-value="row-token">
-        <div data-controller="reactive"><input name="quantity" value="3"></div>
+        <div id="row-search" data-controller="reactive">
+          <input name="quantity" value="3">
+          <button id="update" data-reactive-action-param="update">Update</button>
+        </div>
       </div>
     </div>`)
 
   await trigger(document.getElementById("save"), "click")
+  await trigger(document.getElementById("update"), "click")
 
+  expect(posts.map((p) => p.token)).toEqual(["outer-token", "row-token"])
   expect(posts[0].params).toEqual({})
+  expect(posts[1].params).toEqual({ quantity: "3" })
 })
 
 test("a client-only root's own client bindings stay on that root", () => {
@@ -187,6 +193,29 @@ test("a client-only root's own client bindings stay on that root", () => {
   const hidden = [...document.querySelectorAll("[data-option]")].map((el) => el.hidden)
   expect(hidden).toEqual([true, false])
   expect(posts).toHaveLength(0)
+})
+
+test("a held dispatch cancels the native default now, and the trigger reaches the woken root", async () => {
+  document.body.innerHTML = `
+    <div id="picker" data-reactive-dormant="reactive" data-reactive-token-value="outer-token">
+      <div id="search" data-controller="reactive"><button id="go" type="submit" data-reactive-action-param="pick">Go</button></div>
+    </div>`
+  connect(document.getElementById("search"))
+  const go = document.getElementById("go")
+  const event = new window.Event("click", { bubbles: true, cancelable: true })
+  Object.defineProperty(event, "currentTarget", { value: go, configurable: true })
+  event.params = { action: "pick", params: "{}" }
+
+  document.getElementById("search").__controller.dispatch(event)
+  expect(event.defaultPrevented).toBe(true)
+
+  Object.defineProperty(event, "currentTarget", { value: null, configurable: true })
+  connect(document.getElementById("picker"))
+  await flush()
+  await flush()
+
+  expect(posts).toHaveLength(1)
+  expect(posts[0].token).toBe("outer-token")
 })
 
 test("a dormant token-bearing ancestor is woken and receives the forwarded dispatch", async () => {
@@ -211,7 +240,7 @@ test("a dormant token-bearing ancestor is woken and receives the forwarded dispa
 
   expect(posts).toHaveLength(1)
   expect(posts[0].token).toBe("outer-token")
-  expect(posts[0].params["tags[]"] ?? posts[0].params.tags).toEqual(["blue"])
+  expect(posts[0].params["tags[]"]).toEqual(["blue"])
 })
 
 test("with no token-bearing ancestor nothing is sent and the verbose gate warns once", async () => {

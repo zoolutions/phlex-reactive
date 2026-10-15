@@ -181,8 +181,9 @@ const SLACK = 250
 // on top of #394/#395/#396 (35,509 B), 648 B: 36,157 B; on top of #397 (35,528 B), 648 B: 36,176 B;
 // on top of #391/#392 (35,924 B), 641 B: 36,565 B; on top of #393/#399 (36,114 B), 653 B: 36,767 B.
 // Issue #410 (a tokenless client-only root forwards server dispatches to the
-// token-bearing root above and is transparent to its field collection) adds 337 B: 37,104 B.
-const BUNDLE_GZIP_CEILING = 37_104
+// token-bearing root above and is transparent to its field collection) adds 337 B: 37,104 B;
+// its review fix (a held dispatch cancels the native default at once) 77 B: 37,181 B.
+const BUNDLE_GZIP_CEILING = 37_181
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -245,8 +246,9 @@ const TARGET_BUNDLE_GZIP = 22_700
 // #393/#399 on top of #391, #392 and #394: 17,727 B.
 // Issue #400 (the countdown marker and table entry) adds 27 B: 17,170 B; on top of #394, 25 B: 17,178 B;
 // on top of #391/#392 (17,540 B), 24 B: 17,564 B; on top of #393/#399 (17,727 B), 31 B: 17,758 B.
-// Issue #410 (client-only roots transparent to server round trips, in the runtime) adds 349 B: 18,107 B.
-const CORE_GZIP_CEILING = 18_107
+// Issue #410 (client-only roots transparent to server round trips, in the runtime) adds 349 B: 18,107 B;
+// its review fix (a held dispatch cancels the native default at once) 66 B: 18,173 B.
+const CORE_GZIP_CEILING = 18_173
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -363,8 +365,9 @@ const FEATURE_GZIP_CEILINGS = {
 // on top of #398 (42,690 B), 993 B: 43,683 B; on top of #394/#395/#396 (43,348 B), 991 B: 44,339 B;
 // on top of #397 (43,368 B), 991 B: 44,359 B; on top of #391/#392 (43,755 B), 990 B: 44,745 B;
 // on top of #393/#399 (43,942 B), 997 B: 44,939 B.
-// Issue #410 (client-only roots transparent to server round trips, in the core) adds 349 B: 45,288 B.
-const SPLIT_TOTAL_GZIP_CEILING = 45_288
+// Issue #410 (client-only roots transparent to server round trips, in the core) adds 349 B: 45,288 B;
+// its review fix 66 B: 45,354 B.
+const SPLIT_TOTAL_GZIP_CEILING = 45_354
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

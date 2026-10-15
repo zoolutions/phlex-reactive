@@ -3026,7 +3026,11 @@ export default class extends Controller {
     this.#drainEarly()
     // Issue #410: dispatches a client-only root inside handed over before this
     // root connected (a dormant root woken by that very trigger).
-    for (const event of heldForwards.get(this.element) ?? []) this.dispatch(event)
+    // currentTarget is null once propagation ended: pin the trigger back on.
+    for (const [event, target] of heldForwards.get(this.element) ?? []) {
+      if (event.currentTarget !== target) Object.defineProperty(event, "currentTarget", { value: target, configurable: true })
+      this.dispatch(event)
+    }
     heldForwards.delete(this.element)
   }
 
@@ -3334,7 +3338,12 @@ export default class extends Controller {
     }
     const controller = rootControllers.get(root)
     if (controller) return controller.dispatch(event)
-    heldForwards.set(root, [...(heldForwards.get(root) ?? []), event])
+    // Held past this event's dispatch: cancel its native default NOW, by
+    // dispatch()'s own rule, or a submit/link would act before the request.
+    const { shortcut, window: windowBound, optimistic } = event.params
+    const target = event.currentTarget ?? event.target
+    if ((shortcut != null || !windowBound) && !this.#keepsNativeToggle(optimistic, target)) event.preventDefault()
+    heldForwards.set(root, [...(heldForwards.get(root) ?? []), [event, target]])
     const data = root.dataset
     if (data.reactiveDormant) {
       data.controller = `${data.controller ?? ""} ${data.reactiveDormant}`.trim()

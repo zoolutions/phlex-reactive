@@ -416,7 +416,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   component keeps its own fields and triggers, and client bindings stay on
   their own root. With no token-bearing root above, nothing is sent, and
   `verbose_errors`/debug logs one warning. Lazy and deferred shells are not
-  client-only. Client: +337 B gzipped in the default bundle, +349 B in the
+  client-only. Client: +414 B gzipped in the default bundle, +415 B in the
   split core.
 
 - **`reactive_media` waits for `take` characters before calling a key a miss
