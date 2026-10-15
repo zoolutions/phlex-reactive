@@ -1,14 +1,21 @@
-# Keeps conformance-kit's two pins moving: the workflow tag and the gem.
-# Limited to the kit so it never touches the byte-identical release kit.
+# Keeps conformance-kit's two pins moving together: the workflow tag and the
+# gem, in one pull request, so the conformance version check never sees one
+# without the other. Limited to the kit so it never touches the byte-identical
+# release kit.
 version: 2
+multi-ecosystem-groups:
+  conformance-kit:
+    schedule: { interval: weekly }
 updates:
   - package-ecosystem: github-actions
     directory: /
-    schedule: { interval: weekly }
+    multi-ecosystem-group: conformance-kit
+    patterns: ["zoolutions/conformance-kit*"]
     allow:
       - dependency-name: "zoolutions/conformance-kit*"
   - package-ecosystem: bundler
     directory: /
-    schedule: { interval: weekly }
+    multi-ecosystem-group: conformance-kit
+    patterns: ["conformance-kit"]
     allow:
       - dependency-name: conformance-kit
