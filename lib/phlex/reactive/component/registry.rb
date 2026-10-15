@@ -75,6 +75,30 @@ module Phlex
         # above). Owned by Component::Identity; invalidated here.
         HOT_PATH_MEMOS = %i[@reactive_record_ivar @reactive_state_ivars].freeze
 
+        # The public reader each registry kind resolves through: what warm!
+        # calls, so a kind added to OWN_IVARS needs its reader here too (the
+        # warm spec fails otherwise).
+        READERS = {
+          actions: :reactive_actions,
+          state_keys: :reactive_state_keys,
+          collections: :reactive_collections,
+          computes: :reactive_computes,
+          on_completes: :reactive_on_completes,
+          record_key: :reactive_record_key,
+          scope: :reactive_scope,
+          dirty: :reactive_dirty_config,
+          lazy: :reactive_lazy_declaration,
+          dormant: :reactive_dormant?,
+          effects: :reactive_effects_config,
+          skip_all: :reactive_skip_all_authorization?,
+          skip_actions: :reactive_skip_authorization_actions,
+          presence: :reactive_presence_declaration
+        }.freeze
+
+        # The per-class memos the render path reads (Identity's token memos,
+        # the DSL's root-attrs fragments): warm! builds them too.
+        MEMO_READERS = %i[reactive_record_ivar reactive_state_ivars reactive_effect_attrs reactive_on_complete_attr].freeze
+
         # Serializes generation bumps so two concurrent class definitions can't
         # lose an increment (a resolution memoized between the two writes must
         # see a THIRD generation, not the second one again). Reads stay bare —
@@ -118,6 +142,19 @@ module Phlex
             klass.instance_variable_set(OWN_IVARS.fetch(kind), value)
             bump!(klass)
             value
+          end
+
+          # -- boot warm-up (zoolutions/phlex-reactive#364) --------------------
+
+          # Resolve every registry kind and build the render path's per-class
+          # memos for each reactive component class among `classes`, then
+          # freeze each class's resolution cache. The engine runs it at boot
+          # when the app eager-loads (every class is loaded by then), so a
+          # request reads memos and never writes the class. A declaration
+          # after it (a development reload) bumps the generation and the next
+          # read rebuilds a fresh cache, as before.
+          def warm!(classes)
+            classes.each { warm_class(it) if it.respond_to?(:reactive_actions) }
           end
 
           # -- resolution (all memoized against the generation) -----------------
@@ -191,10 +228,16 @@ module Phlex
           end
 
           # The generation-checked per-class memo: a cache built at an older
-          # generation is discarded wholesale and rebuilt lazily per kind.
+          # generation is discarded wholesale and rebuilt lazily per kind. A
+          # cache warm! froze answers a kind it lacks without memoizing it.
           def fetch(klass, kind)
             cache = resolution_cache(klass)
-            cache.fetch(kind) { cache[kind] = yield }
+            cache.fetch(kind) { cache.frozen? ? yield : (cache[kind] = yield) }
+          end
+
+          def warm_class(klass)
+            [*READERS.values, *MEMO_READERS].each { klass.public_send(it) if klass.respond_to?(it) }
+            klass.instance_variable_get(:@reactive_registry_cache)&.freeze
           end
 
           def resolution_cache(klass)

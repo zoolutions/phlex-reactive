@@ -20,13 +20,11 @@ module Phlex
 
         # Whether the installed GlobalID gives a class its own app
         # (global_id_app, then GlobalID.app — rails/globalid after 1.4).
-        # Read once: it is a fact about the loaded gem.
-        def self.per_class_gid_app?
-          return @per_class_gid_app if defined?(@per_class_gid_app)
+        # Read once, when this file loads: it is a fact about the loaded gem.
+        PER_CLASS_GID_APP = (::GlobalID::Identification.const_defined?(:ClassMethods, false) &&
+                             ::GlobalID::Identification::ClassMethods.method_defined?(:global_id_app)) == true
 
-          @per_class_gid_app = ::GlobalID::Identification.const_defined?(:ClassMethods, false) &&
-                               ::GlobalID::Identification::ClassMethods.method_defined?(:global_id_app)
-        end
+        def self.per_class_gid_app? = PER_CLASS_GID_APP
 
         class_methods do
           # The record's instance-variable symbol (e.g. :@todo), computed once.
