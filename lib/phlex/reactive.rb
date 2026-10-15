@@ -176,6 +176,12 @@ module Phlex
       # context (url helpers, CSRF, i18n) during re-renders and broadcasts.
       # Defaults to ActionController::Base. Set to your ApplicationController if
       # components rely on app-level helpers or Current attributes.
+      #
+      # Give it by name ("ApplicationController", like base_controller_name)
+      # to have it follow a code reload in development: the name resolves on
+      # every read, so a reloaded class is picked up (and the per-thread view
+      # contexts rebuild for it). A Class is kept as that class object, which
+      # a reload leaves stale.
       def renderer=(value)
         set_setting(:@renderer, value)
       end
@@ -573,9 +579,14 @@ module Phlex
       end
 
       # ActionController::Base unless an app set one; resolved on each read
-      # until finalize! stores it, so reading never writes.
+      # until finalize! stores it, so reading never writes. A name resolves on
+      # every read (see renderer=).
       def renderer
-        setting(:@renderer) || (defined?(::ActionController::Base) ? ::ActionController::Base : nil)
+        case (value = setting(:@renderer))
+        when nil then defined?(::ActionController::Base) ? ::ActionController::Base : nil
+        when ::String then ::ActiveSupport::Inflector.constantize(value)
+        else value
+        end
       end
 
       # Build an off-request view context whose controller has a REAL `request`.
@@ -1296,7 +1307,7 @@ module Phlex
       # raises its guided error on first use, as before).
       def build_lazy_defaults
         verifier if setting(:@verifier) || (defined?(::Rails) && ::Rails.respond_to?(:application) && ::Rails.application)
-        set_setting(:@renderer, renderer)
+        set_setting(:@renderer, renderer) if setting(:@renderer).nil?
         param_types
         set_setting(:@verbose_errors, verbose_errors)
         set_setting(:@log_events, log_events)

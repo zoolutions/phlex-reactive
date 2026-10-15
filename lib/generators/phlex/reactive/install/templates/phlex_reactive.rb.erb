@@ -9,7 +9,8 @@
 # Phlex::Reactive.base_controller_name = "ApplicationController"
 
 # Render components with your app's view context (helpers, Current, etc.).
-# Phlex::Reactive.renderer = ApplicationController
+# By name, so it follows code reloading in development.
+# Phlex::Reactive.renderer = "ApplicationController"
 
 # Render your authorization library's error as 403 from a reactive action.
 # Phlex::Reactive.authorization_errors = [Pundit::NotAuthorizedError]

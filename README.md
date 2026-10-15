@@ -3936,8 +3936,10 @@ Phlex::Reactive.authorization_errors = [Pundit::NotAuthorizedError]
 Phlex::Reactive.authorization_methods = %i[authorize! authorize allowed_to?]
 # Phlex::Reactive.verify_authorized = false   # turn the guard off (not recommended)
 
-# Use your ApplicationController to render components (app helpers / Current):
-Phlex::Reactive.renderer = ApplicationController
+# Use your ApplicationController to render components (app helpers / Current).
+# By name, like base_controller_name, it follows a code reload in development;
+# a Class keeps rendering the class object it was given:
+Phlex::Reactive.renderer = "ApplicationController"
 
 # Sign tokens with a dedicated key instead of secret_key_base:
 Phlex::Reactive.verifier = ActiveSupport::MessageVerifier.new(ENV["REACTIVE_KEY"])
