@@ -14,7 +14,7 @@ updates:
     allow:
       - dependency-name: "zoolutions/conformance-kit*"
   - package-ecosystem: bundler
-    directory: /
+    directories: ["/", "/docs"]
     multi-ecosystem-group: conformance-kit
     patterns: ["conformance-kit"]
     allow:

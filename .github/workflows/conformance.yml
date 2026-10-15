@@ -12,4 +12,4 @@ permissions:
 
 jobs:
   conformance:
-    uses: zoolutions/conformance-kit/.github/workflows/conformance.yml@v0.3.0
+    uses: zoolutions/conformance-kit/.github/workflows/conformance.yml@v0.4.0
