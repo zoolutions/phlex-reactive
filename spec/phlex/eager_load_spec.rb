@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "spec_helper"
+require "open3"
 
 # Regression guard for the Zeitwerk setup. A host app with
 # `config.eager_load = true` (the production default) triggers
@@ -15,6 +16,17 @@ require "spec_helper"
 RSpec.describe "Zeitwerk eager loading" do
   it "eager-loads every loader without a NameError" do
     expect { Zeitwerk::Loader.eager_load_all }.not_to raise_error
+  end
+
+  # A process that has not loaded json yet (phlex-forms' audit boot, a plain
+  # script): every file must require what it calls while it loads.
+  it "eager-loads in a fresh process that has not loaded json" do
+    lib = File.expand_path("../../lib", __dir__)
+    script = 'require "active_support"; require "phlex"; require "phlex/reactive"; ' \
+             "Zeitwerk::Loader.eager_load_namespace(Phlex::Reactive)"
+    output, status = Open3.capture2e(RbConfig.ruby, "-I", lib, "-rbundler/setup", "-e", script)
+
+    expect(status).to be_success, output
   end
 
   it "still exposes the public constants after eager load" do

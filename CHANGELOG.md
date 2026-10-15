@@ -463,6 +463,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Eager loading the gem raised `NoMethodError: undefined method 'to_json'`
+  in a process that had not loaded json yet (#364).** `Component::Sortable`
+  calls `Hash#to_json` while it loads; it now requires json itself.
+
 - **`verify_authorized` could prepend two interceptors to one class (#364).**
   The lazy, request-path `Authorization.instrument!` checked and prepended
   without a lock; two threads first-calling it for one class both prepended.
