@@ -18,40 +18,19 @@ probes:
   gem_name: phlex-reactive
   roundhouse_app: spec/dummy
 main_only:
-  # Rails' own class state, set by Rails at boot on the main Ractor.
-  - name: Phlex::Reactive::Engine.@called_from
+  # Framework class state on the gem's own subclasses, narrowed to the
+  # framework's ivars so anything the gem keeps on the same classes is
+  # still audited.
+  - ancestor: Rails::Engine
+    ivars: ["@called_from", "@initializers", "@instance", "@railtie_name"]
     reason: Rails::Engine's own class state, set by Rails at boot on the main Ractor
-  - name: Phlex::Reactive::Engine.@initializers
-    reason: Rails::Engine's own class state, set by Rails at boot on the main Ractor
-  - name: Phlex::Reactive::Engine.@instance
-    reason: Rails::Engine's own class state, set by Rails at boot on the main Ractor
-  - name: Phlex::Reactive::Engine.@railtie_name
-    reason: Rails::Engine's own class state, set by Rails at boot on the main Ractor
-  - name: Phlex::Reactive::ActionsController.@_parameter_encodings
+  - ancestor: ActionController::Base
+    ivars: ["@_parameter_encodings", "@controller_path", "@renderer"]
     reason: ActionController's own class state of the gem's controllers, set by Rails on the main Ractor (when the class is defined, or by the engine's boot-time route check for @controller_path); serving the endpoint from a non-main Ractor waits on Rails
-  - name: Phlex::Reactive::ActionsController.@controller_path
-    reason: ActionController's own class state of the gem's controllers, set by Rails on the main Ractor (when the class is defined, or by the engine's boot-time route check for @controller_path); serving the endpoint from a non-main Ractor waits on Rails
-  - name: Phlex::Reactive::ActionsController.@renderer
-    reason: ActionController's own class state of the gem's controllers, set by Rails on the main Ractor (when the class is defined, or by the engine's boot-time route check for @controller_path); serving the endpoint from a non-main Ractor waits on Rails
-  - name: Phlex::Reactive::FragmentsController.@_parameter_encodings
-    reason: ActionController's own class state of the gem's controllers, set by Rails on the main Ractor (when the class is defined, or by the engine's boot-time route check for @controller_path); serving the endpoint from a non-main Ractor waits on Rails
-  - name: Phlex::Reactive::FragmentsController.@controller_path
-    reason: ActionController's own class state of the gem's controllers, set by Rails on the main Ractor (when the class is defined, or by the engine's boot-time route check for @controller_path); serving the endpoint from a non-main Ractor waits on Rails
-  - name: Phlex::Reactive::FragmentsController.@renderer
-    reason: ActionController's own class state of the gem's controllers, set by Rails on the main Ractor (when the class is defined, or by the engine's boot-time route check for @controller_path); serving the endpoint from a non-main Ractor waits on Rails
-  # The identity-token signer.
+  # The optional MCP diagnostic server's tools (bin/rails phlex_reactive:mcp).
+  - ancestor: MCP::Tool
+    ivars: ["@annotations_value", "@input_schema_value"]
+    reason: the mcp gem's own class state (its annotations / input_schema DSL), set when the tool class loads; the MCP server is an optional stdio development tool that runs on the main Ractor
+  # The gem's own state. The identity-token signer:
   - name: Phlex::Reactive.@verifier
     reason: an ActiveSupport::MessageVerifier, which ActiveSupport cannot build or use outside the main Ractor (Messages::Codec's class attributes and Messages::Metadata::ENVELOPE_SERIALIZERS are not shareable), so signing stays on the main Ractor until ActiveSupport supports it
-  # The optional MCP diagnostic server's tools (bin/rails phlex_reactive:mcp).
-  - name: Phlex::Reactive::MCP::BaseTool.@annotations_value
-    reason: the mcp gem's own class state (its annotations / input_schema DSL), set when the tool class loads; the MCP server is an optional stdio development tool that runs on the main Ractor
-  - name: Phlex::Reactive::MCP::Tools::ActionsTool.@input_schema_value
-    reason: the mcp gem's own class state (its annotations / input_schema DSL), set when the tool class loads; the MCP server is an optional stdio development tool that runs on the main Ractor
-  - name: Phlex::Reactive::MCP::Tools::ComponentsTool.@input_schema_value
-    reason: the mcp gem's own class state (its annotations / input_schema DSL), set when the tool class loads; the MCP server is an optional stdio development tool that runs on the main Ractor
-  - name: Phlex::Reactive::MCP::Tools::ConfigTool.@input_schema_value
-    reason: the mcp gem's own class state (its annotations / input_schema DSL), set when the tool class loads; the MCP server is an optional stdio development tool that runs on the main Ractor
-  - name: Phlex::Reactive::MCP::Tools::DoctorTool.@input_schema_value
-    reason: the mcp gem's own class state (its annotations / input_schema DSL), set when the tool class loads; the MCP server is an optional stdio development tool that runs on the main Ractor
-  - name: Phlex::Reactive::MCP::Tools::FindTool.@input_schema_value
-    reason: the mcp gem's own class state (its annotations / input_schema DSL), set when the tool class loads; the MCP server is an optional stdio development tool that runs on the main Ractor
