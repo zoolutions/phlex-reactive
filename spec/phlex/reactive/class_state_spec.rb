@@ -31,6 +31,14 @@ RSpec.describe Phlex::Reactive::Shareable, "the gem's class-level state" do
     expect(generations).to eq([0, 0])
   end
 
+  # Locks and weak maps are never Ractor-shareable: the ones the gem needs
+  # are per-Ractor state (Phlex::Reactive::Store), not constants or module ivars.
+  it "keeps its locks and weak maps out of constants and module instance variables" do
+    expect(Phlex::Reactive::Component::Registry.const_defined?(:WRITE_MUTEX, false)).to be(false)
+    expect(Phlex::Reactive::Streamable.instance_variables).not_to include(:@registry, :@registry_mutex)
+    expect(Phlex::Reactive::Pending::Markup.instance_variables).to eq([])
+  end
+
   it "keeps the APM adapter memo out of module instance variables" do
     Phlex::Reactive::APM.detect(:nope)
 

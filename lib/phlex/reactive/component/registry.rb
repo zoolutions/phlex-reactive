@@ -102,8 +102,11 @@ module Phlex
         # Serializes generation bumps so two concurrent class definitions can't
         # lose an increment (a resolution memoized between the two writes must
         # see a THIRD generation, not the second one again). Reads stay bare —
-        # the resolution compare tolerates staleness (it just recomputes).
-        WRITE_MUTEX = Mutex.new
+        # the resolution compare tolerates staleness (it just recomputes). The
+        # lock is per-Ractor state (Phlex::Reactive::Store) rather than a Mutex
+        # constant, which no other Ractor could read (zoolutions/phlex-reactive#364);
+        # classes are declared on the main Ractor, so it is one lock in practice.
+        WRITE_LOCK_KEY = :phlex_reactive_registry_write_lock
 
         # Frozen empties for the no-declaration branches of resolve_* — the
         # merge/+ still returns a fresh, per-class copy.
@@ -216,7 +219,7 @@ module Phlex
           # and sweep the hot-path identity memos off the writing class's
           # family (see the contract in the module doc).
           def bump!(klass)
-            WRITE_MUTEX.synchronize { @generation += 1 }
+            Phlex::Reactive::Store.fetch(WRITE_LOCK_KEY) { Mutex.new }.synchronize { @generation += 1 }
             sweep_hot_path_memos(klass)
           end
 
