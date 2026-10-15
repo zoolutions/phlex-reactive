@@ -45,8 +45,9 @@ module Phlex
       # the session it was minted for.
       CSRF_TOKEN_NAMES = %w[authenticity_token csrf-token].freeze
       # One compiled pattern per forgery-protection field name (it is a
-      # class-level setting, so in practice one entry), not one per request.
-      CSRF_TOKEN_PATTERNS = Concurrent::Map.new
+      # class-level setting, so in practice one entry), not one per request:
+      # memoized in the per-Ractor table (Phlex::Reactive::Store) under this key.
+      CSRF_TOKEN_PATTERNS_KEY = :phlex_reactive_csrf_token_patterns
 
       # Stands in for the response when asking the cookie jar what it WOULD
       # write (CookieJar#write calls set_cookie / delete_cookie per pending
@@ -261,7 +262,7 @@ module Phlex
         # An API base controller has no forgery protection (and so no such
         # setting): the built-in names alone are checked then.
         token_name = respond_to?(:request_forgery_protection_token, true) ? request_forgery_protection_token.to_s : ""
-        CSRF_TOKEN_PATTERNS.compute_if_absent(token_name) do
+        Phlex::Reactive::Store.table(CSRF_TOKEN_PATTERNS_KEY).fetch(token_name) do
           names = (CSRF_TOKEN_NAMES | [token_name]).reject(&:empty?).map { Regexp.escape(it) }
           /\bname\s*=\s*["']?(?:#{names.join("|")})(?![\w-])/i
         end
