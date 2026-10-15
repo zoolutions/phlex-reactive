@@ -16,11 +16,13 @@ module Phlex
       #   * plain data (Strings, Arrays, Hashes, Symbols, Integers, classes...)
       #     comes back as a deep-frozen COPY, so the app's own objects stay
       #     mutable;
-      #   * a Proc is made shareable in place, which works only when its self
-      #     and everything it captures are shareable already (a lambda written
-      #     in a module body). Ruby never freezes what a Proc captures: a block
-      #     from an initializer (self is `main`) is kept as is, and works on the
-      #     main Ractor only;
+      #   * a Proc comes back as a shareable COPY, which works only when its
+      #     self and everything it captures are shareable already (a lambda
+      #     written in a module body). Ruby never freezes what a Proc captures:
+      #     a block from an initializer (self is `main`) is kept as is, and
+      #     works on the main Ractor only;
+      #   * a Hash keeps its default value or default proc and its
+      #     compare_by_identity;
       #   * any other object (a MessageVerifier, an APM adapter, an app object)
       #     is kept as is.
       #
@@ -30,7 +32,7 @@ module Phlex
         return value if ::Ractor.shareable?(value)
 
         case value
-        when ::Proc then share_proc(value)
+        when ::Proc then share_proc(value.dup) || value
         when ::Array then seal(value.map { share(it) })
         when ::Hash then share_hash(value)
         when ::String then value.dup.freeze
@@ -57,16 +59,23 @@ module Phlex
         mod
       end
 
+      # The Proc made shareable in place, or nil when it cannot be (or there
+      # is no Ractor).
       def share_proc(callable)
+        return unless defined?(::Ractor)
+
         ::Ractor.make_shareable(callable)
       rescue ::Ractor::Error
-        callable
+        nil
       end
 
+      # A plain Hash copy with every key and value shared, keeping the
+      # default (value or proc) and compare_by_identity.
       def share_hash(hash)
-        return hash.dup.freeze if hash.default_proc
-
-        seal(hash.to_h { |key, value| [share(key), share(value)] })
+        copy = hash.compare_by_identity? ? {}.compare_by_identity : {}
+        hash.default_proc ? copy.default_proc = hash.default_proc : copy.default = share(hash.default)
+        hash.each { |key, value| copy[share(key)] = share(value) }
+        seal(copy)
       end
 
       # Frozen; shareable as well when everything inside it is.
