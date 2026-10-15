@@ -25,6 +25,10 @@ module Phlex
       MODULE_PREPEND = ::Module.instance_method(:prepend)
       private_constant :MODULE_PREPEND
 
+      # The per-Ractor lock (Phlex::Reactive::Store) the lazy instrument! path
+      # holds: one per Ractor, never shared across Ractors.
+      INSTRUMENT_LOCK_KEY = :phlex_reactive_authorization_instrument_lock
+
       class << self
         # Open a fresh tracking window, run the block, and restore the previous
         # cell — exactly the with_connection_id save/restore shape, so nesting is
@@ -73,14 +77,36 @@ module Phlex
         # a Zeitwerk reload's fresh class re-instruments naturally and a repeated
         # call in one process is a no-op. Re-reads authorization_methods each first
         # call, so an initializer that widened the list is honored.
+        #
+        # When the app eager-loads, the engine instruments every component class
+        # at boot (instrument_all!, zoolutions/phlex-reactive#364), so the
+        # endpoint's call is a bare "already instrumented" read and a request
+        # never mutates a class. The lazy path (development, or a class defined
+        # after boot) holds a lock across the check and the prepend, so two
+        # threads first-calling it for one class prepend ONE interceptor.
         def instrument!(component_class)
-          return if component_class.instance_variable_get(:@reactive_authorization_instrumented)
+          return if instrumented?(component_class)
 
-          names = Phlex::Reactive.authorization_methods.select do
-            component_class.method_defined?(it) || component_class.private_method_defined?(it)
+          Phlex::Reactive::Store.fetch(INSTRUMENT_LOCK_KEY) { Mutex.new }.synchronize do
+            next if instrumented?(component_class)
+
+            names = Phlex::Reactive.authorization_methods.select do
+              component_class.method_defined?(it) || component_class.private_method_defined?(it)
+            end
+            MODULE_PREPEND.bind_call(component_class, interceptor_for(names)) if names.any?
+            component_class.instance_variable_set(:@reactive_authorization_instrumented, true)
           end
-          MODULE_PREPEND.bind_call(component_class, interceptor_for(names)) if names.any?
-          component_class.instance_variable_set(:@reactive_authorization_instrumented, true)
+        end
+
+        # Instrument every reactive component class among `classes` (the
+        # engine passes Streamable.registered_classes at boot, after eager
+        # loading). Plain Streamable classes have no actions to guard.
+        def instrument_all!(classes)
+          classes.each { instrument!(it) if it.include?(Phlex::Reactive::Component) }
+        end
+
+        def instrumented?(component_class)
+          component_class.instance_variable_get(:@reactive_authorization_instrumented) ? true : false
         end
 
         private
