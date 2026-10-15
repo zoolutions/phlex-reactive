@@ -31,8 +31,9 @@ beforeAll(async () => {
 //   - querySelectorAll(selector) returns descendant named fields
 // We only support the specific selectors #collectFields() actually issues.
 class FakeNode {
-  constructor({ tag = "div", name = null, type = null, value = "", checked = false, controller = null } = {}) {
+  constructor({ tag = "div", name = null, type = null, value = "", checked = false, controller = null, token = null } = {}) {
     this.tag = tag.toLowerCase()
+    this.token = token
     this.name = name
     this.type = type
     this.value = value
@@ -61,6 +62,7 @@ class FakeNode {
 
   getAttribute(attr) {
     if (attr === "name") return this.name
+    if (attr === "data-reactive-token-value") return this.token
     return null
   }
 
@@ -109,7 +111,7 @@ test("outer root action collects only its own fields, not nested reactive roots'
   const outer = new FakeNode({ tag: "div", controller: "reactive" })
   const outerNotes = new FakeNode({ tag: "input", name: "notes", value: "editor notes" })
 
-  const innerRow = new FakeNode({ tag: "div", controller: "reactive" })
+  const innerRow = new FakeNode({ tag: "div", controller: "reactive", token: "row-tok" })
   const rowQty = new FakeNode({ tag: "input", name: "quantity", value: "3" })
   const rowPrice = new FakeNode({ tag: "input", name: "price", value: "9.99" })
   innerRow.append(rowQty, rowPrice)
@@ -147,7 +149,7 @@ test("an action on the nested row still collects that row's own fields", async (
   const outer = new FakeNode({ tag: "div", controller: "reactive" })
   const outerNotes = new FakeNode({ tag: "input", name: "notes", value: "editor notes" })
 
-  const innerRow = new FakeNode({ tag: "div", controller: "reactive" })
+  const innerRow = new FakeNode({ tag: "div", controller: "reactive", token: "row-tok" })
   const rowQty = new FakeNode({ tag: "input", name: "quantity", value: "3" })
   innerRow.append(rowQty)
   outer.append(outerNotes, innerRow)

@@ -904,6 +904,14 @@ named inputs, never a nested component's. An invoice editor's `save` sees its
 flat fields; each line-item row's `quantity`/`price` belong to that row's own
 action. No name-disjointness workarounds required.
 
+A **client-only** helper (a `Phlex::Reactive::ClientBindings` component: a
+`reactive_filter` list, a `reactive_show` wrapper) is the exception. Its root
+has no token and no action, so it is transparent to server round trips: an
+`on(...)` trigger inside it dispatches on the nearest server component above,
+and that component's actions collect the controls inside it. Wrap a long
+checkbox list in a searchable helper and its boxes still post to the form
+around it (#410). The helper's own bindings stay on the helper's root.
+
 **Debounced triggers (live-as-you-type).** Pass `debounce:` (milliseconds) to
 coalesce rapid events — typically keystrokes on an `"input"` trigger — into a
 single action round trip fired after the quiet period, instead of one POST per

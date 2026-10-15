@@ -408,6 +408,10 @@ class DemosController < ActionController::Base
     render_component NestedEditorComponent.new
   end
 
+  def tag_picker
+    render_component TagPickerComponent.new
+  end
+
   def nested_params
     render_component NestedParamsComponent.new
   end
