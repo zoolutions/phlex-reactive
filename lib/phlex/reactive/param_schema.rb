@@ -136,8 +136,9 @@ module Phlex
 
       # ActiveModel's Boolean type, instantiated once — the exact caster the
       # controller used (an unrecognized value casts to nil, which is KEPT, not
-      # dropped).
-      BOOLEAN_TYPE = ActiveModel::Type::Boolean.new
+      # dropped). Ractor-shareable (it holds no state a cast writes), so a
+      # non-main Ractor can coerce through it (zoolutions/phlex-reactive#364).
+      BOOLEAN_TYPE = defined?(::Ractor) ? ::Ractor.make_shareable(ActiveModel::Type::Boolean.new) : ActiveModel::Type::Boolean.new
       private_constant :BOOLEAN_TYPE
 
       attr_reader :schema
