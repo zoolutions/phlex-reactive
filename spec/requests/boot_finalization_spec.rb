@@ -36,16 +36,10 @@ RSpec.describe Phlex::Reactive::Engine, "boot finalization" do
     expect(names.index("phlex_reactive.finalize")).to be > names.rindex("load_config_initializers")
   end
 
-  it "freezes every registry an app registers into at boot, with no call of its own" do
-    expect([Phlex::Reactive.param_types_frozen?, Phlex::Reactive.param_schemas_frozen?]).to eq([true, true])
-    expect([Phlex::Reactive.param_types, Phlex::Reactive.around_actions, Phlex::Reactive.on_action_error_hooks,
-            Phlex::Reactive.token_upgraders]).to all(be_frozen)
-  end
-
-  # What the boot hook (finalize_boot!) does with values no Ractor can share:
-  # it finalizes anyway and keeps each one as it is, working on the main
-  # Ractor, so nothing an app's initializer sets can make boot raise.
-  describe "with values no Ractor can share" do
+  # The engine's boot hook (finalize_boot!), driven from a reopened
+  # configuration: other examples reset the registries, so the state the
+  # dummy booted with is not what this asserts on.
+  describe "the boot hook" do
     let(:reactive) { Phlex::Reactive }
 
     # finalize! replaces the module's settings with frozen copies: put the
@@ -61,10 +55,23 @@ RSpec.describe Phlex::Reactive::Engine, "boot finalization" do
     before do
       reactive.reset_finalization!
       reactive.reset_param_types!
+      reactive.reset_param_schemas!
       reactive.reset_around_actions!
       reactive.reset_on_action_error!
+      reactive.reset_token_upgraders!
     end
 
+    it "freezes every registry an app registers into, with no call of its own" do
+      described_class.finalize_boot!(eager_load: false)
+
+      expect([reactive.param_types_frozen?, reactive.param_schemas_frozen?]).to eq([true, true])
+      expect([reactive.authorization_errors, reactive.param_types, reactive.around_actions,
+              reactive.on_action_error_hooks, reactive.token_upgraders]).to all(be_frozen)
+    end
+
+    # Values no Ractor can share: the hook finalizes anyway and keeps each one
+    # as it is, working on the main Ractor, so nothing an app's initializer
+    # sets can make boot raise.
     it "boots with an initializer's closures, a logger and an APM object, and keeps each one working" do
       reports = []
       logger = Logger.new(StringIO.new)
