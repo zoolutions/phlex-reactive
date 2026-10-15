@@ -50,7 +50,17 @@ end
 # its upstream reason, and fails the day it starts to pass.
 RSpec.describe "phlex-reactive inside a non-main Ractor" do # rubocop:disable RSpec/DescribeClass
   # Other examples reset the param-type registry; finalize! is what boot does.
-  before { Phlex::Reactive.finalize! }
+  # Its frozen copies replace the module's settings: put the originals back
+  # so no later example finds them frozen.
+  around do
+    reactive = Phlex::Reactive
+    snapshot = reactive.instance_variables.to_h { [it, reactive.instance_variable_get(it)] }
+    reactive.finalize!
+    it.run
+  ensure
+    (reactive.instance_variables - snapshot.keys).each { reactive.remove_instance_variable(it) }
+    snapshot.each { |ivar, value| reactive.instance_variable_set(ivar, value) }
+  end
 
   context "when coercing params through a compiled schema" do
     let(:subject_call) do

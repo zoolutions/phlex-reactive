@@ -40,9 +40,13 @@ RSpec.describe Phlex::Reactive::Shareable, "the gem's class-level state" do
   end
 
   it "keeps the APM adapter memo out of module instance variables" do
-    Phlex::Reactive::APM.detect(:nope)
+    allow(Phlex::Reactive::APM::Appsignal).to receive(:available?).and_return(true)
+    adapter = Phlex::Reactive::APM.detect(:appsignal)
 
+    expect(Phlex::Reactive::APM.detect(:appsignal)).to be(adapter)
     expect(Phlex::Reactive::APM.instance_variables).to eq([])
+  ensure
+    Phlex::Reactive::APM.reset!
   end
 
   describe ".share" do

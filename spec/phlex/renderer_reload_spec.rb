@@ -9,7 +9,9 @@ require "rails_helper"
 # every read and follows the reload.
 RSpec.describe Phlex::Reactive, ".renderer across a code reload" do
   around do
-    original = described_class.renderer
+    # The stored setting, not the reader: the reader resolves a name to its
+    # class, and restoring that would turn a name into a class for the suite.
+    original = described_class.instance_variable_get(:@renderer)
     it.run
   ensure
     described_class.renderer = original

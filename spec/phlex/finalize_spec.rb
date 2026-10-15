@@ -66,6 +66,9 @@ RSpec.describe Phlex::Reactive, ".finalize!" do
       described_class.finalize!
 
       expect(described_class.action_path).to eq("/app/reactive")
+      expect(described_class.base_controller_name).to eq("ApplicationController")
+      expect(described_class.flash_target).to eq("notices")
+      expect(described_class.early_event_ttl_ms).to eq(5_000)
       expect(described_class.authorization_errors).to eq([FinalizeSpec::Denied])
       expect(described_class.authorization_methods).to eq(%i[authorize! policy_check])
       expect(described_class.defer_transport).to eq(:fetch)
@@ -131,7 +134,8 @@ RSpec.describe Phlex::Reactive, ".finalize!" do
     end
 
     # A block written in a spec (or an initializer) has a self that is not
-    # shareable: it keeps working on the main Ractor, frozen in place.
+    # shareable: it is kept as it is and keeps working on the main Ractor,
+    # inside a frozen list.
     it "keeps an app's Proc working, frozen but main-only" do
       described_class.param_type(:upcase) { it.to_s.upcase }
       described_class.around_action { |_ctx, &action| action.call }

@@ -42,7 +42,19 @@ RSpec.describe Phlex::Reactive::Fragment, "viewer warnings" do
   it "warns once when threads race on the first warning" do
     owner = Class.new { def self.name = "RacedViewerComponent" }
 
-    Array.new(8) { Thread.new { 10.times { described_class.warn_unusable_viewer(owner, "x") } } }.each(&:join)
+    ready = Queue.new
+    go = Queue.new
+    threads = Array.new(8) do
+      Thread.new do
+        ready << true
+        go.pop
+        10.times { described_class.warn_unusable_viewer(owner, "x") }
+      end
+    end
+    # Start barrier: every thread is parked at the first warning before any runs.
+    8.times { ready.pop }
+    8.times { go << true }
+    threads.each(&:join)
 
     expect(logged.size).to eq(1)
   end

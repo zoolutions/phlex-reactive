@@ -62,11 +62,21 @@ RSpec.describe Phlex::Reactive::Engine, "boot finalization" do
     end
 
     it "freezes every registry an app registers into, with no call of its own" do
+      reactive.authorization_errors << ArgumentError
+      reactive.param_type(:boot_spec) { it }
+      reactive.param_schema(:boot_spec, title: :string)
+      reactive.around_action { |_ctx, &action| action.call }
+      reactive.on_action_error { |_error, _ctx| nil }
+      reactive.register_token_upgrader(0) { it }
+
       described_class.finalize_boot!(eager_load: false)
 
       expect([reactive.param_types_frozen?, reactive.param_schemas_frozen?]).to eq([true, true])
-      expect([reactive.authorization_errors, reactive.param_types, reactive.around_actions,
-              reactive.on_action_error_hooks, reactive.token_upgraders]).to all(be_frozen)
+      registries = [reactive.authorization_errors, reactive.param_types, reactive.param_schemas,
+                    reactive.around_actions, reactive.on_action_error_hooks, reactive.token_upgraders]
+      expect(registries).to all(be_frozen)
+      expect(reactive.authorization_errors.last).to eq(ArgumentError)
+      expect(registries.drop(1).map(&:size)).to eq([reactive::ParamSchema.built_in_types.size + 1, 1, 1, 1, 1])
     end
 
     # Values no Ractor can share: the hook finalizes anyway and keeps each one

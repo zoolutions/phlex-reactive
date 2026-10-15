@@ -4,9 +4,13 @@ require "rails_helper"
 
 module ContentionSpec
   TOKEN = /data-reactive-token-value="[^"]*"/
+  SIGNED = /data-reactive-token-value="[^"]+"/
 
-  # A render carries a fresh signed token; compare the markup around it.
-  def self.same_markup?(renders) = renders.map { it.to_s.gsub(TOKEN, "") }.uniq.one?
+  # A render carries a fresh signed token: every render must still carry one,
+  # and the markup around it must agree.
+  def self.same_markup?(renders)
+    renders.all? { SIGNED.match?(it.to_s) } && renders.map { it.to_s.gsub(TOKEN, "") }.uniq.one?
+  end
 end
 
 # Tiers 1 and 2 of conformance-kit (zoolutions/phlex-reactive#364): the hot
