@@ -111,7 +111,13 @@ module Phlex
           end
         end
 
+        # Also starts the class's view-context generation at 0 here, when the
+        # class is defined (boot, or a development reload, on the main Ractor),
+        # so reading it on the render path never writes the class
+        # (zoolutions/phlex-reactive#364).
         def register(klass)
+          klass.instance_variable_set(:@turbo_view_context_generation, 0) unless
+            klass.instance_variable_defined?(:@turbo_view_context_generation)
           @registry_mutex.synchronize { @registry[klass] = true }
         end
 
@@ -423,14 +429,15 @@ module Phlex
         # this class's generation — each thread rebuilds lazily on its next use,
         # and entries for the old generation are dropped. Registered on Rails'
         # reloader by the engine; also used by specs. Thread-safe (an integer
-        # bump; no shared mutable structure to tear down).
+        # bump; no shared mutable structure to tear down), and a class ivar
+        # write that only ever runs on the main Ractor: from the engine's
+        # to_prepare (boot, a development reload) or a spec.
         def reset_turbo_view_context!
-          @turbo_view_context_generation = turbo_view_context_generation + 1
+          @turbo_view_context_generation = (turbo_view_context_generation || 0) + 1 # rubocop:disable ThreadSafety/ClassInstanceVariable
         end
 
-        def turbo_view_context_generation
-          @turbo_view_context_generation ||= 0
-        end
+        # Set to 0 when the class registers (Streamable.register).
+        attr_reader :turbo_view_context_generation
 
         # Render a component to HTML with a full Rails view context. Uses
         # phlex-rails' #render_in against our memoized off-request view context
@@ -909,6 +916,10 @@ module Phlex
           action: "remove", target: id, renders_root: false
         )
       end
+
+      # ActiveSupport::Concern's bookkeeping on this module, sealed now that
+      # the body has loaded (zoolutions/phlex-reactive#364).
+      Phlex::Reactive::Shareable.seal_concern(self)
     end
   end
 end

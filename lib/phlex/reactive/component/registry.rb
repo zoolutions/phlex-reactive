@@ -241,7 +241,7 @@ module Phlex
           end
 
           def resolution_cache(klass)
-            generation = @generation
+            generation = self.generation
             if klass.instance_variable_get(:@reactive_registry_generation) == generation
               klass.instance_variable_get(:@reactive_registry_cache)
             else

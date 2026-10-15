@@ -52,6 +52,10 @@ module Phlex
 
       include Component::DSL
       include Component::Helpers
+
+      # ActiveSupport::Concern's bookkeeping on this module, sealed now that
+      # the body has loaded (zoolutions/phlex-reactive#364).
+      Phlex::Reactive::Shareable.seal_concern(self)
     end
   end
 end
