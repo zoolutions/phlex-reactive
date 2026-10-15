@@ -86,11 +86,17 @@ module Views
                 initializer has `main` as its `self`, which no Ractor can share: it
                 keeps working on the main Ractor. Write a caster (or `error_flash`)
                 as a capture-free lambda in a module body to make it shareable.
+              - **Nothing you configure makes boot raise.** A logger, an APM object
+                or a lambda that closes over app state is kept as it is and works on
+                the main Ractor only.
               - **The verifier is never shared.** It is an
                 `ActiveSupport::MessageVerifier`, which ActiveSupport cannot build or
                 use outside the main Ractor yet.
               - **Give the renderer by name** to have it follow a code reload in
                 development; a class keeps rendering the class object it was given.
+
+              Booting phlex-reactive without the engine? Call
+              `Phlex::Reactive.finalize!` at the end of your own boot.
             MD
             DocsUI::Code(<<~RUBY, lexer: :ruby, filename: 'config/initializers/phlex_reactive.rb')
               # Shareable: self is the module, and nothing is captured.

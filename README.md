@@ -3991,6 +3991,17 @@ Phlex::Reactive.around_action do |ctx, &action|
 end
 ```
 
+**The configuration is finalized at boot.** Once the app has booted (after your
+initializers and every `after_initialize` block), the engine calls
+`Phlex::Reactive.finalize!` for you: the param-type and named-schema registries
+freeze, and every setting is stored as a frozen, Ractor-shareable copy (the
+objects you handed in are not frozen). Append to `authorization_errors` in an
+initializer; after boot, assign a new list (`<<` raises `FrozenError`). A value
+no Ractor can share (a block written in an initializer, a lambda that closes
+over app state, a logger, an APM object, the verifier) is kept as it is and
+works on the main Ractor only: finalizing never raises for it. Booting without
+the engine? Call `Phlex::Reactive.finalize!` at the end of your own boot.
+
 #### Two seams: HTTP-layer (`base_controller_name`) vs component-layer (`around_action`)
 
 There are two places to wrap a reactive action, and they see different things:
