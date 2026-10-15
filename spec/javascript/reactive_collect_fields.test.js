@@ -3,6 +3,9 @@
 // Issue #15: when one reactive component is rendered inside another (both are
 // data-controller="reactive" roots), an action dispatched on the OUTER root must
 // collect only the OUTER root's own named inputs — NOT the inner roots' inputs.
+// This holds for nested TOKEN-BEARING roots (server components). A tokenless
+// client-only root is transparent to field collection (issue #410), so the
+// inner rows here carry a token.
 // Before the fix, this.element.querySelectorAll(...) descended into nested
 // reactive roots and swept their inputs into the outer action's params (last
 // row wins, collides with the editor's own fields).
@@ -31,8 +34,9 @@ beforeAll(async () => {
 //   - querySelectorAll(selector) returns descendant named fields
 // We only support the specific selectors #collectFields() actually issues.
 class FakeNode {
-  constructor({ tag = "div", name = null, type = null, value = "", checked = false, controller = null } = {}) {
+  constructor({ tag = "div", name = null, type = null, value = "", checked = false, controller = null, token = null } = {}) {
     this.tag = tag.toLowerCase()
+    this.token = token
     this.name = name
     this.type = type
     this.value = value
@@ -61,6 +65,7 @@ class FakeNode {
 
   getAttribute(attr) {
     if (attr === "name") return this.name
+    if (attr === "data-reactive-token-value") return this.token
     return null
   }
 
@@ -103,13 +108,13 @@ function buildController(rootEl) {
   return controller
 }
 
-test("outer root action collects only its own fields, not nested reactive roots' (issue #15)", async () => {
+test("outer root action collects only its own fields, not a nested token-bearing root's (issue #15)", async () => {
   // Outer reactive editor: a flat field `notes`, containing a nested reactive
   // row with bare `quantity`/`price` inputs (the cosmos line-item shape).
   const outer = new FakeNode({ tag: "div", controller: "reactive" })
   const outerNotes = new FakeNode({ tag: "input", name: "notes", value: "editor notes" })
 
-  const innerRow = new FakeNode({ tag: "div", controller: "reactive" })
+  const innerRow = new FakeNode({ tag: "div", controller: "reactive", token: "row-tok" })
   const rowQty = new FakeNode({ tag: "input", name: "quantity", value: "3" })
   const rowPrice = new FakeNode({ tag: "input", name: "price", value: "9.99" })
   innerRow.append(rowQty, rowPrice)
@@ -147,7 +152,7 @@ test("an action on the nested row still collects that row's own fields", async (
   const outer = new FakeNode({ tag: "div", controller: "reactive" })
   const outerNotes = new FakeNode({ tag: "input", name: "notes", value: "editor notes" })
 
-  const innerRow = new FakeNode({ tag: "div", controller: "reactive" })
+  const innerRow = new FakeNode({ tag: "div", controller: "reactive", token: "row-tok" })
   const rowQty = new FakeNode({ tag: "input", name: "quantity", value: "3" })
   innerRow.append(rowQty)
   outer.append(outerNotes, innerRow)

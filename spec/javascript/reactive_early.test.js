@@ -800,6 +800,9 @@ function countDispatches(root) {
 function realConnect(root) {
   const controller = new ReactiveController()
   controller.element = root
+  // A server component's root (its triggers dispatch here): it has a token. A
+  // tokenless root would hand them to a root above it (issue #410).
+  controller.tokenValue = "tok"
   controller.connect()
   return controller
 }
@@ -893,6 +896,7 @@ test("the replay re-checks a key filter against the app's own key mappings", asy
   root.querySelector("input").dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }))
   const controller = new ReactiveController()
   controller.element = root
+  controller.tokenValue = "tok" // a server component's root (issue #410)
   // An app schema that remapped `enter` to another key: Stimulus would not fire.
   controller.application = { schema: { keyMappings: { enter: "F13" } } }
   const calls = []

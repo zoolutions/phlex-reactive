@@ -403,6 +403,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A server trigger inside a client-only root reaches the component around it
+  (#410).** A `ClientBindings` component (a `reactive_filter` list, a
+  `reactive_show` wrapper, an `on_client` menu) renders a root with no token.
+  Rendered inside a server component, it swallowed that component's `on(...)`
+  triggers: Stimulus sends the action to the nearest root, which had no token,
+  and the outer root's field collection skipped every control under it (the
+  #15 rule). A tokenless client-only root is now transparent to server round
+  trips: `dispatch` forwards to the nearest token-bearing root above (skipping
+  further client-only roots, waking a dormant one), and that root's action
+  collects the controls under nested client-only roots. A nested server
+  component keeps its own fields and triggers, and client bindings stay on
+  their own root. With no token-bearing root above, nothing is sent, and
+  `verbose_errors`/debug logs one warning. Lazy and deferred shells are not
+  client-only. Client: +414 B gzipped in the default bundle, +415 B in the
+  split core.
+
 - **`reactive_media` waits for `take` characters before calling a key a miss
   (#380).** A value shorter than `take:` sliced to a short key, missed the
   pool and wrote `blank_label` while the user was still typing. It is now

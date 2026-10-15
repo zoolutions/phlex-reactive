@@ -81,6 +81,9 @@ function connect(root) {
 function realConnect(root) {
   const controller = new ReactiveController()
   controller.element = root
+  // A server component's root (its triggers dispatch here): it has a token. A
+  // tokenless root would hand them to a root above it (issue #410).
+  controller.tokenValue = "tok"
   controller.connect()
   return controller
 }

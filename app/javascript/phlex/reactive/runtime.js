@@ -2021,6 +2021,30 @@ function deferNeeded(root) {
   )
 }
 
+// Issue #410: a tokenless CLIENT-ONLY root (a ClientBindings component: filter,
+// show, on_client) has no action of its own. It is transparent to server round
+// trips: a server trigger inside it dispatches on the nearest token-bearing root
+// above, and that root's #collectFields looks through it. A lazy or deferred
+// shell is tokenless by design and is NOT client-only.
+const AWAKE_ROOT = '[data-controller~="reactive"]'
+const ANY_ROOT = '[data-controller~="reactive"],[data-reactive-dormant~="reactive"]'
+
+const clientOnlyRoot = (root) => root.getAttribute?.("data-reactive-token-value") == null && !deferNeeded(root)
+
+// The first `selector` root at or above `from` that is not client-only, or
+// `stop` when the walk reaches it first, or null.
+function serverRoot(from, selector, stop) {
+  let root = from?.closest?.(selector)
+  while (root && root !== stop && clientOnlyRoot(root)) root = root.parentElement?.closest?.(selector)
+  return root ?? null
+}
+
+// Connected controllers by root element, so a client-only root can hand a
+// dispatch to the server root above it. A dispatch for a root that has not
+// connected yet (a dormant root being woken) waits here until it does.
+const rootControllers = new WeakMap()
+const heldForwards = new WeakMap()
+
 // Dirty tracking with its navigate-away guard, and the paste-trigger gate:
 // the root or anything inside it carries one of the two markers. (A nested
 // root's marker loads the module for its parent too; the module then checks
@@ -2574,6 +2598,7 @@ export default class extends Controller {
     // queueing them NOW — a connect-time seed below (a compute output write)
     // dispatches real input events. The queue itself drains at the very end.
     earlyState().connected.add(this.element)
+    rootControllers.set(this.element, this)
 
     // Root-id guard (issue #48). The token round trip assumes the reactive root
     // element's id == component.id: the server targets component.id and the client
@@ -2999,6 +3024,14 @@ export default class extends Controller {
       )
     }
     this.#drainEarly()
+    // Issue #410: dispatches a client-only root inside handed over before this
+    // root connected (a dormant root woken by that very trigger).
+    // currentTarget is null once propagation ended: pin the trigger back on.
+    for (const [event, target] of heldForwards.get(this.element) ?? []) {
+      if (event.currentTarget !== target) Object.defineProperty(event, "currentTarget", { value: target, configurable: true })
+      this.dispatch(event)
+    }
+    heldForwards.delete(this.element)
   }
 
   // The trigger elements whose :once descriptor THIS connection replayed —
@@ -3099,6 +3132,7 @@ export default class extends Controller {
     }
     // Early triggers (issue #273): a disconnected root records again.
     earlyState().connected.delete(this.element)
+    if (rootControllers.get(this.element) === this) rootControllers.delete(this.element)
     this.element.removeAttribute?.("data-reactive-connected")
     // A spent :once replay is remembered per element so a morph REPLY (root
     // still connected) cannot re-arm it. A disconnect drops Stimulus's own
@@ -3116,6 +3150,12 @@ export default class extends Controller {
   // a per-controller promise makes each dispatch wait for the previous one, so
   // it always uses the freshest token.
   dispatch(event) {
+    // Issue #410: a client-only root has no action of its own — a server
+    // trigger inside it belongs to the token-bearing root above. FIRST, so that
+    // root runs every check below with its own element.
+    if (event.params?.action && event.params.action !== LAZY_MATERIALIZE_ACTION && this.#clientOnly()) {
+      return this.#forwardToServerRoot(event)
+    }
     // A shortcut (issue #357) that is the other platform's twin, or pressed
     // in a field the user is typing in, is a complete no-op: the native
     // default (text undo) proceeds and nothing is announced. Checked FIRST: a
@@ -3279,6 +3319,37 @@ export default class extends Controller {
     }
   }
 
+
+  // A tokenless client-only root (issue #410). tokenValue is the Stimulus view
+  // of data-reactive-token-value; the attribute check also rules out a shell.
+  #clientOnly() {
+    return !this.tokenValue && clientOnlyRoot(this.element)
+  }
+
+  // Hand a server trigger to the nearest token-bearing root above (issue #410).
+  // A dormant one is woken (as early.js wakes a root on its own trigger) and
+  // runs the dispatch when it connects. With no such root nothing is sent.
+  #forwardToServerRoot(event) {
+    const root = serverRoot(this.element.parentElement, ANY_ROOT)
+    if (!root) {
+      if (this.element.closest?.('[data-reactive-verbose="true"], [data-reactive-debug="true"]'))
+        console.warn(`[phlex-reactive] "${event.params.action}": no token on this root or above, nothing sent`)
+      return
+    }
+    const controller = rootControllers.get(root)
+    if (controller) return controller.dispatch(event)
+    // Held past this event's dispatch: cancel its native default NOW, by
+    // dispatch()'s own rule, or a submit/link would act before the request.
+    const { shortcut, window: windowBound, optimistic } = event.params
+    const target = event.currentTarget ?? event.target
+    if ((shortcut != null || !windowBound) && !this.#keepsNativeToggle(optimistic, target)) event.preventDefault()
+    heldForwards.set(root, [...(heldForwards.get(root) ?? []), [event, target]])
+    const data = root.dataset
+    if (data.reactiveDormant) {
+      data.controller = `${data.controller ?? ""} ${data.reactiveDormant}`.trim()
+      delete data.reactiveDormant
+    }
+  }
 
   // CLIENT-ONLY trigger entry point (issue #95) — the zero-round-trip sibling
   // of dispatch(). Wired by on_client: applies the declared op chain
@@ -4218,6 +4289,17 @@ export default class extends Controller {
     return (el) => this.#ownsField(el)
   }
 
+  // #ownershipFilter for SERVER params (issue #410): nested client-only roots
+  // are transparent, so a control under one is this root's when the first
+  // token-bearing root above it is this.element. A nested token-bearing root
+  // keeps its own fields (issue #15). Bindings, computes and listnav keep the
+  // strict nearest-root #ownershipFilter.
+  #serverFieldFilter() {
+    const nested = this.element.querySelectorAll(AWAKE_ROOT)
+    if (nested.length === 0 || [...nested].every(clientOnlyRoot)) return () => true
+    return (el) => serverRoot(el, AWAKE_ROOT, this.element) === this.element
+  }
+
   // One walk over THIS root's named controls (not a nested reactive root's),
   // returning both the scalar `fields` and any chosen `files`. The ownership
   // predicate is hoisted ONCE (issue #117) via #ownershipFilter — in the common
@@ -4229,7 +4311,7 @@ export default class extends Controller {
   #collectFields() {
     const fields = {}
     const files = []
-    const owns = this.#ownershipFilter() // compute ONCE per dispatch (issue #117)
+    const owns = this.#serverFieldFilter() // compute ONCE per dispatch (issue #117)
     const controls = []
     this.element.querySelectorAll("input[name], select[name], textarea[name]").forEach((field) => {
       if (!owns(field)) return
