@@ -5,6 +5,9 @@ module ShareableSpec
   # A capture-free lambda whose self (this module) is shareable: finalize! can
   # share it. A fresh one per call, so no example sees another's.
   def self.caster = -> { "#{it}!" }
+
+  # A Hash whose default proc is capture-free, its self this module.
+  def self.defaulting = Hash.new { |_, key| key.to_s }
 end
 
 # Phlex::Reactive::Shareable: the Ractor-shareable copies finalize! stores.
@@ -40,6 +43,13 @@ RSpec.describe Phlex::Reactive::Shareable do
       expect(shared[:names]).to eq(["a"]).and be_frozen
       expect(shared[:other]).to eq("other")
       expect([names.frozen?, hash.frozen?]).to eq([false, false])
+    end
+
+    it "shares a Hash whose default proc can be shared" do
+      shared = described_class.share(ShareableSpec.defaulting.merge(a: +"x"))
+
+      expect(Ractor.shareable?(shared)).to be(true)
+      expect(shared[:other]).to eq("other")
     end
 
     it "keeps a compare_by_identity Hash comparing by identity" do

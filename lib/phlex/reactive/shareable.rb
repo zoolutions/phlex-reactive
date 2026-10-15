@@ -73,7 +73,7 @@ module Phlex
       # default (value or proc) and compare_by_identity.
       def share_hash(hash)
         copy = hash.compare_by_identity? ? {}.compare_by_identity : {}
-        hash.default_proc ? copy.default_proc = hash.default_proc : copy.default = share(hash.default)
+        hash.default_proc ? copy.default_proc = share(hash.default_proc) : copy.default = share(hash.default)
         hash.each { |key, value| copy[share(key)] = share(value) }
         seal(copy)
       end
