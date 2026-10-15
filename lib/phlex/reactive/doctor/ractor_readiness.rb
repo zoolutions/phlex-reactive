@@ -16,8 +16,10 @@ module Phlex
         UPSTREAM = "Ractor mode still waits on Rails, on ActiveSupport (the verifier is an " \
                    "ActiveSupport::MessageVerifier) and on Phlex rendering (yippee-fun/phlex#1055)"
 
-        SHARE_FIX = "Define each as a capture-free lambda in a module or class body, which " \
-                    "Phlex::Reactive.finalize! can make Ractor-shareable, or leave Ractor mode off."
+        SHARE_FIX = "Make each value Ractor-shareable: a callable as a capture-free lambda in a module or " \
+                    "class body (Phlex::Reactive.finalize! shares it), any other object deep-frozen with " \
+                    "Ractor.make_shareable before you assign it. A value that cannot be shared (a logger, an " \
+                    "SDK client) keeps working on the main Ractor only; or leave Ractor mode off."
 
         def self.included(base)
           base.extend(ClassMethods)

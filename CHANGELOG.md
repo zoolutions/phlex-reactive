@@ -52,16 +52,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **`phlex_reactive:doctor` reports Ractor readiness (#364).** An advisory line
   (never a failure): eager loading on, the configuration finalized, and each
-  setting that holds a value a non-main Ractor cannot read, with its class.
+  setting `finalize!` shares that still holds a value a non-main Ractor cannot
+  read, with its class (the verifier, never shareable, is left out).
 
 - **RBS signatures (#364).** `sig/` covers the configuration and token surface
-  of `Phlex::Reactive`, a component's class-level DSL, Streamable's class
-  methods, `Response` and `ParamSchema`, and ships with the gem. Lint runs
-  `rbs -I sig validate`; a spec fails when a public method has no signature.
+  of `Phlex::Reactive`, a component's class-level DSL, Streamable (its instance
+  methods and its class methods), `Response`, `ParamSchema`, `Store` and
+  `Shareable`, and ships with the gem. Lint runs `rbs -I sig validate`; a spec
+  fails when a public method has no signature.
 
 - **Concurrency conformance (#364).** conformance-kit 0.4's gates run in CI:
-  every `rubocop-thread_safety` cop with no file or directory excludes, thread and
-  Async contention examples over rendering, tokens, params and broadcasts, a
+  every `rubocop-thread_safety` cop, with no directory excludes (`NewThread`
+  is excluded only from the five spec files that start threads on purpose),
+  thread and Async contention examples over rendering, tokens, params and
+  broadcasts, a
   Ruby 4.0 Ractor canary (param coercion, Stream wrapping, `Streamable#dom_id`,
   configuration reads and token upgrades run in a non-main Ractor; rendering and
   signing are pending on Phlex and ActiveSupport), and `conformance-audit
@@ -75,7 +79,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   which needs `Rails.application`, is built by `finalize!` at boot when it can
   be). With eager loading the engine also prepends `verify_authorized`'s
   interceptor to every component and resolves every component's registries and
-  render memos at boot, so a request writes no class.
+  render memos at boot (a `ClientBindings`-only view's too), so a request
+  writes no class.
 
 - **Per-Ractor state instead of `Concurrent::Map` and lock constants (#364).**
   The fragment viewer warnings, the CSRF-name patterns, the once-per-process

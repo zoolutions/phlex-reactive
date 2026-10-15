@@ -10,9 +10,10 @@
 #   * in one fiber, as Puma's threads serve requests (the caches stay warm);
 #   * each request in a NEW fiber, as Falcon serves them (the caches rebuild).
 #
-# The difference between the two is what a shared pool of view contexts could
-# save a Falcon request. A pool is worth its complexity only if that share of
-# the round trip is large.
+# The difference between the two is an upper bound on what a shared pool of
+# view contexts could save a Falcon request: it also includes creating and
+# resuming the fiber, which a pool would not remove. A pool is worth its
+# complexity only if that share of the round trip is large.
 #
 #   ruby benchmark/micro/view_context.rb
 

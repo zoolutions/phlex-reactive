@@ -44,6 +44,13 @@ RSpec.describe Phlex::Reactive::Doctor, "#ractor_readiness_check" do
     expect(result.fix).to include("capture-free lambda")
   end
 
+  # An APM adapter or a logger is no callable: the fix has to cover it too.
+  it "says how to share a value that is not a callable" do
+    result = check(unshareable: { apm: Object })
+
+    expect(result.fix).to include("Ractor.make_shareable", "main Ractor only")
+  end
+
   it "never fails the doctor" do
     results = [check(eager_load: false), check(finalized: false), check(unshareable: { apm: Object })]
 
