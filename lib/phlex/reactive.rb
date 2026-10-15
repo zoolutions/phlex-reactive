@@ -1299,17 +1299,28 @@ module Phlex
       private
 
       # Every lazy reader, built and stored, so that after boot each one is a
-      # plain read of a stored value. The verifier needs either one set
-      # explicitly or a Rails application; without both it stays lazy (and
-      # raises its guided error on first use, as before).
+      # plain read of a stored value.
       def build_lazy_defaults
-        verifier if setting(:@verifier) || (defined?(::Rails) && ::Rails.respond_to?(:application) && ::Rails.application)
+        build_verifier
         set_setting(:@renderer, renderer) if setting(:@renderer).nil?
         set_setting(:@verbose_errors, verbose_errors)
         set_setting(:@log_events, log_events)
         set_setting(:@debug, debug)
         set_setting(:@verify_authorized, verify_authorized)
         set_setting(:@authorization_methods, authorization_methods)
+      end
+
+      # The verifier needs either one set explicitly or a Rails application;
+      # without both it stays lazy (and raises its guided error on first use,
+      # as before). So does an app that boots without a secret_key_base (a
+      # production rake task or build step): Rails raises ArgumentError for
+      # it, and boot must not, so the first token raises it instead.
+      def build_verifier
+        return unless setting(:@verifier) || (defined?(::Rails) && ::Rails.respond_to?(:application) && ::Rails.application)
+
+        verifier
+      rescue ::ArgumentError
+        nil
       end
 
       # --- Settings storage (zoolutions/phlex-reactive#364) ---------------
