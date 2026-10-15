@@ -347,14 +347,11 @@ module Phlex
       end
 
       # The param-type registry: Symbol => callable(value) -> coerced | DROP.
-      # Seeded with the built-ins on first use (ParamSchema loads ActiveModel,
-      # so not when the gem loads); the engine's after_initialize forces it at
-      # boot. ParamSchema.compile validates every declared type symbol against
-      # it, and #coerce dispatches through it.
-      def param_types
-        setting(:@param_types) ||
-          set_setting(:@param_types, Phlex::Reactive::ParamSchema.built_in_types.dup, share: false)
-      end
+      # Seeded with the built-ins when the gem loads (the bottom of this file);
+      # ParamSchema.compile validates every declared type symbol against it,
+      # and #coerce dispatches through it once per scalar param, so it is a
+      # plain attr_reader.
+      attr_reader :param_types
 
       # A declared type symbol is known iff it's a registry key. ParamSchema
       # asks this at compile so an unknown symbol raises loudly at declaration.
@@ -1212,7 +1209,7 @@ module Phlex
       # run; an app booting phlex-reactive without the engine calls it at the
       # end of its own boot.
       #
-      # It builds every lazy default (the verifier, the param-type registry),
+      # It builds the one lazy default (the verifier) and resolves the rest,
       # freezes the param-type and named-schema registries, and stores every
       # setting as a Ractor-shareable value (Shareable.share: deep-frozen
       # COPIES, so the objects an app handed in are never frozen behind its
@@ -1308,7 +1305,6 @@ module Phlex
       def build_lazy_defaults
         verifier if setting(:@verifier) || (defined?(::Rails) && ::Rails.respond_to?(:application) && ::Rails.application)
         set_setting(:@renderer, renderer) if setting(:@renderer).nil?
-        param_types
         set_setting(:@verbose_errors, verbose_errors)
         set_setting(:@log_events, log_events)
         set_setting(:@debug, debug)
@@ -1392,9 +1388,10 @@ module Phlex
     end
 
     # Every setting starts at its default as the gem loads, so no reader
-    # writes on first use (the lazy ones are the verifier and the param-type
-    # registry; finalize! builds both at boot). The authorization_errors list
-    # stays open for appending until finalize!.
+    # writes on first use (the one lazy setting is the verifier, which needs
+    # Rails.application; finalize! builds it at boot; the param-type registry
+    # is seeded below the loader). The authorization_errors list stays open
+    # for appending until finalize!.
     SETTING_DEFAULTS.each { |name, value| instance_variable_set(:"@#{name}", value) }
     self.authorization_errors = []
     reset_param_schemas!
@@ -1453,5 +1450,9 @@ loader.do_not_eager_load("#{__dir__}/reactive/deferred_render_job.rb")
 # ActiveJob::Base).
 loader.do_not_eager_load("#{__dir__}/reactive/presence_render_job.rb")
 loader.setup
+
+# The param-type registry's built-ins (ParamSchema needs the loader, and loads
+# ActiveModel, which the engine's boot needed already).
+Phlex::Reactive.reset_param_types!
 
 require "phlex/reactive/engine" if defined?(Rails::Engine)
