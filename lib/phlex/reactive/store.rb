@@ -43,7 +43,7 @@ module Phlex
         end
       end
 
-      NATIVE = defined?(::Ractor) && ::Ractor.respond_to?(:store_if_absent)
+      NATIVE = defined?(::Ractor) ? ::Ractor.respond_to?(:store_if_absent) : false
       # Only an engine without Ractor.store_if_absent builds it: on MRI the
       # module holds no lock and no mutable state at all.
       FALLBACK = (Table.new unless NATIVE)

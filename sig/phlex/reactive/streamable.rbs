@@ -4,6 +4,19 @@ module Phlex
     # and broadcasts. Components and models are `untyped` (Phlex and Rails
     # ship no RBS).
     module Streamable
+      # The stable DOM id Turbo Streams target (dom_id(record) for a
+      # record-backed component; raises NotImplementedError otherwise).
+      def id: () -> String
+      def dom_id: (untyped record, ?(Symbol | String)? prefix) -> String
+
+      # --- this instance as a Turbo Stream ---
+      def to_stream_replace: (?morph: bool, ?effect: untyped) -> String
+      def to_stream_update: (?morph: bool, ?effect: untyped) -> String
+      def to_stream_remove: (?effect: untyped) -> String
+      def to_stream_token: () -> String
+      # Removed in issue #185: raises, naming to_stream_replace(morph: true).
+      def to_stream_morph: () -> bot
+
       module ClassMethods
         # --- Turbo Streams targeting the component's own id ---
         def replace: (?untyped model, ?morph: bool, ?effect: untyped, **untyped options) -> String

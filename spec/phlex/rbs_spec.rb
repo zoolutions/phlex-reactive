@@ -12,11 +12,14 @@ module RbsSpec
   SURFACES = [
     ["Phlex::Reactive", :singleton],
     ["Phlex::Reactive::Component::DSL::ClassMethods", :instance],
+    ["Phlex::Reactive::Streamable", :instance],
     ["Phlex::Reactive::Streamable::ClassMethods", :instance],
     ["Phlex::Reactive::Response", :singleton],
     ["Phlex::Reactive::Response", :instance],
     ["Phlex::Reactive::ParamSchema", :singleton],
-    ["Phlex::Reactive::ParamSchema", :instance]
+    ["Phlex::Reactive::ParamSchema", :instance],
+    ["Phlex::Reactive::Store", :singleton],
+    ["Phlex::Reactive::Shareable", :singleton]
   ].freeze
 
   def self.definitions
@@ -44,8 +47,9 @@ module RbsSpec
 end
 
 # sig/ covers the public surface (zoolutions/phlex-reactive#364): every public
-# method of Phlex::Reactive, of a component's class-level DSL and of Streamable,
-# of Response and of ParamSchema has a signature. A reflection diff: a new
+# method of Phlex::Reactive, of a component's class-level DSL, of Streamable
+# (instance and class), of Response, of ParamSchema, of Store and of
+# Shareable has a signature. A reflection diff: a new
 # public method without one fails here, naming it. (`rbs -I sig validate`, in
 # the Lint job, checks the signatures themselves.)
 RSpec.describe Phlex::Reactive, "RBS signatures" do

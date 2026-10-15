@@ -51,7 +51,7 @@ module Phlex
       def self.update_stream: (String target, untyped content) -> String
       def self.js_stream: (untyped ops, ?target: untyped) -> String
       def self.js_ops_json: (untyped ops) -> String
-      def self.dismiss_attr: (Integer? dismiss_after) -> Hash[Symbol, untyped]
+      def self.dismiss_attr: (Integer? dismiss_after) -> String
       def self.wrap_dismiss: (String html, Integer? dismiss_after) -> String
 
       # Removed in issue #182: each raises a guided error naming its `reply` form.
@@ -60,6 +60,7 @@ module Phlex
       def self.morph: (*untyped, **untyped) -> bot
       def self.remove: (*untyped, **untyped) -> bot
       def self.redirect: (*untyped, **untyped) -> bot
+      def self.with: (*untyped, **untyped) -> bot
       def self.streams: (*untyped, **untyped) -> bot
       def self.collection_append: (*untyped, **untyped) -> bot
       def self.collection_prepend: (*untyped, **untyped) -> bot

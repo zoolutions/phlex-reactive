@@ -58,22 +58,25 @@ module Phlex
 
           # --- form scope and dirty tracking ---
           def reactive_scope: (?(Symbol | String)? name) -> untyped
-          def reactive_dirty: (?warn_unsaved: bool, ?only: Array[Symbol | String]?) -> untyped
+          def reactive_dirty: (?warn_unsaved: bool, ?only: (Array[Symbol | String] | Symbol | String)?) -> untyped
           def reactive_dirty_config: () -> Hash[Symbol, untyped]?
           def ensure_draft_default!: () -> void
 
           # --- collections ---
           def reactive_collection: (Symbol | String name, item: Class, container: String, ?count: String?, ?empty: Class?,
                                     ?size: Proc?) -> CollectionDefinition
-          def reactive_collection?: (Symbol | String name) -> bool
+          def reactive_collection?: (untyped name) -> bot
           def reactive_collections: () -> Hash[Symbol, CollectionDefinition]
           def reactive_collection_def: (untyped name) -> bot
 
           # --- client-side computes and completion bindings ---
-          def reactive_compute: (Symbol | String name, ?inputs: untyped, ?outputs: untyped, ?reducer: String | Symbol | nil,
+          # A setter only: without inputs: or outputs: it raises (the removed getter).
+          def reactive_compute: (Symbol | String name, inputs: untyped, ?outputs: untyped, ?reducer: String | Symbol | nil,
                                  ?mirror: Hash[untyped, untyped]?) -> ComputeDefinition
-          def reactive_compute?: (Symbol | String name) -> bool
-          def reactive_compute_def: (Symbol | String name) -> ComputeDefinition?
+                              | (Symbol | String name, outputs: untyped, ?reducer: String | Symbol | nil,
+                                 ?mirror: Hash[untyped, untyped]?) -> ComputeDefinition
+          def reactive_compute?: (untyped name) -> bot
+          def reactive_compute_def: (untyped name) -> bot
           def reactive_computes: () -> Hash[Symbol, ComputeDefinition]
           def normalize_compute_inputs: (untyped inputs) -> untyped
           def normalize_typed_compute_inputs: (untyped inputs) -> untyped
@@ -84,7 +87,7 @@ module Phlex
           def normalize_on_complete_ops: (Symbol name, untyped run) -> Array[untyped]
 
           # --- lazy mount, dormancy, effects ---
-          def reactive_lazy: (?tag: Symbol, ?on: untyped, ?cache: Hash[Symbol, untyped]?) -> untyped
+          def reactive_lazy: (?tag: Symbol | String, ?on: untyped, ?cache: Hash[Symbol, untyped]?) -> untyped
           def reactive_lazy?: () -> bool
           def reactive_lazy_declaration: () -> untyped
           def reactive_lazy_tag: () -> Symbol

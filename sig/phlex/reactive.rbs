@@ -48,7 +48,7 @@ module Phlex
     type payload = Hash[String, untyped]
     type param_caster = ^(untyped) -> untyped
     # (ctx, &action): returns action.call's value.
-    type around_wrapper = Proc
+    type around_wrapper = ^(ActionContext) { () -> untyped } -> untyped
     type error_hook = ^(Exception, Hash[Symbol, untyped]) -> void
 
     # --- settings: written at boot, Ractor-shareable after finalize! ---
@@ -134,6 +134,8 @@ module Phlex
     def self.param_schemas_frozen?: () -> bool
     def self.reset_param_schemas!: () -> untyped
 
+    # The block also receives the continuation (&action, see around_wrapper);
+    # an RBS block type cannot declare a block of its own.
     def self.around_action: () { (ActionContext) -> untyped } -> Array[around_wrapper]
     def self.around_actions: () -> Array[around_wrapper]
     def self.reset_around_actions!: () -> untyped
