@@ -152,6 +152,18 @@ module Phlex
     # libraries (see authorization_methods below).
     DEFAULT_AUTHORIZATION_METHODS = %i[authorize! authorize allowed_to?].freeze
 
+    # Every configuration reader whose value finalize! makes Ractor-shareable
+    # (the verifier aside: an ActiveSupport::MessageVerifier never is). The
+    # doctor's ractor readiness check and the finalize spec read this list.
+    CONFIG_READERS = %i[
+      renderer base_controller_name authorization_errors importmaps action_path verbose_errors
+      log_events apm debug verify_authorized authorization_methods param_types param_types_frozen?
+      param_schemas param_schemas_frozen? around_actions on_action_error_hooks resolved_apm_adapter
+      early_event_ttl_ms defer_token_ttl defer_path fragment_path fragment_cache_max_age_limit
+      defer_transport defer_job_queue settle_coalesce_window_ms flash_target effects effects_generation
+      error_flash flash_component off_request_view_context_generation token_upgraders finalized?
+    ].freeze
+
     class << self
       # The message verifier used to sign/verify component identity tokens.
       # Defaults to a purpose-scoped verifier derived from secret_key_base.

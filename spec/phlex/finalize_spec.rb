@@ -4,23 +4,14 @@ require "spec_helper"
 
 # What Phlex::Reactive.finalize! is checked against (zoolutions/phlex-reactive#364).
 module FinalizeSpec
-  # Every configuration reader, except the verifier (see its own example).
-  READERS = %i[
-    renderer base_controller_name authorization_errors importmaps action_path verbose_errors
-    log_events apm debug verify_authorized authorization_methods param_types param_types_frozen?
-    param_schemas param_schemas_frozen? around_actions on_action_error_hooks resolved_apm_adapter
-    early_event_ttl_ms defer_token_ttl defer_path fragment_path fragment_cache_max_age_limit
-    defer_transport defer_job_queue settle_coalesce_window_ms flash_target effects effects_generation
-    error_flash flash_component off_request_view_context_generation token_upgraders finalized?
-  ].freeze
-
   # A capture-free caster defined in a module body: its self (this module) is
   # shareable, so finalize! can share it.
   MONEY = -> { it.to_s.match?(/\A\d+\z/) ? it.to_i : Phlex::Reactive::ParamSchema::DROP }
 
   class Denied < StandardError; end
 
-  def self.readers = READERS.map { Phlex::Reactive.method(it) }
+  # Every configuration reader, except the verifier (see its own example).
+  def self.readers = Phlex::Reactive::CONFIG_READERS.map { Phlex::Reactive.method(it) }
 end
 
 # Tier 3 of conformance-kit: after finalize! (the engine calls it once boot is

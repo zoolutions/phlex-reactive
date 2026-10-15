@@ -17,6 +17,7 @@ module Phlex
     # trip and (for the component checks) iterate the loaded Streamable registry.
     class Doctor
       include FiberIsolation
+      include RactorReadiness
 
       # The result of one check: a status (:ok/:fail/:unknown), a human message,
       # and (on anything but :ok) a fix line telling the adopter what to do. A
@@ -79,6 +80,7 @@ module Phlex
           verifier_check,
           base_controller_check,
           fiber_isolation_check,
+          ractor_readiness_check,
           action_check(components),
           id_check(components),
           authorization_check(components),
