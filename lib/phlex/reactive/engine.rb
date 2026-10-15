@@ -221,14 +221,17 @@ module Phlex
 
       # What the finalize hook runs; public so a spec can drive it. With eager
       # loading every component class is loaded by now, so verify_authorized's
-      # interceptor is prepended and every class's registries and render memos
-      # are resolved here, at boot, rather than by the first request for each
+      # interceptor is prepended to every token-bearing class, and every
+      # class's registries and render memos (a client-only view's too) are
+      # resolved here, at boot, rather than by the first request for each
       # class (Authorization.instrument_all!, Component::Registry.warm!).
       def self.finalize_boot!(eager_load: ::Rails.application.config.eager_load)
-        classes = eager_load ? Phlex::Reactive::Streamable.registered_classes : []
-        Phlex::Reactive::Authorization.instrument_all!(classes) if Phlex::Reactive.verify_authorized
+        registry = Phlex::Reactive::Component::Registry
+        if Phlex::Reactive.verify_authorized
+          Phlex::Reactive::Authorization.instrument_all!(eager_load ? Phlex::Reactive::Streamable.registered_classes : [])
+        end
         Phlex::Reactive.finalize!
-        Phlex::Reactive::Component::Registry.warm!(classes)
+        registry.warm!(eager_load ? registry.registered_classes : [])
       end
     end
   end

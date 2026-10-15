@@ -79,6 +79,15 @@ RSpec.describe Phlex::Reactive::Component::Registry, ".warm!" do
     expect(child.reactive_actions.keys).to include(:save, :ping, :late)
   end
 
+  it "shares the render path's memos, so a non-main Ractor can read them" do
+    registry.warm!([parent, child])
+
+    [parent, child].each do |klass|
+      memos = registry::MEMO_READERS.map { klass.public_send(it) }
+      expect(memos).to all(satisfy("be Ractor-shareable") { Ractor.shareable?(it) })
+    end
+  end
+
   it "skips classes that are not reactive components" do
     plain = Class.new(ApplicationComponent) { include Phlex::Reactive::Streamable }
 
@@ -98,6 +107,23 @@ RSpec.describe Phlex::Reactive::Component::Registry, ".warm!" do
       Phlex::Reactive::Engine.finalize_boot!(eager_load: true)
 
       expect(warmed.instance_variable_get(:@reactive_registry_cache)).to be_frozen
+    end
+
+    # A ClientBindings view has no token and never registers with Streamable,
+    # but its root attrs read the same memos.
+    it "warms client-only components too, subclasses included" do
+      client_only = Class.new(ApplicationComponent) do
+        include Phlex::Reactive::ClientBindings
+
+        reactive_effects enter: :fade
+      end
+      subclass = Class.new(client_only)
+
+      Phlex::Reactive::Engine.finalize_boot!(eager_load: true)
+
+      caches = [client_only, subclass].map { it.instance_variable_get(:@reactive_registry_cache) }
+      expect(caches).to all(be_a(Hash).and(be_frozen))
+      expect(Ractor.shareable?(subclass.reactive_effect_attrs)).to be(true)
     end
   end
 end
