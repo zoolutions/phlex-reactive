@@ -208,6 +208,21 @@ module Phlex
         # app on Action Cable boots exactly as before.
         Phlex::Reactive::Presence.install!
       end
+
+      # Finalize the configuration once boot is over (zoolutions/phlex-reactive#364).
+      # The after_initialize block is registered from an initializer that runs
+      # after the app's config/initializers, so it runs after every
+      # after_initialize block the app registered there or in
+      # config/application.rb: one that appends to authorization_errors (the
+      # documented pattern for an app's own constants) still finds the list open.
+      initializer "phlex_reactive.finalize", after: :load_config_initializers do
+        config.after_initialize { Phlex::Reactive::Engine.finalize_boot! }
+      end
+
+      # What the finalize hook runs; public so a spec can drive it.
+      def self.finalize_boot!
+        Phlex::Reactive.finalize!
+      end
     end
   end
 end

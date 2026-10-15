@@ -78,11 +78,6 @@ Lint/UnusedMethodArgument:
 # mutable state on the request/broadcast path. These two cops are scoped OFF
 # only where the flagged class-level @ivars / module attrs are deliberate,
 # audited patterns (verified against the documented invariants):
-#   * lib/phlex/reactive.rb — module-level CONFIG (renderer/verifier/
-#     base_controller_name/action_path/flash_target/authorization_errors), set
-#     once at boot in an initializer and read-only thereafter. The lazy `||=`
-#     defaults are idempotent (a first-call race assigns an equivalent constant
-#     value); action_path + base_controller are warmed at boot/class-load.
 #   * lib/phlex/reactive/component.rb + lib/phlex/reactive/component/** — the
 #     class-definition-time DSL registries (Component::Registry's own-storage
 #     ivars, resolution caches, and the mutex-guarded generation counter, issue
@@ -95,15 +90,9 @@ Lint/UnusedMethodArgument:
 # Anywhere else (e.g. the controller request path) these cops still fire.
 ThreadSafety/ClassInstanceVariable:
   Exclude:
-    - lib/phlex/reactive.rb
     - lib/phlex/reactive/component.rb
     - lib/phlex/reactive/component/**/*.rb
     - lib/phlex/reactive/streamable.rb
-    # The once-per-process degraded-transport warn flag (issue #165) — a benign
-    # boolean race (worst case: the warning logs twice).
-    - lib/phlex/reactive/defer.rb
-    # The same once-per-process warn flag for the settle lane (issue #248).
-    - lib/phlex/reactive/pending.rb
     # The APM subscriber's single process-global ASN subscription (issue #207),
     # installed once at boot from the engine's after_initialize (like
     # LogSubscriber.attach_to) — never mutated per request/thread.
@@ -115,7 +104,6 @@ ThreadSafety/ClassInstanceVariable:
 
 ThreadSafety/ClassAndModuleAttributes:
   Exclude:
-    - lib/phlex/reactive.rb
     # Test-fixture dials (render_delay_ms / suppressed) the defer suite turns
     # per example (issue #165) — never touched concurrently.
     - spec/dummy/app/components/slow_totals_component.rb
