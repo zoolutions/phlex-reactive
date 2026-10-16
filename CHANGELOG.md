@@ -6,7 +6,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [0.16.0]
+## [0.16.0] - 2026-10-16
 
 ### Upgrading from 0.15.x
 
@@ -103,8 +103,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.15.5] - 2026-10-15
 
-Consolidates everything since 0.14.1; tags 0.14.2–0.15.4 shipped without
-changelog sections, so this section spans the whole run to 0.15.5.
+### Fixed
+
+- **A server trigger inside a client-only root reaches the component around it
+  (#410).** A `ClientBindings` component (a `reactive_filter` list, a
+  `reactive_show` wrapper, an `on_client` menu) renders a root with no token.
+  Rendered inside a server component, it swallowed that component's `on(...)`
+  triggers: Stimulus sends the action to the nearest root, which had no token,
+  and the outer root's field collection skipped every control under it (the
+  #15 rule). A tokenless client-only root is now transparent to server round
+  trips: `dispatch` forwards to the nearest token-bearing root above (skipping
+  further client-only roots, waking a dormant one), and that root's action
+  collects the controls under nested client-only roots. A nested server
+  component keeps its own fields and triggers, and client bindings stay on
+  their own root. With no token-bearing root above, nothing is sent, and
+  `verbose_errors`/debug logs one warning. Lazy and deferred shells are not
+  client-only. Client: +414 B gzipped in the default bundle, +415 B in the
+  split core.
+
+## [0.15.4] - 2026-10-14
 
 ### Added
 
@@ -276,6 +293,10 @@ changelog sections, so this section spans the whole run to 0.15.5.
   anything else raises at render. Client: +27 B gzipped in the default
   bundle, +20 B in the persist module; the split core unchanged.
 
+## [0.15.3] - 2026-10-13
+
+### Added
+
 - **An image fallback that recovers — `reactive_image_fallback(hide: true, show_alt: nil)` (#383).**
   `img(**reactive_image_fallback)` marks an `<img>` whose `src` fails with
   `data-reactive-image-state="error"` and hides it; `show_alt: "#bank-name"`
@@ -295,6 +316,91 @@ changelog sections, so this section spans the whole run to 0.15.5.
   ignored by the client. Client: +597 B gzipped in the default bundle,
   +550 B in the split core. Docs: "An image that falls back, and recovers" on
   the client-ops example.
+
+### Fixed
+
+- **`reactive_media` waits for `take` characters before calling a key a miss
+  (#380).** A value shorter than `take:` sliced to a short key, missed the
+  pool and wrote `blank_label` while the user was still typing. It is now
+  *pending*: `blank_label` only names a full-length key that misses. New
+  options: `match:` (a Regexp, anchored to the whole key; a key it rejects is
+  pending too) and `pending: :clear` (default: clear the preview, empty the
+  label) or `:keep` (leave both alone). The preview carries
+  `data-reactive-media-state="pending|hit|miss"`, so a row can hide itself
+  with CSS. `match:` reaches the browser as a JS pattern: its `\A`/`\z`
+  anchors are dropped (a trailing `\Z` becomes `\n?`), and what JS reads
+  differently raises at render (options, escapes such as `\h`/`\p{…}`/`\s`/
+  `\u{…}`, POSIX and nested classes, `&&`, `(?i)`/`(?>…)`, characters above
+  U+FFFF). **Behaviour change:** with `take:`, a short value now leaves the
+  label empty instead of writing `blank_label`. Without `take:` or `match:`
+  nothing changes. Client: +160 B gzipped in the default bundle (+152 B on
+  top of #381/#382), +152 B in the bindings module, the split core unchanged. Docs: "Media
+  previews" on the client-ops example.
+
+- **A pool `<img>` with an `alt` and no `src` keeps its name (#381).**
+  `js.copy_media` and `reactive_media` treated a source `<img>` without `src`
+  as a clear: the preview's `alt` was emptied and `label:` got `blank_label`,
+  so a known entry with no logo file lost its name. Such a source is now a hit
+  without an image: the target's `src` and `srcset` are removed, its `alt` is
+  set, and `label:` gets that `alt`. Only a pool miss, a selector that matches
+  nothing, or a source that is not an `<img>` clears. Client: +1 B gzipped in
+  the default bundle, −2 B in the split core; the bindings module is
+  unchanged.
+
+- **`js.preview_file` follows an app's upload validation (#382).** A preview
+  ran once, on `change`, so a file the app then rejected (cleared with
+  `input.value = ""`, no new `change`) stayed on screen. Two pieces fix it.
+  `js.preview_file(…, valid: true)` treats an input whose `validity.valid` is
+  false (`setCustomValidity`, `required`) as empty: it never gets a preview,
+  and one it had is cleared and its URL revoked. And `reactive:file-changed`
+  is the documented event for "the app changed this input's files without a
+  `change` event": bind the op to it as well,
+  `mix(on_client(:change, op), on_client("reactive:file-changed", op))`, and
+  the app dispatches it after it clears or invalidates the field. That works
+  whichever `change` listener runs first. Without `valid:` the op behaves as
+  before. Client: +22 B gzipped in the default bundle, +34 B in the split
+  core (on top of #381). Docs: "Preview a chosen image" on the client-ops example.
+
+### Performance
+
+- **Guarded and persisted forms connect in linear time.** Each `warn_unsaved`
+  root added its own `beforeunload` / `turbo:before-visit` pair on `window`,
+  and each persisted root its own `turbo:submit-end` listener on `document`.
+  A browser scans a target's listeners on every add and remove, so connecting
+  and disconnecting N of them was quadratic. One shared listener per window or
+  document now serves them all, added with the first root and removed with
+  the last; behaviour is unchanged (live dirty count, one prompt per visit,
+  #298). Headless Chromium, insert + connect: 4,000 guarded roots ~306 ->
+  ~227 ms, 4,000 persisted roots ~280 -> ~230 ms. +194 B gzipped in the
+  default bundle (110 B for the guard, 84 B for persist).
+- **A record-backed token no longer builds a GlobalID URI.** For a record
+  whose `to_gid` is GlobalID's own and whose id is an Integer, the gid is
+  built directly as `gid://<app>/<Class>/<id>` (byte-identical, pinned by
+  `identity_gid_spec.rb`); anything else still calls `to_gid`. The token goes
+  from ~11.4 µs and 54 objects to ~5.2 µs and 20 (in-place A/B).
+- **`rake bench:browser`.** Connect, disconnect and a heap soak for the
+  shipped client in headless Chromium. The happy-dom connect bench is
+  engine-relative and missed the quadratic above; this is the one to trust.
+- **The doctor's authorization check is linear, not quadratic.** It rebuilt
+  the Inspector's whole component list (a Prism scan per action) once for
+  every component. It now reads it once: `doctor.checks` over the dummy app's
+  90 components drops from 1,337 ms to 55 ms, and an app with a few hundred
+  components no longer waits tens of seconds on `rake phlex_reactive:doctor`.
+- **`on()` checks for removed keywords without building arrays.** Every
+  trigger ran `params.keys & REMOVED_ON_KWARGS.keys`. It now returns at once
+  when there are no extra keywords. `on(:increment)` allocates 5 objects
+  instead of 8; a 7-trigger component's `render_component` 118 instead of 136
+  (~5% faster in an in-place A/B, a method-level win that shows on broadcast
+  fan-out, not request latency).
+- **The request bench measures production, not a file watcher.** The dummy
+  app's test env left code reloading on, so every request globbed `app/`:
+  `rake bench:request` read ~1.7-2.0 ms and 1,272 objects per state-backed
+  action, against ~0.30-0.35 ms and 824 objects with it off (same machine,
+  interleaved). Test-env only; the gem is unchanged.
+
+## [0.15.2] - 2026-10-13
+
+### Added
 
 - **Media previews — `js.copy_media` and `reactive_media` (#373).**
   `js.copy_media("#logo", from: "#logo-007")` copies `src`, `srcset` and `alt`
@@ -385,6 +491,10 @@ changelog sections, so this section spans the whole run to 0.15.5.
   Client: +251 B gzipped in the default bundle, +247 B in the split core.
   Docs: "Keeping client state through a morph" on the client-ops example.
 
+## [0.15.1] - 2026-10-12
+
+### Added
+
 - **Modal dialogs — `js.show_modal` / `js.close_dialog` and
   `data-reactive-modal` (#365).** `js.show_modal("#picker")` calls
   `HTMLDialogElement#showModal()`, so an `on_client` dialog gets the browser's
@@ -409,6 +519,10 @@ changelog sections, so this section spans the whole run to 0.15.5.
   `phlex/reactive/early` queues and prevents the chord before connect and leaves
   every other key alone (+134 B gzipped). `once:` raises on these keys. Existing
   chords render unchanged.
+
+## [0.15.0] - 2026-10-12
+
+### Added
 
 - **Presence — `reactive_presence`, `presence`, `js.presence` (#358).** A
   roster component declares the presence stream it shows
@@ -453,6 +567,40 @@ changelog sections, so this section spans the whole run to 0.15.5.
   true` without `shortcut:` behaves exactly as before (never prevented, no
   editable guard).
 
+### Fixed
+
+- **A stream that renders into a connected root wires what its content needs
+  (#356).** A root read its feature markers only at connect and after a morph
+  of itself, so a `reactive_show` target, select-all/count group, filter,
+  nested list, dirty field or paste trigger that an `append`, `prepend`,
+  `update`, `before`, `after` or child `replace` brought into it stayed dead
+  until the root reconnected. Now, once such a stream has rendered, the root
+  re-runs the seeds of the features it has (a new show target takes the
+  field's current value) and connects any feature its new content needs, in
+  both clients; bindings and form also wire a binding whose gate reads true
+  only then. As after a morph, this covers a root with an action token or a
+  lazy shell; a tokenless, client-only root does not re-read. On the split
+  client the stream's render waits for the module the content needs, as it
+  already did for an incoming root, so the content lands wired; the wait is
+  capped at 1 s, after which Turbo renders and the root connects the module
+  when it arrives. A draft
+  restore no longer marks fields `data-reactive-dirty` on a root that never
+  opted into dirty tracking (one that only gates a paste trigger).
+
+- **An editable is editable in an engine without `contenteditable="plaintext-only"`,
+  however it reaches the page (#355).** Such an engine reads the server's
+  `plaintext-only` as invalid, so the element cannot even be focused. The
+  bindings feature switched it to `"true"` only when it connected, or after a
+  morph of the root, which left an editable that a stream appended, a frame
+  loaded or an unfocused morph rewrote uneditable. The runtime now does the
+  switch with one observer, installed only in such an engine (elsewhere the
+  probe is all that runs). Bundle: default +157 B gzip, split core +241 B,
+  `features/bindings` -138 B.
+
+## [0.14.4] - 2026-10-11
+
+### Added
+
 - **Sortable lists — `reactive_sortable`, `reactive_sortable_source`,
   `reactive_sortable_item` (#350).** Rows drag to reorder a list with a mouse,
   a finger (a 200 ms press) or the keyboard (Space picks up, arrows move,
@@ -490,103 +638,9 @@ changelog sections, so this section spans the whole run to 0.15.5.
   client the stream that brings it starts the import). Bundle: default
   +977 B gzip, split core +412 B, `features/bindings` +524 B.
 
-- **`on_client(…, detail: { success: true })` — run ops only when the event's
-  payload qualifies (#346).** A binding can require top-level `event.detail`
-  keys to strictly equal JSON scalars, so `on_client("turbo:submit-end",
-  js.check_group("ids[]", false), detail: { success: true })` clears a bulk
-  selection after a successful submit and keeps it after a failed one. A
-  missing detail or key never matches; a miss runs no confirm and no
-  `preventDefault`. Each binding record carries its own filter, so two bindings
-  on one element can split success and failure. A non-scalar value, an empty
-  Hash, or `detail:` with `once:` raises at render. Records without `detail`
-  are byte-identical.
+## [0.14.3] - 2026-10-07
 
 ### Fixed
-
-- **A server trigger inside a client-only root reaches the component around it
-  (#410).** A `ClientBindings` component (a `reactive_filter` list, a
-  `reactive_show` wrapper, an `on_client` menu) renders a root with no token.
-  Rendered inside a server component, it swallowed that component's `on(...)`
-  triggers: Stimulus sends the action to the nearest root, which had no token,
-  and the outer root's field collection skipped every control under it (the
-  #15 rule). A tokenless client-only root is now transparent to server round
-  trips: `dispatch` forwards to the nearest token-bearing root above (skipping
-  further client-only roots, waking a dormant one), and that root's action
-  collects the controls under nested client-only roots. A nested server
-  component keeps its own fields and triggers, and client bindings stay on
-  their own root. With no token-bearing root above, nothing is sent, and
-  `verbose_errors`/debug logs one warning. Lazy and deferred shells are not
-  client-only. Client: +414 B gzipped in the default bundle, +415 B in the
-  split core.
-
-- **`reactive_media` waits for `take` characters before calling a key a miss
-  (#380).** A value shorter than `take:` sliced to a short key, missed the
-  pool and wrote `blank_label` while the user was still typing. It is now
-  *pending*: `blank_label` only names a full-length key that misses. New
-  options: `match:` (a Regexp, anchored to the whole key; a key it rejects is
-  pending too) and `pending: :clear` (default: clear the preview, empty the
-  label) or `:keep` (leave both alone). The preview carries
-  `data-reactive-media-state="pending|hit|miss"`, so a row can hide itself
-  with CSS. `match:` reaches the browser as a JS pattern: its `\A`/`\z`
-  anchors are dropped (a trailing `\Z` becomes `\n?`), and what JS reads
-  differently raises at render (options, escapes such as `\h`/`\p{…}`/`\s`/
-  `\u{…}`, POSIX and nested classes, `&&`, `(?i)`/`(?>…)`, characters above
-  U+FFFF). **Behaviour change:** with `take:`, a short value now leaves the
-  label empty instead of writing `blank_label`. Without `take:` or `match:`
-  nothing changes. Client: +160 B gzipped in the default bundle (+152 B on
-  top of #381/#382), +152 B in the bindings module, the split core unchanged. Docs: "Media
-  previews" on the client-ops example.
-
-- **A pool `<img>` with an `alt` and no `src` keeps its name (#381).**
-  `js.copy_media` and `reactive_media` treated a source `<img>` without `src`
-  as a clear: the preview's `alt` was emptied and `label:` got `blank_label`,
-  so a known entry with no logo file lost its name. Such a source is now a hit
-  without an image: the target's `src` and `srcset` are removed, its `alt` is
-  set, and `label:` gets that `alt`. Only a pool miss, a selector that matches
-  nothing, or a source that is not an `<img>` clears. Client: +1 B gzipped in
-  the default bundle, −2 B in the split core; the bindings module is
-  unchanged.
-
-- **`js.preview_file` follows an app's upload validation (#382).** A preview
-  ran once, on `change`, so a file the app then rejected (cleared with
-  `input.value = ""`, no new `change`) stayed on screen. Two pieces fix it.
-  `js.preview_file(…, valid: true)` treats an input whose `validity.valid` is
-  false (`setCustomValidity`, `required`) as empty: it never gets a preview,
-  and one it had is cleared and its URL revoked. And `reactive:file-changed`
-  is the documented event for "the app changed this input's files without a
-  `change` event": bind the op to it as well,
-  `mix(on_client(:change, op), on_client("reactive:file-changed", op))`, and
-  the app dispatches it after it clears or invalidates the field. That works
-  whichever `change` listener runs first. Without `valid:` the op behaves as
-  before. Client: +22 B gzipped in the default bundle, +34 B in the split
-  core (on top of #381). Docs: "Preview a chosen image" on the client-ops example.
-
-- **A stream that renders into a connected root wires what its content needs
-  (#356).** A root read its feature markers only at connect and after a morph
-  of itself, so a `reactive_show` target, select-all/count group, filter,
-  nested list, dirty field or paste trigger that an `append`, `prepend`,
-  `update`, `before`, `after` or child `replace` brought into it stayed dead
-  until the root reconnected. Now, once such a stream has rendered, the root
-  re-runs the seeds of the features it has (a new show target takes the
-  field's current value) and connects any feature its new content needs, in
-  both clients; bindings and form also wire a binding whose gate reads true
-  only then. As after a morph, this covers a root with an action token or a
-  lazy shell; a tokenless, client-only root does not re-read. On the split
-  client the stream's render waits for the module the content needs, as it
-  already did for an incoming root, so the content lands wired; the wait is
-  capped at 1 s, after which Turbo renders and the root connects the module
-  when it arrives. A draft
-  restore no longer marks fields `data-reactive-dirty` on a root that never
-  opted into dirty tracking (one that only gates a paste trigger).
-- **An editable is editable in an engine without `contenteditable="plaintext-only"`,
-  however it reaches the page (#355).** Such an engine reads the server's
-  `plaintext-only` as invalid, so the element cannot even be focused. The
-  bindings feature switched it to `"true"` only when it connected, or after a
-  morph of the root, which left an editable that a stream appended, a frame
-  loaded or an unfocused morph rewrote uneditable. The runtime now does the
-  switch with one observer, installed only in such an engine (elsewhere the
-  probe is all that runs). Bundle: default +157 B gzip, split core +241 B,
-  `features/bindings` -138 B.
 
 - **A `checked:`-only `reactive_show_targets` entry hides at zero boxes
   (#348).** `"#bulk-bar" => { if: { "ids[]" => { checked: 1.. } } }` was left
@@ -597,42 +651,20 @@ changelog sections, so this section spans the whole run to 0.15.5.
   first paint already were. A target with any value term keeps the skip when
   none of its fields is owned.
 
-### Performance
+## [0.14.2] - 2026-10-07
 
-- **Guarded and persisted forms connect in linear time.** Each `warn_unsaved`
-  root added its own `beforeunload` / `turbo:before-visit` pair on `window`,
-  and each persisted root its own `turbo:submit-end` listener on `document`.
-  A browser scans a target's listeners on every add and remove, so connecting
-  and disconnecting N of them was quadratic. One shared listener per window or
-  document now serves them all, added with the first root and removed with
-  the last; behaviour is unchanged (live dirty count, one prompt per visit,
-  #298). Headless Chromium, insert + connect: 4,000 guarded roots ~306 ->
-  ~227 ms, 4,000 persisted roots ~280 -> ~230 ms. +194 B gzipped in the
-  default bundle (110 B for the guard, 84 B for persist).
-- **A record-backed token no longer builds a GlobalID URI.** For a record
-  whose `to_gid` is GlobalID's own and whose id is an Integer, the gid is
-  built directly as `gid://<app>/<Class>/<id>` (byte-identical, pinned by
-  `identity_gid_spec.rb`); anything else still calls `to_gid`. The token goes
-  from ~11.4 µs and 54 objects to ~5.2 µs and 20 (in-place A/B).
-- **`rake bench:browser`.** Connect, disconnect and a heap soak for the
-  shipped client in headless Chromium. The happy-dom connect bench is
-  engine-relative and missed the quadratic above; this is the one to trust.
-- **The doctor's authorization check is linear, not quadratic.** It rebuilt
-  the Inspector's whole component list (a Prism scan per action) once for
-  every component. It now reads it once: `doctor.checks` over the dummy app's
-  90 components drops from 1,337 ms to 55 ms, and an app with a few hundred
-  components no longer waits tens of seconds on `rake phlex_reactive:doctor`.
-- **`on()` checks for removed keywords without building arrays.** Every
-  trigger ran `params.keys & REMOVED_ON_KWARGS.keys`. It now returns at once
-  when there are no extra keywords. `on(:increment)` allocates 5 objects
-  instead of 8; a 7-trigger component's `render_component` 118 instead of 136
-  (~5% faster in an in-place A/B, a method-level win that shows on broadcast
-  fan-out, not request latency).
-- **The request bench measures production, not a file watcher.** The dummy
-  app's test env left code reloading on, so every request globbed `app/`:
-  `rake bench:request` read ~1.7-2.0 ms and 1,272 objects per state-backed
-  action, against ~0.30-0.35 ms and 824 objects with it off (same machine,
-  interleaved). Test-env only; the gem is unchanged.
+### Added
+
+- **`on_client(…, detail: { success: true })` — run ops only when the event's
+  payload qualifies (#346).** A binding can require top-level `event.detail`
+  keys to strictly equal JSON scalars, so `on_client("turbo:submit-end",
+  js.check_group("ids[]", false), detail: { success: true })` clears a bulk
+  selection after a successful submit and keeps it after a failed one. A
+  missing detail or key never matches; a miss runs no confirm and no
+  `preventDefault`. Each binding record carries its own filter, so two bindings
+  on one element can split success and failure. A non-scalar value, an empty
+  Hash, or `detail:` with `once:` raises at render. Records without `detail`
+  are byte-identical.
 
 ## [0.14.1] - 2026-10-07
 
@@ -664,7 +696,7 @@ changelog sections, so this section spans the whole run to 0.15.5.
 
 ## [0.14.0] - 2026-10-07
 
-This section also covers 0.10.0 through 0.13.4, which were released without
+This section also covers 0.9.1 through 0.13.4, which were released without
 changelog sections of their own.
 
 ### Added
@@ -2424,7 +2456,7 @@ changelog sections of their own.
   (`spec/requests/deferred_latency_spec.rb`) pins that a 120 ms segment cost
   moves OFF the actor's reply and onto the deferred leg; it never disappears.
 
-## [0.9.0] - 2026-07-03
+## [0.9.0] - 2026-07-04
 
 Consolidates everything since 0.2.6; tags 0.2.7–0.4.8 shipped without changelog
 sections, so this section spans the whole run to 0.9.0. The jump from 0.4.8 to
@@ -3860,7 +3892,7 @@ room for dogfood fixes.
   Outer flat fields and per-row reactive editing compose cleanly, with no
   name-disjointness workarounds.
 
-## [0.2.6]
+## [0.2.6] - 2026-06-25
 
 ### Added
 
@@ -3887,7 +3919,7 @@ room for dogfood fixes.
   for non-remove/redirect responses, and never double-prepends when the action
   already included a self-targeted stream.
 
-## [0.2.5]
+## [0.2.5] - 2026-06-25
 
 ### Fixed
 
@@ -3903,7 +3935,7 @@ room for dogfood fixes.
   bun unit test (`spec/javascript/reactive_controller.test.js`) that asserts the
   synchronous call and fails on the pre-fix deferred code. Closes #11.
 
-## [0.2.4] - 2026-06-24
+## [0.2.4] - 2026-06-25
 
 ### Fixed
 
@@ -3920,6 +3952,12 @@ room for dogfood fixes.
   client copy the system suite runs (`spec/dummy/public/vendor/...`) is now kept
   byte-identical to source by a guard spec, so the browser tests never validate
   stale client code again. Closes #8.
+
+### Documentation
+
+- Documented the combined record + state identity (the `{c, gid, s}` token
+  shape): the README, `docs/architecture.md`, and `docs/security.md` no longer
+  frame `reactive_record` and `reactive_state` as mutually exclusive. (#9)
 
 ## [0.2.3] - 2026-06-24
 
@@ -3939,12 +3977,6 @@ room for dogfood fixes.
   state-only (`{c, s}`) token shapes are unchanged; a signed `false` survives the
   round trip (only a genuinely absent value falls back to the `initialize`
   default). No API changes. Closes #6.
-
-### Documentation
-
-- Documented the combined record + state identity (the `{c, gid, s}` token
-  shape): the README, `docs/architecture.md`, and `docs/security.md` no longer
-  frame `reactive_record` and `reactive_state` as mutually exclusive. (#9)
 
 ## [0.2.2] - 2026-06-24
 
@@ -4022,7 +4054,17 @@ room for dogfood fixes.
   scaffolds a reactive component (and an RSpec spec when the app uses RSpec),
   state-backed by default or record-backed with `--record`.
 
-[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.14.1...HEAD
+[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/mhenrixon/phlex-reactive/compare/v0.15.5...v0.16.0
+[0.15.5]: https://github.com/mhenrixon/phlex-reactive/compare/v0.15.4...v0.15.5
+[0.15.4]: https://github.com/mhenrixon/phlex-reactive/compare/v0.15.3...v0.15.4
+[0.15.3]: https://github.com/mhenrixon/phlex-reactive/compare/v0.15.2...v0.15.3
+[0.15.2]: https://github.com/mhenrixon/phlex-reactive/compare/v0.15.1...v0.15.2
+[0.15.1]: https://github.com/mhenrixon/phlex-reactive/compare/v0.15.0...v0.15.1
+[0.15.0]: https://github.com/mhenrixon/phlex-reactive/compare/v0.14.4...v0.15.0
+[0.14.4]: https://github.com/mhenrixon/phlex-reactive/compare/v0.14.3...v0.14.4
+[0.14.3]: https://github.com/mhenrixon/phlex-reactive/compare/v0.14.2...v0.14.3
+[0.14.2]: https://github.com/mhenrixon/phlex-reactive/compare/v0.14.1...v0.14.2
 [0.14.1]: https://github.com/mhenrixon/phlex-reactive/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/mhenrixon/phlex-reactive/compare/v0.9.0...v0.14.0
 [0.9.0]: https://github.com/mhenrixon/phlex-reactive/compare/v0.2.6...v0.9.0
