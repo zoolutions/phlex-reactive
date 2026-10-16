@@ -209,6 +209,10 @@ module Phlex
             value.html_safe? ? raw(value) : plain(value.to_s)
           end
         end
+
+        # ActiveSupport::Concern's bookkeeping on this module, sealed now that
+        # the body has loaded (zoolutions/phlex-reactive#364).
+        Phlex::Reactive::Shareable.seal_concern(self)
       end
     end
   end

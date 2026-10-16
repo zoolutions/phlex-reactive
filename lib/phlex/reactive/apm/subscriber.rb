@@ -19,6 +19,11 @@ module Phlex
         # adapter can subscribe to them itself) — the action IS the transaction.
         EVENTS = /\A(?:action|defer)\.phlex_reactive\z/
 
+        # The one subscription and its adapter, class ivars on purpose and
+        # safe: install/uninstall run at boot, from the engine's
+        # after_initialize on the main Ractor (APM.attach!), and between
+        # examples in a test suite; the request path never touches them.
+        # rubocop:disable-next ThreadSafety/ClassInstanceVariable
         class << self
           # Install a single bus subscription for `adapter`. Idempotent for the
           # SAME adapter: a repeat call is a no-op. A DIFFERENT adapter replaces

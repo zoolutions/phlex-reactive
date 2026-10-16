@@ -15,6 +15,9 @@ class SlowTotalsComponent < ApplicationComponent
 
   reactive_state :value
 
+  # Test-fixture dials the defer specs set per example (issue #165), never
+  # from two threads at once.
+  # rubocop:disable-next ThreadSafety/ClassAndModuleAttributes
   class << self
     # Milliseconds of simulated render cost; specs dial it, suite default 0.
     attr_accessor :render_delay_ms

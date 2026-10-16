@@ -115,44 +115,115 @@ module Phlex
     #   * request      — the ActionDispatch::Request (remote_ip, headers, ...)
     ActionContext = Data.define(:component, :action_name, :params, :request)
 
+    # What each setting reads before an app sets it, and after it is set to
+    # nil (zoolutions/phlex-reactive#364). Stored when the gem loads (the
+    # bottom of this module), so no reader writes on first use: a non-main
+    # Ractor can read a module instance variable but never write one.
+    SETTING_DEFAULTS = {
+      action_path: "/reactive/actions",
+      base_controller_name: "ActionController::Base",
+      early_event_ttl_ms: 10_000,
+      defer_token_ttl: 120,
+      defer_path: "/reactive/defer",
+      fragment_path: "/reactive/fragment",
+      fragment_cache_max_age_limit: 3600,
+      defer_transport: :auto,
+      defer_job_queue: "default",
+      settle_coalesce_window_ms: 50,
+      flash_target: "flash",
+      authorization_errors: [].freeze,
+      importmaps: nil,
+      apm: nil,
+      resolved_apm_adapter: nil,
+      effects: nil,
+      effects_generation: 0,
+      error_flash: nil,
+      flash_component: nil,
+      off_request_view_context_generation: 0,
+      around_actions: [].freeze,
+      on_action_error_hooks: [].freeze,
+      token_upgraders: {}.freeze,
+      param_types_frozen: false,
+      param_schemas_frozen: false,
+      finalized: false
+    }.freeze
+
+    # authorization_methods' default: the common set across authorization
+    # libraries (see authorization_methods below).
+    DEFAULT_AUTHORIZATION_METHODS = %i[authorize! authorize allowed_to?].freeze
+
+    # Every configuration reader whose value finalize! makes Ractor-shareable
+    # (the verifier aside: an ActiveSupport::MessageVerifier never is). The
+    # doctor's ractor readiness check and the finalize spec read this list.
+    CONFIG_READERS = %i[
+      renderer base_controller_name authorization_errors importmaps action_path verbose_errors
+      log_events apm debug verify_authorized authorization_methods param_types param_types_frozen?
+      param_schemas param_schemas_frozen? around_actions on_action_error_hooks resolved_apm_adapter
+      early_event_ttl_ms defer_token_ttl defer_path fragment_path fragment_cache_max_age_limit
+      defer_transport defer_job_queue settle_coalesce_window_ms flash_target effects effects_generation
+      error_flash flash_component off_request_view_context_generation token_upgraders finalized?
+    ].freeze
+
     class << self
       # The message verifier used to sign/verify component identity tokens.
       # Defaults to a purpose-scoped verifier derived from secret_key_base.
       # Override to use a dedicated key.
-      attr_writer :verifier
+      def verifier=(value)
+        set_setting(:@verifier, value)
+      end
 
       # The controller class used to render components with a full Rails view
       # context (url helpers, CSRF, i18n) during re-renders and broadcasts.
       # Defaults to ActionController::Base. Set to your ApplicationController if
       # components rely on app-level helpers or Current attributes.
-      attr_writer :renderer
+      #
+      # Give it by name ("ApplicationController", like base_controller_name)
+      # to have it follow a code reload in development: the name resolves on
+      # every read, so a reloaded class is picked up (and the per-thread view
+      # contexts rebuild for it). A Class is kept as that class object, which
+      # a reload leaves stale.
+      def renderer=(value)
+        set_setting(:@renderer, value)
+      end
 
       # The controller the reactive ActionsController inherits from, given as a
       # String (resolved lazily to avoid load-order issues). Defaults to
       # "ActionController::Base"; set to "ApplicationController" to inherit your
       # app's auth/CSRF/Current. If you do, ensure the action path isn't
       # force-redirected for logged-out users when you have public components.
-      attr_writer :base_controller_name
+      def base_controller_name=(value)
+        set_setting(:@base_controller_name, value || SETTING_DEFAULTS[:base_controller_name])
+      end
 
       # Exception classes the action endpoint renders as 403. Append your
       # authorization library's error (Pundit::NotAuthorizedError,
-      # ActionPolicy::Unauthorized, ...).
-      attr_accessor :authorization_errors
+      # ActionPolicy::Unauthorized, ...) in an initializer, or assign the
+      # whole list. The list is frozen once boot is over (finalize!): after
+      # that, assign a new list instead of appending.
+      attr_reader :authorization_errors
+
+      def authorization_errors=(value)
+        set_setting(:@authorization_errors, value)
+      end
 
       # Import maps `phlex_reactive:doctor` checks for the `phlex/reactive/early`
       # pin (issue #307): a callable returning `{ name => Importmap::Map }`, for
       # an app with more than one map (one per entry point). nil (the default)
       # checks `Rails.application.importmap` only.
-      attr_accessor :importmaps
+      attr_reader :importmaps
+
+      def importmaps=(value)
+        set_setting(:@importmaps, value)
+      end
 
       # The path the action endpoint is mounted at. Default "/reactive/actions".
       # Set before boot if it collides with an app route. The client runtime
       # reads it from a <meta name="phlex-reactive-action-path"> tag if present,
       # falling back to this default.
-      attr_writer :action_path
+      attr_reader :action_path
 
-      def action_path
-        @action_path ||= "/reactive/actions"
+      def action_path=(value)
+        set_setting(:@action_path, value || SETTING_DEFAULTS[:action_path])
       end
 
       # Diagnostic endpoint error bodies + dropped-param logging. When true, an
@@ -164,12 +235,12 @@ module Phlex
       # Defaults LAZILY to Rails.env.local? — that's development AND test — so
       # production stays opaque unless you opt in. The `defined?` guard (not
       # `||=`) makes an explicit `= false` stick even in dev/test.
-      attr_writer :verbose_errors
+      def verbose_errors=(value)
+        set_setting(:@verbose_errors, value)
+      end
 
       def verbose_errors
-        return @verbose_errors if defined?(@verbose_errors)
-
-        defined?(::Rails.env) && ::Rails.env.local?
+        setting(:@verbose_errors) { defined?(::Rails.env) && ::Rails.env.local? }
       end
 
       # Attach the opt-in LogSubscriber (issue #107) so each hot-path event is
@@ -177,12 +248,12 @@ module Phlex
       # (3.1ms)`). Default OFF — the events still fire for APMs regardless; this
       # only controls the gem's own log lines. The engine reads it at boot and
       # attaches exactly once. Set true in an initializer to see the lines.
-      attr_writer :log_events
+      def log_events=(value)
+        set_setting(:@log_events, value)
+      end
 
       def log_events
-        return @log_events if defined?(@log_events)
-
-        false
+        setting(:@log_events) { false }
       end
 
       # Turnkey APM integration (issue #207). Set to a Symbol (:appsignal,
@@ -195,7 +266,11 @@ module Phlex
       # action is named `Component#action` in the APM (not one blurry
       # ActionsController#create), and an action-body error is reported to the
       # tracker with component/action tags. Default nil.
-      attr_accessor :apm
+      attr_reader :apm
+
+      def apm=(value)
+        set_setting(:@apm, value)
+      end
 
       # Client debug mode (issue #108): the "devtools-lite" lens on the reactive
       # round trip. When true, reactive_attrs (and so reactive_root) stamps
@@ -207,12 +282,12 @@ module Phlex
       # Rails.env.development?); zero cost when off (one nil-check per dispatch, no
       # attr, no string building). The `defined?` guard (not `||=`) makes an
       # explicit `= false` stick even where a truthy default might otherwise apply.
-      attr_writer :debug
+      def debug=(value)
+        set_setting(:@debug, value)
+      end
 
       def debug
-        return @debug if defined?(@debug)
-
-        false
+        setting(:@debug) { false }
       end
 
       # verify_authorized (issue #168): the default-ON runtime guard. When true,
@@ -223,12 +298,12 @@ module Phlex
       # component with `skip_verify_authorized`, mark a bespoke check with
       # `mark_authorized!`, or turn it off globally here. The `defined?` guard
       # (not `||=`) makes an explicit `= false` stick.
-      attr_writer :verify_authorized
+      def verify_authorized=(value)
+        set_setting(:@verify_authorized, value)
+      end
 
       def verify_authorized
-        return @verify_authorized if defined?(@verify_authorized)
-
-        true
+        setting(:@verify_authorized) { true }
       end
 
       # The method names verify_authorized's interceptor wraps to detect an
@@ -238,12 +313,12 @@ module Phlex
       # your app's helper. `mark_authorized!` always counts, regardless of this
       # list. The `defined?` guard makes an explicit override (including a
       # narrower list) stick.
-      attr_writer :authorization_methods
+      def authorization_methods=(value)
+        set_setting(:@authorization_methods, value)
+      end
 
       def authorization_methods
-        return @authorization_methods if defined?(@authorization_methods)
-
-        %i[authorize! authorize allowed_to?]
+        setting(:@authorization_methods) { DEFAULT_AUTHORIZATION_METHODS }
       end
 
       # Register an app-defined param type (issue #109). The block receives the
@@ -272,11 +347,11 @@ module Phlex
       end
 
       # The param-type registry: Symbol => callable(value) -> coerced | DROP.
-      # Seeded lazily with the built-ins; ParamSchema.compile validates every
-      # declared type symbol against it, and #coerce dispatches through it.
-      def param_types
-        @param_types ||= Phlex::Reactive::ParamSchema.built_in_types.dup
-      end
+      # Seeded with the built-ins when the gem loads (the bottom of this file);
+      # ParamSchema.compile validates every declared type symbol against it,
+      # and #coerce dispatches through it once per scalar param, so it is a
+      # plain attr_reader.
+      attr_reader :param_types
 
       # A declared type symbol is known iff it's a registry key. ParamSchema
       # asks this at compile so an unknown symbol raises loudly at declaration.
@@ -289,18 +364,16 @@ module Phlex
       # Idempotent.
       def freeze_param_types!
         param_types.freeze
-        @param_types_frozen = true
+        set_setting(:@param_types_frozen, true)
       end
 
-      def param_types_frozen?
-        @param_types_frozen ||= false
-      end
+      def param_types_frozen? = setting(:@param_types_frozen) == true
 
       # Drop the registry back to the built-ins and unfreeze it. For tests that
       # register a temporary type; never called in production.
       def reset_param_types!
-        @param_types = Phlex::Reactive::ParamSchema.built_in_types.dup
-        @param_types_frozen = false
+        set_setting(:@param_types, Phlex::Reactive::ParamSchema.built_in_types.dup, share: false)
+        set_setting(:@param_types_frozen, false)
       end
 
       # Register (with a schema Hash) OR read (bare name) a NAMED param schema
@@ -327,9 +400,8 @@ module Phlex
         param_schemas[name.to_sym] = deep_freeze_schema(schema.transform_keys(&:to_sym))
       end
 
-      def param_schemas
-        @param_schemas ||= {}
-      end
+      # The registered named schemas: Symbol => deep-frozen schema Hash.
+      attr_reader :param_schemas
 
       def param_schema?(name)
         param_schemas.key?(name.to_sym)
@@ -337,17 +409,15 @@ module Phlex
 
       def freeze_param_schemas!
         param_schemas.freeze
-        @param_schemas_frozen = true
+        set_setting(:@param_schemas_frozen, true)
       end
 
-      def param_schemas_frozen?
-        @param_schemas_frozen ||= false
-      end
+      def param_schemas_frozen? = setting(:@param_schemas_frozen) == true
 
       # Drop the named-schema registry and unfreeze it (tests only).
       def reset_param_schemas!
-        @param_schemas = {}
-        @param_schemas_frozen = false
+        set_setting(:@param_schemas, {}, share: false)
+        set_setting(:@param_schemas_frozen, false)
       end
 
       private
@@ -413,21 +483,20 @@ module Phlex
       def around_action(&block)
         raise ::ArgumentError, "Phlex::Reactive.around_action requires a block" unless block
 
-        around_actions << block
+        set_setting(:@around_actions, [*around_actions, block].freeze)
       end
 
-      # The registered around_action wrappers, oldest first. The endpoint folds
-      # them so the last-registered runs outermost; an empty stack is the default
-      # hot path (the controller short-circuits with `return yield`).
-      def around_actions
-        @around_actions ||= []
-      end
+      # The registered around_action wrappers, oldest first (a frozen list,
+      # replaced whole on each registration). The endpoint folds them so the
+      # last-registered runs outermost; an empty stack is the default hot path
+      # (the controller short-circuits with `return yield`).
+      attr_reader :around_actions
 
       # Drop all registered around_action wrappers. For test isolation (the
       # shipped hook — specs registering a temporary wrapper reset around every
       # example); never called in production.
       def reset_around_actions!
-        @around_actions = []
+        set_setting(:@around_actions, SETTING_DEFAULTS[:around_actions])
       end
 
       # Register a block called when a reactive action body raises a
@@ -444,17 +513,15 @@ module Phlex
       def on_action_error(&block)
         raise ::ArgumentError, "Phlex::Reactive.on_action_error requires a block" unless block
 
-        on_action_error_hooks << block
+        set_setting(:@on_action_error_hooks, [*on_action_error_hooks, block].freeze)
       end
 
-      # The registered on_action_error hooks, oldest first.
-      def on_action_error_hooks
-        @on_action_error_hooks ||= []
-      end
+      # The registered on_action_error hooks, oldest first (a frozen list).
+      attr_reader :on_action_error_hooks
 
       # Drop all registered on_action_error hooks. Test isolation; never in production.
       def reset_on_action_error!
-        @on_action_error_hooks = []
+        set_setting(:@on_action_error_hooks, SETTING_DEFAULTS[:on_action_error_hooks])
       end
 
       # The name-only keys forwarded to error reporters (issue #207). Deliberately
@@ -475,7 +542,7 @@ module Phlex
       # side-effect only: the return value is ignored.
       def report_error(error, context)
         snapshot = context.slice(*ERROR_CONTEXT_KEYS)
-        adapter = @resolved_apm_adapter
+        adapter = resolved_apm_adapter
         # Each reporter runs through safely_report on its OWN — one broken reporter
         # (a raising adapter or hook) never prevents the others, and never turns one
         # 500 into a different 500. safely_report takes the reporter as a block arg,
@@ -494,14 +561,29 @@ module Phlex
       # The APM adapter resolved at engine attach time (issue #207), or nil. Held so
       # report_error can reach record_error without re-running detection per request.
       # Set by APM.attach!; nil when no APM is configured or the SDK was absent.
-      attr_accessor :resolved_apm_adapter
+      attr_reader :resolved_apm_adapter
 
-      def verifier
-        @verifier ||= default_verifier
+      def resolved_apm_adapter=(value)
+        set_setting(:@resolved_apm_adapter, value)
       end
 
+      # Built on first use (it needs Rails.application); finalize! builds it at
+      # boot. An ActiveSupport::MessageVerifier is never Ractor-shareable, and
+      # ActiveSupport cannot build or use one outside the main Ractor, so
+      # signing stays on the main Ractor (an ActiveSupport limit).
+      def verifier
+        setting(:@verifier) || set_setting(:@verifier, default_verifier)
+      end
+
+      # ActionController::Base unless an app set one; resolved on each read
+      # until finalize! stores it, so reading never writes. A name resolves on
+      # every read (see renderer=).
       def renderer
-        @renderer ||= defined?(::ActionController::Base) ? ::ActionController::Base : nil
+        case (value = setting(:@renderer))
+        when nil then defined?(::ActionController::Base) ? ::ActionController::Base : nil
+        when ::String then ::ActiveSupport::Inflector.constantize(value)
+        else value
+        end
       end
 
       # Build an off-request view context whose controller has a REAL `request`.
@@ -560,12 +642,11 @@ module Phlex
           raise ArgumentError, "early_event_ttl_ms must be a positive Integer (milliseconds) or nil, got #{value.inspect}"
         end
 
-        @early_event_ttl_ms = value
+        set_setting(:@early_event_ttl_ms, value || SETTING_DEFAULTS[:early_event_ttl_ms])
       end
 
-      def early_event_ttl_ms
-        @early_event_ttl_ms ||= 10_000
-      end
+      # The replay window, in milliseconds (default 10 s).
+      attr_reader :early_event_ttl_ms
 
       # --- Deferred reply segments (issue #165) --------------------------
 
@@ -573,18 +654,18 @@ module Phlex
       # reply→fetch gap (or reply→job→SSE on the push lane), so it stays short:
       # a leaked defer token is a render oracle for exactly one component
       # identity until this expires. nil resets to the default.
-      attr_writer :defer_token_ttl
+      attr_reader :defer_token_ttl
 
-      def defer_token_ttl
-        @defer_token_ttl ||= 120
+      def defer_token_ttl=(value)
+        set_setting(:@defer_token_ttl, value || SETTING_DEFAULTS[:defer_token_ttl])
       end
 
       # The path the defer endpoint is mounted at (the pull lane's target).
       # Default "/reactive/defer"; set before boot if it collides.
-      attr_writer :defer_path
+      attr_reader :defer_path
 
-      def defer_path
-        @defer_path ||= "/reactive/defer"
+      def defer_path=(value)
+        set_setting(:@defer_path, value || SETTING_DEFAULTS[:defer_path])
       end
 
       # The path prefix of the cacheable-fragment GET endpoint (issue #277):
@@ -592,10 +673,10 @@ module Phlex
       # before boot if it collides. The shell renders the full URL, but the
       # client only fetches one under the path it knows: when you change this,
       # also render <meta name="phlex-reactive-fragment-path" content="…">.
-      attr_writer :fragment_path
+      attr_reader :fragment_path
 
-      def fragment_path
-        @fragment_path ||= "/reactive/fragment"
+      def fragment_path=(value)
+        set_setting(:@fragment_path, value || SETTING_DEFAULTS[:fragment_path])
       end
 
       # The longest max-age (seconds) a `reactive_lazy cache:` component may
@@ -612,12 +693,11 @@ module Phlex
             "(or nil for the default) — got #{value.inspect}"
         end
 
-        @fragment_cache_max_age_limit = seconds
+        set_setting(:@fragment_cache_max_age_limit, seconds || SETTING_DEFAULTS[:fragment_cache_max_age_limit])
       end
 
-      def fragment_cache_max_age_limit
-        @fragment_cache_max_age_limit ||= 3600
-      end
+      # The max-age cap, in seconds (default 3600).
+      attr_reader :fragment_cache_max_age_limit
 
       # The deterministic, no-expiry, purpose-scoped fragment id of an identity
       # payload, and its verification (issue #277). See Phlex::Reactive::Fragment.
@@ -630,9 +710,7 @@ module Phlex
       # warning when the capability is absent). Validated at assignment — a
       # typo'd transport must fail at the initializer, not silently at reply
       # time. nil resets to the default.
-      def defer_transport
-        @defer_transport ||= :auto
-      end
+      attr_reader :defer_transport
 
       def defer_transport=(value)
         value = value&.to_sym
@@ -642,17 +720,17 @@ module Phlex
             "(got #{value.inspect})"
         end
 
-        @defer_transport = value
+        set_setting(:@defer_transport, value || SETTING_DEFAULTS[:defer_transport])
       end
 
       # The ActiveJob queue the push lane's DeferredRenderJob runs on. Default
       # "default"; point it at a fast queue in production — a deferred segment
       # is a UX-latency render, and letting it starve behind heavy jobs defeats
       # the point. nil resets to the default.
-      attr_writer :defer_job_queue
+      attr_reader :defer_job_queue
 
-      def defer_job_queue
-        @defer_job_queue ||= "default"
+      def defer_job_queue=(value)
+        set_setting(:@defer_job_queue, value || SETTING_DEFAULTS[:defer_job_queue])
       end
 
       # Signs a defer payload (issue #165): same shape + version stamp as the
@@ -802,10 +880,10 @@ module Phlex
       # a handful of them instead of 177. The ROW streams are never coalesced.
       # Needs pgbus with zoolutions/pgbus#465 on the peers path; without it the
       # window is simply ignored. nil resets to the default.
-      attr_writer :settle_coalesce_window_ms
+      attr_reader :settle_coalesce_window_ms
 
-      def settle_coalesce_window_ms
-        @settle_coalesce_window_ms ||= 50
+      def settle_coalesce_window_ms=(value)
+        set_setting(:@settle_coalesce_window_ms, value || SETTING_DEFAULTS[:settle_coalesce_window_ms])
       end
 
       # Can reply.pending mint a settle handle at all? A settle has NO pull
@@ -822,11 +900,11 @@ module Phlex
 
       # DOM id of the host-app container a Response#flash appends into.
       # Default "flash"; override to match your layout's flash region.
-      def flash_target
-        @flash_target ||= "flash"
-      end
+      attr_reader :flash_target
 
-      attr_writer :flash_target
+      def flash_target=(value)
+        set_setting(:@flash_target, value || SETTING_DEFAULTS[:flash_target])
+      end
 
       # Global effects opt-in (issue #215). nil (the default) = OFF: no root
       # attrs are emitted anywhere, the wire is byte-identical to pre-effects,
@@ -839,21 +917,17 @@ module Phlex
       #
       # Stored pre-normalized (wire strings), validated at WRITE time — a
       # typo'd effect name raises here, not at render time.
-      def effects
-        defined?(@effects) ? @effects : nil
-      end
+      attr_reader :effects
 
       def effects=(value)
-        @effects = Phlex::Reactive::Effects.normalize_config(value)
-        @effects_generation = effects_generation + 1
+        set_setting(:@effects, Phlex::Reactive::Effects.normalize_config(value))
+        set_setting(:@effects_generation, effects_generation + 1)
       end
 
       # Monotonic write counter for effects= — the cache key half that lets
       # each component class memoize its RESOLVED effect attrs (reactive_attrs
       # is the token-signing hot path) without ever serving a stale config.
-      def effects_generation
-        @effects_generation ||= 0
-      end
+      attr_reader :effects_generation
 
       # A user-visible flash rendered on every endpoint rescue path (issue #100).
       # Default nil = today's behavior (a bare head, or the verbose_errors
@@ -863,7 +937,11 @@ module Phlex
       # — at the SAME status it returns today (statuses never change). Composes
       # with verbose_errors: the turbo-stream flash wins the response body, the
       # diagnostic still goes to the log.
-      attr_accessor :error_flash
+      attr_reader :error_flash
+
+      def error_flash=(value)
+        set_setting(:@error_flash, value)
+      end
 
       # A CALLABLE that builds a flash component from STRING flash content (issue
       # #182). Given (level, content), it returns a Phlex component the gem renders
@@ -886,7 +964,7 @@ module Phlex
             "flash_component = ->(level, content) { #{callable}.new(level:, content:) }"
         end
 
-        @flash_component = callable
+        set_setting(:@flash_component, callable)
       end
 
       # Render a Phlex component to HTML with a full (off-request) view context.
@@ -960,7 +1038,7 @@ module Phlex
       # reset_flash_builder! (issue #113); the old name stays a permanent alias
       # below so the engine's to_prepare hook keeps working.
       def reset_stream_builder!
-        @off_request_view_context_generation = off_request_view_context_generation + 1
+        set_setting(:@off_request_view_context_generation, off_request_view_context_generation + 1)
       end
 
       # Issue #182: the pre-#113 aliases are removed (they contradicted the
@@ -976,9 +1054,8 @@ module Phlex
           "Phlex::Reactive.reset_flash_builder! was removed in issue #182 — use reset_stream_builder!"
       end
 
-      def off_request_view_context_generation
-        @off_request_view_context_generation ||= 0
-      end
+      # The counter reset_stream_builder! bumps; the per-thread caches compare it.
+      attr_reader :off_request_view_context_generation
 
       private
 
@@ -1002,9 +1079,8 @@ module Phlex
 
       public
 
-      def base_controller_name
-        @base_controller_name ||= "ActionController::Base"
-      end
+      # The base controller's name (see base_controller_name= above).
+      attr_reader :base_controller_name
 
       def base_controller
         base_controller_name.constantize
@@ -1061,18 +1137,18 @@ module Phlex
       def register_token_upgrader(from_version, &block)
         raise ::ArgumentError, "register_token_upgrader requires a block" unless block
 
-        token_upgraders[Integer(from_version)] = block
+        set_setting(:@token_upgraders, token_upgraders.merge(Integer(from_version) => block).freeze)
+        block
       end
 
       # from_version => callable(payload) -> migrated payload. Sparse: an entry
-      # exists only for a version that actually changed shape.
-      def token_upgraders
-        @token_upgraders ||= {}
-      end
+      # exists only for a version that actually changed shape. A frozen Hash,
+      # replaced whole on each registration.
+      attr_reader :token_upgraders
 
       # Drop all registered upgraders. For tests that register a temporary one.
       def reset_token_upgraders!
-        @token_upgraders = {}
+        set_setting(:@token_upgraders, SETTING_DEFAULTS[:token_upgraders])
       end
 
       # The acting client's SSE connection id during an action, or nil. Set by
@@ -1124,6 +1200,47 @@ module Phlex
       # inheriting it (the merge must own the whole trio).
       def url_options_for(request)
         { protocol: request.protocol, host: request.host, port: request.optional_port }
+      end
+
+      # --- Boot finalization (zoolutions/phlex-reactive#364) --------------
+
+      # Finalize the configuration once boot is over. The engine calls it
+      # after every initializer AND every after_initialize block of the app has
+      # run; an app booting phlex-reactive without the engine calls it at the
+      # end of its own boot.
+      #
+      # It builds the one lazy default (the verifier) and resolves the rest,
+      # freezes the param-type and named-schema registries, and stores every
+      # setting as a Ractor-shareable value (Shareable.share: deep-frozen
+      # COPIES, so the objects an app handed in are never frozen behind its
+      # back), so a non-main Ractor can read the configuration. What cannot
+      # be shared stays as it is and works on the main Ractor only: the
+      # verifier (an ActiveSupport::MessageVerifier), and a Proc whose self is
+      # not shareable (a block written in an initializer) — the
+      # phlex_reactive:doctor ractor readiness check lists them.
+      #
+      # Writers keep working afterwards (a test suite sets config per
+      # example) and what they write is shared too, but the lists are frozen:
+      # assign a new authorization_errors list rather than appending to it.
+      # Idempotent.
+      def finalize!
+        build_lazy_defaults
+        freeze_param_types!
+        freeze_param_schemas!
+        set_setting(:@finalized, true)
+        instance_variables.each { set_setting(it, Shareable.share(setting(it))) }
+        self
+      end
+
+      def finalized? = setting(:@finalized) == true
+
+      # Back to the configuration before finalize! (tests only): finalized?
+      # is false and authorization_errors can be appended to again. The
+      # param-type and schema registries have their own resets.
+      def reset_finalization!
+        set_setting(:@finalized, false)
+        set_setting(:@authorization_errors, authorization_errors.dup, share: false)
+        self
       end
 
       # The controller a correctly-mounted action path resolves to. Used by the
@@ -1180,6 +1297,49 @@ module Phlex
       end
 
       private
+
+      # Every lazy reader, built and stored, so that after boot each one is a
+      # plain read of a stored value.
+      def build_lazy_defaults
+        build_verifier
+        set_setting(:@renderer, renderer) if setting(:@renderer).nil?
+        set_setting(:@verbose_errors, verbose_errors)
+        set_setting(:@log_events, log_events)
+        set_setting(:@debug, debug)
+        set_setting(:@verify_authorized, verify_authorized)
+        set_setting(:@authorization_methods, authorization_methods)
+      end
+
+      # The verifier needs either one set explicitly or a Rails application;
+      # without both it stays lazy (and raises its guided error on first use,
+      # as before). So does an app that boots without a secret_key_base (a
+      # production rake task or build step): Rails raises ArgumentError for
+      # it, and boot must not, so the first token raises it instead.
+      def build_verifier
+        return unless setting(:@verifier) || (defined?(::Rails) && ::Rails.respond_to?(:application) && ::Rails.application)
+
+        verifier
+      rescue ::ArgumentError
+        nil
+      end
+
+      # --- Settings storage (zoolutions/phlex-reactive#364) ---------------
+      # Every setting is an instance variable of this module, read and written
+      # only through these two methods. Safe: settings are written at boot, by
+      # the app's initializers on the main Ractor before it serves a request
+      # (and between examples in a test suite); a non-main Ractor can never
+      # write a module instance variable at all. After finalize! every value
+      # is Ractor-shareable (or frozen, when it holds an app's Proc) and every
+      # read is a plain read; a write after it is shared the same way, except
+      # the test-only resets of the registries (share: false), which reopen
+      # them.
+      # rubocop:disable ThreadSafety/ClassInstanceVariable
+      def setting(ivar) = instance_variable_defined?(ivar) ? instance_variable_get(ivar) : (yield if block_given?)
+
+      def set_setting(ivar, value, share: true)
+        instance_variable_set(ivar, share && setting(:@finalized) == true ? Shareable.share(value) : value)
+      end
+      # rubocop:enable ThreadSafety/ClassInstanceVariable
 
       # Materialize the route set if it hasn't been drawn yet (the engine appends
       # POST /reactive/actions when routes are drawn, which may be after the boot
@@ -1238,7 +1398,14 @@ module Phlex
       end
     end
 
+    # Every setting starts at its default as the gem loads, so no reader
+    # writes on first use (the one lazy setting is the verifier, which needs
+    # Rails.application; finalize! builds it at boot; the param-type registry
+    # is seeded below the loader). The authorization_errors list stays open
+    # for appending until finalize!.
+    SETTING_DEFAULTS.each { |name, value| instance_variable_set(:"@#{name}", value) }
     self.authorization_errors = []
+    reset_param_schemas!
   end
 end
 
@@ -1294,5 +1461,9 @@ loader.do_not_eager_load("#{__dir__}/reactive/deferred_render_job.rb")
 # ActiveJob::Base).
 loader.do_not_eager_load("#{__dir__}/reactive/presence_render_job.rb")
 loader.setup
+
+# The param-type registry's built-ins (ParamSchema needs the loader, and loads
+# ActiveModel, which the engine's boot needed already).
+Phlex::Reactive.reset_param_types!
 
 require "phlex/reactive/engine" if defined?(Rails::Engine)

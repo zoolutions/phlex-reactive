@@ -908,7 +908,7 @@ RSpec.describe "cacheable lazy fragments", type: :request do
 
     it "runs no around_action wrapper and opens no action" do
       calls = []
-      original = Phlex::Reactive.around_actions.dup
+      Phlex::Reactive.reset_around_actions!
       Phlex::Reactive.around_action { |_component, _action, &block| calls << :wrapped and block.call }
       events = []
       sub = ActiveSupport::Notifications.subscribe("action.phlex_reactive") { |*args| events << args.last }
@@ -920,7 +920,7 @@ RSpec.describe "cacheable lazy fragments", type: :request do
       expect(events).to be_empty
     ensure
       ActiveSupport::Notifications.unsubscribe(sub) if sub
-      Phlex::Reactive.around_actions.replace(original) if original
+      Phlex::Reactive.reset_around_actions!
     end
   end
 

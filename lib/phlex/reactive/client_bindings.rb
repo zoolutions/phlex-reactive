@@ -52,6 +52,25 @@ module Phlex
 
       include Component::DSL
       include Component::Helpers
+
+      # Tracked so the engine warms every class with the DSL at boot, a
+      # client-only one too (zoolutions/phlex-reactive#364). A subclass
+      # inherits the module rather than including it, so `included` never
+      # fires for it.
+      included do
+        Phlex::Reactive::Component::Registry.track(self)
+      end
+
+      class_methods do
+        def inherited(subclass)
+          super
+          Phlex::Reactive::Component::Registry.track(subclass)
+        end
+      end
+
+      # ActiveSupport::Concern's bookkeeping on this module, sealed now that
+      # the body has loaded (zoolutions/phlex-reactive#364).
+      Phlex::Reactive::Shareable.seal_concern(self)
     end
   end
 end

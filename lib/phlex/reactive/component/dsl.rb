@@ -174,6 +174,13 @@ module Phlex
           # and the registry generation (any declaration) — as two integer
           # compares, because reactive_attrs is the token-signing hot path.
           # The race on a concurrent first call is benign (idempotent rebuild).
+          #
+          # A per-class memo of class-definition data, safe as a class ivar:
+          # Registry.warm! builds it at boot on the main Ractor when the app
+          # eager-loads (so a request only reads it), and it is rebuilt only
+          # after a declaration or an effects= write (boot, a development
+          # reload, a spec).
+          # rubocop:disable-next ThreadSafety/ClassInstanceVariable
           def reactive_effect_attrs
             effects_gen = Phlex::Reactive.effects_generation
             registry_gen = Registry.generation
@@ -583,7 +590,10 @@ module Phlex
           # frozen array of { any:, ops: } bindings, or nil when undeclared
           # (byte-stable wire). Memoized per class against the registry
           # generation (one integer compare) because reactive_attrs is the
-          # token-signing hot path — the reactive_effect_attrs precedent.
+          # token-signing hot path — the reactive_effect_attrs precedent. A
+          # class ivar for the same reason as that one: warmed at boot,
+          # rebuilt only after a declaration.
+          # rubocop:disable-next ThreadSafety/ClassInstanceVariable
           def reactive_on_complete_attr
             registry_gen = Registry.generation
             return @reactive_on_complete_attr if @reactive_on_complete_attr_gen == registry_gen
@@ -754,6 +764,10 @@ module Phlex
               "can rebuild through it."
           end
         end
+
+        # ActiveSupport::Concern's bookkeeping on this module, sealed now that
+        # the body has loaded (zoolutions/phlex-reactive#364).
+        Phlex::Reactive::Shareable.seal_concern(self)
       end
     end
   end

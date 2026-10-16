@@ -208,6 +208,31 @@ module Phlex
         # app on Action Cable boots exactly as before.
         Phlex::Reactive::Presence.install!
       end
+
+      # Finalize the configuration once boot is over (zoolutions/phlex-reactive#364).
+      # The after_initialize block is registered from an initializer that runs
+      # after the app's config/initializers, so it runs after every
+      # after_initialize block the app registered there or in
+      # config/application.rb: one that appends to authorization_errors (the
+      # documented pattern for an app's own constants) still finds the list open.
+      initializer "phlex_reactive.finalize", after: :load_config_initializers do
+        config.after_initialize { Phlex::Reactive::Engine.finalize_boot! }
+      end
+
+      # What the finalize hook runs; public so a spec can drive it. With eager
+      # loading every component class is loaded by now, so verify_authorized's
+      # interceptor is prepended to every token-bearing class, and every
+      # class's registries and render memos (a client-only view's too) are
+      # resolved here, at boot, rather than by the first request for each
+      # class (Authorization.instrument_all!, Component::Registry.warm!).
+      def self.finalize_boot!(eager_load: ::Rails.application.config.eager_load)
+        registry = Phlex::Reactive::Component::Registry
+        if Phlex::Reactive.verify_authorized
+          Phlex::Reactive::Authorization.instrument_all!(eager_load ? Phlex::Reactive::Streamable.registered_classes : [])
+        end
+        Phlex::Reactive.finalize!
+        registry.warm!(eager_load ? registry.registered_classes : [])
+      end
     end
   end
 end

@@ -97,22 +97,53 @@ module Phlex
       # WeakMap used as a set (the class is the key) so a class reloaded by
       # Zeitwerk in dev is GC'd normally — a strong Array would pin every
       # reloaded generation and leak across reloads. Guarded by a mutex;
-      # registration happens at class-load time, the reset iterates under lock.
-      @registry = ObjectSpace::WeakMap.new
-      @registry_mutex = Mutex.new
+      # registration happens at class-load time.
+      #
+      # Per-Ractor state (Phlex::Reactive::Store, zoolutions/phlex-reactive#364):
+      # a WeakMap and a Mutex are never Ractor-shareable, so in a module ivar no
+      # other Ractor could read them. Classes are defined on the main Ractor
+      # (boot, a development reload), so in practice this is one registry.
+      class ClassRegistry
+        def initialize
+          @mutex = Mutex.new
+          @classes = ObjectSpace::WeakMap.new
+        end
+
+        def add(klass)
+          @mutex.synchronize { @classes[klass] = true }
+        end
+
+        # A point-in-time snapshot, taken under the lock.
+        def to_a
+          @mutex.synchronize do
+            classes = []
+            @classes.each_key { classes << it }
+            classes
+          end
+        end
+      end
+
+      REGISTRY_KEY = :phlex_reactive_streamable_registry
 
       class << self
+        # This Ractor's ClassRegistry.
+        def class_registry = Phlex::Reactive::Store.fetch(REGISTRY_KEY) { ClassRegistry.new }
+
         # Reset every streamable class's cached view context + builder. Called
         # from the engine's reloader (config.to_prepare) so a reloaded renderer
         # controller is never served from a stale memo. No-op outside Rails.
         def reset_all_view_contexts!
-          @registry_mutex.synchronize do
-            @registry.each_key(&:reset_turbo_view_context!)
-          end
+          class_registry.to_a.each(&:reset_turbo_view_context!)
         end
 
+        # Also starts the class's view-context generation at 0 here, when the
+        # class is defined (boot, or a development reload, on the main Ractor),
+        # so reading it on the render path never writes the class
+        # (zoolutions/phlex-reactive#364).
         def register(klass)
-          @registry_mutex.synchronize { @registry[klass] = true }
+          klass.instance_variable_set(:@turbo_view_context_generation, 0) unless
+            klass.instance_variable_defined?(:@turbo_view_context_generation)
+          class_registry.add(klass)
         end
 
         # A point-in-time snapshot of every registered streamable class, taken
@@ -121,13 +152,7 @@ module Phlex
         # working; a class GC'd later simply won't appear next time. Call
         # Rails.application.eager_load! FIRST if you need every app class loaded —
         # the WeakMap only holds classes that have actually been loaded.
-        def registered_classes
-          @registry_mutex.synchronize do
-            classes = []
-            @registry.each_key { classes << it }
-            classes
-          end
-        end
+        def registered_classes = class_registry.to_a
 
         # The ONE broadcast implementation shared by the class-level
         # Streamable.broadcast_to and the module-level Phlex::Reactive.broadcast_to
@@ -423,14 +448,15 @@ module Phlex
         # this class's generation — each thread rebuilds lazily on its next use,
         # and entries for the old generation are dropped. Registered on Rails'
         # reloader by the engine; also used by specs. Thread-safe (an integer
-        # bump; no shared mutable structure to tear down).
+        # bump; no shared mutable structure to tear down), and a class ivar
+        # write that only ever runs on the main Ractor: from the engine's
+        # to_prepare (boot, a development reload) or a spec.
         def reset_turbo_view_context!
-          @turbo_view_context_generation = turbo_view_context_generation + 1
+          @turbo_view_context_generation = (turbo_view_context_generation || 0) + 1 # rubocop:disable ThreadSafety/ClassInstanceVariable
         end
 
-        def turbo_view_context_generation
-          @turbo_view_context_generation ||= 0
-        end
+        # Set to 0 when the class registers (Streamable.register).
+        attr_reader :turbo_view_context_generation
 
         # Render a component to HTML with a full Rails view context. Uses
         # phlex-rails' #render_in against our memoized off-request view context
@@ -909,6 +935,10 @@ module Phlex
           action: "remove", target: id, renders_root: false
         )
       end
+
+      # ActiveSupport::Concern's bookkeeping on this module, sealed now that
+      # the body has loaded (zoolutions/phlex-reactive#364).
+      Phlex::Reactive::Shareable.seal_concern(self)
     end
   end
 end

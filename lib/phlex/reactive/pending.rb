@@ -322,11 +322,11 @@ data-reactive-defer-src="#{ERB::Util.html_escape(src)}" data-reactive-defer-sinc
 
         # No settle lane is a CONFIG fact, not a per-reply event — warn once per
         # process (a pending reply can fire per click; per-reply spam would bury
-        # the signal), then degrade to a plain enqueue.
+        # the signal), then degrade to a plain enqueue. The "warned" flag is
+        # per-Ractor state (Store), never a module ivar written on the request
+        # path.
         def warn_no_lane
-          return if @no_lane_warned
-
-          @no_lane_warned = true
+          return unless Phlex::Reactive::Store.first_warning?(:pending_no_lane)
           return unless defined?(::Rails) && ::Rails.respond_to?(:logger) && ::Rails.logger
 
           ::Rails.logger.warn(

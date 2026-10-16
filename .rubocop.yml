@@ -1,9 +1,15 @@
+# conformance-kit's Tier 1 gate (zoolutions/phlex-reactive#363): it loads
+# rubocop-thread_safety and turns every one of its cops on (Mutable-
+# ClassInstanceVariable with EnforcedStyle: literals, LazySynchronization-
+# Primitive). `bundle exec conformance-kit doctor` checks this line.
+inherit_gem:
+  conformance-kit: config/rubocop.yml
+
 plugins:
   - rubocop-capybara
   - rubocop-performance
   - rubocop-rake
   - rubocop-rspec
-  - rubocop-thread_safety
 
 AllCops:
   TargetRubyVersion: 3.4
@@ -74,57 +80,23 @@ Lint/UnusedMethodArgument:
 #=== THREAD SAFETY ===
 #====================
 
-# rubocop-thread_safety stays ON as a tripwire for genuinely unsafe shared
-# mutable state on the request/broadcast path. These two cops are scoped OFF
-# only where the flagged class-level @ivars / module attrs are deliberate,
-# audited patterns (verified against the documented invariants):
-#   * lib/phlex/reactive.rb — module-level CONFIG (renderer/verifier/
-#     base_controller_name/action_path/flash_target/authorization_errors), set
-#     once at boot in an initializer and read-only thereafter. The lazy `||=`
-#     defaults are idempotent (a first-call race assigns an equivalent constant
-#     value); action_path + base_controller are warmed at boot/class-load.
-#   * lib/phlex/reactive/component.rb + lib/phlex/reactive/component/** — the
-#     class-definition-time DSL registries (Component::Registry's own-storage
-#     ivars, resolution caches, and the mutex-guarded generation counter, issue
-#     #115), written by the action/reactive_* macros in a class body and
-#     resolved through the superclass — the standard Ruby class-macro pattern,
-#     not request-path state.
-#   * lib/phlex/reactive/streamable.rb — the per-thread view-context cache's
-#     integer generation counter; the actual context is thread-keyed, and the
-#     bump is a benign `@n = n + 1` invalidation (reset on Rails reload).
-# Anywhere else (e.g. the controller request path) these cops still fire.
-ThreadSafety/ClassInstanceVariable:
-  Exclude:
-    - lib/phlex/reactive.rb
-    - lib/phlex/reactive/component.rb
-    - lib/phlex/reactive/component/**/*.rb
-    - lib/phlex/reactive/streamable.rb
-    # The once-per-process degraded-transport warn flag (issue #165) — a benign
-    # boolean race (worst case: the warning logs twice).
-    - lib/phlex/reactive/defer.rb
-    # The same once-per-process warn flag for the settle lane (issue #248).
-    - lib/phlex/reactive/pending.rb
-    # The APM subscriber's single process-global ASN subscription (issue #207),
-    # installed once at boot from the engine's after_initialize (like
-    # LogSubscriber.attach_to) — never mutated per request/thread.
-    - lib/phlex/reactive/apm/subscriber.rb
-    # APM.detect's per-symbol adapter memo (issue #207) — populated once at boot
-    # when a built-in APM is resolved (identity-stable so attach! is idempotent),
-    # cleared only by reset! in tests; not a per-request/thread mutation.
-    - lib/phlex/reactive/apm.rb
-
-ThreadSafety/ClassAndModuleAttributes:
-  Exclude:
-    - lib/phlex/reactive.rb
-    # Test-fixture dials (render_delay_ms / suppressed) the defer suite turns
-    # per example (issue #165) — never touched concurrently.
-    - spec/dummy/app/components/slow_totals_component.rb
-
+# Every rubocop-thread_safety cop is on (conformance-kit's config, above), and
+# none is excluded for a file or a directory: class-level state that is
+# deliberate carries an inline disable with the reason it is safe (the
+# settings storage in lib/phlex/reactive.rb, the per-class render memos, the
+# APM subscription). Anywhere else the cops fire.
 ThreadSafety/NewThread:
   Exclude:
-    # The view-context thread-safety spec MUST spawn real threads to prove
-    # concurrent renders don't interleave buffers.
-    - spec/**/*.rb
+    # Specs that start threads on purpose, each to force the race the code
+    # under test must survive (a Queue handshake or Thread.pass at the window).
+    - spec/phlex/authorization_boot_instrumentation_spec.rb
+    - spec/phlex/fragment_viewer_warned_spec.rb
+    - spec/phlex/reactive/store_spec.rb
+    # Concurrent renders must not interleave view-context buffers.
+    - spec/phlex/reactive/streamable_view_context_spec.rb
+    # The per-example watchdog (issue #320) runs on its own thread, so it can
+    # fail an example whose server wedged.
+    - spec/system/support/example_timeout.rb
 
 #===============
 #=== METRICS ===

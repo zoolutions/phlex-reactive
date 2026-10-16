@@ -41,8 +41,9 @@ module Phlex
       # a collection is walked, so no value can make the shell render slow.
       VIEWER_PART_LIMIT = 32
       VIEWER_NODE_LIMIT = 64
-      # Components already warned about (by class name): once per component.
-      VIEWER_WARNED = Concurrent::Map.new
+      # The per-Ractor table (Phlex::Reactive::Store) of the components already
+      # warned about, by class name: once per component.
+      VIEWER_WARNINGS_KEY = :phlex_reactive_fragment_viewer_warnings
 
       # A reactive_cache_viewer value that cannot name a viewer. Internal: it
       # carries the reason from the walk to viewer_param, which logs it.
@@ -207,7 +208,7 @@ module Phlex
       # component's hook — and answers nil: "this value names nobody".
       def warn_unusable_viewer(owner, reason)
         name = owner.respond_to?(:name) ? owner.name.to_s : owner.to_s
-        return nil if VIEWER_WARNED.put_if_absent(name, true)
+        return nil unless Phlex::Reactive::Store.table(VIEWER_WARNINGS_KEY).claim?(name)
         return nil unless defined?(::Rails) && ::Rails.respond_to?(:logger)
 
         ::Rails.logger&.warn(
@@ -220,7 +221,7 @@ module Phlex
 
       # Test seam: let the once-per-component warnings fire again.
       def reset_viewer_warning!
-        VIEWER_WARNED.clear
+        Phlex::Reactive::Store.table(VIEWER_WARNINGS_KEY).clear
       end
 
       # The max-age (seconds) the endpoint answers with: the component's

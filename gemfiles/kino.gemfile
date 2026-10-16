@@ -1,0 +1,10 @@
+# frozen_string_literal: true
+
+# The bundle of the report-only kino-smoke job (.github/workflows/main.yml,
+# zoolutions/phlex-reactive#364): the gem's own, plus the Ractor-mode server
+# and the Rails shim it needs. Never a dependency of the gem; no lockfile is
+# kept, so each run takes the newest kino and shim of these series.
+eval_gemfile "../Gemfile"
+
+gem "kino", "~> 0.7", require: false
+gem "ractor-rails-shim", "~> 0.4", require: false

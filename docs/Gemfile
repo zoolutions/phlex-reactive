@@ -85,6 +85,9 @@ group :development do
   gem "rubocop-rake", require: false
   gem "rubocop-rspec", require: false
   gem "rubocop-thread_safety", require: false
+  # ...and the ancestor .rubocop.yml inherits conformance-kit's config
+  # (inherit_gem), so the gem must resolve here too.
+  gem "conformance-kit", "~> 0.4", require: false
 end
 
 group :test do

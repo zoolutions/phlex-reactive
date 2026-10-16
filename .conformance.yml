@@ -1,0 +1,36 @@
+# phlex-reactive's concurrency conformance (conformance-kit, zoolutions/phlex-reactive#363).
+# `bundle exec conformance-kit check` runs what the conformance workflow runs.
+audit:
+  # Boots the dummy app (which finalizes the configuration) and loads all of the gem.
+  require: [./spec/conformance_eager_load.rb]
+  namespace: [Phlex::Reactive]
+  strict_autoloads: true
+ractor:
+  # With pgbus present, against Postgres: CI's postgres:18 service, or your own
+  # server locally (bin/conformance-db says how each is reached).
+  env:
+    TRANSPORT: pgbus
+    DATABASE_URL: postgres://localhost:5432/phlex_reactive_pgbus_test
+  setup: bin/conformance-db
+  # The Ractor canaries, and the thread/Async contention examples (over pgbus here).
+  test_command: bundle exec rspec --tag ractor --tag concurrency
+probes:
+  gem_name: phlex-reactive
+  roundhouse_app: spec/dummy
+main_only:
+  # Framework class state on the gem's own subclasses, narrowed to the
+  # framework's ivars so anything the gem keeps on the same classes is
+  # still audited.
+  - ancestor: Rails::Engine
+    ivars: ["@called_from", "@initializers", "@instance", "@railtie_name"]
+    reason: Rails::Engine's own class state, set by Rails at boot on the main Ractor
+  - ancestor: ActionController::Base
+    ivars: ["@_parameter_encodings", "@controller_path", "@renderer"]
+    reason: ActionController's own class state of the gem's controllers, set by Rails on the main Ractor (when the class is defined, or by the engine's boot-time route check for @controller_path); serving the endpoint from a non-main Ractor waits on Rails
+  # The optional MCP diagnostic server's tools (bin/rails phlex_reactive:mcp).
+  - ancestor: MCP::Tool
+    ivars: ["@annotations_value", "@input_schema_value"]
+    reason: the mcp gem's own class state (its annotations / input_schema DSL), set when the tool class loads; the MCP server is an optional stdio development tool that runs on the main Ractor
+  # The gem's own state. The identity-token signer:
+  - name: Phlex::Reactive.@verifier
+    reason: an ActiveSupport::MessageVerifier, which ActiveSupport cannot build or use outside the main Ractor (Messages::Codec's class attributes and Messages::Metadata::ENVELOPE_SERIALIZERS are not shareable), so signing stays on the main Ractor until ActiveSupport supports it

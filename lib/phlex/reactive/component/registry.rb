@@ -75,11 +75,48 @@ module Phlex
         # above). Owned by Component::Identity; invalidated here.
         HOT_PATH_MEMOS = %i[@reactive_record_ivar @reactive_state_ivars].freeze
 
+        # The public reader each registry kind resolves through: what warm!
+        # calls, so a kind added to OWN_IVARS needs its reader here too (the
+        # warm spec fails otherwise).
+        READERS = {
+          actions: :reactive_actions,
+          state_keys: :reactive_state_keys,
+          collections: :reactive_collections,
+          computes: :reactive_computes,
+          on_completes: :reactive_on_completes,
+          record_key: :reactive_record_key,
+          scope: :reactive_scope,
+          dirty: :reactive_dirty_config,
+          lazy: :reactive_lazy_declaration,
+          dormant: :reactive_dormant?,
+          effects: :reactive_effects_config,
+          skip_all: :reactive_skip_all_authorization?,
+          skip_actions: :reactive_skip_authorization_actions,
+          presence: :reactive_presence_declaration
+        }.freeze
+
+        # The per-class memos the render path reads (Identity's token memos,
+        # the DSL's root-attrs fragments): warm! builds them too.
+        MEMO_READERS = %i[reactive_record_ivar reactive_state_ivars reactive_effect_attrs reactive_on_complete_attr].freeze
+
+        # Where those readers memoize: the gem's own plain data (ivar names,
+        # attribute fragments), shared by warm! so a non-main Ractor can read it.
+        MEMO_IVARS = %i[@reactive_record_ivar @reactive_state_ivars @reactive_effect_attrs @reactive_on_complete_attr].freeze
+
+        # Every class with the reactive DSL, a ClientBindings-only view
+        # included (Streamable's registry has only the token-bearing ones):
+        # what the engine warms at boot. Per-Ractor (Phlex::Reactive::Store);
+        # classes are defined on the main Ractor.
+        CLASSES_KEY = :phlex_reactive_component_classes
+
         # Serializes generation bumps so two concurrent class definitions can't
         # lose an increment (a resolution memoized between the two writes must
         # see a THIRD generation, not the second one again). Reads stay bare —
-        # the resolution compare tolerates staleness (it just recomputes).
-        WRITE_MUTEX = Mutex.new
+        # the resolution compare tolerates staleness (it just recomputes). The
+        # lock is per-Ractor state (Phlex::Reactive::Store) rather than a Mutex
+        # constant, which no other Ractor could read (zoolutions/phlex-reactive#364);
+        # classes are declared on the main Ractor, so it is one lock in practice.
+        WRITE_LOCK_KEY = :phlex_reactive_registry_write_lock
 
         # Frozen empties for the no-declaration branches of resolve_* — the
         # merge/+ still returns a fresh, per-class copy.
@@ -119,6 +156,26 @@ module Phlex
             bump!(klass)
             value
           end
+
+          # -- boot warm-up (zoolutions/phlex-reactive#364) --------------------
+
+          # Resolve every registry kind and build the render path's per-class
+          # memos for each reactive component class among `classes`, then
+          # freeze each class's resolution cache. The engine runs it at boot
+          # when the app eager-loads (every class is loaded by then), so a
+          # request reads memos and never writes the class. A declaration
+          # after it (a development reload) bumps the generation and the next
+          # read rebuilds a fresh cache, as before.
+          def warm!(classes)
+            classes.each { warm_class(it) if it.respond_to?(:reactive_actions) }
+          end
+
+          # Called when a class gains the DSL (ClientBindings' included and
+          # inherited hooks), at class definition.
+          def track(klass) = class_registry.add(klass)
+
+          # A snapshot of every tracked class still loaded.
+          def registered_classes = class_registry.to_a
 
           # -- resolution (all memoized against the generation) -----------------
           #
@@ -179,7 +236,7 @@ module Phlex
           # and sweep the hot-path identity memos off the writing class's
           # family (see the contract in the module doc).
           def bump!(klass)
-            WRITE_MUTEX.synchronize { @generation += 1 }
+            Phlex::Reactive::Store.fetch(WRITE_LOCK_KEY) { Mutex.new }.synchronize { @generation += 1 }
             sweep_hot_path_memos(klass)
           end
 
@@ -191,14 +248,27 @@ module Phlex
           end
 
           # The generation-checked per-class memo: a cache built at an older
-          # generation is discarded wholesale and rebuilt lazily per kind.
+          # generation is discarded wholesale and rebuilt lazily per kind. A
+          # cache warm! froze answers a kind it lacks without memoizing it.
           def fetch(klass, kind)
             cache = resolution_cache(klass)
-            cache.fetch(kind) { cache[kind] = yield }
+            cache.fetch(kind) { cache.frozen? ? yield : (cache[kind] = yield) }
           end
 
+          def warm_class(klass)
+            [*READERS.values, *MEMO_READERS].each { klass.public_send(it) if klass.respond_to?(it) }
+            klass.instance_variable_get(:@reactive_registry_cache)&.freeze
+            MEMO_IVARS.each do
+              next unless klass.instance_variable_defined?(it)
+
+              klass.instance_variable_set(it, Phlex::Reactive::Shareable.share(klass.instance_variable_get(it)))
+            end
+          end
+
+          def class_registry = Phlex::Reactive::Store.fetch(CLASSES_KEY) { Phlex::Reactive::Streamable::ClassRegistry.new }
+
           def resolution_cache(klass)
-            generation = @generation
+            generation = self.generation
             if klass.instance_variable_get(:@reactive_registry_generation) == generation
               klass.instance_variable_get(:@reactive_registry_cache)
             else

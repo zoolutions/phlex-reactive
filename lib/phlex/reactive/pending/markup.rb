@@ -49,11 +49,28 @@ module Phlex
         # the first `>`.
         ROOT_TAG = %r{\A\s*<[^\s>/]+(?:\s+[^\s=>/]+(?:="[^"]*")?)*}
 
-        # Keyed weakly on the row class, so a class Zeitwerk replaced is not
-        # pinned between resets. A WeakKeyMap, not a WeakMap: nothing else holds
-        # the variant, so a weak VALUE would let GC drop the memo.
-        @variants = ObjectSpace::WeakKeyMap.new
-        @mutex = Mutex.new
+        # The variant memo, keyed weakly on the row class, so a class Zeitwerk
+        # replaced is not pinned between resets. A WeakKeyMap, not a WeakMap:
+        # nothing else holds the variant, so a weak VALUE would let GC drop the
+        # memo. Per-Ractor state (Phlex::Reactive::Store,
+        # zoolutions/phlex-reactive#364): a WeakKeyMap and its Mutex in module
+        # ivars could not be read from any other Ractor.
+        class Variants
+          def initialize
+            @mutex = Mutex.new
+            @map = ObjectSpace::WeakKeyMap.new
+          end
+
+          def fetch(row_class)
+            @mutex.synchronize { @map[row_class] ||= yield }
+          end
+
+          def reset!
+            @mutex.synchronize { @map = ObjectSpace::WeakKeyMap.new }
+          end
+        end
+
+        VARIANTS_KEY = :phlex_reactive_pending_variants
 
         class << self
           # The row's pending markup as HTML, or nil when the row has no hook
@@ -78,13 +95,14 @@ module Phlex
           end
 
           def variant_for(row_class)
-            @mutex.synchronize { @variants[row_class] ||= build_variant(row_class) }
+            variants.fetch(row_class) { build_variant(row_class) }
           end
 
           # Called from the engine's config.to_prepare (Rails code reload).
-          def reset!
-            @mutex.synchronize { @variants = ObjectSpace::WeakKeyMap.new }
-          end
+          def reset! = variants.reset!
+
+          # This Ractor's variant memo.
+          def variants = Phlex::Reactive::Store.fetch(VARIANTS_KEY) { Variants.new }
 
           private
 

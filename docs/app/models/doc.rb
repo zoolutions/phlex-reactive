@@ -21,6 +21,7 @@ class Doc
     { slug: 'editable-text',         title: 'Editable text',           group: 'Guide',    view: 'EditableText' },
     { slug: 'testing',               title: 'Testing',                 group: 'Guide',    view: 'Testing' },
     { slug: 'performance',           title: 'Performance',             group: 'Guide',    view: 'Performance' },
+    { slug: 'concurrency',           title: 'Concurrency & Ractors',   group: 'Guide',    view: 'Concurrency' },
     { slug: 'observability',         title: 'Observability & APM',     group: 'Guide',    view: 'Observability' },
     { slug: 'tooling',               title: 'Debugging & tooling',     group: 'Guide',    view: 'Tooling' },
     { slug: 'examples',              title: 'Examples overview',       group: 'Examples', view: 'ExamplesOverview' },

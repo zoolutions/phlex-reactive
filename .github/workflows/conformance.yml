@@ -1,0 +1,15 @@
+name: Conformance
+
+# conformance-kit's reusable conformance workflow (see its README, Enforcement).
+# Dependabot bumps the tag; the gem in the Gemfile must keep up with it.
+
+on:
+  pull_request:
+  merge_group:
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    uses: zoolutions/conformance-kit/.github/workflows/conformance.yml@v0.4.0

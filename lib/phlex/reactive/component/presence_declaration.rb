@@ -112,6 +112,10 @@ module Phlex
               "would never join the stream. Drop reactive_dormant on this component."
           end
         end
+
+        # ActiveSupport::Concern's bookkeeping on this module, sealed now that
+        # the body has loaded (zoolutions/phlex-reactive#364).
+        Phlex::Reactive::Shareable.seal_concern(self)
       end
     end
   end

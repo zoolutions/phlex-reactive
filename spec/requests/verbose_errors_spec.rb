@@ -122,8 +122,15 @@ RSpec.describe "verbose_errors diagnostics (issue #82)", type: :request do
   end
 
   describe "registered authorization error -> 403" do
-    before { Phlex::Reactive.authorization_errors << ModeratedComponent::NotAllowed }
-    after { Phlex::Reactive.authorization_errors.delete(ModeratedComponent::NotAllowed) }
+    # The list is frozen once the app has booted (Phlex::Reactive.finalize!):
+    # assign a new one, then put the original back.
+    around do
+      original = Phlex::Reactive.authorization_errors
+      Phlex::Reactive.authorization_errors = [*original, ModeratedComponent::NotAllowed]
+      it.run
+    ensure
+      Phlex::Reactive.authorization_errors = original
+    end
 
     it "names the raised error class and the action, and reminds where to authorize" do
       post_action(ModeratedComponent, payload: { "s" => { "noop" => nil } }, act: "moderate")

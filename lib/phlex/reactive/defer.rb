@@ -350,11 +350,11 @@ data-reactive-defer-pending="true" aria-busy="true">#{inner}</div>)
 
         # A forced :stream without the capability is a CONFIG mistake — warn
         # loudly but once per process (a deferred reply can fire per keystroke;
-        # per-reply spam would bury the signal), then degrade to :fetch.
+        # per-reply spam would bury the signal), then degrade to :fetch. The
+        # "warned" flag is per-Ractor state (Store), never a module ivar written
+        # on the request path.
         def warn_stream_degraded
-          return if @stream_degraded_warned
-
-          @stream_degraded_warned = true
+          return unless Phlex::Reactive::Store.first_warning?(:defer_stream_degraded)
           return unless defined?(::Rails) && ::Rails.respond_to?(:logger) && ::Rails.logger
 
           ::Rails.logger.warn(

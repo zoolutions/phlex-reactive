@@ -47,14 +47,15 @@ Gem::Specification.new do |spec|
       # a glob in a dirty working tree can't sweep in machine-local artifacts
       # (logs, .env, tmp, editor backups). This keeps spec.files stable across
       # build environments without a hand-written manifest.
-      patterns = %w[{app,config,lib}/**/*.{rb,js,erb,rake} lib/**/*.md lib/**/USAGE]
+      patterns = %w[{app,config,lib}/**/*.{rb,js,erb,rake} lib/**/*.md lib/**/USAGE sig/**/*.rbs]
       patterns.flat_map { |p| Dir.glob(p, base: __dir__) }
         .select { |f| File.file?(File.join(__dir__, f)) } +
         %w[CHANGELOG.md LICENSE.txt README.md].select { |f| File.file?(File.join(__dir__, f)) }
     end
 
+  # sig/ ships the RBS signatures of the public surface (issue #364).
   spec.files = gem_files.select do |f|
-    f.start_with?("app/", "config/", "lib/") ||
+    f.start_with?("app/", "config/", "lib/", "sig/") ||
       %w[CHANGELOG.md LICENSE.txt README.md].include?(f)
   end
   spec.require_paths = ["lib"]

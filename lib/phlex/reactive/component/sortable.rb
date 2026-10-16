@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+# SORTABLE_MESSAGES_JSON is built with Hash#to_json while this file loads.
+require "json"
+
 module Phlex
   module Reactive
     module Component

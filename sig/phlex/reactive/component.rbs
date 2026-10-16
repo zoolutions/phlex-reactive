@@ -1,0 +1,108 @@
+module Phlex
+  module Reactive
+    # include Phlex::Reactive::Component: actions, signed identity, the DSL.
+    module Component
+      class ActionDefinition < ::Data
+        attr_reader name: Symbol
+        attr_reader params: Hash[Symbol | String, untyped]
+        attr_reader schema: ParamSchema
+      end
+
+      class ComputeDefinition < ::Data
+        attr_reader name: Symbol
+        attr_reader inputs: Array[Symbol]
+        attr_reader outputs: Array[Symbol]
+        attr_reader reducer: String
+        attr_reader input_types: Hash[Symbol, Symbol]?
+        attr_reader mirror: Hash[Symbol, Array[String]]?
+      end
+
+      class OnCompleteDefinition < ::Data
+        attr_reader name: Symbol
+        attr_reader conditions: untyped
+        attr_reader ops: Array[untyped]
+      end
+
+      class CollectionDefinition < ::Data
+        attr_reader name: Symbol
+        attr_reader item: Class
+        attr_reader container: String
+        attr_reader count: String?
+        attr_reader empty: Class?
+        attr_reader size: Proc?
+
+        def size_for: (untyped component) -> Integer?
+      end
+
+      # The class-level declaration macros and registry readers.
+      module DSL
+        module ClassMethods
+          # --- identity ---
+          def reactive_record: (Symbol | String name) -> Symbol
+          def reactive_record_key: () -> Symbol?
+          def reactive_state: (*Symbol | String names) -> untyped
+          def reactive_state_keys: () -> Array[Symbol]
+          def from_identity: (Hash[String, untyped] payload) -> untyped
+
+          # --- actions ---
+          def action: (Symbol | String name, ?params: Hash[Symbol | String, untyped] | Symbol) -> ActionDefinition
+          def reactive_actions: () -> Hash[Symbol, ActionDefinition]
+          def reactive_action: (untyped name) -> bot
+          def reactive_action?: (untyped name) -> bot
+          def skip_verify_authorized: (*Symbol | String names) -> untyped
+          def skip_verify_authorized?: (Symbol | String action_name) -> bool
+          def reactive_skip_all_authorization?: () -> bool
+          def reactive_skip_authorization_actions: () -> Array[Symbol]
+          def require_server_actions!: (Symbol macro) -> void
+          def assert_no_scope_double_nesting!: (untyped scope, untyped params, Symbol action_name) -> void
+
+          # --- form scope and dirty tracking ---
+          def reactive_scope: (?(Symbol | String)? name) -> untyped
+          def reactive_dirty: (?warn_unsaved: bool, ?only: (Array[Symbol | String] | Symbol | String)?) -> untyped
+          def reactive_dirty_config: () -> Hash[Symbol, untyped]?
+          def ensure_draft_default!: () -> void
+
+          # --- collections ---
+          def reactive_collection: (Symbol | String name, item: Class, container: String, ?count: String?, ?empty: Class?,
+                                    ?size: Proc?) -> CollectionDefinition
+          def reactive_collection?: (untyped name) -> bot
+          def reactive_collections: () -> Hash[Symbol, CollectionDefinition]
+          def reactive_collection_def: (untyped name) -> bot
+
+          # --- client-side computes and completion bindings ---
+          # A setter only: without inputs: or outputs: it raises (the removed getter).
+          def reactive_compute: (Symbol | String name, inputs: untyped, ?outputs: untyped, ?reducer: String | Symbol | nil,
+                                 ?mirror: Hash[untyped, untyped]?) -> ComputeDefinition
+                              | (Symbol | String name, outputs: untyped, ?reducer: String | Symbol | nil,
+                                 ?mirror: Hash[untyped, untyped]?) -> ComputeDefinition
+          def reactive_compute?: (untyped name) -> bot
+          def reactive_compute_def: (untyped name) -> bot
+          def reactive_computes: () -> Hash[Symbol, ComputeDefinition]
+          def normalize_compute_inputs: (untyped inputs) -> untyped
+          def normalize_typed_compute_inputs: (untyped inputs) -> untyped
+          def normalize_compute_mirror: (untyped mirror) -> untyped
+          def reactive_on_complete: (?(Symbol | String) name, run: untyped, **untyped conditions) -> OnCompleteDefinition
+          def reactive_on_completes: () -> Hash[Symbol, OnCompleteDefinition]
+          def reactive_on_complete_attr: () -> String?
+          def normalize_on_complete_ops: (Symbol name, untyped run) -> Array[untyped]
+
+          # --- lazy mount, dormancy, effects ---
+          def reactive_lazy: (?tag: Symbol | String, ?on: untyped, ?cache: Hash[Symbol, untyped]?) -> untyped
+          def reactive_lazy?: () -> bool
+          def reactive_lazy_declaration: () -> untyped
+          def reactive_lazy_tag: () -> Symbol
+          def reactive_lazy_trigger: () -> untyped
+          def reactive_lazy_cache: () -> Hash[Symbol, untyped]?
+          def reactive_dormant: (?bool dormant) -> untyped
+          def reactive_dormant?: () -> bool
+          def reactive_effects: (?false opt_out, **untyped hooks) -> untyped
+          def reactive_effects_config: () -> (Hash[Symbol, String | false] | false)?
+          def reactive_effect_attrs: () -> Hash[Symbol, String]?
+
+          # The client-op builder (Phlex::Reactive::JS).
+          def js: () -> untyped
+        end
+      end
+    end
+  end
+end

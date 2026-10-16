@@ -20,15 +20,21 @@ module Phlex
 
         # Whether the installed GlobalID gives a class its own app
         # (global_id_app, then GlobalID.app — rails/globalid after 1.4).
-        # Read once: it is a fact about the loaded gem.
-        def self.per_class_gid_app?
-          return @per_class_gid_app if defined?(@per_class_gid_app)
+        # Read once, when this file loads: it is a fact about the loaded gem.
+        PER_CLASS_GID_APP = (::GlobalID::Identification.const_defined?(:ClassMethods, false) &&
+                             ::GlobalID::Identification::ClassMethods.method_defined?(:global_id_app)) == true
 
-          @per_class_gid_app = ::GlobalID::Identification.const_defined?(:ClassMethods, false) &&
-                               ::GlobalID::Identification::ClassMethods.method_defined?(:global_id_app)
-        end
+        def self.per_class_gid_app? = PER_CLASS_GID_APP
 
         class_methods do
+          # Both memos are class ivars by design (the hot-path contract above),
+          # and safe as such: Registry.warm! builds them at boot on the main
+          # Ractor when the app eager-loads, so a request only reads them, and
+          # Registry.bump! clears them only when a declaration lands (boot, a
+          # development reload). A first-render race in development rebuilds
+          # an equal value.
+          # rubocop:disable ThreadSafety/ClassInstanceVariable
+
           # The record's instance-variable symbol (e.g. :@todo), computed once.
           # reactive_token reads it on every render; interpolating :"@#{key}" each
           # time would allocate a symbol per render. Nil when record-less.
@@ -44,6 +50,7 @@ module Phlex
           def reactive_state_ivars
             @reactive_state_ivars ||= reactive_state_keys.map { [it.to_s, :"@#{it}"] }
           end
+          # rubocop:enable ThreadSafety/ClassInstanceVariable
         end
 
         private
@@ -128,6 +135,10 @@ module Phlex
         def reactive_gid_app(klass)
           (Identity.per_class_gid_app? && klass.global_id_app) || ::GlobalID.app
         end
+
+        # ActiveSupport::Concern's bookkeeping on this module, sealed now that
+        # the body has loaded (zoolutions/phlex-reactive#364).
+        Phlex::Reactive::Shareable.seal_concern(self)
       end
     end
   end

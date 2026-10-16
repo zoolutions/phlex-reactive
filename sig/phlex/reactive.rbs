@@ -1,0 +1,231 @@
+# The public configuration and token surface of phlex-reactive
+# (zoolutions/phlex-reactive#364). `bundle exec rbs -I sig validate` checks
+# these files; spec/phlex/rbs_spec.rb fails when a public method has no
+# signature. Rails, Turbo and Phlex objects (a controller class, a view
+# context, an ActiveSupport::MessageVerifier, a component) are `untyped`:
+# those gems ship no RBS of their own.
+module Phlex
+  module Reactive
+    VERSION: String
+
+    IDENTITY_PURPOSE: String
+    DEFER_PURPOSE: String
+    DEFER_TRANSPORTS: Array[Symbol]
+    TOKEN_VERSION: Integer
+    INSTRUMENTATION_NAMESPACE: String
+    SETTING_DEFAULTS: Hash[Symbol, untyped]
+    DEFAULT_AUTHORIZATION_METHODS: Array[Symbol]
+    CONFIG_READERS: Array[Symbol]
+
+    class Error < StandardError
+    end
+
+    class InvalidToken < Error
+      attr_reader diagnostic: Symbol?
+
+      def initialize: (?String? msg, ?diagnostic: Symbol?) -> void
+    end
+
+    class UnknownParamType < ::ArgumentError
+    end
+
+    class AuthorizationNotVerified < Error
+    end
+
+    class ConfigurationError < Error
+    end
+
+    # What a component-aware around_action wrapper sees.
+    class ActionContext < ::Data
+      attr_reader component: untyped
+      attr_reader action_name: Symbol
+      attr_reader params: Hash[Symbol, untyped]
+      attr_reader request: untyped
+
+      def self.new: (component: untyped, action_name: Symbol, params: Hash[Symbol, untyped], request: untyped) -> ActionContext
+    end
+
+    type payload = Hash[String, untyped]
+    type param_caster = ^(untyped) -> untyped
+    # (ctx, &action): returns action.call's value.
+    type around_wrapper = ^(ActionContext) { () -> untyped } -> untyped
+    type error_hook = ^(Exception, Hash[Symbol, untyped]) -> void
+
+    # --- settings: written at boot, Ractor-shareable after finalize! ---
+
+    def self.verifier: () -> untyped
+    def self.verifier=: (untyped value) -> void
+
+    # A controller class, or its name to follow code reloading.
+    def self.renderer: () -> Class?
+    def self.renderer=: (Class | String | nil value) -> void
+
+    def self.base_controller_name: () -> String
+    def self.base_controller_name=: (String? value) -> void
+    def self.base_controller: () -> Class
+
+    def self.authorization_errors: () -> Array[Class]
+    def self.authorization_errors=: (Array[Class] value) -> void
+
+    def self.importmaps: () -> (^() -> Hash[String, untyped])?
+    def self.importmaps=: ((^() -> Hash[String, untyped])? value) -> void
+
+    def self.action_path: () -> String
+    def self.action_path=: (String? value) -> void
+    def self.defer_path: () -> String
+    def self.defer_path=: (String? value) -> void
+    def self.fragment_path: () -> String
+    def self.fragment_path=: (String? value) -> void
+    def self.flash_target: () -> String
+    def self.flash_target=: (String? value) -> void
+    def self.defer_job_queue: () -> String
+    def self.defer_job_queue=: (String? value) -> void
+
+    def self.verbose_errors: () -> bool?
+    def self.verbose_errors=: (bool? value) -> void
+    def self.log_events: () -> bool?
+    def self.log_events=: (bool? value) -> void
+    def self.debug: () -> bool?
+    def self.debug=: (bool? value) -> void
+    def self.verify_authorized: () -> bool?
+    def self.verify_authorized=: (bool? value) -> void
+    def self.authorization_methods: () -> Array[Symbol]
+    def self.authorization_methods=: (Array[Symbol] value) -> void
+
+    # A Symbol naming a built-in adapter, a custom adapter, or nil.
+    def self.apm: () -> untyped
+    def self.apm=: (untyped value) -> void
+    def self.resolved_apm_adapter: () -> untyped
+    def self.resolved_apm_adapter=: (untyped value) -> void
+
+    def self.early_event_ttl_ms: () -> Integer
+    def self.early_event_ttl_ms=: (Integer? value) -> void
+    def self.defer_token_ttl: () -> Integer
+    def self.defer_token_ttl=: (Integer? value) -> void
+    def self.fragment_cache_max_age_limit: () -> Integer
+    def self.fragment_cache_max_age_limit=: (untyped value) -> void
+    def self.defer_transport: () -> Symbol
+    def self.defer_transport=: (Symbol | String | nil value) -> void
+    def self.settle_coalesce_window_ms: () -> Integer
+    def self.settle_coalesce_window_ms=: (Integer? value) -> void
+
+    def self.effects: () -> Hash[Symbol, String | false]?
+    def self.effects=: (bool | Hash[Symbol, untyped] | nil value) -> void
+    def self.effects_generation: () -> Integer
+
+    def self.error_flash: () -> (^(Symbol) -> String?)?
+    def self.error_flash=: ((^(Symbol) -> String?)? value) -> void
+    def self.flash_component: () -> (^(Symbol, untyped) -> untyped)?
+    def self.flash_component=: ((^(Symbol, untyped) -> untyped)? callable) -> void
+
+    # --- registries ---
+
+    def self.param_type: (Symbol | String name) { (untyped) -> untyped } -> param_caster
+    def self.param_type?: (Symbol | String name) -> bool
+    def self.param_types: () -> Hash[Symbol, param_caster?]
+    def self.freeze_param_types!: () -> true
+    def self.param_types_frozen?: () -> bool
+    def self.reset_param_types!: () -> untyped
+
+    def self.param_schema: (Symbol | String name, ?Hash[untyped, untyped]? schema) -> Hash[Symbol, untyped]
+    def self.param_schema?: (Symbol | String name) -> bool
+    def self.param_schemas: () -> Hash[Symbol, Hash[Symbol, untyped]]
+    def self.freeze_param_schemas!: () -> true
+    def self.param_schemas_frozen?: () -> bool
+    def self.reset_param_schemas!: () -> untyped
+
+    # The block also receives the continuation (&action, see around_wrapper);
+    # an RBS block type cannot declare a block of its own.
+    def self.around_action: () { (ActionContext) -> untyped } -> Array[around_wrapper]
+    def self.around_actions: () -> Array[around_wrapper]
+    def self.reset_around_actions!: () -> untyped
+
+    def self.on_action_error: () { (Exception, Hash[Symbol, untyped]) -> void } -> Array[error_hook]
+    def self.on_action_error_hooks: () -> Array[error_hook]
+    def self.reset_on_action_error!: () -> untyped
+    def self.report_error: (Exception error, Hash[Symbol, untyped] context) -> nil
+    def self.report_hook: (error_hook hook, Exception error, Hash[Symbol, untyped] context) -> untyped
+
+    def self.register_token_upgrader: (Integer from_version) { (payload) -> payload } -> ^(payload) -> payload
+    def self.token_upgraders: () -> Hash[Integer, ^(payload) -> payload]
+    def self.reset_token_upgraders!: () -> untyped
+
+    # --- boot finalization (zoolutions/phlex-reactive#364) ---
+
+    def self.finalize!: () -> self
+    def self.finalized?: () -> bool
+    def self.reset_finalization!: () -> self
+
+    # --- tokens ---
+
+    def self.sign: (payload payload) -> String
+    def self.verify: (String token) -> payload?
+    def self.upgrade_token: (payload payload) -> payload?
+    def self.sign_defer: (payload payload, ?unbound: bool) -> String
+    def self.verify_defer: (String token) -> payload?
+    def self.defer_purpose: () -> String
+    def self.sign_fragment: (payload payload) -> String
+    def self.verify_fragment: (String id) -> payload?
+
+    # --- request state (fiber-local) ---
+
+    def self.current_connection_id: () -> String?
+    def self.with_connection_id: [T] (String? connection_id) { () -> T } -> T
+    def self.current_url_options: () -> Hash[Symbol, untyped]?
+    def self.with_url_options: [T] (Hash[Symbol, untyped]? options) { () -> T } -> T
+    def self.url_options_for: (untyped request) -> Hash[Symbol, untyped]
+    def self.current_defer_binding: () -> String?
+    def self.with_defer_binding: [T] (String? binding) { () -> T } -> T
+    def self.defer_binding_for: (untyped request) -> String?
+
+    # --- rendering and broadcasting ---
+
+    def self.render: (untyped component) -> String
+    def self.request_bound_view_context: (Class controller_class) -> untyped
+    def self.off_request_view_context: () -> untyped
+    def self.off_request_view_context_generation: () -> Integer
+    def self.stream_builder: () -> untyped
+    def self.reset_stream_builder!: () -> Integer
+    def self.flash_builder: () -> bot
+    def self.reset_flash_builder!: () -> bot
+    def self.broadcast_to: (*untyped streamables, ?morph: bool, ?target: String?, ?exclude: untyped, ?visible_to: untyped,
+                            ?each: untyped, ?effect: untyped, **untyped verb) -> untyped
+    def self.instrument: [T] (String | Symbol event, ?Hash[Symbol, untyped] payload) { (Hash[Symbol, untyped]) -> T } -> T
+
+    # --- capability gates and route checks ---
+
+    def self.pgbus?: () -> bool
+    def self.pgbus_streams?: () -> bool
+    def self.defer_push_capable?: () -> bool
+    def self.settle_capable?: () -> bool
+    def self.action_route_ok?: (?String path) -> bool
+    def self.fragment_route_ok?: (?String path) -> bool
+    def self.warn_unless_action_route_mounted!: (?path: String, ?logger: untyped) -> void
+
+    # Per-Ractor lazy state.
+    module Store
+      class Table
+        def initialize: () -> void
+        def fetch: [T] (untyped key) { () -> T } -> T
+        def claim?: (untyped key) -> bool
+        def clear: () -> void
+      end
+
+      NATIVE: bool
+      FALLBACK: Table?
+      WARNINGS_KEY: Symbol
+
+      def self.fetch: [T] (Symbol key) { () -> T } -> T
+      def self.table: (Symbol key) -> Table
+      def self.first_warning?: (Symbol name) -> bool
+      def self.native?: () -> bool
+    end
+
+    # Ractor-shareable values for the gem's module and class state.
+    module Shareable
+      def self.share: [T] (T value) -> T
+      def self.shareable?: (untyped value) -> bool
+      def self.seal_concern: (Module mod) -> Module
+    end
+  end
+end

@@ -41,7 +41,7 @@ module Phlex
           # Memoize the instance PER SYMBOL so repeated detect/attach! calls return
           # the SAME object — Subscriber.install keys idempotency on adapter
           # identity (equal?), so a fresh klass.new each time would double-subscribe.
-          return (built_in_instances[apm] ||= klass.new) if klass.available?
+          return built_in_instances.fetch(apm) { klass.new } if klass.available?
 
           warn_and_nil("apm = #{apm.inspect} set but #{apm} is not loaded — no-op. " \
                        "Require the SDK (or remove the setting).")
@@ -68,17 +68,16 @@ module Phlex
         def reset!
           Subscriber.uninstall
           Phlex::Reactive.resolved_apm_adapter = nil
-          @built_in_instances = nil
+          built_in_instances.clear
         end
 
         private
 
         # Symbol => memoized built-in adapter instance. One instance per flavour for
         # the life of the process (cleared only by reset! in tests), so detect is
-        # identity-stable and attach! stays idempotent.
-        def built_in_instances
-          @built_in_instances ||= {}
-        end
+        # identity-stable and attach! stays idempotent. Per-Ractor state
+        # (Phlex::Reactive::Store), not a module ivar (zoolutions/phlex-reactive#364).
+        def built_in_instances = Phlex::Reactive::Store.table(:phlex_reactive_apm_adapters)
 
         def warn_and_nil(message)
           logger = Phlex::Reactive.send(:default_logger)
