@@ -1,7 +1,7 @@
 # phlex-reactive
 
 Project instructions for every agent: Claude Code (`CLAUDE.md` imports this file), Grok, Cursor,
-Copilot, Codex read it directly. Claude-only extras (commands, rules) live under `.claude/`.
+Copilot, Codex read it directly. Claude-only extras (plugin settings, commands) live under `.claude/`.
 
 Reactive [Phlex](https://www.phlex.fun) components for Rails — Livewire-style
 actions and live cross-tab updates, without writing Stimulus controllers or
@@ -37,7 +37,7 @@ hand-picking Turbo Stream targets.
 5. **Capability-detect pgbus features at runtime** — probe the actual keyword (`broadcast.parameters` includes `:exclude`), never `defined?(Pgbus)` alone or a version string
 6. **Degrade gracefully** — every pgbus-only feature must no-op or fall back when pgbus is absent
 7. **Control the reply via the return value** — return a `Phlex::Reactive::Response` (`replace`/`update`/`remove`/`redirect`/`with`, chain `.flash(level, content)` / `.stream(...)`) to govern the actor's HTTP reply; returning anything else keeps the implicit single replace. See the README "Controlling the action's reply" section and `lib/phlex/reactive/response.rb`.
-8. **Measure performance, don't guess** — any hot-path change (render, token signing, param coercion, broadcast, client dispatch) ships with a same-machine before/after from `rake bench` (or `/perf`). No speedup claim without a measured baseline. Report throughput AND allocations; distinguish a method-level win from a request-level one. See `.claude/rules/performance.md` and the performance page (`docs/app/views/docs/pages/performance.rb`).
+8. **Measure performance, don't guess** — any hot-path change (render, token signing, param coercion, broadcast, client dispatch) ships with a same-machine before/after from `rake bench` (or `/ruby-gem:perf`). No speedup claim without a measured baseline. Report throughput AND allocations; distinguish a method-level win from a request-level one. See the Performance section below and the performance page (`docs/app/views/docs/pages/performance.rb`).
 
 ## Commands
 
@@ -124,22 +124,40 @@ a fresh build) and `spec/phlex/vendored_controller_sync_spec.rb` (vendored copy 
 byte-identical to the shipped `.min.js`). Its failure message prints the exact
 re-sync command.
 
-## Slash Commands
+## Workflow
 
-| Command | Purpose |
-|---------|---------|
-| `/plan` | Fable-powered planning → GitHub issue or `docs/plans/` markdown (read-only; execute with `/lfg`) |
-| `/lfg` | Full autonomous workflow: branch → understand → explore → plan → TDD → verify → PR |
-| `/tdd` | Enforce RED → GREEN → REFACTOR |
-| `/perf` | Benchmark the branch vs main (same-machine before/after) and keep perf docs in sync |
-| `/architect` | Coordinate a change across the component → endpoint → client layers |
-| `/security` | Security audit (signed identity, default-deny, params, CSRF, connection-id) |
-| `/review-pr` | Review a PR for pattern compliance |
-| `/github-review-pr` | Full PR pass: fix CI failures, then resolve review comments (in that order) |
-| `/github-review-failures` | Fix failing CI checks until green |
-| `/github-review-comments` | Process unresolved PR review comments |
+- **Verify:** `bundle exec rubocop` · `bundle exec rbs -I sig validate` · `bundle exec rspec spec/phlex spec/requests spec/generators` · client edit: `rake build:js`, re-sync vendored copies, `bun test spec/javascript` (also `--define __SPLIT__=false`), `rake build:js_check` · `docs/**`: `cd docs && bundle exec rake lint && bundle exec rspec`
+- **Specs:** fast loop `bundle exec rspec <file>`; full suite `bundle exec rake`, browser `bundle exec rspec spec/system` (`rake spec:system_servers`, `rake spec:system_split`); two worktrees at once: yes, pgbus-transport system cells need their own Postgres (`DATABASE_URL`)
+- **CI:** required `Lint`, `Ruby 3.4`, `Ruby 4.0`, four `System (puma|falcon / cable|pgbus)`, both `conformance / …`, `cubic · AI code reviewer`; `Benchmarks`, `kino smoke`, `Demo site` not required; full suite on the PR; failure report: artifact `capybara-screenshots-<server>-<transport>`
+- **Review bot:** cubic
+- **Merge:** squash — `gh pr merge <PR> --squash --delete-branch`
+- **PR contract:** `## Summary` (`Closes #N`), `## Test plan`; labels per `## Labels`; scopes `streamable` `component` `controller` `client` `engine` `docs` `ci`; docs site or demo change: before/after screenshots; hot-path change: the before/after bench
+- **Conflicts:** `CHANGELOG.md` — both sides' bullets under `[Unreleased]`, no duplicate subheads; `version.rb` — main's (only `bin/release` bumps it); `Gemfile.lock` `docs/Gemfile.lock` — main's + `bundle install`; `app/javascript/phlex/reactive/*.min.js{,.map}` and their `spec/dummy/public/vendor/` twins (map in `spec/phlex/vendored_controller_sync_spec.rb`) — never by hand: resolve the source, `rake build:js`, re-sync; `docs/app/models/doc.rb`, route files — both lines, main's first
+- **Worktree setup:** `bundle install` · `bun install --frozen-lockfile` (also `docs/`); undo none
+- **Release:** `bin/release <v>` (never `gem push`; `bin/release`, `rakelib/release.rake` and `release.yml`'s shared jobs are the docs-kit kit, byte-identical across gems); changelog `CHANGELOG.md`, heading `## [X.Y.Z] - YYYY-MM-DD` under `## [Unreleased]`; prep none; lockfiles `Gemfile.lock` `docs/Gemfile.lock`; docs `deploy-docs.yml` on release; human none
+- **Main health:** `gh run list --workflow main.yml --branch main --event push --limit 1 --json conclusion,headSha`
+- **Upstream:** libraries we own `zoolutions/*`; scrub none
+- **Bench:** `bundle exec rake bench`, one `bundle exec rake bench:one[<name>]`; hot paths `AGENTS.md → Performance`; CI holds none
 
-**Models.** Sessions run on `opus` (Opus 5.5) with `fable` (Fable 5.1) as the advisor (`.claude/settings.json`). Fable is spent where judgment matters most: `/plan` runs on Fable, the advisor is consulted at decision points (before choosing an approach, a schema or public API, a migration, a dependency, anything irreversible, and when a failure repeats), and the `fable-validator` agent checks every finished implementation before its pull request opens (`/lfg`, Phase 6.5). Commands pin their tier by alias, never by full model ID: `opus` for orchestration, security, full PR review and the reasoning-heavy specialists (`/lfg`, `/architect`, `/security`, `/review-pr`, `/github-review-pr`, `/tdd`, `/perf`); `sonnet` for the prescriptive pattern-following passes (`/github-review-comments`, `/github-review-failures`); `haiku` for mechanical scans. Every spawned agent names its `model:`; one that does not runs on `sonnet` (`CLAUDE_CODE_SUBAGENT_MODEL`), never on the session's model. Plan mode cannot take a model of its own: it runs on Opus and asks the advisor.
+## Agent commands
+
+Plugins (`.claude/settings.json`): `/flow:lfg`, `/flow:plan`, `/flow:follow-through`, `/flow:finish-prs`,
+`/flow:github-review-pr` (`-failures`, `-comments`), `/flow:review-pr`, `/flow:tdd`, `/flow:debug-flaky`,
+the `flow:fable-validator` agent; `/ruby-gem:release`, `/ruby-gem:perf`. Local (`.claude/commands/`):
+`/architect` (component → endpoint → client), `/security` (signed identity, default-deny, params, CSRF,
+connection-id).
+
+**Models.** Sessions run on `opus` with `fable` as the advisor (`.claude/settings.json`); consult it
+before choosing an approach, a schema or public API, a migration, a dependency, anything
+irreversible, and when a failure repeats. Every spawned agent names its `model:`; one that does not
+runs on `sonnet` (`CLAUDE_CODE_SUBAGENT_MODEL`), never on the session's model.
+
+**Reviewing and fixing.** Beyond the Never Do list: pgbus events do not bubble, so listen on the
+element, not `document`; no secret in `reactive_state` (use `reactive_record` and read server-side);
+existing components must keep working verbatim. Fix at the earliest point, never a `rescue`/`&.`:
+a double-applied broadcast is the actor echo (dedup by id); `unknown keyword :exclude` is the
+capability gate; a stale token under rapid clicks is the request queue and token threading;
+`HelpersCalledBeforeRenderError` in `#id` is `Streamable#dom_id`.
 
 ## Architecture
 
@@ -201,7 +219,18 @@ optionality is a core invariant — never break it.
   (default) and Falcon (`CAPYBARA_SERVER=falcon`); CI runs both in a matrix, and
   `rake spec:system_servers` runs both locally. (No webrick — not a real server.)
 - pgbus-dependent specs run only on Ruby ≥ 3.3 (pgbus's floor) and guard with
-  `defined?(Pgbus)`. phlex-reactive's own runtime floor is Ruby 3.4.
+  `defined?(Pgbus)`. phlex-reactive's own runtime floor is Ruby 3.4. Assert BOTH paths: pgbus
+  present and the capability-gate fallback (an "old pgbus" double whose `broadcast` lacks
+  `:exclude` guards the `ArgumentError`). The default suite needs no Postgres; pgbus is
+  `require: false`.
+- Layers, cheapest first: unit `spec/phlex`, request `spec/requests` (endpoint, broadcasts),
+  system `spec/system`. 100% for identity sign/verify (tamper, wrong key/purpose), the action
+  endpoint (default-deny, coercion, authz 403) and the capability gate; 80% elsewhere.
+- Browser specs: `data-testid` selectors (not glyph text); waiting matchers as the barrier for the
+  async morph, never a snapshot right after a click; prove "no reload" with a `window.__marker`; a
+  round trip must pass under Puma (sync) AND Falcon (async). Each system example runs under a
+  watchdog (`spec/system/support/example_timeout.rb`): 90 s, `it "…", timeout: 120`,
+  `SYSTEM_EXAMPLE_TIMEOUT=…`, `0` disables.
 - See `docs/testing.md`.
 
 ## Performance
@@ -221,13 +250,29 @@ token signing (`reactive_token`), and param coercion. Key facts:
   full-request level the Rails stack + DB dominate — don't expect a render
   optimization to move request throughput.
 - **Measure before you change.** `rake bench` (micro) and `rake bench:request`
-  (end-to-end); `/perf` captures a same-machine before/after against `main`. The
-  CI `bench` job is run-and-report (artifact), never a hard fail.
+  (end-to-end); `/ruby-gem:perf` captures a same-machine before/after against `main`. The
+  CI `bench` job is run-and-report (artifact), never a hard fail. A new hot path gets
+  `benchmark/micro/<name>.rb` on the shared `BenchSupport` harness (`rake bench` globs it).
+- **Report throughput AND allocations** (i/s, obj/call; retained > 0 per render is a leak), say
+  whether the win is method-level or request-level, and say "within noise" when it is. If numbers
+  moved, update the performance page and add a `perf:` CHANGELOG entry.
 - **Cache correctness:** key any hot-path memo on what can change (renderer
-  identity), reset on reload, never cache values that rotate (CSRF token, pgbus
+  identity), reset on `config.to_prepare`, never cache values that rotate (CSRF token, pgbus
   connection id are read live).
-- See the performance page (`docs/app/views/docs/pages/performance.rb`) and
-  `.claude/rules/performance.md`.
+- **Never** optimize a path the bench shows is cold, trade a security or correctness invariant
+  (signed identity, default-deny, coercion, pgbus optionality) for speed, or rewrite the nested-param
+  coercion (#16/#21/#24) for a marginal allocation win.
+- **Hot paths:**
+
+| Path | Where |
+|------|-------|
+| Component re-render | `lib/phlex/reactive/streamable.rb` (`render_component`, `to_stream_replace`, `turbo_stream_builder`) |
+| Token signing | `lib/phlex/reactive/component.rb` (`reactive_token`, `on`, `reactive_attrs`) |
+| Param coercion | `app/controllers/phlex/reactive/actions_controller.rb` (`coerce_params` and friends) |
+| Broadcast render | `lib/phlex/reactive/streamable.rb` (`broadcast_*_to`) |
+| Client dispatch, connect | `app/javascript/phlex/reactive/runtime.js`, `features/*.js` |
+
+- See the performance page (`docs/app/views/docs/pages/performance.rb`).
 
 ## Screenshots on PRs and issues (always)
 
@@ -259,8 +304,8 @@ gh issue comment <n> --attach ./repro.mp4                       # video renders 
 ## Labels
 
 Every pull request carries exactly one `type` label and at least one `area`
-label from `.github/labels.yml` — never a `status` label. `/plan` labels the
-issue, `/lfg` copies the issue's `type` and `area` labels onto the PR (never
+label from `.github/labels.yml` — never a `status` label. `/flow:plan` labels the
+issue, `/flow:lfg` copies the issue's `type` and `area` labels onto the PR (never
 `plan` or another status label). Without an issue, the type comes from the
 change's conventional-commit prefix and the areas from
 `bin/labels infer $(git diff --name-only origin/main...HEAD)`. Labels change in
@@ -271,6 +316,5 @@ labels kit (canonical copy in docs-kit): never edit them in place.
 ## More Documentation
 
 See `.claude/` and `docs/`:
-- `.claude/commands/` — slash command definitions
-- `.claude/rules/` — coding style, git workflow, testing, performance, agents
+- `.claude/commands/` — the local slash commands (`/architect`, `/security`)
 - `docs/` — published site (architecture, security, broadcasting, transport-pgbus, testing, performance, examples)

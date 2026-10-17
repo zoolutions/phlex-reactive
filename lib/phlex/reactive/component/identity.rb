@@ -10,7 +10,7 @@ module Phlex
       #
       # THE token hot path. Both memos below are bare defined?/||= fast paths
       # ON PURPOSE: a render must never pay a per-read generation compare
-      # (issue #115 invariant, .claude/rules/performance.md). Coherence comes
+      # (issue #115 invariant, AGENTS.md → Performance). Coherence comes
       # from the WRITE side instead — Component::Registry.bump! sweeps these
       # memos off the declaring class and all its descendants whenever any
       # registry declaration lands (class-load-shaped, rare), so they can't go

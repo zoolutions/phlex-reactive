@@ -1,6 +1,6 @@
 // Client micro-benchmark entry point (issue #116) — the bun-runnable harness
 // behind `rake bench:client`. It benches the client DISPATCH hot path named in
-// .claude/rules/performance.md — #extractToken, #collectFields, recompute —
+// AGENTS.md → Performance — #extractToken, #collectFields, recompute —
 // through the controller's PUBLIC surface only (no __bench exports; no
 // app/javascript/ edits, so the vendored-sync rule is never tripped).
 //
