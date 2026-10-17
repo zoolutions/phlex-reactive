@@ -215,6 +215,7 @@ module Phlex
         result = run_action(component, action_def, coerced)
 
         event[:outcome] = :ok
+        mark_refused(result)
         render turbo_stream: response_streams(result, component)
       rescue Phlex::Reactive::AuthorizationNotVerified
         # A developer error (a forgotten authorize!), NOT a client fault — it
@@ -414,6 +415,15 @@ module Phlex
         stack.reduce(block) do |inner, wrapper|
           -> { wrapper.call(ctx, &inner) }
         end.call
+      end
+
+      # A reply that refused the posted values (issue #413) names the held
+      # fields the client keeps, instead of releasing them after the render.
+      def mark_refused(result)
+        return unless result.is_a?(Phlex::Reactive::Response) && result.refused?
+
+        response.headers[Phlex::Reactive::HeldFields::REFUSED_HEADER] =
+          Phlex::Reactive::HeldFields.refused_header(result.refused_fields)
       end
 
       # Turn the action's return value into the turbo-stream(s) to render for

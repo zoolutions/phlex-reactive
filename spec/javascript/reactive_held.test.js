@@ -5,7 +5,8 @@
 // user: the runtime marks it data-reactive-held, dispatches a bubbling
 // `reactive:held` { name, theirs }, and the root's next action request sends
 // the held names as X-Reactive-Held. The root's own reply never marks, and
-// once it has been applied the root holds nothing.
+// once it has been applied the root holds nothing — unless the reply refused
+// those values (X-Reactive-Refused, issue #413): then it keeps what it names.
 //
 // `morph()` replays Turbo 8 + Idiomorph on ONE element, as in
 // reactive_morph_focus.test.js.
@@ -37,6 +38,14 @@ beforeAll(async () => {
 let requests
 let controllers
 let reply
+let replyHeaders
+
+// A fetch Response's headers, looked up by name as the browser does.
+const headersOf = (extra) => {
+  const all = { "content-type": "text/vnd.turbo-stream.html" }
+  for (const [key, value] of Object.entries(extra)) all[key.toLowerCase()] = value
+  return { get: (name) => all[name.toLowerCase()] ?? null }
+}
 
 beforeEach(() => {
   for (const key of GLOBALS) SAVED[key] = globalThis[key]
@@ -67,13 +76,14 @@ beforeEach(() => {
     },
   }
   requests = []
+  replyHeaders = {}
   globalThis.fetch = (_url, init) => {
     requests.push({ body: JSON.parse(init.body), headers: init.headers })
     return Promise.resolve({
       redirected: false,
       ok: true,
       status: 200,
-      headers: { get: () => "text/vnd.turbo-stream.html" },
+      headers: headersOf(replyHeaders),
       text: () => Promise.resolve(""),
     })
   }
@@ -337,7 +347,7 @@ test("an error reply (422 turbo-stream) never marks, and keeps what the root alr
       redirected: false,
       ok: false,
       status: 422,
-      headers: { get: () => "text/vnd.turbo-stream.html" },
+      headers: headersOf({}),
       text: () => Promise.resolve("<turbo-stream></turbo-stream>"),
     })
   }
@@ -352,4 +362,103 @@ test("an error reply (422 turbo-stream) never marks, and keeps what the root alr
   expect(events).toEqual([])
   expect(title.hasAttribute("data-reactive-held")).toBe(false)
   expect(body.hasAttribute("data-reactive-held")).toBe(true)
+})
+
+// Issue #413: a reply that answers the posted values without storing them
+// (reply.morph.refused) keeps the root's marks, so the next keystroke names
+// the same fields again instead of saving over the other change.
+function holdBoth() {
+  const controller = mount(`<input name="title" value="Original"><input name="body" value="b">`)
+  const [title, body] = document.querySelectorAll("input")
+  type(body, "mine")
+  morph(body, `<input name="body" value="theirs">`)
+  type(title, "Draft by B")
+  morph(title, `<input name="title" value="Final by A">`)
+  return { controller, title, body }
+}
+
+test("a reply that refused every held value keeps the marks; the next action names them again", async () => {
+  const { controller, title, body } = holdBoth()
+  replyHeaders["x-reactive-refused"] = "*"
+  // The refusal re-renders A's title under the focused field.
+  reply = () => morph(title, `<input name="title" value="Final by A">`)
+  const events = heldEvents()
+
+  act(controller)
+  await flush()
+
+  expect(requests[0].headers["X-Reactive-Held"]).toBe('["title","body"]')
+  expect(events).toEqual([])
+  expect(title.hasAttribute("data-reactive-held")).toBe(true)
+  expect(body.hasAttribute("data-reactive-held")).toBe(true)
+
+  replyHeaders = {}
+  type(title, "Draft by B2")
+  act(controller)
+  await flush()
+  expect(requests[1].headers["X-Reactive-Held"]).toBe('["title","body"]')
+})
+
+test("a reply that refused named fields keeps only their marks", async () => {
+  const { controller, title, body } = holdBoth()
+  replyHeaders["x-reactive-refused"] = '["title"]'
+
+  act(controller)
+  await flush()
+
+  expect(title.hasAttribute("data-reactive-held")).toBe(true)
+  expect(body.hasAttribute("data-reactive-held")).toBe(false)
+
+  replyHeaders = {}
+  act(controller)
+  await flush()
+  expect(requests[1].headers["X-Reactive-Held"]).toBe('["title"]')
+})
+
+test("a refused reply is an answer, not a failure: no error marker, no reactive:error, no console error", async () => {
+  const { controller } = holdBoth()
+  replyHeaders["x-reactive-refused"] = "*"
+  const seen = []
+  document.addEventListener("reactive:error", () => seen.push("error"))
+  document.addEventListener("reactive:applied", () => seen.push("applied"))
+  const consoleError = console.error
+  const logged = []
+  console.error = (...args) => logged.push(args)
+
+  try {
+    act(controller)
+    await flush()
+  } finally {
+    console.error = consoleError
+  }
+
+  expect(controller.element.hasAttribute("data-reactive-error")).toBe(false)
+  expect(seen).toEqual(["applied"])
+  expect(logged).toEqual([])
+})
+
+test("a malformed X-Reactive-Refused reads as a plain reply: the marks release", async () => {
+  const { controller, title, body } = holdBoth()
+  replyHeaders["x-reactive-refused"] = '["title"'
+  const errors = []
+  document.addEventListener("reactive:error", (event) => errors.push(event.detail))
+
+  act(controller)
+  await flush()
+
+  expect(errors).toEqual([])
+  expect(title.hasAttribute("data-reactive-held")).toBe(false)
+  expect(body.hasAttribute("data-reactive-held")).toBe(false)
+})
+
+test("a broadcast morph after a refused reply keeps the mark while the field stays focused", async () => {
+  const { controller, title } = holdBoth()
+  replyHeaders["x-reactive-refused"] = '["title"]'
+  act(controller)
+  await flush()
+
+  morph(title, `<input name="title" value="Final by A">`)
+
+  expect(title.value).toBe("Draft by B")
+  expect(title.hasAttribute("data-reactive-held")).toBe(true)
 })

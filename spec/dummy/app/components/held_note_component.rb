@@ -3,7 +3,8 @@
 # Issue #370: the issue's reproduction. A debounced save whose title field is
 # held by a broadcast morph (another tab changed it while this one typed)
 # arrives with reactive_held_fields == ["title"]; the action refuses to
-# overwrite the other change and shows both values instead.
+# overwrite the other change and shows both values instead. The refusal keeps
+# the field held (issue #413), so the next keystroke is refused too.
 class HeldNoteComponent < ApplicationComponent
   include Phlex::Reactive::Component
 
@@ -20,7 +21,7 @@ class HeldNoteComponent < ApplicationComponent
     @held = reactive_held_fields
     if @held.include?("title") && title != @todo.title
       @conflict = title
-      return reply.morph
+      return reply.morph.refused("title")
     end
 
     @todo.update!(title:) if title.present?

@@ -7,6 +7,8 @@ require "system_helper"
 # (#338) — and now the field is marked data-reactive-held, a reactive:held
 # event reports the server's value, and B's next debounced save carries
 # X-Reactive-Held: ["title"], so the action refuses to overwrite A's title.
+# The refusal keeps the mark (issue #413), so B's next keystroke is refused
+# too, even after another broadcast re-rendered the form.
 #
 # The other tab's broadcast is delivered by hand (the dummy's Action Cable runs
 # the test adapter): the same morph stream broadcast_to(..., morph: true) sends.
@@ -48,8 +50,45 @@ RSpec.describe "Knowing what a morph held (issue #370)", type: :system do
       text: "Someone changed the title to Final by A while you typed Original draft more")
     expect(page).to have_css("[data-testid='held']", exact_text: "title")
     expect(todo.reload.title).to eq("Final by A")
-    # The reply to B's own request cleared the mark.
+    # The refusal kept the mark (issue #413) …
+    expect(page).to have_css("[data-testid='title'][data-reactive-held]")
+
+    # … through a broadcast that lands while the refusal shows (the field is
+    # still focused) …
+    broadcast_from_other_tab("Final by A, again")
+    expect(page).to have_css("[data-testid='saved']", exact_text: "Final by A, again")
+    expect(page).to have_no_css("[data-testid='conflict']")
+    expect(page).to have_css("[data-testid='title'][data-reactive-held]")
+
+    # … so B's next keystroke is refused too, instead of saving over A's title.
+    title.send_keys("!")
+
+    expect(page).to have_css("[data-testid='conflict']",
+      text: "Someone changed the title to Final by A, again while you typed Original draft more!")
+    expect(todo.reload.title).to eq("Final by A, again")
+    expect(page).to have_css("[data-testid='title'][data-reactive-held]")
+  end
+
+  it "releases the mark once the user takes the other value and the save stores it" do
+    visit "/held_note/#{todo.id}"
+
+    title = find("[data-testid='title']")
+    title.click
+    title.send_keys(" draft")
+    expect(page).to have_css("[data-testid='saved']", exact_text: "Original draft")
+    broadcast_from_other_tab("Final by A")
+    expect(page).to have_css("[data-testid='title'][data-reactive-held]")
+
+    page.execute_script(<<~JS)
+      document.addEventListener("reactive:applied", () => document.body.setAttribute("data-saved", ""))
+    JS
+    title.fill_in(with: "Final by A")
+
+    # The save B's own input sent has been applied: nothing held, no conflict.
+    expect(page).to have_css("body[data-saved]")
     expect(page).to have_no_css("[data-reactive-held]")
+    expect(page).to have_no_css("[data-testid='conflict']")
+    expect(todo.reload.title).to eq("Final by A")
   end
 
   it "marks nothing when the morph renders the value the field already had as its default" do

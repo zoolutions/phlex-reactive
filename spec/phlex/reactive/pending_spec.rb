@@ -83,6 +83,13 @@ RSpec.describe Phlex::Reactive::Pending, type: :request do
       end
     end
 
+    it "keeps a refusal chained ahead of it (issue #413)" do
+      with_settle_lane do
+        response = container.reply.streams.refused("title").pending(todo, in: :todos) { nil }
+        expect(response.refused_fields).to eq(["title"])
+      end
+    end
+
     it "refuses an unknown keyword rather than silently dropping it" do
       # `in:` is a Ruby keyword, so every other kwarg lands in **opts. A dropped
       # `jbo:` would mark the rows pending and enqueue NOTHING — a permanently

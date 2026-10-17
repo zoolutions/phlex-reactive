@@ -6,6 +6,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A reply that refuses the posted values keeps the held marks (#413).**
+  Every reply to a root's own request released the fields a morph held
+  (#370), so after an action refused a save the user's next keystroke posted
+  no held names and went through over the other change. Return
+  `reply.morph.refused` (every mark) or `reply.morph.refused("title")` (only
+  those fields) and the client keeps the marks: the root's next action names
+  them in `reactive_held_fields` again, until the action stores the field or
+  the user takes the other value. The endpoint sends it as the
+  `X-Reactive-Refused` response header; the reply stays a 200, with no error
+  marker and no `reactive:error`. `run_reactive(…).refused?` and
+  `response.refused?` / `response.refused_fields` assert it in a unit test.
+  Client: +65 B gzipped in the default bundle, +60 B in the split core.
+  Docs: "Knowing what was held" on the architecture page, the `reply` table
+  in the README.
+
 ## [0.16.0] - 2026-10-16
 
 ### Upgrading from 0.15.x

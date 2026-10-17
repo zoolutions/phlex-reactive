@@ -143,6 +143,23 @@ RSpec.describe Phlex::Reactive::TestHelpers do
         expect(result.component.instance_variable_get(:@held)).to eq([])
         expect(todo.reload.title).to eq("mine")
       end
+
+      # Issue #413: the refusal is visible to a unit test, on the Response and
+      # on the Result.
+      it "reports a reply that refused the held values" do
+        result = run_reactive(HeldNoteComponent.new(todo:), :save, held: ["title"], title: "mine")
+
+        expect(result).to be_refused
+        expect(result.response).to be_refused
+        expect(result.response.refused_fields).to eq(["title"])
+      end
+
+      it "reports a reply that stored the values as not refused" do
+        result = run_reactive(HeldNoteComponent.new(todo:), :save, title: "mine")
+
+        expect(result).not_to be_refused
+        expect(result.response).not_to be_refused
+      end
     end
   end
 

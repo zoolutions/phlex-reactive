@@ -26,12 +26,28 @@ RSpec.describe "X-Reactive-Held (issue #370)", type: :request do
     expect(todo.reload.title).to eq("Final by A")
   end
 
+  # Issue #413: the refusal tells the client to keep the title held, so the
+  # next keystroke posts it again instead of saving over A's change.
+  it "names the refused field in X-Reactive-Refused" do
+    save("Draft by B", held: '["title"]')
+
+    expect(response.headers[Phlex::Reactive::HeldFields::REFUSED_HEADER]).to eq('["title"]')
+  end
+
   it "is [] without the header: the save goes through" do
     save("Draft by B")
 
     expect(response).to have_http_status(:ok)
     expect(response.body).to include(%(data-testid="held"></span>))
     expect(todo.reload.title).to eq("Draft by B")
+    expect(response.headers).not_to have_key(Phlex::Reactive::HeldFields::REFUSED_HEADER)
+  end
+
+  it "sends * for a reply that refused every held field" do
+    allow_any_instance_of(HeldNoteComponent).to receive(:save) { it.reply.morph.refused } # rubocop:disable RSpec/AnyInstance
+    save("Draft by B", held: '["title"]')
+
+    expect(response.headers[Phlex::Reactive::HeldFields::REFUSED_HEADER]).to eq("*")
   end
 
   it "reads a malformed header as nothing held" do

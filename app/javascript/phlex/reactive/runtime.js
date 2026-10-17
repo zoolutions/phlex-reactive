@@ -735,8 +735,9 @@ export function registerReactiveMorphFocus() {
 // through later morphs while focused, like `value`), a bubbling reactive:held
 // { name, theirs } is dispatched, and the root's next action sends the names as
 // X-Reactive-Held. The root's own reply never marks (it answers exactly those
-// values), and once applied the root holds nothing. A morph of the field while
-// unfocused writes the server's value and drops the mark with it.
+// values), and once applied the root holds nothing — unless it refused them
+// (X-Reactive-Refused, issue #413): then the marks it names stay. A morph of
+// the field while unfocused writes the server's value and drops the mark with it.
 const HELD = "data-reactive-held"
 const ROOT = '[data-controller~="reactive"]'
 let replyRoot = null
@@ -781,18 +782,35 @@ function heldHeader(root) {
   return JSON.stringify(names).replace(/[\u007f-￿]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`)
 }
 
-function releaseHeld(root) {
-  for (const el of root.querySelectorAll(`[${HELD}]`)) if (el.closest(ROOT) === root) el.removeAttribute(HELD)
+// `keep`: true keeps every mark, a list keeps the marks of those names.
+function releaseHeld(root, keep) {
+  if (keep === true) return
+  for (const el of root.querySelectorAll(`[${HELD}]`)) {
+    if (el.closest(ROOT) === root && !keep?.includes(el.getAttribute("name"))) el.removeAttribute(HELD)
+  }
+}
+
+// What a reply refused (issue #413): "*" keeps every mark, a JSON list the
+// marks of those names. Anything else reads as a plain reply.
+function refusedHeader(response) {
+  const raw = response.headers.get("X-Reactive-Refused")
+  if (raw === "*") return true
+  try {
+    const names = JSON.parse(raw)
+    return Array.isArray(names) ? names : null
+  } catch {
+    return null
+  }
 }
 
 // Hand a root's own reply to Turbo: while its streams render nothing in the
-// root is marked, and once they have the root holds nothing. Turbo announces
-// each stream synchronously inside renderStreamMessage (streamOwnReply wraps
-// its render, innermost); a reply none of whose streams rendered releases now.
-// An error reply (release false) never marks either, but releases nothing: the
-// server refused those values rather than answering them.
-function renderOwnReply(root, html, release = true) {
-  const own = { root, streams: 0, release }
+// root is marked, and once they have the root holds nothing but what `keep`
+// names. Turbo announces each stream synchronously inside renderStreamMessage
+// (streamOwnReply wraps its render, innermost); a reply none of whose streams
+// rendered releases now. An error reply (keep true) never marks either, but
+// releases nothing: the server refused those values rather than answering them.
+function renderOwnReply(root, html, keep = null) {
+  const own = { root, streams: 0, keep }
   const previous = replyRoot
   replyRoot = own
   try {
@@ -800,7 +818,7 @@ function renderOwnReply(root, html, release = true) {
   } finally {
     replyRoot = previous
   }
-  if (release && own.streams === 0) releaseHeld(root)
+  if (own.streams === 0) releaseHeld(root, keep)
 }
 
 function streamOwnReply(event) {
@@ -817,7 +835,7 @@ function streamOwnReply(event) {
       const left = replying.get(own.root) - 1
       if (left) replying.set(own.root, left)
       else replying.delete(own.root)
-      if (own.release) releaseHeld(own.root)
+      releaseHeld(own.root, own.keep)
     }
   }
 }
@@ -4096,7 +4114,7 @@ export default class extends Controller {
             if (__SPLIT__) this.#devtools((devtools) => devtools.recordBody(debug, errorBody, fresh))
             else devtoolsFeature.recordBody(debug, errorBody, fresh)
           }
-          renderOwnReply(this.element, errorBody, false)
+          renderOwnReply(this.element, errorBody, true)
         }
         this.#markError("http")
         this.#emitError(action, params, allParams, { kind: "http", status: response.status, body: errorBody })
@@ -4128,8 +4146,9 @@ export default class extends Controller {
       // outerHTML swap (focus on the replaced subtree is lost); a method="morph"
       // replace (Response.morph) or an update morphs in place, preserving the
       // focused input + caret on unchanged nodes — see issue #28. As the root's
-      // own reply, it clears what the root held (issue #370).
-      renderOwnReply(this.element, html)
+      // own reply, it clears what the root held (issue #370), but what it
+      // refused (issue #413).
+      renderOwnReply(this.element, html, refusedHeader(response))
       // Debug-only (issue #181): the morph may apply a microtask later, so check
       // the resurrected-hide case AFTER it lands. Off the debug path, resurrect is
       // null — zero cost.
