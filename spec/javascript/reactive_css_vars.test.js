@@ -250,6 +250,20 @@ test("a hand-built entry with a bad name or unit is refused; its siblings still 
   expect(warnings.some((w) => w.includes("refused reactive_css_vars"))).toBe(true)
 })
 
+test("a to: that is not a valid selector matches nothing, and the root's other bindings still run", async () => {
+  document.body.innerHTML = `<div id="r" data-controller="reactive"
+    data-reactive-css-vars="${attr({ to: ["[name=", "#sample"], vars: { "--light": { field: "light" } } })}">
+    <input name="light" value="1.2"><img id="sample" alt="">
+    <p id="note" data-reactive-show="${attr({ any: [[{ field: "light", equals: "0.5" }]] })}">dim</p></div>`
+  await connect("r")
+  expect(prop(document.querySelector("#sample"), "--light")).toBe("1.2")
+  expect(document.querySelector("#note").hidden).toBe(true)
+
+  set(document.querySelector("[name=light]"), "0.5")
+  expect(prop(document.querySelector("#sample"), "--light")).toBe("0.5")
+  expect(document.querySelector("#note").hidden).toBe(false)
+})
+
 test("malformed JSON (two calls collided on one element) warns and is skipped", async () => {
   document.body.innerHTML = `<div id="r" data-controller="reactive"
     data-reactive-css-vars="${attr(LIGHT)} ${attr(LIGHT)}"><input name="light" value="1.2"><img id="sample" alt=""></div>`

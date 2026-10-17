@@ -808,9 +808,14 @@ function syncCssVars(c, fieldValue, owns, scope) {
       console.warn("[phlex-reactive] malformed data-reactive-css-vars — skipped (two reactive_css_vars on one element?)")
       continue
     }
+    // A selector that does not parse matches nothing: it must not throw out
+    // of the show pass and stop the root's other bindings.
     const targets = wire.to.flatMap((to) => {
       const args = { to, global: wire.global === true }
-      const found = c.core.opTargets(args)
+      let found = []
+      try {
+        found = c.core.opTargets(args)
+      } catch {}
       if (!found.length) c.core.diagnose("reactive_css_vars", args)
       return found
     })

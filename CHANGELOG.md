@@ -22,8 +22,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `em`, `rem`, `fr`) and names match `--[a-z0-9-]+`, checked at render and in
   the browser. `to:` resolves like a client op's (`:root`, inside the root,
   `global: true`, an Array). It goes on the root or on any element inside it,
-  and works on a `ClientBindings` view. Client: +457 B gzipped in the default
-  bundle; +455 B in `features/bindings` and +16 B in the split core.
+  and works on a `ClientBindings` view. Client: +460 B gzipped in the default
+  bundle; +462 B in `features/bindings` and +16 B in the split core.
   Docs: "Live CSS properties" on the client-ops page, with a demo.
 
 ### Fixed
