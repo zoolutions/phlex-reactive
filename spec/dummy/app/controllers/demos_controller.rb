@@ -379,6 +379,10 @@ class DemosController < ActionController::Base
     render_component OtpCountdownComponent.new(seconds: params.fetch(:seconds, 90).to_i)
   end
 
+  def css_vars
+    render_component CssVarsPreviewComponent.new(light: params.fetch(:light, "1"))
+  end
+
   def validated_photo_preview
     render_component ValidatedPhotoPreviewComponent.new
   end

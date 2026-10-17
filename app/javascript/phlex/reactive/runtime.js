@@ -2079,18 +2079,18 @@ function formNeeded(root) {
 // Show bindings and cross-root show targets, completion bindings, option
 // filtering, the bulk-selection group bindings (enable, select-all, count —
 // issue #319) and their cross-root targets (#343), the tag-chip input, draft
-// nested rows, editable text's keys and paste (#351) and media previews
-// (#373): a form's client-only bindings. The root declares one, or
-// owns an element that does. (The probes the connect-time gates ran before
-// the split, unchanged.)
+// nested rows, editable text's keys and paste (#351), media previews
+// (#373) and fields fed into CSS custom properties (#417): a form's
+// client-only bindings. The root declares one, or owns an element that does.
+// (The probes the connect-time gates ran before the split, unchanged.)
 function bindingsNeeded(root) {
   return (
-    ["show-targets", "group-targets", "on-complete", "filter-input", "tags-field"].some(
+    ["show-targets", "group-targets", "on-complete", "filter-input", "tags-field", "css-vars"].some(
       (marker) => root.getAttribute?.(`data-reactive-${marker}`) != null,
     ) ||
     (root.querySelectorAll?.("[data-reactive-show-field], [data-reactive-show]") ?? []).length > 0 ||
     root.querySelector?.(
-      "[data-reactive-nested-json], [data-reactive-nested-list], [data-reactive-confirm-when-param], [data-reactive-enable], [data-reactive-select-all], [data-reactive-count], [data-reactive-editable], [data-reactive-media]",
+      "[data-reactive-nested-json], [data-reactive-nested-list], [data-reactive-confirm-when-param], [data-reactive-enable], [data-reactive-select-all], [data-reactive-count], [data-reactive-editable], [data-reactive-media], [data-reactive-css-vars]",
     ) != null
   )
 }

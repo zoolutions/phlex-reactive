@@ -19,6 +19,7 @@ module Phlex
         include MediaBinding
         include ImageFallbackBinding
         include CountdownBinding
+        include CssVarsBinding
         include FieldReferences
         include ShowOptions
 

@@ -2,8 +2,8 @@
 // re-syncs after a morph, all of it client-only and all of it reading the
 // root's own controls: show bindings and cross-root show targets (issues
 // #161, #164, #176, #180, #209), completion bindings (#226), option filtering
-// (#163), the tag-chip input (#203) and draft nested-attribute rows with their
-// JSON mode (#208). One of the feature modules the opt-in client imports on
+// (#163), the tag-chip input (#203), draft nested-attribute rows with their
+// JSON mode (#208) and fields fed into CSS custom properties (#417). One of the feature modules the opt-in client imports on
 // demand (issue #275); in the default client it is part of the one file.
 //
 // Grouped because they share a shape — a marker check at connect, one
@@ -386,8 +386,10 @@ function showSyncEnabled(c) {
   const nodes = c.root.querySelectorAll?.(SHOW_BINDING_SELECTOR) ?? []
   for (const el of nodes) if (c.core.owns(el)) return true
   for (const el of c.root.querySelectorAll?.(GROUP_BINDING_SELECTOR) ?? []) if (c.core.owns(el)) return true
-  for (const el of c.root.querySelectorAll?.(MEDIA_BINDING_SELECTOR) ?? []) if (c.core.owns(el)) return true
-  return false
+  for (const el of c.root.querySelectorAll?.(`${MEDIA_BINDING_SELECTOR}, ${CSS_VARS_SELECTOR}`) ?? []) {
+    if (c.core.owns(el)) return true
+  }
+  return c.root.hasAttribute?.("data-reactive-css-vars") ?? false
 }
 
 // The connect() gate for completion bindings (issue #226) — one attribute read.
@@ -493,6 +495,7 @@ function syncShow(c) {
   // share the same owned-field memo, so a field driving several reads once.
   if (c.groups) syncGroups(c, fieldValue, owns, scope)
   syncMedia(c, fieldValue, owns)
+  syncCssVars(c, fieldValue, owns, scope)
   syncShowTargets(c, fieldValue)
   syncGroupTargets(c, fieldValue)
   for (const el of moved) showMoved(c, el, owns, scope)
@@ -775,6 +778,80 @@ function mediaMatches(c, selector) {
   } catch {
     return []
   }
+}
+
+// --- CSS custom properties (issue #417) --------------------------------------
+// data-reactive-css-vars='{"to":[selector|"@root",…],"global"?:true,
+// "vars":{"--name":{"field","unit"?}}}' on the root or an element it owns.
+// Each property reads its owned field (a checkbox is 1 or 0, a radio group its
+// checked value) as a finite number and writes number + unit on every `to:`
+// target, resolved from the root like a client op's. Anything else removes the
+// property, so the author's var() fallback applies: no string from a field ever
+// reaches CSS. A name or unit off the Ruby allowlist is refused here too (a
+// hand-built attr must not widen it); a field no owned control carries leaves
+// the property alone (the show default-deny). A value is written only when it
+// changes, since the pass runs on every owned field's edit.
+const CSS_VARS_SELECTOR = "[data-reactive-css-vars]"
+const CSS_VAR_NAME = /^--[a-z0-9-]+$/i
+const CSS_VAR_UNITS = ["", "px", "%", "deg", "turn", "ms", "s", "em", "rem", "fr"]
+
+function syncCssVars(c, fieldValue, owns, scope) {
+  const nodes = [...c.root.querySelectorAll(CSS_VARS_SELECTOR)].filter(owns)
+  if (c.root.hasAttribute("data-reactive-css-vars")) nodes.unshift(c.root)
+  for (const el of nodes) {
+    let wire
+    try {
+      wire = JSON.parse(el.getAttribute("data-reactive-css-vars"))
+    } catch {}
+    if (!Array.isArray(wire?.to) || !wire.vars || typeof wire.vars !== "object") {
+      // Most likely two calls mixed onto one element: their JSON space-joins.
+      console.warn("[phlex-reactive] malformed data-reactive-css-vars — skipped (two reactive_css_vars on one element?)")
+      continue
+    }
+    // A selector that does not parse matches nothing: it must not throw out
+    // of the show pass and stop the root's other bindings.
+    const targets = wire.to.flatMap((to) => {
+      const args = { to, global: wire.global === true }
+      let found = []
+      try {
+        found = c.core.opTargets(args)
+      } catch {}
+      if (!found.length) c.core.diagnose("reactive_css_vars", args)
+      return found
+    })
+    for (const [name, spec] of Object.entries(wire.vars)) {
+      const unit = spec?.unit ?? ""
+      if (!CSS_VAR_NAME.test(name) || !CSS_VAR_UNITS.includes(unit) || typeof spec?.field !== "string") {
+        console.warn(`[phlex-reactive] refused reactive_css_vars entry ${JSON.stringify(name)} — skipped`)
+        continue
+      }
+      const number = cssVarNumber(c, fieldValue, spec.field, owns, scope)
+      if (number === undefined) continue
+      const value = number === null ? "" : `${number}${unit}`
+      for (const target of targets) {
+        if (target.style.getPropertyValue(name) === value) continue
+        if (value) target.style.setProperty(name, value)
+        else target.style.removeProperty(name)
+      }
+    }
+  }
+}
+
+// The number an owned field holds: 1 or 0 for a checkbox (decided by its
+// type, so a text field reading "true" is no number), else its value through
+// Number() — null when that is not finite or the value is blank (Number("")
+// is 0), undefined when no owned field has the name.
+function cssVarNumber(c, fieldValue, name, owns, scope) {
+  const value = fieldValue(name)
+  if (value === null) return undefined
+  if (
+    (value === "true" || value === "false") &&
+    [...c.root.querySelectorAll(namedSelector(name, scope))].some((el) => owns(el) && el.type === "checkbox")
+  ) {
+    return value === "true" ? 1 : 0
+  }
+  const number = value.trim() ? Number(value) : NaN
+  return Number.isFinite(number) ? number : null
 }
 
 // --- Bulk selection (issue #319) ---------------------------------------------

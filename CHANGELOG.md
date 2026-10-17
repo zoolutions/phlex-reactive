@@ -26,9 +26,27 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   pipeline, with `x`, `y`, `width`, `height`. Without it the binding is
   client-only and works on a `ClientBindings` root. A morph that lands
   mid-drag does not interrupt it. Every argument is validated at render.
-  Client: a new `drag` feature module (3,572 B gzipped): +2,797 B in the
-  default bundle, +55 B in the split core, which loads it only on a page with
+  Client: a new `drag` feature module (3,572 B gzipped): +2,788 B in the
+  default bundle, +51 B in the split core, which loads it only on a page with
   a frame. Docs: a "Draggable regions" guide with a live demo.
+
+- **Fields that feed CSS custom properties: `reactive_css_vars` (#417).** A
+  preview that follows a control (a slider that brightens an image, a select
+  that rotates it) needed app JavaScript or a request per input event.
+  `reactive_css_vars(to: "#sample", vars: { "--light" => "light",
+  "--turn" => { field: "turn", unit: "deg" } })` reads each field as
+  `reactive_show` does (a checkbox gives `1` or `0`, a radio group its checked
+  value), parses it as a finite number and writes `number + unit` on every
+  `to:` element with `style.setProperty`, on connect, on `input`/`change` and
+  after a morph, with no request. Anything that is not a number removes the
+  property, so the `var()` fallback applies: no text from a field reaches CSS.
+  Units come from a fixed list (`""`, `px`, `%`, `deg`, `turn`, `ms`, `s`,
+  `em`, `rem`, `fr`) and names match `--[a-zA-Z0-9-]+`, checked at render and in
+  the browser. `to:` resolves like a client op's (`:root`, inside the root,
+  `global: true`, an Array). It goes on the root or on any element inside it,
+  and works on a `ClientBindings` view. Client: +460 B gzipped in the default
+  bundle; +462 B in `features/bindings` and +16 B in the split core.
+  Docs: "Live CSS properties" on the client-ops page, with a demo.
 
 ### Fixed
 

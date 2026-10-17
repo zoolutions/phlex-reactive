@@ -162,6 +162,15 @@ module Views
               is only ever passed to `querySelector` — and copy `src` from an `<img>`
               already in the page (resolved in the live DOM; normally one the server
               rendered), onto an `<img>` only.
+
+              `style` stays refused too. The one way a field reaches CSS is
+              `reactive_css_vars` (#417), and it writes a **number**: the client parses
+              the field as a finite number and sets it, with a unit from a fixed list
+              (`px`, `%`, `deg`, `turn`, `ms`, `s`, `em`, `rem`, `fr`), on a custom
+              property whose name is `--` plus letters, digits and dashes. Anything else
+              removes the property. The names and units are checked when the page
+              renders and again in the browser, so no text from a field (a `url()`, a
+              second declaration) is ever written into a style.
             MD
           end
         end
