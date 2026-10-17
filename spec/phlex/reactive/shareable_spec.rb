@@ -8,6 +8,28 @@ module ShareableSpec
 
   # A Hash whose default proc is capture-free, its self this module.
   def self.defaulting = Hash.new { |_, key| key.to_s }
+
+  # A declaration shaped like the gem's (Component::ActionDefinition).
+  Definition = Data.define(:name, :params, :size)
+
+  # A Data value whose own initialize needs more than its members, so
+  # Data#with cannot rebuild it.
+  Scaled = Data.define(:value) do
+    def initialize(value:, scale:) = super(value: value * scale)
+  end
+
+  # A Data value whose own initialize normalizes what it is given: running
+  # it again (Data#with does) would normalize twice.
+  Doubled = Data.define(:value) do
+    def initialize(value:) = super(value: value * 2)
+  end
+
+  # A counter whose self (this module) is shareable but which assigns the
+  # variable it captures: Ractor.make_shareable raises ArgumentError for it.
+  def self.counter
+    calls = 0
+    -> { calls += 1 }
+  end
 end
 
 # Phlex::Reactive::Shareable: the Ractor-shareable copies finalize! stores.
@@ -50,6 +72,38 @@ RSpec.describe Phlex::Reactive::Shareable do
 
       expect(Ractor.shareable?(shared)).to be(true)
       expect(shared[:other]).to eq("other")
+    end
+
+    it "copies a Data value with every member shared, leaving the original alone" do
+      params = { title: :string, tags: [:string] }
+      definition = ShareableSpec::Definition.new(name: :save, params:, size: ShareableSpec.caster)
+
+      shared = described_class.share(definition)
+
+      expect(Ractor.shareable?(shared)).to be(true)
+      expect(shared).to have_attributes(class: ShareableSpec::Definition, name: :save, params:)
+      expect(shared.size.call(2)).to eq("2!")
+      expect([params.frozen?, params[:tags].frozen?, definition.size.frozen?]).to eq([false, false, false])
+    end
+
+    # Such a Proc works on the main Ractor only; sharing it must never make
+    # boot raise (warm! shares every reactive_collection size: lambda).
+    it "keeps a Proc that assigns a variable it captures as it is" do
+      counter = ShareableSpec.counter
+
+      expect(described_class.share(counter)).to be(counter)
+      expect([counter.call, counter.call]).to eq([1, 2])
+    end
+
+    # Only Data's own initialize is safe to run again: an app's may
+    # normalize, validate or need more than the members.
+    it "keeps a Data value with its own initialize as it is, never running it again" do
+      doubled = ShareableSpec::Doubled.new(value: [+"a"])
+      scaled = ShareableSpec::Scaled.new(value: [+"a"], scale: 2)
+
+      expect(described_class.share(doubled)).to be(doubled)
+      expect(described_class.share(scaled)).to be(scaled)
+      expect(doubled.value).to eq(%w[a a])
     end
 
     it "keeps a compare_by_identity Hash comparing by identity" do

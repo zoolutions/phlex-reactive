@@ -23,6 +23,10 @@ module Phlex
       #     works on the main Ractor only;
       #   * a Hash keeps its default value or default proc and its
       #     compare_by_identity;
+      #   * a Data value (the gem's declarations: an action, a compute, a
+      #     collection) comes back as a copy with every member shared, when
+      #     its class keeps Data's own initialize (one of its own may
+      #     normalize or validate, and is never run again);
       #   * any other object (a MessageVerifier, an APM adapter, an app object)
       #     is kept as is.
       #
@@ -35,6 +39,7 @@ module Phlex
         when ::Proc then share_proc(value.dup) || value
         when ::Array then seal(value.map { share(it) })
         when ::Hash then share_hash(value)
+        when ::Data then plain_data?(value) ? share_data(value) : value
         when ::String then value.dup.freeze
         else value
         end
@@ -60,12 +65,14 @@ module Phlex
       end
 
       # The Proc made shareable in place, or nil when it cannot be (or there
-      # is no Ractor).
+      # is no Ractor). Ruby raises Ractor::IsolationError for an unshareable
+      # self or capture, and ArgumentError for a Proc that assigns a variable
+      # it captures.
       def share_proc(callable)
         return unless defined?(::Ractor)
 
         ::Ractor.make_shareable(callable)
-      rescue ::Ractor::Error
+      rescue ::Ractor::Error, ::ArgumentError
         nil
       end
 
@@ -78,10 +85,18 @@ module Phlex
         seal(copy)
       end
 
+      # Data#with runs the class's initialize again: only Data's own, which
+      # just assigns the members, is safe to.
+      def plain_data?(data) = data.class.instance_method(:initialize).owner.equal?(::Data)
+
+      # A copy with every member shared. Data is always frozen, so the copy
+      # is shareable when every member is.
+      def share_data(data) = data.with(**data.to_h.transform_values { share(it) })
+
       # Frozen; shareable as well when everything inside it is.
       def seal(collection) = collection.freeze
 
-      private_class_method :share_proc, :share_hash, :seal
+      private_class_method :share_proc, :share_hash, :plain_data?, :share_data, :seal
     end
   end
 end

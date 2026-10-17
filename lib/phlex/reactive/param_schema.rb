@@ -143,8 +143,12 @@ module Phlex
 
       attr_reader :schema
 
+      # Ractor-shareable once built: a deep-frozen copy of the declared schema
+      # (the app's own Hash is left alone) and nothing written after this, so
+      # a warmed action definition can be read from a non-main Ractor.
       def initialize(schema)
-        @schema = schema
+        @schema = Phlex::Reactive::Shareable.share(schema)
+        freeze
       end
 
       # Coerce client params against this schema. Anything not in the schema is

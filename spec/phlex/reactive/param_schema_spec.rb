@@ -20,6 +20,20 @@ RSpec.describe Phlex::Reactive::ParamSchema do
     described_class.compile(schema).coerce(params, collector)
   end
 
+  # A warmed action definition holds its compiled schema, which a non-main
+  # Ractor reads on every action (zoolutions/phlex-reactive#364).
+  describe ".compile — the compiled schema" do
+    it "is Ractor-shareable and leaves the declared Hash alone" do
+      declared = { title: :string, tags: [:string], address: { street: :string } }
+
+      compiled = described_class.compile(declared)
+
+      expect(Ractor.shareable?(compiled)).to be(true)
+      expect(compiled.schema).to eq(declared)
+      expect([declared.frozen?, declared[:tags].frozen?, declared[:address].frozen?]).to eq([false, false, false])
+    end
+  end
+
   describe ".compile — declaration-time validation" do
     it "accepts the shipped built-in scalars" do
       expect { described_class.compile({ a: :string, b: :integer, c: :float, d: :boolean, e: :file }) }

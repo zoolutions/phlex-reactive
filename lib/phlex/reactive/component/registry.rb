@@ -103,6 +103,13 @@ module Phlex
         # attribute fragments), shared by warm! so a non-main Ractor can read it.
         MEMO_IVARS = %i[@reactive_record_ivar @reactive_state_ivars @reactive_effect_attrs @reactive_on_complete_attr].freeze
 
+        # Every class ivar warm! leaves for a request to read, each shared
+        # deeply so a non-main Ractor can read it: the class's own
+        # declarations, the resolution cache and the render path's memos.
+        # (The generation counters next to them are Integers, shareable as
+        # they are.)
+        WARMED_IVARS = [*OWN_IVARS.values, :@reactive_registry_cache, *MEMO_IVARS].freeze
+
         # Every class with the reactive DSL, a ClientBindings-only view
         # included (Streamable's registry has only the token-bearing ones):
         # what the engine warms at boot. Per-Ractor (Phlex::Reactive::Store);
@@ -161,7 +168,7 @@ module Phlex
 
           # Resolve every registry kind and build the render path's per-class
           # memos for each reactive component class among `classes`, then
-          # freeze each class's resolution cache. The engine runs it at boot
+          # share (deep-freeze) what each class keeps (WARMED_IVARS). The engine runs it at boot
           # when the app eager-loads (every class is loaded by then), so a
           # request reads memos and never writes the class. A declaration
           # after it (a development reload) bumps the generation and the next
@@ -226,10 +233,14 @@ module Phlex
           end
 
           # The class's own storage for `kind`, initialized from the block on
-          # first write.
+          # first write. warm! shares (freezes) it, so a declaration after
+          # warm! (a development reload) writes to a fresh copy.
           def own!(klass, kind)
             ivar = OWN_IVARS.fetch(kind)
-            klass.instance_variable_get(ivar) || klass.instance_variable_set(ivar, yield)
+            current = klass.instance_variable_get(ivar)
+            return current if current && !current.frozen?
+
+            klass.instance_variable_set(ivar, current ? current.dup : yield)
           end
 
           # Invalidate every resolution memo in the process (generation bump)
@@ -257,8 +268,7 @@ module Phlex
 
           def warm_class(klass)
             [*READERS.values, *MEMO_READERS].each { klass.public_send(it) if klass.respond_to?(it) }
-            klass.instance_variable_get(:@reactive_registry_cache)&.freeze
-            MEMO_IVARS.each do
+            WARMED_IVARS.each do
               next unless klass.instance_variable_defined?(it)
 
               klass.instance_variable_set(it, Phlex::Reactive::Shareable.share(klass.instance_variable_get(it)))

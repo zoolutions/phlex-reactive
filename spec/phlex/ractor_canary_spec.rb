@@ -35,12 +35,31 @@ module RactorCanary
     def view_template = li(id:) { "todo" }
   end
 
+  # A reactive component as an app writes one: signed state and an action
+  # that takes params. Boot warms it (Component::Registry.warm!), so a request
+  # reads everything it dispatches and signs with off the class. (Not named
+  # like the dummy's CounterComponent, which the MCP find spec ranks first.)
+  class Tally < ApplicationComponent
+    include Phlex::Reactive::Component
+
+    reactive_state :total
+    action :add, params: { amount: :integer }
+
+    def initialize(total: 0) = @total = total
+    def id = "ractor-canary-tally"
+    def add(amount: 1) = @total += amount
+    def view_template = div(**reactive_root) { @total.to_s }
+  end
+
   RENDER_PENDING = "Phlex 2.4.1 reads its non-shareable Phlex::ATTRIBUTE_CACHE constant on every element " \
                    "with attributes; a per-Ractor cache is pending upstream (yippee-fun/phlex#1055)"
 
   SIGN_PENDING = "Phlex::Reactive.verifier is an ActiveSupport::MessageVerifier, which is not Ractor-shareable " \
                  "and which ActiveSupport cannot build or use outside the main Ractor either (Messages::Codec's " \
                  "class attributes and Messages::Metadata::ENVELOPE_SERIALIZERS are not shareable, ActiveSupport 8.1)"
+
+  # A reactive root renders its signed token: both of the above.
+  REACTIVE_RENDER_PENDING = "#{RENDER_PENDING}; and it signs its token: #{SIGN_PENDING}".freeze
 end
 
 # Tier 3 of conformance-kit, on Ruby 4.0 (skipped below it with the kit's
@@ -124,6 +143,22 @@ RSpec.describe "phlex-reactive inside a non-main Ractor" do # rubocop:disable RS
     it_behaves_like "runs inside a non-main Ractor"
   end
 
+  context "when reading a warmed component's actions and state" do
+    before { Phlex::Reactive::Component::Registry.warm!([RactorCanary::Tally]) }
+
+    let(:subject_call) do
+      lambda do
+        tally = RactorCanary::Tally
+        add = tally.reactive_actions.fetch(:add)
+        [tally.reactive_actions.keys, add.params, add.schema.coerce(it), tally.reactive_state_keys,
+         tally.reactive_state_ivars, tally.reactive_record_ivar, tally.reactive_effect_attrs,
+         tally.reactive_on_complete_attr, tally.skip_verify_authorized?(:add)]
+      end
+    end
+
+    it_behaves_like "runs inside a non-main Ractor", inputs: [{ "amount" => "2", "junk" => "dropped" }]
+  end
+
   context "when signing and verifying an identity token", pending: RactorCanary::SIGN_PENDING do
     let(:subject_call) { -> { Phlex::Reactive.verify(Phlex::Reactive.sign({ "c" => "Todo", "s" => { "n" => 1 } })) } }
 
@@ -132,6 +167,14 @@ RSpec.describe "phlex-reactive inside a non-main Ractor" do # rubocop:disable RS
 
   context "when rendering a component", pending: RactorCanary::RENDER_PENDING do
     let(:subject_call) { -> { RactorCanary::TodoRow.new(todo: RactorCanary::Todo.new(7)).call } }
+
+    it_behaves_like "runs inside a non-main Ractor"
+  end
+
+  context "when rendering a warmed reactive component", pending: RactorCanary::REACTIVE_RENDER_PENDING do
+    before { Phlex::Reactive::Component::Registry.warm!([RactorCanary::Tally]) }
+
+    let(:subject_call) { -> { RactorCanary::Tally.new(total: 2).call } }
 
     it_behaves_like "runs inside a non-main Ractor"
   end
