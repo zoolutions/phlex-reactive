@@ -1,0 +1,68 @@
+lib/phlex/reactive/held_fields.rb
+  s_96669d9487976a::t_0c1bbf25624721 17,20-25,35-36,73-77
+README.md
+  s_96669d9487976a::t_5dbe70ca9be79f 2860
+lib/phlex/reactive/response.rb
+  s_96669d9487976a::t_219c797cc706e9 22,355-356,358-359,367,371-374,400-401,433-434,478-516,520
+spec/phlex/reactive/response_refused_spec.rb
+  s_96669d9487976a::t_99e7df70bd8f7b 1-8,10-74
+  s_96669d9487976a::t_e7d08e1b493e35 9
+app/controllers/phlex/reactive/actions_controller.rb
+  s_96669d9487976a::t_0c1bbf25624721 218,420-426
+spec/system/held_fields_spec.rb
+  s_96669d9487976a::t_53b105e460f621 10-11,53-84,86-87
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,5-6,8
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,5-6,8
+docs/app/views/docs/pages/architecture.rb
+  s_96669d9487976a::t_5dbe70ca9be79f 193-202,214,227
+spec/dummy/public/vendor/core.js
+  ai_agent 1,5-6,8
+spec/dummy/app/components/held_note_component.rb
+  ai_agent 6-7,24
+spec/javascript/bundle_budget.test.js
+  s_96669d9487976a::t_c153c7892ff047 186-187,252-253,372-373
+spec/phlex/reactive/held_fields_spec.rb
+  s_96669d9487976a::t_341f6367239776 74-89
+CHANGELOG.md
+  s_96669d9487976a::t_5dbe70ca9be79f 9-25
+app/javascript/phlex/reactive/runtime.js
+  s_96669d9487976a::t_12575e119498ed 738-740,785-803,807-813,821,838,4117,4149-4151
+lib/phlex/reactive/component/helpers.rb
+  s_96669d9487976a::t_5dbe70ca9be79f 46
+app/javascript/phlex/reactive/core.min.js
+  ai_agent 1,5-6,8
+spec/phlex/reactive/test_helpers_spec.rb
+  ai_agent 146-162
+sig/phlex/reactive/response.rbs
+  s_96669d9487976a::t_e7d08e1b493e35 12,21,33
+app/javascript/phlex/reactive/core.min.js.map
+  ai_agent 5,8-9
+spec/javascript/reactive_held.test.js
+  s_96669d9487976a::t_ff9d3506371001 8-9,41-46,77,84,348,364-461
+spec/phlex/reactive/pending_spec.rb
+  s_96669d9487976a::t_341f6367239776 86-92
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 5,19-20
+lib/phlex/reactive/test_helpers.rb
+  s_96669d9487976a::t_0c1bbf25624721 274-279
+spec/requests/held_fields_spec.rb
+  ai_agent 29-36,43-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d0898e1f6d1c4b2d5b5db567e96bc3ebcf77fe8d",
+  "prompts": {},
+  "sessions": {
+    "s_96669d9487976a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "18a34c78-4999-4270-bbbf-ab3168c0106d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
