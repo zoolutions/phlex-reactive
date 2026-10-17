@@ -302,6 +302,7 @@ imports one the first time a root on the page needs it:
 | `phlex/reactive/features/bindings` (`reactive_show`, show targets, `reactive_on_complete`, `reactive_filter`, `reactive_tags`, nested rows, the conditional `confirm:`) | 5.4 KB | inside the one file | fetched when a root declares one of them, or holds a trigger with a conditional confirm |
 | `phlex/reactive/features/compute` (`reactive_compute`, `reactive_text`) | 2.1 KB | inside the one file | fetched when a root carries a compute binding |
 | `phlex/reactive/features/sortable` (`reactive_sortable` drag and drop) | 3.1 KB | inside the one file | fetched when a root is or holds a sortable or source list |
+| `phlex/reactive/features/drag` (`reactive_box`, `reactive_point` draggable regions) | 3.4 KB | inside the one file | fetched when a root is or holds a frame, a box or a point |
 | `phlex/reactive/features/countdown` (`reactive_countdown`) | 1.0 KB | inside the one file | fetched when a root is or holds a countdown |
 | `phlex/reactive/features/hints` (`optimistic:`, `busy:`) | 1.0 KB | inside the one file | fetched when a root holds a trigger that declares a hint |
 | `phlex/reactive/features/devtools` (the latency simulator, the zero-target warnings, the debug trace) | 1.6 KB | inside the one file | fetched with the core on a page that carries `<meta name="phlex-reactive-env" content="development">` or while a delay is stored for the tab; at connect for a root in debug mode; otherwise the first time a verbose root has something to warn about. In production with none of these, never |
@@ -1899,6 +1900,76 @@ list; a reply that morphs the list puts the rows in the server's order.
   press, so clicks, taps and scrolling still work.
 
 Full guide: [Sortable lists](https://phlex-reactive.zoolutions.llc/docs/sortable-lists).
+
+### Draggable regions (`reactive_box`, `reactive_point`)
+
+Move and resize a box, or move a point, over an image, a chart or a diagram —
+with a mouse, a pen, a finger or the keyboard — and its fields always hold
+where it is, as fractions of the frame (0..1 on each axis). A crop box, a
+focal point, a hotspot, a selection: no Stimulus controller of your own.
+
+```ruby
+class CropPicker < Phlex::HTML
+  include Phlex::Reactive::Component
+
+  reactive_record :photo
+  action :crop, params: { x: :float, y: :float, width: :float, height: :float }
+
+  def crop(x:, y:, width:, height:)
+    authorize! @photo, :update?
+    @photo.update!(crop: { x:, y:, width:, height: })
+    reply.morph
+  end
+
+  def view_template
+    div(**reactive_root) do
+      div(**mix(reactive_frame, class: "relative")) do
+        img(src: @photo.url, alt: "", class: "block w-full")
+        div(**reactive_box(fields: { x: "crop[x]", y: "crop[y]", width: "crop[width]", height: "crop[height]" },
+                           value: @photo.crop, aspect: "aspect", min: 0.05, action: :crop)) do
+          %i[nw n ne e se s sw w].each { span(**reactive_box_handle(it)) }
+          span(**reactive_point(fields: { x: "focus[x]", y: "focus[y]" }, value: @photo.focus,
+                                within: "[data-reactive-box]"))
+        end
+      end
+      # the fields: hidden inputs named crop[x] … focus[y], and the aspect radios
+    end
+  end
+end
+```
+
+The helpers render the box's `left`/`top`/`width`/`height` (and the point's
+`left`/`top`) as percentages from `value:`, so the first paint is right with
+no JavaScript and a re-render with new values moves them. The frame must be
+positioned (`relative`, or `absolute` for an overlay); its padding box is the
+coordinate space.
+
+- **Pointer**: a press on the box moves it, a press on a handle resizes from
+  that edge or corner; the box stays inside the frame and never goes below
+  `min:`. A drag starts after a 4 px move; `touch-action: none` keeps a finger
+  drag from scrolling the page.
+- **Fields**: written as `set_value` writes them (the live `.value`, rounded to
+  4 decimals, a bubbling `input` at most once per field per frame), so
+  `reactive_show`, compute reducers and other bindings follow the box. One
+  `change` fires on release.
+- **`aspect:`**: a Numeric (`16/9r`) or the name of a field holding `"16:9"`, a
+  decimal or `""` (free), read at drag start. When the field changes (a preset
+  radio), the box re-fits to the new ratio around its centre.
+- **`action:`** (optional): sent once on release through the root's pipeline,
+  with `x`, `y`, `width`, `height` (a point: `x`, `y`). Without it the binding
+  is client-only and works on a `ClientBindings` root.
+- **Points**: `reactive_point` moves within the frame, or — placed inside a box
+  with `within:` — within that box, its fractions of the box.
+- **Keyboard**: the box and the point are focusable; arrows move 1% (Shift:
+  10%), Alt+arrows resize from the bottom-right corner or the focused handle,
+  Escape puts it back. Each step is announced through a live region; translate
+  the words with `messages:` (`{x}`, `{y}`, `{width}`, `{height}` as whole
+  percents). Letting go of the key is the release.
+- **Styling**: `data-reactive-frame-active` (the frame) and
+  `data-reactive-dragging` (the pressed box, handle or point). A morph that
+  lands mid-drag does not interrupt it.
+
+Full guide: [Draggable regions](https://phlex-reactive.zoolutions.llc/docs/draggable-regions).
 
 ### Presence (`reactive_presence`)
 

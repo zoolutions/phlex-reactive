@@ -568,7 +568,7 @@ test("the shipped table lists the moved features, persist first", async () => {
 
   // Table order is connect order: the draft restore writes the values every
   // other connect-time seed reads, so persist stays first as features move.
-  expect(reactiveFeatureNames()).toEqual(["persist", "defer", "form", "bindings", "compute", "sortable", "presence", "countdown", "effects", "hints", "devtools"])
+  expect(reactiveFeatureNames()).toEqual(["persist", "defer", "form", "bindings", "compute", "sortable", "drag", "presence", "countdown", "effects", "hints", "devtools"])
 })
 
 // --- The core handle ----------------------------------------------------------

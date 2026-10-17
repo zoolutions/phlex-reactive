@@ -36,6 +36,7 @@ import * as devtoolsFeature from "phlex/reactive/features/devtools"
 import * as hintsFeature from "phlex/reactive/features/hints"
 import * as deferFeature from "phlex/reactive/features/defer"
 import * as sortableFeature from "phlex/reactive/features/sortable"
+import * as dragFeature from "phlex/reactive/features/drag"
 import * as presenceFeature from "phlex/reactive/features/presence"
 import * as countdownFeature from "phlex/reactive/features/countdown"
 
@@ -2107,6 +2108,14 @@ function sortableNeeded(root) {
   return Boolean(root.matches?.(lists) || root.querySelector?.(lists))
 }
 
+// Draggable regions (issue #416): the root is, or holds, a frame, a box or a
+// point. (A nested root's frame loads the module for its parent too; the
+// module then checks ownership before it drags anything.)
+function dragNeeded(root) {
+  const marks = "[data-reactive-frame],[data-reactive-box],[data-reactive-point]"
+  return Boolean(root.matches?.(marks) || root.querySelector?.(marks))
+}
+
 // Presence (issue #358): the root is a reactive_presence roster.
 function presenceNeeded(root) {
   return root.getAttribute?.("data-reactive-presence") != null
@@ -2129,6 +2138,8 @@ const PRODUCTION_FEATURES = [
   ["compute", [computeNeeded, null, null, true]],
   // Nothing it does at connect is read by a request: it never gates.
   ["sortable", [sortableNeeded, null]],
+  // A drag writes fields only when the user drags: it never gates.
+  ["drag", [dragNeeded, null]],
   // Its announce is a request of its own; nothing it does at connect is read
   // by another request: it never gates.
   ["presence", [presenceNeeded, null]],
@@ -2297,7 +2308,7 @@ function featureTimeoutMs() {
 export function reactiveFeatureNames() {
   return __SPLIT__
     ? [...FEATURES.keys()]
-    : ["persist", "defer", "form", "bindings", "compute", "sortable", "presence", "countdown", "effects", "hints", "devtools"]
+    : ["persist", "defer", "form", "bindings", "compute", "sortable", "drag", "presence", "countdown", "effects", "hints", "devtools"]
 }
 
 export function __setReactiveFeatureForTest(name, needs, load, waiting, gates) {
@@ -2320,6 +2331,7 @@ export function __loadReactiveFeatureForTest(name) {
     bindings: bindingsFeature,
     compute: computeFeature,
     sortable: sortableFeature,
+    drag: dragFeature,
     presence: presenceFeature,
     countdown: countdownFeature,
     effects: effectsFeature,
@@ -2377,6 +2389,7 @@ const COMPUTE = 16
 const SORTABLE = 32
 const PRESENCE = 64
 const COUNTDOWN = 128
+const DRAG = 256
 
 // The default entry's features are part of this file: install them now, as
 // the opt-in entry does when one arrives.
@@ -2705,6 +2718,7 @@ export default class extends Controller {
       this.#connectFeatureNow(BINDINGS, "bindings", bindingsNeeded, (core) => bindingsFeature.connect(this, core, morphed))
       this.#connectFeatureNow(COMPUTE, "compute", computeNeeded, (core) => computeFeature.connect(this, core, morphed))
       this.#connectFeatureNow(SORTABLE, "sortable", sortableNeeded, (core) => sortableFeature.connect(this, core))
+      this.#connectFeatureNow(DRAG, "drag", dragNeeded, (core) => dragFeature.connect(this, core))
       this.#connectFeatureNow(PRESENCE, "presence", presenceNeeded, (core) => presenceFeature.connect(this, core))
       this.#connectFeatureNow(COUNTDOWN, "countdown", countdownNeeded, (core) => countdownFeature.connect(this, core))
     }
@@ -2744,6 +2758,7 @@ export default class extends Controller {
       if (on & BINDINGS) this.#disconnectFeatureNow("bindings", () => bindingsFeature.disconnect(this, core))
       if (on & COMPUTE) this.#disconnectFeatureNow("compute", () => computeFeature.disconnect(this, core))
       if (on & SORTABLE) this.#disconnectFeatureNow("sortable", () => sortableFeature.disconnect(this, core))
+      if (on & DRAG) this.#disconnectFeatureNow("drag", () => dragFeature.disconnect(this, core))
       if (on & PRESENCE) this.#disconnectFeatureNow("presence", () => presenceFeature.disconnect(this, core))
       if (on & COUNTDOWN) this.#disconnectFeatureNow("countdown", () => countdownFeature.disconnect(this, core))
     }
