@@ -74,6 +74,7 @@ Rails.application.routes.draw do
   get "photo_preview" => "demos#photo_preview" # issue #375: js.preview_file
   get "image_fallback" => "demos#image_fallback" # issue #383: reactive_image_fallback
   get "countdown" => "demos#countdown" # issue #400: reactive_countdown
+  get "css_vars" => "demos#css_vars" # issue #417: reactive_css_vars
   get "validated_photo_preview" => "demos#validated_photo_preview" # issue #382: preview_file valid:
   get "framed_photo_preview" => "demos#framed_photo_preview" # issue #391: preview_file wrap:/max_bytes:/accept:
   get "notes_fill" => "demos#notes_fill" # issue #374: js.set_value

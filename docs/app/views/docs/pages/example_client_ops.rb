@@ -22,6 +22,7 @@ module Views
           disclosure_menu
           modal_dialogs
           media_previews
+          css_vars
           preview_file
           image_fallback
           countdown
@@ -298,6 +299,64 @@ module Views
             render Views::Examples::LiveExample.new(
               component: MediaPreviewComponent.new,
               filename: 'app/components/media_preview_component.rb'
+            )
+          end
+        end
+
+        def css_vars
+          DocsUI::Section('Live CSS properties (reactive_css_vars)') do
+            md <<~MD
+              A preview that follows a control (a slider that brightens an image, a
+              select that rotates it, a number field that sets a spacing sample) needs
+              the field's value in CSS. `set_attr` refuses `style`, so
+              `reactive_css_vars` (#417) feeds fields into **custom properties**
+              instead, and the element's own CSS reads them with `var()`:
+
+              ```ruby
+              div(**mix(reactive_root(id: "light"), reactive_css_vars(to: "#sample", vars: {
+                "--light" => "light",                       # field name -> custom property
+                "--turn"  => { field: "turn", unit: "deg" } # with a unit
+              }))) do
+                input(type: "range", name: "light", min: "0.5", max: "1.5", step: "0.01", value: "1")
+                select(name: "turn") { %w[0 90 180 270].each { |turn| option(value: turn) { turn } } }
+                img(id: "sample", src: "/sample.jpg", alt: "",
+                  style: "--light: 1; --turn: 0deg; filter: brightness(var(--light, 1)); rotate: var(--turn, 0deg)")
+              end
+              ```
+
+              - **Numbers only.** The client reads each field as `reactive_show` does
+                (a radio group gives its checked value, `reactive_scope` applies, a
+                checkbox gives `1` or `0`), parses it as a finite number and writes
+                `number + unit`. Anything else (empty, text, `Infinity`) removes the
+                property, so the `var()` fallback applies. No text from a field ever
+                reaches CSS.
+              - **Units** come from a fixed list: `""`, `px`, `%`, `deg`, `turn`, `ms`,
+                `s`, `em`, `rem`, `fr`. **Names** are `--` plus letters, digits and
+                dashes. A bad name, an unknown unit, a blank field name or an empty
+                `vars:` raises at render; the browser checks names and units again.
+              - **When.** On connect, on every `input` and `change` of the root's
+                fields, and after a morph (which writes the server's inline style back
+                while a focused field keeps its value). A field no control carries
+                leaves its property alone. A value is written only when it changes.
+              - **`to:`** resolves like a client op's: inside the root (a nested root's
+                elements excluded), `:root` for the root itself, document-wide with
+                `global: true`, several with an Array. Under `verbose_errors`, a `to:`
+                that matches nothing warns once.
+              - **First paint is yours.** Render the same properties inline; the
+                binding corrects them on connect if a restored field (a back
+                navigation, `reactive_persist`) holds another value.
+              - **Where it goes.** On the root, or on any element inside it (`to:` is
+                still resolved from the root). Two calls mixed onto one element
+                collide, so put a second binding on another element.
+
+              It is client-only: no token, no request, no broadcast. It works on a
+              `Phlex::Reactive::ClientBindings` view, as in the demo below. For a
+              handful of states, a class per value (`toggle_class`) is simpler; this is
+              for a continuous value.
+            MD
+            render Views::Examples::LiveExample.new(
+              component: CssVarsPreviewComponent.new,
+              filename: 'app/components/css_vars_preview_component.rb'
             )
           end
         end
