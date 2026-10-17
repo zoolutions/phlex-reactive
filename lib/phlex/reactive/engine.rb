@@ -34,13 +34,20 @@ module Phlex
       # (the privately cacheable lazy render, issue #277). Apps can change the
       # paths with Phlex::Reactive.action_path / .defer_path / .fragment_path
       # before boot.
+      #
+      # Rails main's RouteSet#finalize! makes the route set Ractor-shareable,
+      # append blocks included, and a block's self here is the engine, which
+      # no Ractor can share. Ractor.shareable_proc (Ruby 4.0+) gives the block
+      # a nil self; Mapper evaluates it with its own self either way.
       initializer "phlex_reactive.routes" do
-        it.routes.append do
+        routes = proc do
           post Phlex::Reactive.action_path, to: "phlex/reactive/actions#create", as: :phlex_reactive_action
           post Phlex::Reactive.defer_path, to: "phlex/reactive/actions#deferred", as: :phlex_reactive_defer
           get "#{Phlex::Reactive.fragment_path}/:id", to: "phlex/reactive/fragments#show",
             as: :phlex_reactive_fragment
         end
+        routes = ::Ractor.shareable_proc(&routes) if defined?(::Ractor) && ::Ractor.respond_to?(:shareable_proc)
+        it.routes.append(&routes)
       end
 
       # Make the MINIFIED client build available to Propshaft/Sprockets so it can

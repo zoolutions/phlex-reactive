@@ -51,6 +51,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **An app on Rails main boots in Ractor mode with phlex-reactive mounted.**
+  Rails main's `RouteSet#finalize!` makes the route set Ractor-shareable, the
+  blocks engines append included. The engine's route block had the engine as
+  its `self`, so with `ActiveSupport::Ractors.unshareable_proc_action = :raise`
+  boot raised `Ractor::IsolationError: Proc's self is not shareable`. On Ruby
+  4.0+ the block is now built with `Ractor.shareable_proc`; the routes it
+  draws are unchanged, and older Rubies get the same block as before.
+
 - **A reply that refuses the posted values keeps the held marks (#413).**
   Every reply to a root's own request released the fields a morph held
   (#370), so after an action refused a save the user's next keystroke posted
