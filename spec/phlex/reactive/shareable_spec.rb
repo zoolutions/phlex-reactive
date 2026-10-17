@@ -18,6 +18,12 @@ module ShareableSpec
     def initialize(value:, scale:) = super(value: value * scale)
   end
 
+  # A Data value whose own initialize normalizes what it is given: running
+  # it again (Data#with does) would normalize twice.
+  Doubled = Data.define(:value) do
+    def initialize(value:) = super(value: value * 2)
+  end
+
   # A counter whose self (this module) is shareable but which assigns the
   # variable it captures: Ractor.make_shareable raises ArgumentError for it.
   def self.counter
@@ -89,10 +95,15 @@ RSpec.describe Phlex::Reactive::Shareable do
       expect([counter.call, counter.call]).to eq([1, 2])
     end
 
-    it "keeps a Data value its own initialize cannot rebuild as it is" do
+    # Only Data's own initialize is safe to run again: an app's may
+    # normalize, validate or need more than the members.
+    it "keeps a Data value with its own initialize as it is, never running it again" do
+      doubled = ShareableSpec::Doubled.new(value: [+"a"])
       scaled = ShareableSpec::Scaled.new(value: [+"a"], scale: 2)
 
+      expect(described_class.share(doubled)).to be(doubled)
       expect(described_class.share(scaled)).to be(scaled)
+      expect(doubled.value).to eq(%w[a a])
     end
 
     it "keeps a compare_by_identity Hash comparing by identity" do

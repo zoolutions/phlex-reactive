@@ -75,7 +75,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `Ractor::IsolationError: can not get unshareable values from instance
   variables of classes/modules`. warm! now shares the cache, every
   `@reactive_own_*` declaration and the render memos deeply
-  (`Phlex::Reactive::Shareable.share`, which learned to copy `Data` values);
+  (`Phlex::Reactive::Shareable.share`, which learned to copy `Data` values
+  that keep Data's own `initialize`; one with its own is kept as it is);
   a compiled `ParamSchema` is frozen with a deep-frozen copy of its schema,
   and `action` keeps a frozen copy of `params:`, so the app's own Hash is
   never frozen. A value no Ractor can share (a `reactive_collection size:`
