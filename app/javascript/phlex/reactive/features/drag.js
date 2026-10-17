@@ -98,6 +98,20 @@ const clamp = (value, low, high) => Math.min(Math.max(value, low), high)
 
 export const round = (value) => Math.round(value * 1e4) / 1e4
 
+// A position as the fields will hold it: each number rounded to 4 decimals,
+// a box's x/y then pulled in so it still ends inside the frame (rounded
+// apart, 0.45545 + 0.54455 is 0.4555 + 0.5446 = 1.0001).
+export function snap(value) {
+  const out = { x: round(value.x), y: round(value.y) }
+  if (value.width != null) {
+    out.width = round(value.width)
+    out.height = round(value.height)
+    out.x = Math.min(out.x, round(1 - out.width))
+    out.y = Math.min(out.y, round(1 - out.height))
+  }
+  return out
+}
+
 export function moveBox(b, dx, dy) {
   return { x: clamp(b.x + dx, 0, 1 - b.width), y: clamp(b.y + dy, 0, 1 - b.height), width: b.width, height: b.height }
 }
@@ -256,6 +270,7 @@ function flush(record) {
 
 // --- Pointer --------------------------------------------------------------------------
 function pointerDown(event, core, root) {
+  forgetRemoved()
   if (drag || event.button > 0 || event.isPrimary === false || event.target.closest?.(FIELD)) return
   const grip = event.target.closest?.(GRIP)
   const record = grip && core.owns(grip) && begin(core, root, grip, false)
@@ -324,12 +339,13 @@ function follow(x, y) {
   const dx = (x - bounds.left) / bounds.width - record.p0[0]
   const dy = (y - bounds.top) / bounds.height - record.p0[1]
   const { start: from, edge } = record
-  record.value =
+  record.value = snap(
     kind(record.el) === "point"
       ? movePoint(from, dx, dy)
       : edge
         ? resizeBox(from, edge, dx, dy, record.min, record.ratio)
-        : moveBox(from, dx, dy)
+        : moveBox(from, dx, dy),
+  )
   write(record.el, record.value)
   record.writing ||= requestAnimationFrame(() => flush(record))
   scroll(y)
@@ -350,12 +366,19 @@ function scroll(y) {
   }
 }
 
+// A drag whose element left the page (a stream replaced it while an arrow
+// was held: no keyup or focusout reaches it) is over, not in the way.
+function forgetRemoved() {
+  if (drag && !drag.el.isConnected) settle(drag)
+}
+
 // --- Keyboard --------------------------------------------------------------------------
 // A focused box, handle or point: the arrows move it (Shift: ten times as
 // far), Alt+arrows resize a box from the focused handle or the bottom-right
 // corner, Escape puts it back. The key's release ends the step (`change`, the
 // action); each step is announced in the element's own words.
 function keyDown(event, core, root) {
+  forgetRemoved()
   const grip = event.target
   // (A pointer drag, or a key held on another element, owns the drag.)
   if (!grip?.matches?.(GRIP) || !core.owns(grip) || (drag && (!drag.keyboard || drag.grip !== grip))) return
@@ -368,12 +391,13 @@ function keyDown(event, core, root) {
   const [dx, dy] = arrow.map((d) => d * (event.shiftKey ? 0.1 : 0.01))
   const resize = event.altKey && kind(drag.el) === "box"
   const now = drag.value
-  drag.value =
+  drag.value = snap(
     kind(drag.el) === "point"
       ? movePoint(now, dx, dy)
       : resize
         ? resizeBox(now, drag.edge ?? "se", dx, dy, drag.min, drag.ratio)
-        : moveBox(now, dx, dy)
+        : moveBox(now, dx, dy),
+  )
   write(drag.el, drag.value)
   flush(drag)
   announce(drag, resize ? "resized" : "moved")
@@ -413,7 +437,7 @@ function aspectChanged(event, core, root) {
     const record = begin(core, root, box, true)
     const { ratio, start: b } = record ?? {}
     if (!ratio || Math.abs(b.width / b.height / ratio - 1) < 0.005) continue
-    record.value = fitBox(b, ratio, record.min)
+    record.value = snap(fitBox(b, ratio, record.min))
     write(box, record.value)
     flush(record)
     commit(record)

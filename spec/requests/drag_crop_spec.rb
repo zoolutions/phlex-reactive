@@ -29,6 +29,13 @@ RSpec.describe DragCropComponent, type: :request do
     expect(response.body).not_to include("admin")
   end
 
+  it "ignores a forged release outside the frame (the schema casts, it does not range-check)" do
+    post_action(described_class, act: "crop", payload: { "s" => state }, params: { x: 0.8, y: 0.1, width: 0.5, height: 0.4 })
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include("left: 10%; top: 10%; width: 50%; height: 40%;", "0 ")
+  end
+
   it "re-renders the focal point at its released fractions" do
     post_action(described_class, act: "focus", payload: { "s" => state }, params: { x: 0.75, y: 0.1 })
 

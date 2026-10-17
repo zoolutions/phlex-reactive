@@ -210,6 +210,15 @@ module Views
               `action:` the binding is client-only: it needs no token and works
               on a `Phlex::Reactive::ClientBindings` root, where a form submit
               sends the fields.
+
+              **Check the range before you store it.** The schema casts the
+              numbers but does not range-check them, so a forged request can
+              post `x: 2`. `reactive_box` refuses to render a box outside the
+              frame, so a stored bad value would break every later render of it.
+              Refuse anything outside 0..1, or a box whose `x + width` or
+              `y + height` passes 1, in the action or with a model validation.
+              The fields round to 4 decimals, so allow a sum of up to 1.0001, as
+              the helper does. The demo's `inside?` does this.
             MD
           end
         end
@@ -311,7 +320,7 @@ module Views
               view raises an `ArgumentError` that says how to fix it. Under
               `verbose_errors`, an undeclared action raises too.
 
-              The drag code is the client's `drag` feature module (about 3.4 KB
+              The drag code is the client's `drag` feature module (about 3.5 KB
               gzipped). The default client bundles it; with the split client
               (`phlex/reactive/core`) a page without a frame never loads it.
             MD

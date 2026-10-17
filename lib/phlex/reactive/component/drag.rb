@@ -53,8 +53,9 @@ module Phlex
         POINT_KEYS = %i[x y].freeze
         # A ratio written as a String: "16:9", "1.5".
         RATIO_STRING = /\A\s*\d*\.?\d+\s*(:\s*\d*\.?\d+\s*)?\z/
-        # A box may end at the frame's edge: 0.7 + 0.3 is 0.9999999999999999.
-        EDGE_SLACK = 1e-9
+        # A box may end at the frame's edge as the fields round it: x and width
+        # rounded apart to 4 decimals can sum to 1.0001 (0.45545 + 0.54455).
+        EDGE_SLACK = 1e-4 + 1e-9
 
         # The coordinate space: its padding box is 0..1 on each axis.
         def reactive_frame = { data: { reactive_frame: true } }

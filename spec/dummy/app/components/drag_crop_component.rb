@@ -32,6 +32,10 @@ class DragCropComponent < ApplicationComponent
   def id = "drag-crop"
 
   def crop(x:, y:, width:, height:, aspect: nil)
+    # A forged release outside the frame changes nothing: the schema casts, it
+    # does not range-check, and the helper refuses to render a box outside.
+    return reply.morph unless x + width <= 1.0001 && y + height <= 1.0001
+
     @x = x
     @y = y
     @width = width

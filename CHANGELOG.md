@@ -26,7 +26,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   pipeline, with `x`, `y`, `width`, `height`. Without it the binding is
   client-only and works on a `ClientBindings` root. A morph that lands
   mid-drag does not interrupt it. Every argument is validated at render.
-  Client: a new `drag` feature module (3,478 B gzipped): +2,702 B in the
+  Client: a new `drag` feature module (3,572 B gzipped): +2,797 B in the
   default bundle, +55 B in the split core, which loads it only on a page with
   a frame. Docs: a "Draggable regions" guide with a live demo.
 

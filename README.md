@@ -302,7 +302,7 @@ imports one the first time a root on the page needs it:
 | `phlex/reactive/features/bindings` (`reactive_show`, show targets, `reactive_on_complete`, `reactive_filter`, `reactive_tags`, nested rows, the conditional `confirm:`) | 5.4 KB | inside the one file | fetched when a root declares one of them, or holds a trigger with a conditional confirm |
 | `phlex/reactive/features/compute` (`reactive_compute`, `reactive_text`) | 2.1 KB | inside the one file | fetched when a root carries a compute binding |
 | `phlex/reactive/features/sortable` (`reactive_sortable` drag and drop) | 3.1 KB | inside the one file | fetched when a root is or holds a sortable or source list |
-| `phlex/reactive/features/drag` (`reactive_box`, `reactive_point` draggable regions) | 3.4 KB | inside the one file | fetched when a root is or holds a frame, a box or a point |
+| `phlex/reactive/features/drag` (`reactive_box`, `reactive_point` draggable regions) | 3.5 KB | inside the one file | fetched when a root is or holds a frame, a box or a point |
 | `phlex/reactive/features/countdown` (`reactive_countdown`) | 1.0 KB | inside the one file | fetched when a root is or holds a countdown |
 | `phlex/reactive/features/hints` (`optimistic:`, `busy:`) | 1.0 KB | inside the one file | fetched when a root holds a trigger that declares a hint |
 | `phlex/reactive/features/devtools` (the latency simulator, the zero-target warnings, the debug trace) | 1.6 KB | inside the one file | fetched with the core on a page that carries `<meta name="phlex-reactive-env" content="development">` or while a delay is stored for the tab; at connect for a root in debug mode; otherwise the first time a verbose root has something to warn about. In production with none of these, never |
@@ -1957,7 +1957,10 @@ coordinate space.
   radio), the box re-fits to the new ratio around its centre.
 - **`action:`** (optional): sent once on release through the root's pipeline,
   with `x`, `y`, `width`, `height` (a point: `x`, `y`). Without it the binding
-  is client-only and works on a `ClientBindings` root.
+  is client-only and works on a `ClientBindings` root. The `:float` schema casts
+  but does not range-check: refuse values outside 0..1 (and `x + width`,
+  `y + height` past 1.0001, the fields' rounding) before you store them, since
+  `reactive_box` refuses to render a box outside the frame.
 - **Points**: `reactive_point` moves within the frame, or — placed inside a box
   with `within:` — within that box, its fractions of the box.
 - **Keyboard**: the box and the point are focusable; arrows move 1% (Shift:

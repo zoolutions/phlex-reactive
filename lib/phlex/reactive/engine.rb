@@ -25,7 +25,7 @@ module Phlex
       ].freeze
       # (Gzipped, bun zlib level 9, KB = 1,024 B: the default file 30.9 KB; the core 14.3 KB;
       # persist 3.1, defer 2.9, form 1.1, bindings 6.5, compute 2.0, sortable
-      # 3.1, drag 3.4, presence 1.3, countdown 0.9, effects 1.7, hints 0.9, devtools 1.5 KB. spec/javascript/bundle_budget.test.js
+      # 3.1, drag 3.5, presence 1.3, countdown 0.9, effects 1.7, hints 0.9, devtools 1.5 KB. spec/javascript/bundle_budget.test.js
       # is the source of truth and holds a ratchet on each.)
 
       # Mount POST /reactive/actions -> Phlex::Reactive::ActionsController#create

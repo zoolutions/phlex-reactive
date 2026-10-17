@@ -39,14 +39,18 @@ class RegionPickerComponent < Phlex::HTML
   def id = 'region-picker'
 
   def crop(x:, y:, width:, height:, aspect: nil)
-    @crop = { 'x' => x, 'y' => y, 'width' => width, 'height' => height }
     @aspect = aspect.to_s
+    return reply.morph unless inside?(x, width) && inside?(y, height)
+
+    @crop = { 'x' => x, 'y' => y, 'width' => width, 'height' => height }
     reply.morph
   end
 
   def focus(x:, y:, aspect: nil)
-    @focus = { 'x' => x, 'y' => y }
     @aspect = aspect.to_s
+    return reply.morph unless [x, y].all? { it.between?(0, 1) }
+
+    @focus = { 'x' => x, 'y' => y }
     reply.morph
   end
 
@@ -60,6 +64,11 @@ class RegionPickerComponent < Phlex::HTML
   end
 
   private
+
+  # The schema casts the fractions; it does not range-check them. A forged
+  # release outside the picture changes nothing (the helper would refuse to
+  # render it). The fields round to 4 decimals, so x + width may reach 1.0001.
+  def inside?(at, size) = at.between?(0, 1) && size.positive? && at + size <= 1.0001
 
   def picture_frame
     div(**mix(reactive_frame, class: 'relative overflow-hidden rounded-box select-none',

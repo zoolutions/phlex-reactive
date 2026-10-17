@@ -1201,7 +1201,7 @@ module Views
             end
             DocsUI::Table(['Module', 'Gzipped', 'Default client', 'Split client'],
                           [
-                            [[:code, 'phlex/reactive/reactive_controller'], '39.0 KB',
+                            [[:code, 'phlex/reactive/reactive_controller'], '39.1 KB',
                              'When your controllers load (or at the first trigger, for a page whose only roots are dormant).',
                              'Never.'],
                             [[:code, 'phlex/reactive/core'], '17.9 KB',
@@ -1237,7 +1237,7 @@ module Views
                              'Inside the one file.',
                              [:md, 'When the first root that is, or holds, a `reactive_sortable` or ' \
                                    '`reactive_sortable_source` list connects.']],
-                            [[:code, 'phlex/reactive/features/drag'], '3.4 KB',
+                            [[:code, 'phlex/reactive/features/drag'], '3.5 KB',
                              'Inside the one file.',
                              [:md, 'When the first root that is, or holds, a `reactive_frame`, `reactive_box` or ' \
                                    '`reactive_point` connects.']],

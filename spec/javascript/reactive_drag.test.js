@@ -261,6 +261,19 @@ describe("pointer", () => {
     expect(values()).toEqual({ x: 0.65, y: 0.55, width: 0.05, height: 0.05 })
   })
 
+  test("rounding to 4 decimals never takes the box past the frame's edge", async () => {
+    // A box against the right edge, resized from the left: x = 1 - width. Rounded
+    // apart, 0.45545 + 0.54455 becomes 0.4555 + 0.5446 = 1.0001 — past the edge,
+    // which the server's re-render refuses.
+    mount(picker({ value: { x: 0.5, y: 0.1, width: 0.5, height: 0.4 }, attrs: 'data-reactive-box-action="crop"' }))
+    dragBy(document.getElementById("h-w"), -17.82, 0)
+    await flush()
+    const { x, width } = values()
+    expect(x + width).toBeLessThanOrEqual(1 + 1e-9)
+    expect(requests[0].params.x + requests[0].params.width).toBeLessThanOrEqual(1 + 1e-9)
+    expect(parseFloat(box().style.left) + parseFloat(box().style.width)).toBeLessThanOrEqual(100 + 1e-9)
+  })
+
   test("a move under 4 px is not a drag; a press on the frame outside the box does nothing", async () => {
     mount(picker())
     const changes = listen("change")
@@ -419,6 +432,18 @@ describe("keyboard", () => {
     await flush()
     expect(values().x).toBe(0.1)
     expect(live()).toBe("Cancelled")
+  })
+
+  test("a box removed while an arrow is held does not lock every other drag", async () => {
+    mount(picker())
+    key(box(), "ArrowRight") // held: no keyup
+    const old = box()
+    old.remove() // a stream replaced it; no focusout, no keyup reaches it
+    document.querySelector("[data-reactive-frame]").append(old.cloneNode(true))
+    layout()
+    press(box(), "ArrowDown")
+    await flush()
+    expect(box().style.top).toBe("11%")
   })
 
   test("a step at the frame's edge stays there", async () => {

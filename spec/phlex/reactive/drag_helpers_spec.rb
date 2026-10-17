@@ -180,6 +180,14 @@ RSpec.describe Phlex::Reactive::Component::Drag do
         .not_to raise_error
     end
 
+    it "accepts the fields' own rounding (4 decimals) at the edge, but not more" do
+      # 0.45545 + 0.54455 rounded apart is 0.4555 + 0.5446 = 1.0001
+      expect { view.reactive_box(fields: fields, value: { x: 0.4555, y: 0, width: 0.5446, height: 1 }) }
+        .not_to raise_error
+      expect { view.reactive_box(fields: fields, value: { x: 0.4556, y: 0, width: 0.5446, height: 1 }) }
+        .to raise_error(ArgumentError, /x \+ width is 1.0002/)
+    end
+
     it "raises on missing value: keys" do
       expect { view.reactive_box(fields: fields, value: value.except(:y)) }
         .to raise_error(ArgumentError, /value: is missing :y/)
