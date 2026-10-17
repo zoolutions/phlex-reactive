@@ -1469,12 +1469,12 @@ module Views
             DocsUI::Prose() do
               p do
                 plain 'See '
-                a(href: 'https://github.com/zoolutions/phlex-reactive/blob/main/.claude/rules/performance.md') do
-                  plain '.claude/rules/performance.md'
+                a(href: 'https://github.com/zoolutions/phlex-reactive/blob/main/AGENTS.md') do
+                  plain 'AGENTS.md (Performance)'
                 end
                 plain ': any change to a hot path ships with a bench, the README/CHANGELOG/docs are updated, '
                 plain 'and the JS vendored copy is re-synced. Run '
-                code { '/perf' }
+                code { '/ruby-gem:perf' }
                 plain ' to benchmark the current branch and get a written before/after.'
               end
             end

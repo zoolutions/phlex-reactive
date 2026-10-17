@@ -86,7 +86,7 @@ capability gate, the security model) that you must hold in your head.
 - [ ] A dummy example component exercises the feature
 - [ ] Tests cover every touched layer
 - [ ] `bundle exec rubocop` + `bundle exec rspec` pass
-- [ ] Run the `fable-validator` agent on the combined diff first; do not open or merge on BLOCK.
+- [ ] Run the `flow:fable-validator` agent on the combined diff first; do not open or merge on BLOCK.
 
 ## Handoff
 

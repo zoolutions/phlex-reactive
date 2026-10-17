@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # Micro-bench: the broadcast render path — a NAMED hot path
-# (.claude/rules/performance.md) that had no bench until issue #119.
+# (AGENTS.md → Performance) that had no bench until issue #119.
 #
 # The transport (Turbo::StreamsChannel) is doubled out to a no-op: we are
 # measuring the SERVER-SIDE cost a broadcast pays BEFORE the wire — build +
