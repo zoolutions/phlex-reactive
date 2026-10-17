@@ -184,7 +184,9 @@ const SLACK = 250
 // token-bearing root above and is transparent to its field collection) adds 337 B: 37,104 B;
 // its review fix (a held dispatch cancels the native default at once) 77 B: 37,181 B.
 // Issue #413 (X-Reactive-Refused: a refused reply keeps the held marks it names) adds 65 B: 37,246 B.
-const BUNDLE_GZIP_CEILING = 37_246
+// Issue #417 (reactive_css_vars: fields fed into CSS custom properties, in bindings, plus the
+// runtime's marker) adds 457 B: 37,703 B; its review fix (a to: that does not parse matches nothing) 3 B: 37,706 B.
+const BUNDLE_GZIP_CEILING = 37_706
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -250,7 +252,8 @@ const TARGET_BUNDLE_GZIP = 22_700
 // Issue #410 (client-only roots transparent to server round trips, in the runtime) adds 349 B: 18,107 B;
 // its review fix (a held dispatch cancels the native default at once) 66 B: 18,173 B.
 // Issue #413 (X-Reactive-Refused: a refused reply keeps the held marks it names) adds 60 B: 18,233 B.
-const CORE_GZIP_CEILING = 18_233
+// Issue #417 (the bindings marker for reactive_css_vars) adds 16 B: 18,249 B.
+const CORE_GZIP_CEILING = 18_249
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -271,7 +274,9 @@ const FEATURE_GZIP_CEILINGS = {
   // Issue #394 (clear:/focus:/scroll: on a show's visibility change) to 7,658 B;
   // its review fixes to 7,680 B; on top of #390, 7,719 B;
   // on top of #398, 7,783 B.
-  "features/bindings": 7_783,
+  // Issue #417 (reactive_css_vars: the number read, the unit and name allowlists) to 8,238 B;
+  // its review fix (a to: that does not parse matches nothing) to 8,245 B.
+  "features/bindings": 8_245,
   // Issue #336 (render a defer reply now) takes it from 2,845 B to 2,974 B.
   "features/defer": 2_974,
   "features/compute": 2_050,
@@ -370,7 +375,9 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #410 (client-only roots transparent to server round trips, in the core) adds 349 B: 45,288 B;
 // its review fix 66 B: 45,354 B.
 // Issue #413 (X-Reactive-Refused, in the core) adds 60 B: 45,414 B.
-const SPLIT_TOTAL_GZIP_CEILING = 45_414
+// Issue #417 (reactive_css_vars: +455 B bindings, +16 B core) adds 471 B: 45,885 B;
+// its review fix (in bindings) 7 B: 45,892 B.
+const SPLIT_TOTAL_GZIP_CEILING = 45_892
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

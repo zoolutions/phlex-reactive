@@ -1223,11 +1223,11 @@ module Views
                              'Inside the one file.',
                              [:md, 'When the first root that declares an effect connects, or when the first stream ' \
                                    'that needs it arrives: one with an effect, or with a `dismiss_after:` flash.']],
-                            [[:code, 'phlex/reactive/features/bindings'], '7.8 KB',
+                            [[:code, 'phlex/reactive/features/bindings'], '8.2 KB',
                              'Inside the one file.',
                              [:md, 'When the first root with a `reactive_show` / show targets / ' \
                                    '`reactive_on_complete` / `reactive_filter` / `reactive_tags` / `reactive_editable` / ' \
-                                   'nested-rows binding, or a conditional `confirm:`, connects.']],
+                                   '`reactive_css_vars` / nested-rows binding, or a conditional `confirm:`, connects.']],
                             [[:code, 'phlex/reactive/features/compute'], '2.1 KB',
                              'Inside the one file.',
                              [:md, 'When the first `reactive_compute` root connects. Its outputs show the ' \
