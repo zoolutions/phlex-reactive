@@ -89,7 +89,7 @@ labels:
   # Where an issue is in its lifecycle. Never on a pull request.
   - name: plan
     color: 6f42c1
-    description: Has a /plan body with Context, Decision, Steps and Gates; ready for /lfg
+    description: Has a /flow:plan body with Context, Decision, Steps and Gates; ready for /flow:lfg
     group: status
   - name: epic
     color: "5319e7"
@@ -131,7 +131,7 @@ labels:
     description: This will not be worked on
     group: community
 
-# Path globs -> area label, used by `bin/labels infer` and by /plan and /lfg to
+# Path globs -> area label, used by `bin/labels infer` and by /flow:plan and /flow:lfg to
 # label deterministically from a diff. Matched with File.fnmatch and
 # File::FNM_PATHNAME | File::FNM_EXTGLOB: write a recursive glob as `**/*`. A
 # path may match several globs — every matching area applies.
