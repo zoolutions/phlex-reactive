@@ -71,6 +71,22 @@ RSpec.describe Phlex::Reactive::HeldFields do
     end
   end
 
+  # Issue #413: a reply that refused the posted values names what the client
+  # keeps held, in the X-Reactive-Refused response header.
+  describe ".refused_header" do
+    it "is * when the reply refused every held field" do
+      expect(described_class.refused_header(:all)).to eq("*")
+    end
+
+    it "is a JSON list of the refused names" do
+      expect(described_class.refused_header(%w[title body])).to eq('["title","body"]')
+    end
+
+    it "escapes every non-ASCII character, as the client escapes X-Reactive-Held" do
+      expect(described_class.refused_header(["titel_ä"])).to eq('["titel_\\u00e4"]')
+    end
+  end
+
   describe ".current / .with" do
     it "is an empty list outside a block" do
       expect(described_class.current).to eq([])

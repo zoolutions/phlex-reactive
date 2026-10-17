@@ -190,10 +190,16 @@ module Views
           md <<~MD
             The marks clear once a successful reply to the root's own request is
             applied (that reply is the server's answer to exactly those values);
-            an error reply never marks and leaves the marks in place. A
-            field's mark clears when its value is set back to its default (the
-            user took theirs). An unfocused field takes the server's value in a
-            morph, so it is never held.
+            an error reply never marks and leaves the marks in place. A reply
+            that refused the values says so: `reply.morph.refused` keeps every
+            mark, `reply.morph.refused("title")` keeps only that field's (names
+            as `reactive_held_fields` reports them), and the root's next action
+            names them again, so the user's next keystroke is refused too
+            instead of saving over the other change. It is still a successful
+            reply: no error marker, no `reactive:error`. A field's mark clears
+            when its value is set back to its default (the user took theirs).
+            An unfocused field takes the server's value in a morph, so it is
+            never held.
 
             Broadcast with `exclude: reactive_connection_id` (pgbus) so the
             actor never morphs its own echo. On a transport without `exclude:`
@@ -205,7 +211,7 @@ module Views
             (`title[en]` counts for a declared `title`). It tells you what the
             user saw, not what they may do: authorize as always. In a unit test,
             `run_reactive(form, :save, held: ["title"], title: "Draft")` stands
-            in for the header.
+            in for the header, and `.refused?` on its result asserts the refusal.
           MD
         end
 
@@ -218,7 +224,7 @@ module Views
               # Another tab changed the title while this user typed over it.
               if reactive_held_fields.include?("title") && title != @note.title
                 @conflict = title # render "someone changed the title" with both versions
-                return reply.morph
+                return reply.morph.refused("title") # keep it held: the next keystroke is refused too
               end
               @note.update!(title:, body:)
               reply.morph

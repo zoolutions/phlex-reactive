@@ -19,6 +19,7 @@ module Phlex
     #   reply.remove                           # drop the element (e.g. moderation queue)
     #   reply.redirect(article_url(@article))  # slug changed -> Turbo.visit the new URL
     #   reply.replace.stream(Totals.update(@order))  # multi-stream
+    #   reply.morph.refused("title")           # answered, not stored: keep the field held
     class Response
       attr_reader :streams, :redirect_url, :token_component, :subject_component
 
@@ -351,8 +352,11 @@ data-reactive-ops="#{ERB::Util.html_escape(json)}"></turbo-stream>).html_safe
       # reply never allocates an empty array per Response.
       NO_SEGMENTS = [].freeze
 
+      # refused: what #refused recorded (issue #413) — nil, :all, or a frozen
+      # list of field names.
       def initialize(streams: [], redirect_url: nil, render_self: true, token_component: nil,
-                     subject_component: nil, deferred_segments: NO_SEGMENTS, pending_segments: NO_SEGMENTS)
+                     subject_component: nil, deferred_segments: NO_SEGMENTS, pending_segments: NO_SEGMENTS,
+                     refused: nil)
         @streams = streams.freeze
         @redirect_url = redirect_url
         @render_self = render_self
@@ -360,8 +364,13 @@ data-reactive-ops="#{ERB::Util.html_escape(json)}"></turbo-stream>).html_safe
         @subject_component = subject_component
         @deferred_segments = deferred_segments.freeze
         @pending_segments = pending_segments.freeze
+        @refused_fields = refused
         freeze
       end
+
+      # What the reply refused (issue #413): :all, the field names, or nil when
+      # it refused nothing.
+      attr_reader :refused_fields
 
       # The recorded reply.defer segments (issue #165), in call order. The
       # Response only RECORDS them; the endpoint (via the Defer module) builds
@@ -388,7 +397,8 @@ data-reactive-ops="#{ERB::Util.html_escape(json)}"></turbo-stream>).html_safe
           token_component: @token_component,
           subject_component: @subject_component,
           deferred_segments: @deferred_segments,
-          pending_segments: @pending_segments
+          pending_segments: @pending_segments,
+          refused: @refused_fields
         )
       end
 
@@ -420,7 +430,8 @@ data-reactive-ops="#{ERB::Util.html_escape(json)}"></turbo-stream>).html_safe
           subject_component: @subject_component,
           deferred_segments: @deferred_segments +
             [Phlex::Reactive::Defer::Segment.new(component:, placeholder:, morph:)],
-          pending_segments: @pending_segments
+          pending_segments: @pending_segments,
+          refused: @refused_fields
         )
       end
 
@@ -464,9 +475,49 @@ data-reactive-ops="#{ERB::Util.html_escape(json)}"></turbo-stream>).html_safe
           token_component: @token_component || built.token_component,
           subject_component: @subject_component,
           deferred_segments: @deferred_segments,
-          pending_segments: @pending_segments + built.pending_segments
+          pending_segments: @pending_segments + built.pending_segments,
+          refused: @refused_fields
         )
       end
+
+      # Answer the posted values without storing them (issue #413). Every reply
+      # to a root's own request releases the fields a morph held (issue #370),
+      # because it answers exactly those values. A reply that refused them says
+      # so, and the client keeps the marks: the root's next action names the
+      # same fields in X-Reactive-Held again, instead of saving over the other
+      # change on the user's next keystroke.
+      #
+      #   if reactive_held_fields.include?("title") && title != @note.title
+      #     @conflict = title
+      #     return reply.morph.refused("title")
+      #   end
+      #
+      # No names keeps every mark the root holds; names (the fields' `name`
+      # attributes, as reactive_held_fields reports them) keep only those, and
+      # the root's other marks release as usual. Nothing else about the reply
+      # changes: it is a 200, with no error marker and no reactive:error.
+      # Returns a NEW Response (immutable). Dead on a redirect, like #defer.
+      def refused(*names)
+        if redirect?
+          raise Phlex::Reactive::Error,
+            "reply.refused on a redirect reply is dead — the client is navigating away, " \
+            "so there is no held field left to keep"
+        end
+
+        names = names.flatten.map(&:to_s).uniq.freeze
+        self.class.new(
+          streams: @streams,
+          redirect_url: @redirect_url,
+          render_self: @render_self,
+          token_component: @token_component,
+          subject_component: @subject_component,
+          deferred_segments: @deferred_segments,
+          pending_segments: @pending_segments,
+          refused: names.empty? ? :all : names
+        )
+      end
+
+      def refused? = !@refused_fields.nil?
 
       # Chain a `reactive:js` op stream — server-pushed client DOM ops (issue
       # #97) — onto this reply, so a focus/dispatch/class toggle runs on the

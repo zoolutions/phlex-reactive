@@ -9,6 +9,7 @@ module Phlex
       attr_reader subject_component: untyped
       attr_reader deferred_segments: Array[untyped]
       attr_reader pending_segments: Array[untyped]
+      attr_reader refused_fields: (:all | Array[String])?
 
       # --- chaining ---
       def stream: (*String more) -> Response
@@ -17,6 +18,7 @@ module Phlex
       def also: (?untyped companion, ?morph: bool, **untyped targets) -> Response
       def defer: (untyped component, ?placeholder: untyped, ?morph: bool) -> Response
       def pending: (untyped records, ?peers: bool, ?job: untyped, ?args: untyped, **untyped opts) ?{ (?) -> untyped } -> Response
+      def refused: (*(String | Symbol | Array[String | Symbol]) names) -> Response
 
       # Removed: each raises a guided error naming its replacement.
       def also_update: (untyped target, **untyped) -> bot
@@ -28,6 +30,7 @@ module Phlex
       def refresh_token?: () -> bool
       def deferred?: () -> bool
       def pending?: () -> bool
+      def refused?: () -> bool
 
       # --- the builders `reply` delegates to ---
       def self.build_replace: (untyped component, ?morph: bool, ?effect: untyped) -> Response

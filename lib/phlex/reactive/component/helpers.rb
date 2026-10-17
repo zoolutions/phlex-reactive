@@ -43,7 +43,7 @@ module Phlex
         # declared params; a hint about what the user saw, never authorization.
         #
         #   def save(title: nil)
-        #     return conflict!(title) if reactive_held_fields.include?("title") && title != @note.title
+        #     return reply.morph.refused("title") if reactive_held_fields.include?("title") && title != @note.title
         #     @note.update!(title:)
         #   end
         def reactive_held_fields

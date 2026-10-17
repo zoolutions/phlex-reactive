@@ -14,8 +14,14 @@ module Phlex
     #
     #   def save(title: nil)
     #     authorize!(@note, to: :update?)
-    #     return conflict! if reactive_held_fields.include?("title") && title != @note.title
+    #     return reply.morph.refused("title") if reactive_held_fields.include?("title") && title != @note.title
     #     ...
+    #
+    # A reply to the root's own request releases its marks: it answers exactly
+    # those values. A refusal (`reply.morph.refused`, issue #413) is sent back
+    # in the X-Reactive-Refused header, and the client keeps the marks it names,
+    # so the user's next keystroke is refused too until the action stores the
+    # field or the user takes the other value.
     #
     # The header is UNTRUSTED input, like every request field: it carries names
     # only, never values, and is read as data — capped in bytes, count and
@@ -26,6 +32,8 @@ module Phlex
     # It is a hint about what the user saw, not authorization.
     module HeldFields
       HEADER = "X-Reactive-Held"
+      # The response header a refusing reply sends (issue #413).
+      REFUSED_HEADER = "X-Reactive-Refused"
 
       # A raw header longer than this is ignored unparsed.
       MAX_BYTES = 4_096
@@ -60,6 +68,13 @@ module Phlex
           names.is_a?(Array) ? filter(names, action_def) : EMPTY
         rescue JSON::ParserError
           EMPTY
+        end
+
+        # The X-Reactive-Refused value for Response#refused_fields: "*" keeps
+        # every mark, a JSON list keeps those names. ASCII only (a header is a
+        # byte string), as the client escapes X-Reactive-Held.
+        def refused_header(fields)
+          fields == :all ? "*" : JSON.generate(fields, ascii_only: true)
         end
 
         # Keep the strings among `names` that `action_def` declares as params.
