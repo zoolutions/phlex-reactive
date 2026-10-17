@@ -6,6 +6,39 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.16.2] - 2026-10-17
+
+### Fixed
+
+- **An app on Rails main boots in Ractor mode with phlex-reactive mounted.**
+  Rails main's `RouteSet#finalize!` makes the route set Ractor-shareable, the
+  blocks engines append included. The engine's route block had the engine as
+  its `self`, so with `ActiveSupport::Ractors.unshareable_proc_action = :raise`
+  boot raised `Ractor::IsolationError: Proc's self is not shareable`. On Ruby
+  4.0+ the block is now built with `Ractor.shareable_proc`; the routes it
+  draws are unchanged, and older Rubies get the same block as before.
+
+- **A warmed component's class can be read from a non-main Ractor.** Boot's
+  `Component::Registry.warm!` froze each class's resolution cache only at the
+  top level, so the action definitions in it (their `params` Hash, their
+  compiled `ParamSchema`) stayed mutable, and the class's own declarations
+  (`@reactive_own_actions`, `@reactive_own_state_keys`, …) were not frozen at
+  all. Every reactive render or action in a non-main Ractor raised
+  `Ractor::IsolationError: can not get unshareable values from instance
+  variables of classes/modules`. warm! now shares the cache, every
+  `@reactive_own_*` declaration and the render memos deeply
+  (`Phlex::Reactive::Shareable.share`, which learned to copy `Data` values
+  that keep Data's own `initialize`; one with its own is kept as it is);
+  a compiled `ParamSchema` is frozen with a deep-frozen copy of its schema,
+  and `action` keeps a frozen copy of `params:`, so the app's own Hash is
+  never frozen. A value no Ractor can share (a `reactive_collection size:`
+  lambda that assigns what it captures) is kept as it is and works on the
+  main Ractor; boot never raises for it. A declaration after warm! (a
+  development reload) writes to a fresh copy, as before. The Ractor canary
+  now reads a warmed component with an action that takes params.
+
+## [0.16.1] - 2026-10-17
+
 ### Added
 
 - **Draggable regions: move and resize a box, or move a point, inside a
@@ -51,14 +84,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- **An app on Rails main boots in Ractor mode with phlex-reactive mounted.**
-  Rails main's `RouteSet#finalize!` makes the route set Ractor-shareable, the
-  blocks engines append included. The engine's route block had the engine as
-  its `self`, so with `ActiveSupport::Ractors.unshareable_proc_action = :raise`
-  boot raised `Ractor::IsolationError: Proc's self is not shareable`. On Ruby
-  4.0+ the block is now built with `Ractor.shareable_proc`; the routes it
-  draws are unchanged, and older Rubies get the same block as before.
-
 - **A reply that refuses the posted values keeps the held marks (#413).**
   Every reply to a root's own request released the fields a morph held
   (#370), so after an action refused a save the user's next keystroke posted
@@ -73,25 +98,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Client: +65 B gzipped in the default bundle, +60 B in the split core.
   Docs: "Knowing what was held" on the architecture page, the `reply` table
   in the README.
-
-- **A warmed component's class can be read from a non-main Ractor.** Boot's
-  `Component::Registry.warm!` froze each class's resolution cache only at the
-  top level, so the action definitions in it (their `params` Hash, their
-  compiled `ParamSchema`) stayed mutable, and the class's own declarations
-  (`@reactive_own_actions`, `@reactive_own_state_keys`, …) were not frozen at
-  all. Every reactive render or action in a non-main Ractor raised
-  `Ractor::IsolationError: can not get unshareable values from instance
-  variables of classes/modules`. warm! now shares the cache, every
-  `@reactive_own_*` declaration and the render memos deeply
-  (`Phlex::Reactive::Shareable.share`, which learned to copy `Data` values
-  that keep Data's own `initialize`; one with its own is kept as it is);
-  a compiled `ParamSchema` is frozen with a deep-frozen copy of its schema,
-  and `action` keeps a frozen copy of `params:`, so the app's own Hash is
-  never frozen. A value no Ractor can share (a `reactive_collection size:`
-  lambda that assigns what it captures) is kept as it is and works on the
-  main Ractor; boot never raises for it. A declaration after warm! (a
-  development reload) writes to a fresh copy, as before. The Ractor canary
-  now reads a warmed component with an action that takes params.
 
 ## [0.16.0] - 2026-10-16
 
@@ -4141,7 +4147,9 @@ room for dogfood fixes.
   scaffolds a reactive component (and an RSpec spec when the app uses RSpec),
   state-backed by default or record-backed with `--record`.
 
-[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.2...HEAD
+[0.16.2]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.1...v0.16.2
+[0.16.1]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.0...v0.16.1
 [0.16.0]: https://github.com/mhenrixon/phlex-reactive/compare/v0.15.5...v0.16.0
 [0.15.5]: https://github.com/mhenrixon/phlex-reactive/compare/v0.15.4...v0.15.5
 [0.15.4]: https://github.com/mhenrixon/phlex-reactive/compare/v0.15.3...v0.15.4
