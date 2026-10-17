@@ -137,7 +137,7 @@ re-sync command.
 - **Release:** `bin/release <v>` (never `gem push`; `bin/release`, `rakelib/release.rake` and `release.yml`'s shared jobs are the docs-kit kit, byte-identical across gems); changelog `CHANGELOG.md`, heading `## [X.Y.Z] - YYYY-MM-DD` under `## [Unreleased]`; no prep step; lockfiles `Gemfile.lock` `docs/Gemfile.lock`; docs `deploy-docs.yml` on release; no human step
 - **Main health:** `gh run list --workflow main.yml --branch main --event push --limit 1 --json conclusion,headSha`
 - **Upstream:** libraries we own `zoolutions/*`; no scrub terms
-- **Bench:** `bundle exec rake bench`, one `bundle exec rake bench:one[<name>]`; hot paths `AGENTS.md → Performance`; CI runs no bench
+- **Bench:** `bundle exec rake bench`, one `bundle exec rake bench:one[<name>]`; hot paths `AGENTS.md → Performance`; CI bench job is report-only, not a gate
 
 ## Agent commands
 
