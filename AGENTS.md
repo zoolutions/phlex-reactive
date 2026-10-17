@@ -133,11 +133,11 @@ re-sync command.
 - **Merge:** squash — `gh pr merge <PR> --squash --delete-branch`
 - **PR contract:** `## Summary` (`Closes #N`), `## Test plan`; labels per `## Labels`; scopes `streamable` `component` `controller` `client` `engine` `docs` `ci`; docs site or demo change: before/after screenshots; hot-path change: the before/after bench
 - **Conflicts:** `CHANGELOG.md` — both sides' bullets under `[Unreleased]`, no duplicate subheads; `version.rb` — main's (only `bin/release` bumps it); `Gemfile.lock` `docs/Gemfile.lock` — main's + `bundle install`; `app/javascript/phlex/reactive/*.min.js{,.map}` and their `spec/dummy/public/vendor/` twins (map in `spec/phlex/vendored_controller_sync_spec.rb`) — never by hand: resolve the source, `rake build:js`, re-sync; `docs/app/models/doc.rb`, route files — both lines, main's first
-- **Worktree setup:** `bundle install` · `bun install --frozen-lockfile` (also `docs/`); undo none
-- **Release:** `bin/release <v>` (never `gem push`; `bin/release`, `rakelib/release.rake` and `release.yml`'s shared jobs are the docs-kit kit, byte-identical across gems); changelog `CHANGELOG.md`, heading `## [X.Y.Z] - YYYY-MM-DD` under `## [Unreleased]`; prep none; lockfiles `Gemfile.lock` `docs/Gemfile.lock`; docs `deploy-docs.yml` on release; human none
+- **Worktree setup:** `bundle install` · `bun install --frozen-lockfile` (also `docs/`); no undo step
+- **Release:** `bin/release <v>` (never `gem push`; `bin/release`, `rakelib/release.rake` and `release.yml`'s shared jobs are the docs-kit kit, byte-identical across gems); changelog `CHANGELOG.md`, heading `## [X.Y.Z] - YYYY-MM-DD` under `## [Unreleased]`; no prep step; lockfiles `Gemfile.lock` `docs/Gemfile.lock`; docs `deploy-docs.yml` on release; no human step
 - **Main health:** `gh run list --workflow main.yml --branch main --event push --limit 1 --json conclusion,headSha`
-- **Upstream:** libraries we own `zoolutions/*`; scrub none
-- **Bench:** `bundle exec rake bench`, one `bundle exec rake bench:one[<name>]`; hot paths `AGENTS.md → Performance`; CI holds none
+- **Upstream:** libraries we own `zoolutions/*`; no scrub terms
+- **Bench:** `bundle exec rake bench`, one `bundle exec rake bench:one[<name>]`; hot paths `AGENTS.md → Performance`; CI runs no bench
 
 ## Agent commands
 
@@ -267,7 +267,7 @@ token signing (`reactive_token`), and param coercion. Key facts:
 | Path | Where |
 |------|-------|
 | Component re-render | `lib/phlex/reactive/streamable.rb` (`render_component`, `to_stream_replace`, `turbo_stream_builder`) |
-| Token signing | `lib/phlex/reactive/component.rb` (`reactive_token`, `on`, `reactive_attrs`) |
+| Token signing | `lib/phlex/reactive/component/identity.rb` (`reactive_token`), `lib/phlex/reactive/component/helpers.rb` (`on`, `reactive_attrs`) |
 | Param coercion | `app/controllers/phlex/reactive/actions_controller.rb` (`coerce_params` and friends) |
 | Broadcast render | `lib/phlex/reactive/streamable.rb` (`broadcast_*_to`) |
 | Client dispatch, connect | `app/javascript/phlex/reactive/runtime.js`, `features/*.js` |
