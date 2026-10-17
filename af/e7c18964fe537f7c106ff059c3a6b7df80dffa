@@ -1,0 +1,19 @@
+spec/javascript/reactive_css_vars.test.js
+  s_42e763d0559418::t_6285867b521dd2 253-256,258-266
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "afe7c18964fe537f7c106ff059c3a6b7df80dffa",
+  "prompts": {},
+  "sessions": {
+    "s_42e763d0559418": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bbdea58a-9166-4df8-ba74-f49cdbf108de",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
