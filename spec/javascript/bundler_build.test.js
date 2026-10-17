@@ -35,6 +35,7 @@ const FEATURE_MARKS = {
   hints: "optimistic: { hide: true } was undone",
   devtools: "latency simulator ACTIVE",
   sortable: "data-reactive-sortable-placeholder",
+  drag: "data-reactive-drag-live",
   presence: "data-reactive-presence-same-member",
   countdown: "reactive:countdown-done",
 }

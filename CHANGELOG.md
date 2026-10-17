@@ -8,6 +8,29 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Draggable regions: move and resize a box, or move a point, inside a
+  frame, with the result in fields (#416).** `reactive_frame` marks the
+  coordinate space, `reactive_box(fields:, value:, aspect:, min:, action:,
+  busy:, messages:)` a box in it, `reactive_box_handle(edge)` an edge or corner
+  to resize from, and `reactive_point(fields:, value:, within:, …)` a point,
+  inside the frame or inside a box. The helpers render the position as
+  percentages from `value:`, so the first paint needs no JavaScript and a
+  re-render with new values moves the box. The box moves and resizes with a
+  mouse, a pen, a finger or the keyboard (arrows 1%, Shift 10%, Alt resizes,
+  Escape puts it back, each step announced in the words of `messages:`). It
+  stays inside the frame and never goes below `min:`. `aspect:` locks the
+  ratio (a Numeric, or a field such as a row of preset radios, which re-fits
+  the box when it changes). The fields hold fractions rounded to 4 decimals,
+  with `input` as the box moves (at most once per field a frame) and one
+  `change` on release. `action:` is sent once per release through the root's
+  pipeline, with `x`, `y`, `width`, `height`. Without it the binding is
+  client-only and works on a `ClientBindings` root. A morph that lands
+  mid-drag does not interrupt it. The helpers check their arguments' keys,
+  types and ranges at render (an undeclared action under `verbose_errors`).
+  Client: a new `drag` feature module (3,576 B gzipped): +2,789 B in the
+  default bundle, +51 B in the split core, which loads it only on a page with
+  a frame, a box or a point. Docs: a "Draggable regions" guide with a live demo.
+
 - **Fields that feed CSS custom properties: `reactive_css_vars` (#417).** A
   preview that follows a control (a slider that brightens an image, a select
   that rotates it) needed app JavaScript or a request per input event.

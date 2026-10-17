@@ -128,6 +128,9 @@ Naming/MethodParameterName:
     - to
     - as
     - "on"
+    # Draggable regions (issue #416): an action receives a box as x/y/width/height.
+    - x
+    - "y"
 
 Naming/VariableNumber:
   Exclude:

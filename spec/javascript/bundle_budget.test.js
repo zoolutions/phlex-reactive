@@ -186,7 +186,13 @@ const SLACK = 250
 // Issue #413 (X-Reactive-Refused: a refused reply keeps the held marks it names) adds 65 B: 37,246 B.
 // Issue #417 (reactive_css_vars: fields fed into CSS custom properties, in bindings, plus the
 // runtime's marker) adds 457 B: 37,703 B; its review fix (a to: that does not parse matches nothing) 3 B: 37,706 B.
-const BUNDLE_GZIP_CEILING = 37_706
+// Issue #416 (draggable regions: a NEW feature module — pointer and keyboard
+// moves and resizes, the aspect lock and re-fit, the live region, the morph
+// hold — plus the runtime's marker) adds 2,702 B: 39,948 B; its review fixes (rounding kept inside the
+// frame, a keyboard drag whose element was removed) 95 B: 40,043 B;
+// on top of #417 (37,706 B), 2,788 B: 40,494 B; its PR review fix (a release after a morph removed
+// the element sends nothing) 1 B: 40,495 B.
+const BUNDLE_GZIP_CEILING = 40_495
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -253,7 +259,8 @@ const TARGET_BUNDLE_GZIP = 22_700
 // its review fix (a held dispatch cancels the native default at once) 66 B: 18,173 B.
 // Issue #413 (X-Reactive-Refused: a refused reply keeps the held marks it names) adds 60 B: 18,233 B.
 // Issue #417 (the bindings marker for reactive_css_vars) adds 16 B: 18,249 B.
-const CORE_GZIP_CEILING = 18_249
+// Issue #416 (the drag marker and table entry) adds 55 B: 18,288 B; on top of #417, 51 B: 18,300 B.
+const CORE_GZIP_CEILING = 18_300
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -293,6 +300,8 @@ const FEATURE_GZIP_CEILINGS = {
   "features/devtools": 1_600,
   // Issue #350: sortable lists, 3,094 B; its review fixes take it to 3,130 B; PR #352 review to 3,215 B.
   "features/sortable": 3_215,
+  // Issue #416: draggable regions, 3,478 B; its review fixes take it to 3,572 B; its PR review fix to 3,576 B.
+  "features/drag": 3_576,
   // Issue #358: presence, 1,084 B (the issue's aim was 1.5 KB or less); its real-SSE
   // fixes (the late-defined source, the re-announce, the root seat list) take it to 1,353 B;
   // on pgbus 0.18 the re-announce becomes one check: 1,297 B; logging a failed announce: 1,362 B.
@@ -377,7 +386,10 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #413 (X-Reactive-Refused, in the core) adds 60 B: 45,414 B.
 // Issue #417 (reactive_css_vars: +455 B bindings, +16 B core) adds 471 B: 45,885 B;
 // its review fix (in bindings) 7 B: 45,892 B.
-const SPLIT_TOTAL_GZIP_CEILING = 45_892
+// Issue #416 (the drag feature module, 3,478 B, plus 55 B in the core) adds 3,533 B: 48,947 B;
+// its review fixes (+94 B drag) take it to 49,041 B;
+// on top of #417 (45,888 B), 3,623 B: 49,511 B; its PR review fix (+4 B drag): 49,515 B.
+const SPLIT_TOTAL_GZIP_CEILING = 49_515
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

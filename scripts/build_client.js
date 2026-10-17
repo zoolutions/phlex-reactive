@@ -75,6 +75,7 @@ const ENTRIES = [
   "features/hints",
   "features/devtools",
   "features/sortable",
+  "features/drag",
   "features/presence",
   "features/countdown",
 ]

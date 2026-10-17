@@ -14,6 +14,7 @@ module Phlex
         extend ActiveSupport::Concern
         include Selection
         include Sortable
+        include Drag
         include Editable
         include MediaBinding
         include ImageFallbackBinding

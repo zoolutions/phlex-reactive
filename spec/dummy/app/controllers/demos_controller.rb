@@ -546,6 +546,11 @@ class DemosController < ActionController::Base
     render_component SortablePageComponent.new
   end
 
+  # Issue #416: draggable regions (see DragPageComponent).
+  def drag
+    render_component DragPageComponent.new
+  end
+
   # Issue #358: a presence roster of the first todo (see PresencePageComponent).
   def presence
     render_component PresencePageComponent.new(todo: Todo.first || Todo.create!(title: "Presence"))
