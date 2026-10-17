@@ -1,0 +1,131 @@
+app/javascript/phlex/reactive/core.js
+  s_21dd92640378c3::t_210372231dcb98 30
+docs/app/models/doc.rb
+  s_21dd92640378c3::t_d011c4fe216f13 20
+docs/app/views/docs/pages/performance.rb
+  s_21dd92640378c3::t_8cc3e611a59705 1204,1207,1240-1243,1267,1270
+  s_21dd92640378c3::t_edef1eff398ee2 1266
+lib/phlex/reactive/component/helpers.rb
+  s_21dd92640378c3::t_89883f96518b64 17
+spec/javascript/bundler_build.test.js
+  s_21dd92640378c3::t_210372231dcb98 38
+app/javascript/phlex/reactive/core.min.js.map
+  ai_agent 5-6,8-9
+spec/dummy/app/components/drag_client_component.rb
+  s_21dd92640378c3::t_6c25fe2310d7cd 1-19
+docs/public/drag-demo/landscape.svg
+  s_21dd92640378c3::t_b44c8af783ddf0 1
+spec/dummy/app/components/drag_page_component.rb
+  s_21dd92640378c3::t_2f07f978fa7649 5-7
+  s_21dd92640378c3::t_6910478871e18a 13
+  s_21dd92640378c3::t_6c25fe2310d7cd 1-4,8-12,14-21
+spec/system/drag_spec.rb
+  s_21dd92640378c3::t_4c80f8876ddc6f 13-15,161
+  s_21dd92640378c3::t_5a28e693f14a5f 1-12,17-22,25,27-29,31,34-36,38-42,45-52,55-70,72-90,92-98,100,102-104,107-111,113,115-122,124,126-127,129-132,134-137,139,143-160,162-164,166-170,172-192
+  s_21dd92640378c3::t_21aa2814354a83 23-24,26,30,32-33,37,43-44,53-54,71,91,99,101,106,112,114,123,125,128,142,165,171
+  s_21dd92640378c3::t_8c5c67f416aacb 105
+  s_21dd92640378c3::t_088937612728be 133,138,140-141
+  s_21dd92640378c3::t_a88ec2fdf66b83 16
+docs/app/views/docs/pages/draggable_regions.rb
+  s_21dd92640378c3::t_5ef6685260134a 1-34,36-106,108-128,130-157,159-189,191-218,220-228,230-252,254-280,282-296,298-327
+  s_21dd92640378c3::t_eaaccb0ca4ec05 35,107,129,158,190,219,253,281,297
+  s_21dd92640378c3::t_d011c4fe216f13 229
+app/javascript/phlex/reactive/features/drag.min.js.map
+  ai_agent 1-10
+spec/javascript/reactive_features.test.js
+  s_21dd92640378c3::t_210372231dcb98 571
+AGENTS.md
+  s_21dd92640378c3::t_02e4d8a4d9fb45 76
+spec/dummy/public/vendor/features/drag.js
+  ai_agent 1-4
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 3,5,15,18,20-21
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,5-6,8
+spec/dummy/config/routes.rb
+  s_21dd92640378c3::t_6c25fe2310d7cd 113-114
+CHANGELOG.md
+  s_21dd92640378c3::t_c71f2a93d2314d 9-28,30-32
+  s_21dd92640378c3::t_edef1eff398ee2 29
+scripts/build_client.js
+  s_21dd92640378c3::t_210372231dcb98 78
+app/javascript/phlex/reactive/runtime.js
+  s_21dd92640378c3::t_210372231dcb98 39,2111-2118,2141-2142,2311,2334,2392,2721,2761
+spec/phlex/reactive/drag_helpers_spec.rb
+  s_21dd92640378c3::t_a88e1ae5262201 1-27,30-54,56-57,59-83,85-109,111-154,156,158-160,162-165,169,173,175-178,180-183,185-218,221-228,230-285,287-295
+  s_21dd92640378c3::t_5629a43b449409 28-29,55,58,110,155,157,161,166,168,170,172,174,179,184,219-220,229
+  s_21dd92640378c3::t_8a34d22154aa0e 286
+lib/phlex/reactive/engine.rb
+  s_21dd92640378c3::t_e33814755b3a8b 23-25
+  s_21dd92640378c3::t_8e2c4b0e7bd7a2 28
+README.md
+  s_21dd92640378c3::t_3389b840928131 305,1904-1972
+app/javascript/phlex/reactive/core.min.js
+  ai_agent 1,5-6,8
+spec/requests/drag_crop_spec.rb
+  s_21dd92640378c3::t_37e78bddc63cac 1-37
+app/javascript/phlex/reactive/features/drag.js
+  s_21dd92640378c3::t_0f19010a455d5c 270-271
+  s_21dd92640378c3::t_210372231dcb98 360-361
+  s_21dd92640378c3::t_eac8a5d269050d 1-269,272-359,362-456,458-483,485-486,489,491-496
+  s_21dd92640378c3::t_f43027e91e8416 484,487-488,490
+  s_21dd92640378c3::t_4cee4adb0ea7e0 457
+docs/spec/requests/region_picker_spec.rb
+  s_21dd92640378c3::t_0841e100861ade 1-37
+lib/phlex/reactive/component/drag.rb
+  s_21dd92640378c3::t_15481fe74d1d7b 1-115,119-120,123-137,139-151,153-161,164-253,258-268
+  s_21dd92640378c3::t_8a34d22154aa0e 162-163,254-257
+spec/javascript/reactive_drag.test.js
+  s_21dd92640378c3::t_5f710b7fa76b9f 79
+  s_21dd92640378c3::t_129f1315a33515 485,487-488
+  s_21dd92640378c3::t_86d50918669409 89
+  s_21dd92640378c3::t_5ae7a03636c5d4 333,343,348,355,363-364,411,480
+  s_21dd92640378c3::t_d150a0b9cfe8d3 442
+  s_21dd92640378c3::t_9865f61cb86ecd 534,537-539,542,544-546
+  s_21dd92640378c3::t_e219e555602efe 543
+  s_21dd92640378c3::t_c3f1c21e8a04e3 1-78,80-88,90-332,334-342,344-347,349-354,356-362,365-410,412-441,443-479,481-484,486,489-533,535-536,540-541,547-553
+app/javascript/phlex/reactive/reactive_controller.js
+  s_21dd92640378c3::t_210372231dcb98 36,71
+.rubocop.yml
+  s_21dd92640378c3::t_3d65d7e22db060 131-133
+docs/app/reactive_components/region_picker_component.rb
+  s_21dd92640378c3::t_a5f2524a4e9ab5 1-115
+spec/dummy/public/vendor/core.js
+  ai_agent 1,5-6,8
+spec/javascript/bundle_budget.test.js
+  s_21dd92640378c3::t_0521eb2160f76e 187-188,256-257
+  s_21dd92640378c3::t_edef1eff398ee2 189-190,295-296,379-380
+app/javascript/phlex/reactive/features/drag.min.js
+  ai_agent 1-4
+spec/javascript/reactive_default_entry.test.js
+  s_21dd92640378c3::t_210372231dcb98 99
+spec/dummy/app/controllers/demos_controller.rb
+  s_21dd92640378c3::t_6c25fe2310d7cd 545-549
+docs/spec/system/draggable_regions_spec.rb
+  s_21dd92640378c3::t_ae66a9c4c1e3a9 9,11,18,22-25,40-41
+  s_21dd92640378c3::t_0841e100861ade 1-8,10,12-17,19-21,26-39,42-48
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,5-6,8
+spec/dummy/app/components/drag_crop_component.rb
+  s_21dd92640378c3::t_7471309116de7e 35-38,55-58
+  s_21dd92640378c3::t_6c25fe2310d7cd 1-5,11-13,15,19,21-24,28-33,40-44,49-53,60-72,76-84,86-88,90-97,99-105
+  s_21dd92640378c3::t_3d65d7e22db060 25-26,46-47,74-75,89
+  s_21dd92640378c3::t_816a9efc794dc6 73
+  s_21dd92640378c3::t_b85988f34ff0f7 6-10,14,16-18,20,27,34,39,45,48,54,59,85,98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ec546ef64b0b54ce3db750931ccaa2b69dd83ce9",
+  "prompts": {},
+  "sessions": {
+    "s_21dd92640378c3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "64ab78fe-5ec1-4cb0-a821-5a499545c5db",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}

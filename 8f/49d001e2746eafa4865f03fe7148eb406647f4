@@ -1,0 +1,21 @@
+CHANGELOG.md
+  s_4786a62cd35147::t_06ad4ee931ddc4 69-84
+spec/phlex/component/registry_warm_spec.rb
+  s_4786a62cd35147::t_6cff5ecd884498 91-112,114-115,122-135,139-146,148-152,155,157-185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "8f49d001e2746eafa4865f03fe7148eb406647f4",
+  "prompts": {},
+  "sessions": {
+    "s_4786a62cd35147": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d1e58604-bb1b-456c-ace0-8fe7f151dae8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
