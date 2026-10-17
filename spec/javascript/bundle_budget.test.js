@@ -190,8 +190,9 @@ const SLACK = 250
 // moves and resizes, the aspect lock and re-fit, the live region, the morph
 // hold — plus the runtime's marker) adds 2,702 B: 39,948 B; its review fixes (rounding kept inside the
 // frame, a keyboard drag whose element was removed) 95 B: 40,043 B;
-// on top of #417 (37,706 B), 2,788 B: 40,494 B.
-const BUNDLE_GZIP_CEILING = 40_494
+// on top of #417 (37,706 B), 2,788 B: 40,494 B; its PR review fix (a release after a morph removed
+// the element sends nothing) 1 B: 40,495 B.
+const BUNDLE_GZIP_CEILING = 40_495
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -299,8 +300,8 @@ const FEATURE_GZIP_CEILINGS = {
   "features/devtools": 1_600,
   // Issue #350: sortable lists, 3,094 B; its review fixes take it to 3,130 B; PR #352 review to 3,215 B.
   "features/sortable": 3_215,
-  // Issue #416: draggable regions, 3,478 B; its review fixes take it to 3,572 B.
-  "features/drag": 3_572,
+  // Issue #416: draggable regions, 3,478 B; its review fixes take it to 3,572 B; its PR review fix to 3,576 B.
+  "features/drag": 3_576,
   // Issue #358: presence, 1,084 B (the issue's aim was 1.5 KB or less); its real-SSE
   // fixes (the late-defined source, the re-announce, the root seat list) take it to 1,353 B;
   // on pgbus 0.18 the re-announce becomes one check: 1,297 B; logging a failed announce: 1,362 B.
@@ -387,8 +388,8 @@ const FEATURE_GZIP_CEILINGS = {
 // its review fix (in bindings) 7 B: 45,892 B.
 // Issue #416 (the drag feature module, 3,478 B, plus 55 B in the core) adds 3,533 B: 48,947 B;
 // its review fixes (+94 B drag) take it to 49,041 B;
-// on top of #417 (45,888 B), 3,623 B: 49,511 B.
-const SPLIT_TOTAL_GZIP_CEILING = 49_511
+// on top of #417 (45,888 B), 3,623 B: 49,511 B; its PR review fix (+4 B drag): 49,515 B.
+const SPLIT_TOTAL_GZIP_CEILING = 49_515
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

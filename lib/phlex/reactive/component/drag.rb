@@ -173,7 +173,8 @@ module Phlex
         end
 
         def drag_min!(min)
-          return min if min.is_a?(Numeric) && min.real? && min.positive? && min <= 1
+          # (A Float: a Rational would render as "1/10", which the browser cannot read.)
+          return min.to_f if min.is_a?(Numeric) && min.real? && min.positive? && min <= 1
 
           raise ArgumentError,
             "reactive_box min: must be a fraction of the frame above 0 and at most 1 (e.g. 0.05), got #{min.inspect}"

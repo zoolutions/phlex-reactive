@@ -122,6 +122,10 @@ RSpec.describe Phlex::Reactive::Component::Drag do
       expect(data(box(aspect: :ratio))).to include(reactive_box_aspect: "ratio")
     end
 
+    it "writes a Rational min: as a number the browser reads" do
+      expect(data(box(min: 1/10r))[:reactive_box_min]).to eq(0.1).and be_a(Float)
+    end
+
     it "takes min: as a fraction of the frame" do
       expect(data(box(min: 0.1))[:reactive_box_min]).to eq(0.1)
     end

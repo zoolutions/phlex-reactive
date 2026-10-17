@@ -34,7 +34,7 @@ class DragCropComponent < ApplicationComponent
   def crop(x:, y:, width:, height:, aspect: nil)
     # A forged release outside the frame changes nothing: the schema casts, it
     # does not range-check, and the helper refuses to render a box outside.
-    return reply.morph unless x + width <= 1.0001 && y + height <= 1.0001
+    return reply.morph unless inside?(x, width) && inside?(y, height)
 
     @x = x
     @y = y
@@ -47,6 +47,8 @@ class DragCropComponent < ApplicationComponent
   end
 
   def focus(x:, y:, aspect: nil)
+    return reply.morph unless [x, y].all? { it.between?(0, 1) }
+
     @focus_x = x
     @focus_y = y
     @aspect = aspect.to_s
@@ -82,6 +84,9 @@ class DragCropComponent < ApplicationComponent
   end
 
   private
+
+  # The fields round to 4 decimals, so x + width may reach 1.0001.
+  def inside?(start, size) = start.between?(0, 1) && size.positive? && start + size <= 1.0001
 
   def crop_box
     reactive_box(fields: { x: "crop[x]", y: "crop[y]", width: "crop[width]", height: "crop[height]" },

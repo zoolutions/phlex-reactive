@@ -570,6 +570,19 @@ describe("morphs", () => {
     expect(frame.hasAttribute("data-reactive-frame-active")).toBe(false)
     expect(marks).toHaveLength(1)
   })
+
+  test("a release after a morph removed the box sends nothing over what the morph rendered", async () => {
+    mount(picker({ attrs: 'data-reactive-box-action="crop"' }))
+    dragBy(box(), 40, 20, { release: false })
+    let changes = 0
+    document.addEventListener("change", () => changes++)
+    box().remove()
+    pointer("pointerup", document, 0, 0)
+    await flush()
+    expect(changes).toBe(0)
+    expect(requests).toEqual([])
+    expect(document.querySelector("[data-reactive-frame]").hasAttribute("data-reactive-frame-active")).toBe(false)
+  })
 })
 
 test("the drag module is a feature of its own", async () => {

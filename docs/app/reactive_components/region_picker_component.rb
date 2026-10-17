@@ -39,17 +39,17 @@ class RegionPickerComponent < Phlex::HTML
   def id = 'region-picker'
 
   def crop(x:, y:, width:, height:, aspect: nil)
-    @aspect = aspect.to_s
     return reply.morph unless inside?(x, width) && inside?(y, height)
 
+    @aspect = aspect.to_s
     @crop = { 'x' => x, 'y' => y, 'width' => width, 'height' => height }
     reply.morph
   end
 
   def focus(x:, y:, aspect: nil)
-    @aspect = aspect.to_s
     return reply.morph unless [x, y].all? { it.between?(0, 1) }
 
+    @aspect = aspect.to_s
     @focus = { 'x' => x, 'y' => y }
     reply.morph
   end

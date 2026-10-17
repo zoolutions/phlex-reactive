@@ -62,6 +62,9 @@ module Views
 
                 def crop(x:, y:, width:, height:)
                   authorize! @photo, :update?
+                  # The schema casts; it does not range-check (see below).
+                  return reply.morph unless inside?(x, width) && inside?(y, height)
+
                   @photo.update!(crop: { x:, y:, width:, height: })
                   reply.morph
                 end
@@ -82,6 +85,11 @@ module Views
                     @photo.crop.each { |key, value| input(type: "hidden", name: "crop[#{key}]", value:) }
                   end
                 end
+
+                private
+
+                # The fields round to 4 decimals, so x + width may reach 1.0001.
+                def inside?(at, size) = at.between?(0, 1) && size.positive? && at + size <= 1.0001
               end
               ```
 
@@ -215,10 +223,11 @@ module Views
               numbers but does not range-check them, so a forged request can
               post `x: 2`. `reactive_box` refuses to render a box outside the
               frame, so a stored bad value would break every later render of it.
-              Refuse anything outside 0..1, or a box whose `x + width` or
-              `y + height` passes 1, in the action or with a model validation.
+              Refuse anything outside 0..1, a `width` or `height` of 0, or a box
+              whose `x + width` or `y + height` passes 1, in the action or with a
+              model validation.
               The fields round to 4 decimals, so allow a sum of up to 1.0001, as
-              the helper does. The demo's `inside?` does this.
+              the helper does. The `inside?` above (and the demo's) does this.
             MD
           end
         end
@@ -311,14 +320,16 @@ module Views
               reactive_point(fields:, value:, within: nil, action: nil, busy: nil, messages: nil)
               ```
 
-              Every argument is checked when the view renders: missing or
-              unknown `fields:` keys, a `value:` outside 0..1 (or a box that
-              leaves the frame), an unknown handle edge, a `min:` that is not
+              These are checked when the view renders: missing or unknown
+              `fields:` keys, a `value:` outside 0..1 (or a box of no size, or
+              one that leaves the frame), an unknown handle edge, a blank
+              `within:`, a `min:` that is not
               above 0, an `aspect:` that is neither a positive Numeric nor a
               field name (a ratio written as a String, `"16:9"`, says to pass
               `16/9r`), `busy:` without `action:`, or `action:` on a client-only
               view raises an `ArgumentError` that says how to fix it. Under
-              `verbose_errors`, an undeclared action raises too.
+              `verbose_errors`, an action the component does not declare raises
+              too, as `on` does: once the component declares any action.
 
               The drag code is the client's `drag` feature module (about 3.5 KB
               gzipped). The default client bundles it; with the split client

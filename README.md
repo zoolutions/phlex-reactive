@@ -1918,6 +1918,9 @@ class CropPicker < Phlex::HTML
 
   def crop(x:, y:, width:, height:)
     authorize! @photo, :update?
+    # The schema casts; it does not range-check. A forged box outside the frame changes nothing.
+    return reply.morph unless inside?(x, width) && inside?(y, height)
+
     @photo.update!(crop: { x:, y:, width:, height: })
     reply.morph
   end
@@ -1936,6 +1939,11 @@ class CropPicker < Phlex::HTML
       # the fields: hidden inputs named crop[x] … focus[y], and the aspect radios
     end
   end
+
+  private
+
+  # The fields round to 4 decimals, so x + width may reach 1.0001.
+  def inside?(at, size) = at.between?(0, 1) && size.positive? && at + size <= 1.0001
 end
 ```
 
@@ -1959,9 +1967,9 @@ coordinate space.
 - **`action:`** (optional): sent once on release through the root's pipeline,
   with `x`, `y`, `width`, `height` (a point: `x`, `y`). Without it the binding
   is client-only and works on a `ClientBindings` root. The `:float` schema casts
-  but does not range-check: refuse values outside 0..1 (and `x + width`,
-  `y + height` past 1.0001, the fields' rounding) before you store them, since
-  `reactive_box` refuses to render a box outside the frame.
+  but does not range-check: refuse values outside 0..1, a `width` or `height`
+  of 0, and `x + width` or `y + height` past 1.0001 (the fields' rounding)
+  before you store them, since `reactive_box` refuses to render such a box.
 - **Points**: `reactive_point` moves within the frame, or — placed inside a box
   with `within:` — within that box, its fractions of the box.
 - **Keyboard**: the box and the point are focusable; arrows move 1% (Shift:

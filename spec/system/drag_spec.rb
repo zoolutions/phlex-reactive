@@ -126,6 +126,18 @@ RSpec.describe "Draggable regions (issue #416)", type: :system do
     box.send_keys(%i[alt right])
     expect(page).to have_css("[data-reactive-drag-live]", text: "Resized to 51% by 40%", visible: :all)
     expect_saved(3, "crop 0.11 0.2 0.51 0.4")
+    # Escape while the arrow is still down puts the step back; its keyup sends nothing.
+    page.execute_script("document.querySelector(\"[data-testid=crop-box]\").focus()")
+    page.driver.with_playwright_page do
+      it.keyboard.down("ArrowRight")
+      it.keyboard.press("Escape")
+      it.keyboard.up("ArrowRight")
+    end
+    expect(page).to have_css("[data-reactive-drag-live]", text: "Cancelled", visible: :all)
+    expect(values).to eq("x" => 0.11, "y" => 0.2, "width" => 0.51, "height" => 0.4)
+    # The next release is save #4 (requests are queued in order).
+    box.send_keys(:left)
+    expect_saved(4, "crop 0.1 0.2 0.51 0.4")
   end
 
   it "puts a pointer drag back on Escape, sending nothing" do

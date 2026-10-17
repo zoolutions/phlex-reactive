@@ -30,10 +30,12 @@ RSpec.describe 'Region picker demo', type: :request do
   end
 
   it 'ignores a forged crop outside the picture (the schema casts, it does not range-check)' do
-    post_action(RegionPickerComponent, payload: state, act: 'crop', params: { x: 2, y: 0.1, width: 0.5, height: 0.5 })
+    post_action(RegionPickerComponent, payload: state, act: 'crop',
+                                       params: { x: 2, y: 0.1, width: 0.5, height: 0.5, aspect: '1:1' })
 
     expect(response).to have_http_status(:ok)
     expect(response.body).to include('left: 20%; top: 15%; width: 45%; height: 60%;')
+    expect(response.body).not_to match(/value="1:1"[^>]*checked/)
   end
 
   it 'stores the released focal point' do

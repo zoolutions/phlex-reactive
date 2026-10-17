@@ -447,6 +447,8 @@ function aspectChanged(event, core, root) {
 // --- Release / cancel ---------------------------------------------------------------
 function release() {
   const record = drag
+  // A morph took the element away with no move since: what it rendered stands.
+  if (!record.el.isConnected) return settle(record)
   flush(record)
   settle(record)
   commit(record)

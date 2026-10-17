@@ -25,10 +25,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `change` on release. `action:` is sent once per release through the root's
   pipeline, with `x`, `y`, `width`, `height`. Without it the binding is
   client-only and works on a `ClientBindings` root. A morph that lands
-  mid-drag does not interrupt it. Every argument is validated at render.
-  Client: a new `drag` feature module (3,572 B gzipped): +2,788 B in the
+  mid-drag does not interrupt it. The helpers check their arguments' keys,
+  types and ranges at render (an undeclared action under `verbose_errors`).
+  Client: a new `drag` feature module (3,576 B gzipped): +2,789 B in the
   default bundle, +51 B in the split core, which loads it only on a page with
-  a frame. Docs: a "Draggable regions" guide with a live demo.
+  a frame, a box or a point. Docs: a "Draggable regions" guide with a live demo.
 
 - **Fields that feed CSS custom properties: `reactive_css_vars` (#417).** A
   preview that follows a control (a slider that brightens an image, a select

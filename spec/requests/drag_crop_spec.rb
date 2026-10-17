@@ -25,7 +25,9 @@ RSpec.describe DragCropComponent, type: :request do
     post_action(described_class, act: "crop", payload: { "s" => state },
       params: { x: 0.2, y: 0.2, width: 0.5, height: 0.4, admin: true })
 
+    # The action takes declared keywords only: an `admin:` reaching it would raise, not save.
     expect(response).to have_http_status(:ok)
+    expect(response.body).to include("1 crop 0.2 0.2 0.5 0.4")
     expect(response.body).not_to include("admin")
   end
 
@@ -34,6 +36,20 @@ RSpec.describe DragCropComponent, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(response.body).to include("left: 10%; top: 10%; width: 50%; height: 40%;", "0 ")
+  end
+
+  it "ignores a forged release below 0 or of no size, and a forged focus outside 0..1" do
+    [{ x: -0.1, y: 0.1, width: 0.5, height: 0.4 }, { x: 0.1, y: 0.1, width: 0, height: 0.4 }].each do
+      post_action(described_class, act: "crop", payload: { "s" => state }, params: it)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("left: 10%; top: 10%; width: 50%; height: 40%;", "0 ")
+    end
+
+    post_action(described_class, act: "focus", payload: { "s" => state }, params: { x: 1.5, y: 0.1 })
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include("left: 50%; top: 50%; translate: -50% -50%;")
   end
 
   it "re-renders the focal point at its released fractions" do
