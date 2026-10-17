@@ -62,8 +62,8 @@ each. Three are shared by every repository on the labels kit:
 
 ### status
 
-`plan`: has a `/plan` body (Context, Decision, Steps, Gates) and is ready for
-`/lfg`. `epic`, `blocker` and `needs-info` mean what they say. A repository may
+`plan`: has a `/flow:plan` body (Context, Decision, Steps, Gates) and is ready for
+`/flow:lfg`. `epic`, `blocker` and `needs-info` mean what they say. A repository may
 add its own (for example `flaky-test`).
 
 ## Inferring the area from a diff
