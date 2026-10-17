@@ -1,0 +1,24 @@
+lib/phlex/reactive/engine.rb
+  s_4786a62cd35147::t_de29f3e51fbb10 37-41,43,49-50
+CHANGELOG.md
+  s_4786a62cd35147::t_fdb0fb1ad95aa7 54-61
+spec/phlex/engine_routes_spec.rb
+  s_4786a62cd35147::t_1e6ae7226a2d4f 1-26,28-42
+  s_4786a62cd35147::t_bb059bd2df7a3f 27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "5b70a8d82edae4dafefda24be10a884e01c5b115",
+  "prompts": {},
+  "sessions": {
+    "s_4786a62cd35147": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d1e58604-bb1b-456c-ace0-8fe7f151dae8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
