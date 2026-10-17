@@ -82,6 +82,11 @@ RSpec.describe Phlex::Reactive::HeldFields do
       expect(described_class.refused_header(%w[title body])).to eq('["title","body"]')
     end
 
+    it "widens a list past the byte cap to *, so the refusal still reaches the client" do
+      many = Array.new(1_000) { "title[#{it}]" }
+      expect(described_class.refused_header(many)).to eq("*")
+    end
+
     it "escapes every non-ASCII character, as the client escapes X-Reactive-Held" do
       expect(described_class.refused_header(["titel_ä"])).to eq('["titel_\\u00e4"]')
     end

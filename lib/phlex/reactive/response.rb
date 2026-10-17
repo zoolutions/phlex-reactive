@@ -504,7 +504,7 @@ data-reactive-ops="#{ERB::Util.html_escape(json)}"></turbo-stream>).html_safe
             "so there is no held field left to keep"
         end
 
-        names = names.flatten.map(&:to_s).uniq.freeze
+        names = names.flatten.map { -it.to_s }.uniq.freeze
         self.class.new(
           streams: @streams,
           redirect_url: @redirect_url,

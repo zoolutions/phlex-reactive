@@ -79,9 +79,13 @@ RSpec.describe "Knowing what a morph held (issue #370)", type: :system do
     broadcast_from_other_tab("Final by A")
     expect(page).to have_css("[data-testid='title'][data-reactive-held]")
 
-    title.send_keys(:backspace)
+    page.execute_script(<<~JS)
+      document.addEventListener("reactive:applied", () => document.body.setAttribute("data-saved", ""))
+    JS
     title.fill_in(with: "Final by A")
 
+    # The save B's own input sent has been applied: nothing held, no conflict.
+    expect(page).to have_css("body[data-saved]")
     expect(page).to have_no_css("[data-reactive-held]")
     expect(page).to have_no_css("[data-testid='conflict']")
     expect(todo.reload.title).to eq("Final by A")

@@ -271,7 +271,7 @@ module Phlex
           @response&.redirect_url
         end
 
-        # The action answered without storing (reply.….refused, issue #413):
+        # The action answered without storing (reply.morph.refused, issue #413):
         # the client keeps the fields it held.
         def refused?
           !@response.nil? && @response.refused?

@@ -41,9 +41,11 @@ let reply
 let replyHeaders
 
 // A fetch Response's headers, looked up by name as the browser does.
-const headersOf = (extra) => ({
-  get: (name) => ({ "content-type": "text/vnd.turbo-stream.html", ...extra })[name.toLowerCase()] ?? null,
-})
+const headersOf = (extra) => {
+  const all = { "content-type": "text/vnd.turbo-stream.html" }
+  for (const [key, value] of Object.entries(extra)) all[key.toLowerCase()] = value
+  return { get: (name) => all[name.toLowerCase()] ?? null }
+}
 
 beforeEach(() => {
   for (const key of GLOBALS) SAVED[key] = globalThis[key]

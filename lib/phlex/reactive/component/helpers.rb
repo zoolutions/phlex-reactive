@@ -42,6 +42,8 @@ module Phlex
         # nothing was held, and outside an action. Filtered to the action's
         # declared params; a hint about what the user saw, never authorization.
         #
+        #   action :save, params: { title: :string }   # only declared fields are reported
+        #
         #   def save(title: nil)
         #     return reply.morph.refused("title") if reactive_held_fields.include?("title") && title != @note.title
         #     @note.update!(title:)

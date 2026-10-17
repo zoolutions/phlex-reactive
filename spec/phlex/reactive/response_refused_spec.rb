@@ -30,6 +30,7 @@ RSpec.describe Phlex::Reactive::Response, "#refused" do
     expect(response).to be_refused
     expect(response.refused_fields).to eq(%w[title body])
     expect(response.refused_fields).to be_frozen
+    expect(response.refused_fields).to all(be_frozen)
   end
 
   it "takes a list, so reactive_held_fields passes straight through" do

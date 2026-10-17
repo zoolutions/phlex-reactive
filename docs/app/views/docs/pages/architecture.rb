@@ -192,10 +192,10 @@ module Views
             applied (that reply is the server's answer to exactly those values);
             an error reply never marks and leaves the marks in place. A reply
             that refused the values says so: `reply.morph.refused` keeps every
-            mark, `reply.morph.refused("title")` keeps only that field's (names
-            as `reactive_held_fields` reports them), and the root's next action
-            names them again, so the user's next keystroke is refused too
-            instead of saving over the other change. It is still a successful
+            mark, `reply.morph.refused("title")` keeps only that field's mark
+            (names as `reactive_held_fields` reports them), and the root's next
+            action names them again, so the action can refuse the user's next
+            keystroke too instead of saving over the other change. It is still a successful
             reply: no error marker, no `reactive:error`. A field's mark clears
             when its value is set back to its default (the user took theirs).
             An unfocused field takes the server's value in a morph, so it is
@@ -224,7 +224,7 @@ module Views
               # Another tab changed the title while this user typed over it.
               if reactive_held_fields.include?("title") && title != @note.title
                 @conflict = title # render "someone changed the title" with both versions
-                return reply.morph.refused("title") # keep it held: the next keystroke is refused too
+                return reply.morph.refused("title") # keep it held: the next save sees it again
               end
               @note.update!(title:, body:)
               reply.morph

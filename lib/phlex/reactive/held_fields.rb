@@ -72,9 +72,14 @@ module Phlex
 
         # The X-Reactive-Refused value for Response#refused_fields: "*" keeps
         # every mark, a JSON list keeps those names. ASCII only (a header is a
-        # byte string), as the client escapes X-Reactive-Held.
+        # byte string), as the client escapes X-Reactive-Held. A list past
+        # MAX_BYTES (a header a proxy may refuse) widens to "*": keeping more
+        # marks than named is safe, losing the refusal is not.
         def refused_header(fields)
-          fields == :all ? "*" : JSON.generate(fields, ascii_only: true)
+          return "*" if fields == :all
+
+          json = JSON.generate(fields, ascii_only: true)
+          json.bytesize > MAX_BYTES ? "*" : json
         end
 
         # Keep the strings among `names` that `action_def` declares as params.
