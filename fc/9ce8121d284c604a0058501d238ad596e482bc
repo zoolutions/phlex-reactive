@@ -1,0 +1,76 @@
+spec/system/css_vars_spec.rb
+  s_21dd92640378c3::t_20f9da02f8dd4d 1-129
+README.md
+  s_21dd92640378c3::t_20f9da02f8dd4d 302,697
+docs/app/views/docs/pages/security.rb
+  s_21dd92640378c3::t_20f9da02f8dd4d 165-173
+spec/dummy/app/controllers/demos_controller.rb
+  s_21dd92640378c3::t_20f9da02f8dd4d 382-385
+spec/phlex/reactive/css_vars_binding_spec.rb
+  s_21dd92640378c3::t_20f9da02f8dd4d 1-153
+app/javascript/phlex/reactive/runtime.js
+  s_21dd92640378c3::t_20f9da02f8dd4d 2082-2085,2088,2093
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,5-6,8
+app/javascript/phlex/reactive/core.min.js
+  ai_agent 6,8
+spec/dummy/app/components/css_vars_preview_component.rb
+  s_21dd92640378c3::t_20f9da02f8dd4d 1-69
+app/javascript/phlex/reactive/features/bindings.min.js
+  ai_agent 1,3
+spec/dummy/public/vendor/core.js
+  ai_agent 6,8
+app/javascript/phlex/reactive/features/bindings.min.js.map
+  ai_agent 5,7-8
+app/javascript/phlex/reactive/features/bindings.js
+  s_21dd92640378c3::t_20f9da02f8dd4d 5-6,389-392,498,783-854
+docs/app/views/docs/pages/performance.rb
+  s_21dd92640378c3::t_20f9da02f8dd4d 1226,1230
+  s_21dd92640378c3::t_dd2c89cfe405ca 1204,1266,1270
+spec/dummy/config/routes.rb
+  s_21dd92640378c3::t_20f9da02f8dd4d 77
+app/javascript/phlex/reactive/core.min.js.map
+  ai_agent 5,8-9
+lib/phlex/reactive/component/helpers.rb
+  s_21dd92640378c3::t_20f9da02f8dd4d 22
+docs/spec/system/css_vars_preview_spec.rb
+  s_21dd92640378c3::t_20f9da02f8dd4d 1-48
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,5-6,8
+docs/app/reactive_components/css_vars_preview_component.rb
+  s_21dd92640378c3::t_20f9da02f8dd4d 1-60
+docs/app/views/docs/pages/example_client_ops.rb
+  s_21dd92640378c3::t_20f9da02f8dd4d 25,306-359
+spec/dummy/public/vendor/features/bindings.js
+  ai_agent 1,3
+docs/public/css-vars-demo/hillside.svg
+  s_21dd92640378c3::t_20f9da02f8dd4d 1
+lib/phlex/reactive/component/css_vars_binding.rb
+  s_21dd92640378c3::t_20f9da02f8dd4d 1-118
+Rakefile
+  s_21dd92640378c3::t_20f9da02f8dd4d 39
+spec/javascript/reactive_css_vars.test.js
+  s_21dd92640378c3::t_20f9da02f8dd4d 1-292
+CHANGELOG.md
+  s_21dd92640378c3::t_eab49e0ddb1e3f 29-30
+spec/javascript/bundle_budget.test.js
+  ai_agent 187-188,192-194,260-262,283-285,386-387,389-391
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 5-6,20-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "fc9ce8121d284c604a0058501d238ad596e482bc",
+  "prompts": {},
+  "sessions": {
+    "s_21dd92640378c3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "64ab78fe-5ec1-4cb0-a821-5a499545c5db",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
