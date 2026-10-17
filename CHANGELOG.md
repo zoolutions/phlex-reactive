@@ -66,6 +66,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Docs: "Knowing what was held" on the architecture page, the `reply` table
   in the README.
 
+- **A warmed component's class can be read from a non-main Ractor.** Boot's
+  `Component::Registry.warm!` froze each class's resolution cache only at the
+  top level, so the action definitions in it (their `params` Hash, their
+  compiled `ParamSchema`) stayed mutable, and the class's own declarations
+  (`@reactive_own_actions`, `@reactive_own_state_keys`, …) were not frozen at
+  all. Every reactive render or action in a non-main Ractor raised
+  `Ractor::IsolationError: can not get unshareable values from instance
+  variables of classes/modules`. warm! now shares the cache, every
+  `@reactive_own_*` declaration and the render memos deeply
+  (`Phlex::Reactive::Shareable.share`, which learned to copy `Data` values);
+  a compiled `ParamSchema` is frozen with a deep-frozen copy of its schema,
+  and `action` keeps a frozen copy of `params:`, so the app's own Hash is
+  never frozen. A value no Ractor can share (a `reactive_collection size:`
+  lambda that assigns what it captures) is kept as it is and works on the
+  main Ractor; boot never raises for it. A declaration after warm! (a
+  development reload) writes to a fresh copy, as before. The Ractor canary
+  now reads a warmed component with an action that takes params.
+
 ## [0.16.0] - 2026-10-16
 
 ### Upgrading from 0.15.x

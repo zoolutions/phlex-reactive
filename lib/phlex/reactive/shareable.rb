@@ -23,6 +23,8 @@ module Phlex
       #     works on the main Ractor only;
       #   * a Hash keeps its default value or default proc and its
       #     compare_by_identity;
+      #   * a Data value (the gem's declarations: an action, a compute, a
+      #     collection) comes back as a copy with every member shared;
       #   * any other object (a MessageVerifier, an APM adapter, an app object)
       #     is kept as is.
       #
@@ -35,6 +37,7 @@ module Phlex
         when ::Proc then share_proc(value.dup) || value
         when ::Array then seal(value.map { share(it) })
         when ::Hash then share_hash(value)
+        when ::Data then share_data(value)
         when ::String then value.dup.freeze
         else value
         end
@@ -60,12 +63,14 @@ module Phlex
       end
 
       # The Proc made shareable in place, or nil when it cannot be (or there
-      # is no Ractor).
+      # is no Ractor). Ruby raises Ractor::IsolationError for an unshareable
+      # self or capture, and ArgumentError for a Proc that assigns a variable
+      # it captures.
       def share_proc(callable)
         return unless defined?(::Ractor)
 
         ::Ractor.make_shareable(callable)
-      rescue ::Ractor::Error
+      rescue ::Ractor::Error, ::ArgumentError
         nil
       end
 
@@ -78,10 +83,20 @@ module Phlex
         seal(copy)
       end
 
+      # A copy with every member shared (Data#with builds it through the
+      # class's own initialize). Data is always frozen, so the copy is
+      # shareable when every member is. A class whose initialize takes more
+      # than its members cannot be rebuilt: it is kept as it is.
+      def share_data(data)
+        data.with(**data.to_h.transform_values { share(it) })
+      rescue ::ArgumentError
+        data
+      end
+
       # Frozen; shareable as well when everything inside it is.
       def seal(collection) = collection.freeze
 
-      private_class_method :share_proc, :share_hash, :seal
+      private_class_method :share_proc, :share_hash, :share_data, :seal
     end
   end
 end

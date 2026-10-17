@@ -311,6 +311,9 @@ module Phlex
 
             # Issue #184: params: :symbol resolves a registered named schema.
             params = Phlex::Reactive.param_schema(params) if params.is_a?(Symbol)
+            # A deep-frozen copy, shared with the compiled schema below: the
+            # definition stays readable from a non-main Ractor once warmed.
+            params = Phlex::Reactive::Shareable.share(params)
             # If a scope is already declared, reject a schema nested under the scope
             # key here (the scope-first declaration order). The action-first order is
             # caught in reactive_scope.
