@@ -30,8 +30,11 @@ module Phlex
       # or on any element inside it; `to:` is resolved from the root either way.
       # Client-only: no token, no round trip, no broadcast.
       module CssVarsBinding
-        NAME = /\A--[a-z0-9-]+\z/i
-        UNITS = ["", "px", "%", "deg", "turn", "ms", "s", "em", "rem", "fr"].freeze
+        # Prefixed: this module sits in every reactive component's ancestry, so
+        # a bare NAME or UNITS would shadow a host app's top-level constant.
+        CSS_VAR_NAME = /\A--[a-z0-9-]+\z/i
+        CSS_VAR_UNITS = ["", "px", "%", "deg", "turn", "ms", "s", "em", "rem", "fr"].freeze
+        private_constant :CSS_VAR_NAME, :CSS_VAR_UNITS
 
         def reactive_css_vars(to:, vars:, global: false, **attrs)
           wire = { "to" => css_vars_targets!(to), "vars" => css_vars_map!(vars) }
@@ -67,7 +70,7 @@ module Phlex
 
         def css_var_name!(name)
           string = name.to_s if name.is_a?(String) || name.is_a?(Symbol)
-          return string if string&.match?(NAME)
+          return string if string&.match?(CSS_VAR_NAME)
 
           raise ArgumentError, "reactive_css_vars vars: #{name.inspect} is not a custom property name: it starts " \
                                "with -- and holds only letters, digits and dashes (e.g. \"--light\")"
@@ -87,8 +90,15 @@ module Phlex
           wire
         end
 
+        # The client reads the field through a [name="…"] selector, which a
+        # double quote, backslash or control character would break (the
+        # verbatim_name_selector! rule).
         def css_var_field!(name, field)
           string = field.to_s if field.is_a?(String) || field.is_a?(Symbol)
+          if string&.match?(/["\\\x00-\x1f]/)
+            raise ArgumentError, "reactive_css_vars vars: #{name} field can't contain a double quote, backslash, " \
+                                 "or control character (it is read through a [name=\"…\"] selector), got #{field.inspect}"
+          end
           return string unless string.nil? || string.strip.empty?
 
           raise ArgumentError, "reactive_css_vars vars: #{name} needs the field name to read " \
@@ -97,10 +107,10 @@ module Phlex
 
         def css_var_unit!(name, unit)
           string = unit.to_s if unit.is_a?(String) || unit.is_a?(Symbol)
-          return string if UNITS.include?(string)
+          return string if CSS_VAR_UNITS.include?(string)
 
           raise ArgumentError, "reactive_css_vars vars: #{name} unit: must be one of " \
-                               "#{UNITS.map(&:inspect).join(", ")}, got #{unit.inspect}"
+                               "#{CSS_VAR_UNITS.map(&:inspect).join(", ")}, got #{unit.inspect}"
         end
       end
     end

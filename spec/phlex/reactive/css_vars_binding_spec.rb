@@ -95,7 +95,8 @@ RSpec.describe Phlex::Reactive::Component::CssVarsBinding do
       ["light", "-light", "--", "--li ght", "--a;b", "--a:b", "--ünï", "--a_b", "", nil].each do
         name = it
         expect { css_vars(to: "#a", vars: { name => "x" }) }
-          .to raise_error(ArgumentError, /--/), "expected #{name.inspect} to raise"
+          .to raise_error(ArgumentError, /vars: #{Regexp.escape(name.inspect)} is not a custom property/),
+            "expected #{name.inspect} to raise"
       end
     end
 
@@ -120,6 +121,15 @@ RSpec.describe Phlex::Reactive::Component::CssVarsBinding do
           .to raise_error(ArgumentError, /field/), "expected #{field.inspect} to raise"
       end
       expect { css_vars(to: "#a", vars: { "--x" => { unit: "px" } }) }.to raise_error(ArgumentError, /field:/)
+    end
+
+    it "raises on a field name the client could not put in a [name=\"…\"] selector" do
+      ["a\"b", "a\\b", "a\nb"].each do
+        field = it
+        expect { css_vars(to: "#a", vars: { "--x" => field }) }
+          .to raise_error(ArgumentError, /double quote, backslash, or control character/),
+            "expected #{field.inspect} to raise"
+      end
     end
 
     it "raises on an unknown key in a property's Hash" do

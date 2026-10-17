@@ -19,7 +19,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   after a morph, with no request. Anything that is not a number removes the
   property, so the `var()` fallback applies: no text from a field reaches CSS.
   Units come from a fixed list (`""`, `px`, `%`, `deg`, `turn`, `ms`, `s`,
-  `em`, `rem`, `fr`) and names match `--[a-z0-9-]+`, checked at render and in
+  `em`, `rem`, `fr`) and names match `--[a-zA-Z0-9-]+`, checked at render and in
   the browser. `to:` resolves like a client op's (`:root`, inside the root,
   `global: true`, an Array). It goes on the root or on any element inside it,
   and works on a `ClientBindings` view. Client: +460 B gzipped in the default

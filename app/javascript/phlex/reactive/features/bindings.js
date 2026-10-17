@@ -821,7 +821,7 @@ function syncCssVars(c, fieldValue, owns, scope) {
     })
     for (const [name, spec] of Object.entries(wire.vars)) {
       const unit = spec?.unit ?? ""
-      if (!CSS_VAR_NAME.test(name) || !CSS_VAR_UNITS.includes(unit) || typeof spec.field !== "string") {
+      if (!CSS_VAR_NAME.test(name) || !CSS_VAR_UNITS.includes(unit) || typeof spec?.field !== "string") {
         console.warn(`[phlex-reactive] refused reactive_css_vars entry ${JSON.stringify(name)} — skipped`)
         continue
       }

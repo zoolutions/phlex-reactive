@@ -236,6 +236,7 @@ test("a hand-built entry with a bad name or unit is refused; its siblings still 
   const wire = {
     to: ["#sample"],
     vars: {
+      "--null": null,
       "--light": { field: "light" },
       "--turn": { field: "turn", unit: "vh" },
       "x;color": { field: "light" },
