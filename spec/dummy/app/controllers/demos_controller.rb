@@ -417,6 +417,10 @@ class DemosController < ActionController::Base
     render_component NestedEditorComponent.new
   end
 
+  def shared_field
+    render_component SharedFieldFormComponent.new
+  end
+
   def tag_picker
     render_component TagPickerComponent.new
   end

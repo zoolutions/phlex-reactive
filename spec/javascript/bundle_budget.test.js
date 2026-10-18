@@ -198,7 +198,8 @@ const SLACK = 250
 // Issue #428 (a box's or point's fields on another scale, in drag) adds 90 B: 40,736 B.
 // Issue #429 (a shortcut skips a key another handler prevented, in the runtime) adds 55 B: 40,701 B;
 // its review fixes (the replay marker, the held-forward gate) 14 B: 40,715 B; on top of #428 (40,736 B), 78 B: 40,814 B.
-const BUNDLE_GZIP_CEILING = 40_814
+// Issue #434 (a shared field posts with the host, in the runtime) adds 32 B: 40,846 B.
+const BUNDLE_GZIP_CEILING = 40_846
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -268,7 +269,8 @@ const TARGET_BUNDLE_GZIP = 22_700
 // Issue #416 (the drag marker and table entry) adds 55 B: 18,288 B; on top of #417, 51 B: 18,300 B.
 // Issue #429 (a shortcut skips a key another handler prevented) adds 74 B: 18,374 B;
 // its review fixes save 7 B: 18,367 B.
-const CORE_GZIP_CEILING = 18_367
+// Issue #434 (a shared field posts with the host) adds 37 B: 18,404 B.
+const CORE_GZIP_CEILING = 18_404
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -402,7 +404,8 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #425 (reactive_filter match: and fold:, in bindings) adds 155 B: 49,670 B.
 // Issue #428 (a box's or point's fields on another scale, in drag) adds 101 B: 49,771 B.
 // Issue #429 (a shortcut skips a key another handler prevented, in the core) adds 67 B: 49,737 B; on top of #428 (49,771 B), 67 B: 49,838 B.
-const SPLIT_TOTAL_GZIP_CEILING = 49_838
+// Issue #434 (a shared field posts with the host, in the core) adds 37 B: 49,875 B.
+const SPLIT_TOTAL_GZIP_CEILING = 49_875
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 
