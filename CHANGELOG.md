@@ -14,11 +14,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `on(:close, shortcut: "esc")` ran on the same keypress too, so one Escape
   both put the box back and, say, left the screen. A shortcut — on `on(...)`
   and `on_client(:keydown, …)` alike — now does nothing for a keydown whose
-  default a handler inside the page already prevented: the drag, an
+  default a handler inside the page already prevented: the drag, a sortable
+  list's keyboard Escape, `reactive_editable`'s Escape revert (an
+  `in_editable: true` Escape shortcut no longer runs beside it), an
   element-bound `on`/`on_client` keydown binding, the app's own listener.
   Another shortcut's `preventDefault` does not count, so two shortcuts on one
   chord still both run, and neither does the one `phlex/reactive/early` makes
-  for a root that has not connected yet. `shortcut: { keys: "esc", handled:
+  for a root that has not connected yet (while such a root, one with a
+  shortcut on the chord, is on the page, a drag's Escape still runs the
+  shortcuts on it, as before). `shortcut: { keys: "esc", handled:
   true }` runs regardless; `handled:` is validated like `in_editable:` (true
   or false, else `ArgumentError` at render), and the wire Hash carries it as
   `"handled": true`. The default bundle grows by 55 B gzipped (40,701 B), the

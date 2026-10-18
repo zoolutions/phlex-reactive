@@ -1757,7 +1757,10 @@ const shortcutKeys = (spec) => (spec && typeof spec === "object" ? spec.keys : S
 // `handled: true` — but a shortcut's OWN preventDefault does not count: two
 // shortcuts on one chord both run. Nor does early.js's, made for a shortcut
 // whose root had not connected: it adds the event to this same set (shared
-// through the early state), and the replay of it carries EARLY_KEY.
+// through the early state), and the replay of it carries EARLY_KEY. (So while
+// such a root is on the page, early.js's capture-phase preventDefault lands
+// before a drag's, and that Escape still runs the shortcuts on its chord — as
+// before #429: a preventDefault cannot tell who came second.)
 const shortcutPrevented = () => (earlyState().prevented ??= new WeakSet())
 // A trigger's preventDefault, a shortcut's remembered as its own (only when
 // nothing prevented the key first: handled: true on a handled key does not
