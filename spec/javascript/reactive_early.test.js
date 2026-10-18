@@ -568,6 +568,37 @@ test("a replay's mark belongs to its root: another root's live window binding on
   expect(seenB).toEqual(["b"])
 })
 
+// Issue #429: a shortcut skips a key another handler already prevented — but
+// early.js's preventDefault, made for a not-yet-connected root's shortcut, is
+// a shortcut's own: a connected root's shortcut on the same chord still runs
+// live, and the other replays on connect.
+test("a shortcut early.js prevented for an unconnected root does not stop a connected root's shortcut on that chord", async () => {
+  const page = await mount(`
+    <div>
+      <div id="a" data-controller="reactive"><span data-action="keydown.esc@window->reactive#dispatch" data-reactive-action-param="a" data-reactive-window-param="true" data-reactive-shortcut-param="esc"></span></div>
+      <div id="b" data-controller="reactive"><span data-action="keydown.esc@window->reactive#dispatch" data-reactive-action-param="b" data-reactive-window-param="true" data-reactive-shortcut-param="esc"></span></div>
+    </div>`)
+  const [a, b] = [page.querySelector("#a"), page.querySelector("#b")]
+  const seenA = countDispatches(a)
+  const seenB = countDispatches(b)
+  const controllerB = realConnect(b)
+  // B's Stimulus window listener (A has none yet: it has not connected).
+  const listenB = (event) =>
+    controllerB.dispatch(Object.assign(event, { params: { action: "b", window: true, shortcut: "esc" } }))
+  window.addEventListener("keydown", listenB)
+  let event
+  try {
+    event = press(document.body, "Escape")
+  } finally {
+    window.removeEventListener("keydown", listenB)
+  }
+
+  expect(event.defaultPrevented).toBe(true)
+  expect(seenB).toEqual(["b"])
+  realConnect(a)
+  expect(seenA).toEqual(["a"])
+})
+
 test("two :once window bindings on separate elements of one root each replay, and each swallows its own live firing", async () => {
   const root = await mount(`
     <div id="p" data-controller="reactive">
@@ -716,10 +747,11 @@ test("listens for trigger types of roots added after start (MutationObserver)", 
 
 // The one module every page loads eagerly. 1,024 B before dormant roots (issue
 // #274) added the second root selector and the wake; 1,621 B since the bare
-// delete/backspace chords (issue #366).
-test("early.min.js gzips to at most 1,621 bytes", () => {
+// delete/backspace chords (issue #366); 1,643 B since it records the chord it
+// prevents for a shortcut as a shortcut's (issue #429).
+test("early.min.js gzips to at most 1,643 bytes", () => {
   const built = readFileSync(join(import.meta.dir, "../../app/javascript/phlex/reactive/early.min.js"))
-  expect(gzipSync(built, { level: 9 }).length).toBeLessThanOrEqual(1621)
+  expect(gzipSync(built, { level: 9 }).length).toBeLessThanOrEqual(1643)
 })
 
 // --- reactive_controller.js: connect() marks, announces and drains ------------

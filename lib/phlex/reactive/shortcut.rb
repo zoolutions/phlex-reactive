@@ -7,13 +7,16 @@ module Phlex
     #
     #   Shortcut.parse("mod+z")                          # String form
     #   Shortcut.parse({ keys: "esc", in_editable: true }) # Hash form
+    #   Shortcut.parse({ keys: "esc", handled: true })     # runs on a handled key
     #
     # `mod` is meta on Apple platforms and ctrl elsewhere. Stimulus has no
     # "either" modifier (its key filter compares all four modifier flags
     # exactly), so a `mod` chord renders TWO descriptors, a meta twin and a ctrl
     # twin, and the client runs only the twin for its platform. Stimulus keeps
     # the key filtering; the client adds the platform check, the editable-target
-    # guard and preventDefault. The exception is a key Stimulus's default map
+    # guard, the handled-key skip (issue #429: a keydown another handler already
+    # prevented is not the shortcut's, unless `handled: true`) and
+    # preventDefault. The exception is a key Stimulus's default map
     # lacks (delete, backspace — issue #366): it binds a bare window keydown,
     # no twins, and the client matches the whole chord.
     #
@@ -28,7 +31,7 @@ module Phlex
       # `keydown@window` and the client alone matches it.
       LIBRARY_KEYS = %w[delete backspace].freeze
       NAMED_KEYS = (STIMULUS_KEYS + LIBRARY_KEYS).freeze
-      HASH_KEYS = %i[keys in_editable].freeze
+      HASH_KEYS = %i[keys in_editable handled].freeze
 
       private_constant :MODIFIERS, :STIMULUS_KEYS, :LIBRARY_KEYS, :NAMED_KEYS, :HASH_KEYS
 
@@ -36,34 +39,38 @@ module Phlex
 
       def self.parse(spec)
         case spec
-        when String then new(spec, in_editable: false)
+        when String then new(spec, in_editable: false, handled: false)
         when Hash then from_hash(spec)
         else
           raise ArgumentError,
-            "shortcut: takes a String (\"mod+z\") or a Hash ({ keys: \"esc\", in_editable: true }), " \
-            "got #{spec.inspect}"
+            "shortcut: takes a String (\"mod+z\") or a Hash ({ keys: \"esc\", in_editable: true, " \
+            "handled: true }), got #{spec.inspect}"
         end
       end
 
       def self.from_hash(spec)
         keys = spec[:keys]
         in_editable = spec.fetch(:in_editable, false)
+        handled = spec.fetch(:handled, false)
         unless (spec.keys - HASH_KEYS).empty? && keys.is_a?(String)
           raise ArgumentError,
-            "shortcut: as a Hash takes keys: (a String, e.g. \"esc\") and an optional " \
-            "in_editable: (true/false), got #{spec.inspect}"
+            "shortcut: as a Hash takes keys: (a String, e.g. \"esc\") and optional " \
+            "in_editable: and handled: (true/false), got #{spec.inspect}"
         end
-        unless [true, false].include?(in_editable)
-          raise ArgumentError, "shortcut: in_editable: is true or false, got #{in_editable.inspect}"
+        { in_editable:, handled: }.each do |name, value|
+          next if [true, false].include?(value)
+
+          raise ArgumentError, "shortcut: #{name}: is true or false, got #{value.inspect}"
         end
 
-        new(keys, in_editable:)
+        new(keys, in_editable:, handled:)
       end
       private_class_method :from_hash
 
-      def initialize(keys, in_editable:)
+      def initialize(keys, in_editable:, handled:)
         tokens = keys.downcase.split("+").map(&:strip)
         @in_editable = in_editable
+        @handled = handled
         @keys = canonical(keys, tokens).freeze
         freeze
       end
@@ -83,8 +90,13 @@ module Phlex
 
       # The wire form the client reads (data-reactive-shortcut-param, or the
       # on_client record's "shortcut"): the canonical String, or the Hash form
-      # when the shortcut also fires inside editable targets.
-      def param = @in_editable ? { "keys" => @keys, "inEditable" => true } : @keys
+      # when the shortcut also fires inside editable targets and/or on a key
+      # another handler already prevented (issue #429).
+      def param
+        return @keys unless @in_editable || @handled
+
+        { "keys" => @keys, "inEditable" => (true if @in_editable), "handled" => (true if @handled) }.compact
+      end
 
       private
 

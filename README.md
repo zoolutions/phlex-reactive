@@ -969,7 +969,7 @@ div(**mix(reactive_root, on_client(:keydown, js.toggle("#palette"), shortcut: "m
 end
 ```
 
-A shortcut is a window `keydown` binding with three rules a plain
+A shortcut is a window `keydown` binding with four rules a plain
 `event: "keydown.meta+z", window: true` does not have:
 
 - **`mod` is ⌘ on Apple platforms and Ctrl elsewhere.** The helper renders a
@@ -981,6 +981,13 @@ A shortcut is a window `keydown` binding with three rules a plain
   anything `contenteditable` (including `reactive_editable`), the shortcut does
   nothing and the browser's own handling (text undo) runs. Opt in with the Hash
   form: `shortcut: { keys: "esc", in_editable: true }`.
+- **A key something else handled is left to it.** When a handler inside the
+  page already called `preventDefault` on the keydown — Escape cancelling a
+  drag (`reactive_box`, `reactive_point`), an element-bound `on`/`on_client`
+  binding on `keydown.esc`, your own listener — the shortcut does nothing
+  (issue #429). Another shortcut's `preventDefault` does not count: two
+  shortcuts on one chord both run. To run regardless, use the Hash form:
+  `shortcut: { keys: "esc", handled: true }`.
 - **The chord is prevented.** A matching shortcut calls `preventDefault`
   synchronously, before any `confirm:` dialog, so `mod+s` does not also open
   the save dialog. (Other window bindings are still never prevented.)

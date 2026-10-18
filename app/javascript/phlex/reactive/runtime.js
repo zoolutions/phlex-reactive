@@ -1751,9 +1751,26 @@ function keyFilterMatches(filter, event, keyMappings) {
 // its bare keydown hears every key, and this check alone picks the chord.
 // (Stimulus typecasts a digit shortcut, "1", to a number: hence String().)
 const shortcutKeys = (spec) => (spec && typeof spec === "object" ? spec.keys : String(spec))
+// Issue #429: the keydowns a shortcut prevented itself. A key another handler
+// already claimed (the drag feature's Escape cancelling a drag, an
+// element-bound keydown binding) is not the shortcut's — unless it says so,
+// `handled: true` — but a shortcut's OWN preventDefault does not count: two
+// shortcuts on one chord both run. Nor does early.js's, made for a shortcut
+// whose root had not connected: it adds the event to this same set (shared
+// through the early state), and the replay of it carries EARLY_KEY.
+const shortcutPrevented = () => (earlyState().prevented ??= new WeakSet())
+// A trigger's preventDefault, a shortcut's remembered as its own (only when
+// nothing prevented the key first: handled: true on a handled key does not
+// make it the next shortcut's).
+function preventTrigger(event, shortcut) {
+  if (shortcut != null && !event.defaultPrevented) shortcutPrevented().add(event)
+  event.preventDefault()
+}
 // A shortcut record keeps a bare `on: "keydown"`, so bindingMatches lets every
 // keydown through and this check, per record, picks the chord that fired.
 function shortcutApplies(spec, event, keyMappings) {
+  if (event.defaultPrevented && spec?.handled !== true && !event[EARLY_KEY] && !shortcutPrevented().has(event))
+    return false
   const target = event.target
   if (spec?.inEditable !== true && (target?.isContentEditable || /^(input|textarea|select)$/.test(target?.localName)))
     return false
@@ -3255,7 +3272,8 @@ export default class extends Controller {
     // A shortcut (issue #357) IS prevented: its key filter has already narrowed
     // the window binding to one chord the page claims (mod+s must not also open
     // the browser's save dialog).
-    if ((shortcut != null || !windowBound) && !this.#keepsNativeToggle(optimistic, target)) event.preventDefault()
+    if ((shortcut != null || !windowBound) && !this.#keepsNativeToggle(optimistic, target))
+      preventTrigger(event, shortcut)
 
     // A reactive_lazy(on:) shell's trigger (issue #276) goes through the one
     // materialize entry point, which dedupes it against the observer, the
@@ -3375,7 +3393,8 @@ export default class extends Controller {
     // dispatch()'s own rule, or a submit/link would act before the request.
     const { shortcut, window: windowBound, optimistic } = event.params
     const target = event.currentTarget ?? event.target
-    if ((shortcut != null || !windowBound) && !this.#keepsNativeToggle(optimistic, target)) event.preventDefault()
+    if ((shortcut != null || !windowBound) && !this.#keepsNativeToggle(optimistic, target))
+      preventTrigger(event, shortcut)
     heldForwards.set(root, [...(heldForwards.get(root) ?? []), [event, target]])
     const data = root.dataset
     if (data.reactiveDormant) {
@@ -3463,7 +3482,7 @@ export default class extends Controller {
     // (possibly async) confirm gate below — a native default can't wait for a
     // pending dialog (same ordering as dispatch()).
     // A shortcut (issue #357) is prevented: it is one chord the page claims.
-    if (shortcut != null || !windowBound) event.preventDefault()
+    if (shortcut != null || !windowBound) preventTrigger(event, shortcut)
 
     // Resolve the effective confirm message — static string, or the conditional
     // Hash form (issue #179) evaluated over collected fields (a promise of it

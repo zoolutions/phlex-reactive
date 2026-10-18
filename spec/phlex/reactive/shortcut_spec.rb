@@ -136,9 +136,37 @@ RSpec.describe Phlex::Reactive::Shortcut do
 
     it "raises on a malformed Hash" do
       expect { instance.send(:on, :close, shortcut: { key: "esc" }) }
-        .to raise_error(ArgumentError, /keys:.*in_editable:/m)
+        .to raise_error(ArgumentError, /keys:.*in_editable:.*handled:/m)
       expect { instance.send(:on, :close, shortcut: { keys: "esc", in_editable: "yes" }) }
         .to raise_error(ArgumentError, /in_editable:/)
+    end
+
+    # Issue #429: a shortcut skips a key another handler already prevented;
+    # handled: true runs it anyway. The wire Hash carries whichever flag is on.
+    {
+      { in_editable: false, handled: false } => "esc",
+      { in_editable: true, handled: false } => { "keys" => "esc", "inEditable" => true },
+      { in_editable: false, handled: true } => { "keys" => "esc", "handled" => true },
+      { in_editable: true, handled: true } => { "keys" => "esc", "inEditable" => true, "handled" => true }
+    }.each do |flags, wire|
+      it "serialises #{flags} as #{wire.inspect}" do
+        expect(described_class.parse({ keys: "esc", **flags }).param).to eq(wire)
+      end
+    end
+
+    it "serialises handled: true on on() and on_client" do
+      data = instance.send(:on, :close, shortcut: { keys: "esc", handled: true })[:data]
+      expect(JSON.parse(data[:reactive_shortcut_param])).to eq("keys" => "esc", "handled" => true)
+
+      ops = instance.send(:on_client, :keydown, js.hide("#dialog"), shortcut: { keys: "esc", handled: true })[:data]
+      expect(JSON.parse(ops[:reactive_ops_param])["shortcut"]).to eq("keys" => "esc", "handled" => true)
+    end
+
+    it "raises on handled: that is not true or false" do
+      expect { described_class.parse({ keys: "esc", handled: "yes" }) }
+        .to raise_error(ArgumentError, /handled: is true or false, got "yes"/)
+      expect { instance.send(:on, :close, shortcut: { keys: "esc", handled: nil }) }
+        .to raise_error(ArgumentError, /handled:/)
     end
 
     it "raises on a shortcut that is neither a String nor a Hash" do
