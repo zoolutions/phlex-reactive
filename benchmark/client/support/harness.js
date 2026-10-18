@@ -116,10 +116,13 @@ export async function makeDom() {
 
 // A reactive root <div> with a form of `fieldCount` text inputs (name="f0"…),
 // optionally nesting `nestedRoots` INNER reactive roots each holding two inputs.
-// The nested inputs must NOT be collected by the outer root (#ownsField scopes
-// to the nearest data-controller~="reactive" ancestor, issue #15) — so a nested
-// fixture measures the ownership-filter cost on a realistic mixed tree.
-export function buildForm(document, { fieldCount, nestedRoots = 0 }) {
+// A tokenless nested root is client-only and transparent (issue #410): its
+// inputs ARE the outer root's and the walk takes the fast path. `nestedTokens`
+// gives each nested root a token, a server root whose inputs stay its own
+// (issue #15), so the walk runs the per-field ownership check; `shared` also
+// marks the first input of each with data-reactive-shared-field (issue #434),
+// which the outer root collects one level up.
+export function buildForm(document, { fieldCount, nestedRoots = 0, nestedTokens = false, shared = false }) {
   const root = document.createElement("div")
   root.setAttribute("data-controller", "reactive")
   root.id = "form-root"
@@ -136,10 +139,12 @@ export function buildForm(document, { fieldCount, nestedRoots = 0 }) {
     const nested = document.createElement("div")
     nested.setAttribute("data-controller", "reactive")
     nested.id = `nested-${n}`
+    if (nestedTokens) nested.setAttribute("data-reactive-token-value", `nested-token-${n}`)
     for (const name of ["nq", "np"]) {
       const input = document.createElement("input")
       input.setAttribute("type", "text")
       input.setAttribute("name", `${name}${n}`)
+      if (shared && name === "nq") input.setAttribute("data-reactive-shared-field", "")
       input.value = "9"
       nested.appendChild(input)
     }

@@ -688,6 +688,7 @@ Use in controllers: `render turbo_stream: Counter.replace(counter)`.
 | `on_client(:click, js.toggle("#menu"))` | **Client-only** trigger: applies declared DOM ops with ZERO round trip — no token, no POST, ever. Takes the same `window:`/`once:`/`outside:` modifiers and `debounce:`/`throttle:` waits (ms) as `on`, plus `detail:` (run only when `event.detail` carries the listed values). See [Client-only ops](#client-only-ops-on_client--js--zero-round-trips). |
 | `js` | The immutable op builder behind `on_client`: `show`/`hide`/`toggle` (the `hidden` attribute, with an optional `transition:` and `expanded:`), `add_class`/`remove_class`/`toggle_class`, `set_attr`/`remove_attr`/`toggle_attr` (allowlisted names; `toggle_attr` also flips between two values), `focus`/`focus_first`/`blur`, `show_modal`/`close_dialog` (a real modal `<dialog>`), `copy_media` (copy `src`/`srcset`/`alt` from a server-rendered `<img>`, no URL argument), `text` (set `textContent` — XSS-safe), `set_value` (set a field's live `.value` and dispatch `input`), `dispatch`, `submit` (requestSubmit the target's own form, optionally through a `submitter:`), `paste_into` (read the clipboard into a field, gesture-gated), `preview_file` (paint a chosen image file onto an `img` through an object URL the client makes and revokes), `check_group` (tick or untick a checkbox group, then re-sync its bindings), and `persist_state`/`persist_clear` (the `reactive_persist` draft) — chainable. `keep: true` on the visibility, class and attr ops makes their result survive a morph. |
 | `reactive_field(:param, **attrs)` | The attribute hash that binds a control to an action param (no magic `name:`) — spread onto any control: `input(**reactive_field(:value, value: @record.name))`, `select(**reactive_field(:status)) { … }`. |
+| `reactive_shared_field(name:, value: nil, **attrs)` | A control inside a **nested** component that its host's actions post too (#434): `input(type: "hidden", **reactive_shared_field(name: "item[choice]", value: @choice))`. Collected by its own component and by the next server component above it, one level only; `name:` is the host's param, verbatim (never re-scoped); a blank name raises at render. See *Nested reactive components compose* below. |
 | `reactive_editable(:name, multiline: false, placeholder: nil, on_enter: nil, on_escape: :revert, spellcheck: true)` | A plain-text **editable element** as a field (issue #351): `h3(**reactive_editable(:title)) { @card.title }`. Its text travels under the scope-aware `name`: with `multiline: true` its line breaks are sent as `\n`; a single-line field (the default) folds them to spaces; a morph keeps the focused element's text and caret (attributes still morph); paste is plain text; Enter runs `on_enter:` (a single-line field swallows it); Escape reverts. `reactive_dirty` and `reactive_persist` treat it like an input. See the [Editable text](https://phlex-reactive.zoolutions.llc/docs/editable-text) page. |
 | `reactive_text(:name, initial)` | Mirror a compute output (or a declared input) into a **text node** — a live preview heading, a character counter, `"Hello, {name}"` — via `textContent` (XSS-safe). The text sibling of `reactive_field`; carries no `name`, so it's never POSTed. See [Client-side computes](#client-side-computes-reactive_compute--reactive_text). |
 | `reactive_show(if:/if_any:/unless:)` | **Value-conditional visibility** (the `x-show`/`data-show` case): spread onto the element to show/hide — it toggles `hidden` from the fields' **current values**, client-only, zero round trip. One conditions language: a **Hash is an AND**, an **Array is membership**, a **Range is a threshold**, `if_any:` is OR-of-AND, `unless:` negates. `reactive_values` computes first paint; `disable:` disables a hidden section's controls; `{ same: :email }` compares two fields, `{ digits: 10 }` checks a digit format, `after: :blur` waits for the field's first blur, and `clear:`/`focus:`/`scroll:` run when the section changes visibility. See [Value-conditional visibility](#value-conditional-visibility-reactive_show). |
@@ -916,6 +917,33 @@ around it (#410). The helper's own bindings stay on the helper's root. A
 lazy or deferred shell (`reactive_lazy`, `reply.defer`) is never treated as
 client-only, with or without a token: it is a server component still loading,
 so it stays a boundary.
+
+A **shared field** is the opt-in exception for a nested *server* component
+(#434). A form widget with actions of its own (a picker that keeps the chosen
+id in a hidden field) marks the field its host must post:
+
+```ruby
+# Inside the picker component, itself rendered inside the item form:
+input(type: "hidden", **reactive_shared_field(name: "item[choice]", value: @choice))
+# => name="item[choice]" value="…" data-reactive-shared-field
+```
+
+The picker's own actions still collect it, and so do the actions of the next
+server component above the picker (client-only roots in between stay
+transparent). One level only: a component above that host collects it only
+when the host marks a copy of its own. The widget's unmarked fields stay its
+own. The name goes on the wire verbatim (it is the host's param, never
+re-scoped under the widget's `reactive_scope`), on the JSON body and the
+multipart one alike; a name the host also renders follows the usual rule for a
+plain name, the later control in the document wins. The widget's own actions
+receive the field under that same name, so declare it there too when an
+action reads it (`action :pick, params: { item: { choice: :string } }`);
+otherwise the action drops it (with `Phlex::Reactive.verbose_errors` on, the
+default in development and test, the log's dropped-param line names it).
+A conditional `confirm:` judges the fields the action is about to post, so
+it sees the shared field too. Dirty tracking, `reactive_persist` and the client bindings
+(`reactive_show`, computes) keep strict ownership, so the field is the
+widget's there. A native `<form>` posts it anyway, like any named control.
 
 **Debounced triggers (live-as-you-type).** Pass `debounce:` (milliseconds) to
 coalesce rapid events — typically keystrokes on an `"input"` trigger — into a

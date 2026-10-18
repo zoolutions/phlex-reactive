@@ -6,6 +6,30 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **A field inside a nested component can post with its host's actions:
+  `reactive_shared_field` (#434).** A reactive component rendered inside
+  another is its own root, and its named fields are its own (#15), so a form
+  widget with actions of its own (a picker that keeps the chosen id in a
+  hidden field) could not hand its value to the form around it without a
+  second component beside it and a `js.set_value` in every action.
+  `input(type: "hidden", **reactive_shared_field(name: "item[choice]", value: @choice))`
+  renders the name, the value and a `data-reactive-shared-field` marker: the
+  widget's own actions still collect the field, and so do the actions of the
+  next server component above it (client-only roots in between stay
+  transparent, #410), on the JSON body and the multipart one alike. One level
+  only: a component above that host collects it only when the host marks a
+  copy of its own. The name is the host's param, verbatim (the widget's own
+  actions receive it under that name too, so they declare it there when they
+  read it, or the action drops it); a String or Symbol name only, a blank
+  one raises at render. Without the marker nothing changes. A conditional
+  `confirm:` reads the fields the action posts, so it sees the shared field
+  too; dirty tracking, `reactive_persist` and the client bindings keep strict
+  ownership. The
+  collect walk is unchanged for a root with no nested server component; with
+  one, an unmarked foreign control costs one attribute read.
+
 ## [0.16.5] - 2026-10-18
 
 ### Fixed
