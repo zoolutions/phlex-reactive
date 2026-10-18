@@ -73,7 +73,7 @@ RSpec.describe "A shared field drives its host's client bindings (issue #440)", 
 
     find("[data-testid='picker-option-b']").click
     find("[data-testid='save']").click
-    expect(page).to have_css("[data-testid='saved']", text: "choice=b mode=other")
+    expect(page).to have_css("[data-testid='saved']", text: "choice=b mode=other item=")
     expect(page.evaluate_script("window.__noReload")).to eq("alive")
   end
 end

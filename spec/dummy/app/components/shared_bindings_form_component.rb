@@ -14,7 +14,9 @@ class SharedBindingsFormComponent < ApplicationComponent
 
   reactive_state :saved
   reactive_compute :choice_echo, inputs: { choice: :string }, outputs: []
-  action :save, params: { choice: :string, mode: :string }
+  # item[choice] is the nested server picker's shared field: one level up
+  # through the client-only picker, so this action collects it too (#434).
+  action :save, params: { choice: :string, mode: :string, item: { choice: :string } }
 
   def initialize(saved: nil)
     @saved = saved
@@ -24,8 +26,8 @@ class SharedBindingsFormComponent < ApplicationComponent
 
   def reactive_values = { mode: "a", choice: "" }
 
-  def save(choice: nil, mode: nil)
-    @saved = "choice=#{choice} mode=#{mode}"
+  def save(choice: nil, mode: nil, item: {})
+    @saved = "choice=#{choice} mode=#{mode} item=#{item[:choice]}"
   end
 
   def view_template
