@@ -35,6 +35,7 @@ RSpec.describe "on_client prevent: false (issue #433)", type: :system do
   it "delivers the dropped file to the input and still runs the drop trigger's ops" do
     drop_file("kept-input")
 
+    expect(page).to have_css("[data-testid='kept-status']", text: "received") # the input's change fired
     expect(page).to have_no_css("#dz-kept.is-over")
     expect(files("kept-input")).to eq(1)
   end
@@ -42,7 +43,8 @@ RSpec.describe "on_client prevent: false (issue #433)", type: :system do
   it "cancels the drop without the keyword (the default prevents)" do
     drop_file("prevented-input")
 
-    expect(page).to have_no_css("#dz-prevented.is-over")
+    expect(page).to have_no_css("#dz-prevented.is-over") # the drop's ops ran: the barrier
+    expect(page).to have_css("[data-testid='prevented-status']", text: "empty")
     expect(files("prevented-input")).to eq(0)
   end
 end
