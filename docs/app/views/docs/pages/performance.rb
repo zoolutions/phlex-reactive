@@ -1237,7 +1237,7 @@ module Views
                              'Inside the one file.',
                              [:md, 'When the first root that is, or holds, a `reactive_sortable` or ' \
                                    '`reactive_sortable_source` list connects.']],
-                            [[:code, 'phlex/reactive/features/drag'], '3.5 KB',
+                            [[:code, 'phlex/reactive/features/drag'], '3.6 KB',
                              'Inside the one file.',
                              [:md, 'When the first root that is, or holds, a `reactive_frame`, `reactive_box` or ' \
                                    '`reactive_point` connects.']],

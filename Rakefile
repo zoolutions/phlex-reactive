@@ -38,6 +38,7 @@ namespace :spec do
     spec/system/countdown_spec.rb
     spec/system/css_vars_spec.rb
     spec/system/filter_match_spec.rb
+    spec/system/drag_scale_spec.rb
     spec/system/media_pending_spec.rb
     spec/system/field_checks_spec.rb
     spec/system/persist_form_spec.rb

@@ -2,6 +2,7 @@
 
 require "spec_helper"
 require "phlex"
+require "bigdecimal"
 
 # Issue #416: draggable regions — reactive_frame (the coordinate space),
 # reactive_box (a box that moves and resizes inside it), reactive_box_handle (an
@@ -104,6 +105,55 @@ RSpec.describe Phlex::Reactive::Component::Drag do
 
     it "omits every optional attribute by default" do
       expect(data(box).keys).to contain_exactly(:reactive_box, :reactive_box_min, :reactive_box_messages)
+    end
+
+    # Issue #428: the fields on another scale (100: percent); value:, the
+    # style and the action's params stay fractions.
+    it "marks the scale its fields hold, keeping value: and the style in fractions" do
+      attrs = box(scale: 100)
+      expect(data(attrs)).to include(reactive_box_scale: 100)
+      expect(attrs[:style]).to include("left: 10%; top: 10%; width: 50%; height: 40%;")
+      expect(view.call).not_to include("data-reactive-box-scale")
+    end
+
+    it "renders scale: as a number the browser reads (a Rational as a Float, not \"1000/3\")" do
+      expect(data(box(scale: 640.5))[:reactive_box_scale]).to eq(640.5)
+      expect(data(box(scale: 1000/3r))[:reactive_box_scale]).to be_within(1e-9).of(1000 / 3.0).and be_a(Float)
+      klass = Class.new(Phlex::HTML) do
+        include Phlex::Reactive::ClientBindings
+
+        def view_template
+          div(**reactive_box(fields: { x: "x", y: "y", width: "w", height: "h" },
+            value: { x: 0, y: 0, width: 1, height: 1 }, scale: 100))
+        end
+      end
+      expect(klass.new.call).to include('data-reactive-box-scale="100"')
+    end
+
+    it "omits the scale at 1 (the default), so the markup is unchanged" do
+      expect(data(box(scale: 1))).to eq(data(box))
+      expect(data(box(scale: 1.0))).to eq(data(box))
+      expect(data(box(scale: 1r))).to eq(data(box))
+    end
+
+    it "raises on a scale: that is not a positive finite number" do
+      [0, -1, -0.5, "100", nil, Float::INFINITY, Float::NAN, Complex(1, 1)].each do |bad|
+        expect { box(scale: bad) }
+          .to raise_error(ArgumentError, /reactive_box scale: must be a positive finite Numeric \(100: percent\), got/)
+      end
+    end
+
+    it "raises on a scale: the browser reads as Infinity or 0, at either end" do
+      [10**400, BigDecimal("1e400"), Rational(1, 10**400), BigDecimal("1e-400")].each do |bad|
+        expect { box(scale: bad) }
+          .to raise_error(ArgumentError, /reactive_box scale: must be a positive finite Numeric/)
+      end
+    end
+
+    it "takes the extreme scales the browser can still read" do
+      expect(data(box(scale: Float::MIN))[:reactive_box_scale]).to eq(Float::MIN)
+      expect(data(box(scale: Float::MAX))[:reactive_box_scale]).to eq(Float::MAX)
+      expect(data(box(scale: 10**300))[:reactive_box_scale]).to eq(10**300)
     end
 
     it "takes string keys in fields: and value:" do
@@ -276,6 +326,16 @@ RSpec.describe Phlex::Reactive::Component::Drag do
       expect(attrs[:tabindex]).to eq(0)
       expect(JSON.parse(data(attrs)[:reactive_point])).to eq("x" => "focus[x]", "y" => "focus[y]")
       expect(data(attrs).keys).to contain_exactly(:reactive_point, :reactive_point_messages)
+      expect(data(view.reactive_point(fields: point_fields, value: { x: 0.5, y: 0.25 }, scale: 1.0)).keys)
+        .to contain_exactly(:reactive_point, :reactive_point_messages)
+    end
+
+    it "marks the scale its fields hold (issue #428), its style still in fractions" do
+      attrs = view.reactive_point(fields: point_fields, value: { x: 0.5, y: 0.25 }, scale: 100)
+      expect(data(attrs)).to include(reactive_point_scale: 100)
+      expect(attrs[:style]).to include("left: 50%; top: 25%;")
+      expect { view.reactive_point(fields: point_fields, value: { x: 0, y: 0 }, scale: 0) }
+        .to raise_error(ArgumentError, /reactive_point scale: must be a positive finite Numeric/)
     end
 
     it "takes within: (the element it sits inside, whose box its fractions are of), action: and busy:" do

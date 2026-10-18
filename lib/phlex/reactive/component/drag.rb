@@ -9,7 +9,8 @@ module Phlex
       # Draggable regions (issue #416): a box that moves and resizes inside a
       # frame, or a point that moves inside it, with the result in fields as
       # fractions of the frame — 0..1 on each axis, so a resize, a responsive
-      # layout or a morph changes nothing about them.
+      # layout or a morph changes nothing about them. With scale: 100 the
+      # fields hold percentages instead (issue #428).
       #
       #   div(**mix(reactive_frame, class: "relative")) do
       #     img(src: @photo.url, alt: "", class: "block w-full")
@@ -67,14 +68,17 @@ module Phlex
         #   aspect:    a Numeric ratio (16/9r), or the name of a field holding one
         #              ("16:9", "1.5", or "" for free), read at drag start
         #   min:       the smallest width/height, a fraction of the frame
+        #   scale:     what the fields hold: the fraction times this (100: percent,
+        #              2 decimals); value:, the style and the action's params stay fractions
         #   action:    sent once on release, with x/y/width/height params
         #   busy:      on(busy:)'s vocabulary, applied while that action is pending
         #   messages:  the live-region words, merged over DRAG_MESSAGES
-        def reactive_box(fields:, value:, aspect: nil, min: 0.05, action: nil, busy: nil, messages: nil)
+        def reactive_box(fields:, value:, aspect: nil, min: 0.05, scale: 1, action: nil, busy: nil, messages: nil)
           fields = drag_fields!(:reactive_box, fields, BOX_KEYS)
           value = drag_value!(:reactive_box, value, BOX_KEYS)
           drag_inside_frame!(value)
           data = { reactive_box: fields.to_json, reactive_box_min: drag_min!(min) }
+          drag_scale!(:reactive_box, scale, data)
           drag_aspect!(aspect, data) unless aspect.nil?
           drag_action!(:reactive_box, action, busy, data)
           data[:reactive_box_messages] = drag_messages!(:reactive_box, messages)
@@ -99,12 +103,14 @@ module Phlex
 
         # A point (its centre) that moves inside the frame — or, with within:,
         # inside the element it sits in that matches the selector (a box): its
-        # fractions are then of that element, and it moves with it.
-        def reactive_point(fields:, value:, within: nil, action: nil, busy: nil, messages: nil)
+        # fractions are then of that element, and it moves with it. scale: is
+        # reactive_box's.
+        def reactive_point(fields:, value:, within: nil, scale: 1, action: nil, busy: nil, messages: nil)
           fields = drag_fields!(:reactive_point, fields, POINT_KEYS)
           value = drag_value!(:reactive_point, value, POINT_KEYS)
           data = { reactive_point: fields.to_json }
           data[:reactive_point_within] = drag_within!(within) unless within.nil?
+          drag_scale!(:reactive_point, scale, data)
           drag_action!(:reactive_point, action, busy, data)
           data[:reactive_point_messages] = drag_messages!(:reactive_point, messages)
           style = "position: absolute; left: #{drag_percent(value[:x])}; top: #{drag_percent(value[:y])}; " \
@@ -178,6 +184,22 @@ module Phlex
 
           raise ArgumentError,
             "reactive_box min: must be a fraction of the frame above 0 and at most 1 (e.g. 0.05), got #{min.inspect}"
+        end
+
+        # Issue #428: the fields' scale, written only when it is not 1, so a
+        # region without scale: renders as it always did. The browser reads it
+        # as a Float, so one that is Infinity (10**400) or 0 (1/10**400) as a
+        # Float is refused, like a Float that is.
+        def drag_scale!(helper, scale, data)
+          float = scale.to_f if scale.is_a?(Numeric) && scale.real?
+          unless float&.finite? && float.positive?
+            raise ArgumentError,
+              "#{helper} scale: must be a positive finite Numeric (100: percent), got #{scale.inspect}"
+          end
+          return if scale == 1
+
+          # (A Rational would render as "1000/3", which the browser cannot read.)
+          data[:"#{helper}_scale"] = scale.is_a?(Integer) || scale.is_a?(Float) ? scale : float
         end
 
         def drag_aspect!(aspect, data)

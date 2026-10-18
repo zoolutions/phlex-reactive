@@ -556,6 +556,11 @@ class DemosController < ActionController::Base
     render_component DragPageComponent.new
   end
 
+  # Issue #428: fields on a scale of 100 (see DragScaleComponent).
+  def drag_scale
+    render_component DragScaleComponent.new
+  end
+
   # Issue #429: Escape shortcuts beside a draggable box (see DragShortcutPageComponent).
   def drag_shortcut
     render_component DragShortcutPageComponent.new

@@ -12,7 +12,8 @@ module Views
         def lead
           'Mark a frame `reactive_frame`, a box in it `reactive_box`, and a point `reactive_point`: they drag ' \
             'with a mouse, a finger or the keyboard, stay inside the frame, and their fields always hold ' \
-            'where they are as fractions of it — a crop box, a focal point, a hotspot, a selection.'
+            'where they are as fractions of it (or percentages, with `scale:`) — a crop box, a focal point, ' \
+            'a hotspot, a selection.'
         end
 
         def content
@@ -22,6 +23,7 @@ module Views
           point
           aspect
           fields_and_action
+          on_a_scale
           keyboard
           styling
           morphs
@@ -198,8 +200,8 @@ module Views
             md <<~MD
               While a box or point moves, the client writes its fields the way
               `set_value` does: the live `.value`, a fraction rounded to 4
-              decimals, and a bubbling `input` — at most once per field per
-              animation frame. So `reactive_show`, compute reducers and other
+              decimals (or a percentage, with `scale:` — below), and a bubbling
+              `input` — at most once per field per animation frame. So `reactive_show`, compute reducers and other
               bindings follow the box as it moves. A single `change` fires on
               each field when you let go.
 
@@ -228,6 +230,51 @@ module Views
               model validation.
               The fields round to 4 decimals, so allow a sum of up to 1.0001, as
               the helper does. The `inside?` above (and the demo's) does this.
+            MD
+          end
+        end
+
+        def on_a_scale
+          DocsUI::Section('Fields on another scale') do
+            md <<~'MD'
+              The fields hold fractions: `0.25` is a quarter of the frame. A
+              form that shows them to a person — number inputs beside the box,
+              for keyboard and screen-reader users or as a way in without
+              dragging — usually wants percentages. Pass `scale:` and the
+              fields hold the fraction times it:
+
+              ```ruby
+              div(**reactive_box(fields: { x: "box[x]", y: "box[y]", width: "box[width]", height: "box[height]" },
+                                 value: @box, scale: 100))
+
+              @box.each do |key, fraction|
+                label do
+                  plain "#{key} (%)"
+                  input(type: "number", name: "box[#{key}]", value: (fraction * 100).round(2), step: "0.01")
+                end
+              end
+              ```
+
+              With `scale: 100` a field holds `25` where it held `0.25`. It is
+              the fraction's 4 decimals times the scale, every digit of it and
+              no float noise: `12.35` on 100 (never `12.350000000000001`),
+              `123.5` on 1000 (per mille), `3.0875` on 25, `0.064` on 640 (the
+              pixels of an image 640 px wide). `reactive_point` takes `scale:`
+              too.
+
+              Only the fields change. `value:`, the position the helper
+              renders, the `action:` params and the announcements stay
+              fractions, so the action and a re-render do not depend on how a
+              form shows the numbers.
+
+              **Render the fields' first value on the scale yourself.** The
+              fields are yours, not the helper's, so give them the fraction
+              times the scale, as above — or the first drag, or the first morph
+              of the box, rewrites them. `.round(2)` keeps Ruby's float noise
+              out of a visible field (`0.07 * 100` is `7.000000000000001`). A
+              field the drag does not move keeps its text — `25.0`, as Ruby
+              prints it, is already 25 — with no `input` and no `change` on
+              release.
             MD
           end
         end
@@ -315,23 +362,24 @@ module Views
             md <<~MD
               ```ruby
               reactive_frame
-              reactive_box(fields:, value:, aspect: nil, min: 0.05, action: nil, busy: nil, messages: nil)
+              reactive_box(fields:, value:, aspect: nil, min: 0.05, scale: 1, action: nil, busy: nil, messages: nil)
               reactive_box_handle(edge)      # :nw :n :ne :e :se :s :sw :w
-              reactive_point(fields:, value:, within: nil, action: nil, busy: nil, messages: nil)
+              reactive_point(fields:, value:, within: nil, scale: 1, action: nil, busy: nil, messages: nil)
               ```
 
               These are checked when the view renders: missing or unknown
               `fields:` keys, a `value:` outside 0..1 (or a box of no size, or
               one that leaves the frame), an unknown handle edge, a blank
               `within:`, a `min:` that is not
-              above 0, an `aspect:` that is neither a positive Numeric nor a
+              above 0, a `scale:` that is not a positive finite Numeric (`0`,
+              `"100"`), an `aspect:` that is neither a positive Numeric nor a
               field name (a ratio written as a String, `"16:9"`, says to pass
               `16/9r`), `busy:` without `action:`, or `action:` on a client-only
               view raises an `ArgumentError` that says how to fix it. Under
               `verbose_errors`, an action the component does not declare raises
               too, as `on` does: once the component declares any action.
 
-              The drag code is the client's `drag` feature module (about 3.5 KB
+              The drag code is the client's `drag` feature module (about 3.6 KB
               gzipped). The default client bundles it; with the split client
               (`phlex/reactive/core`) a page without a frame never loads it.
             MD
