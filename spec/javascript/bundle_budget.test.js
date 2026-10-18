@@ -61,8 +61,9 @@ const FEATURES = ENTRIES.filter((name) => name.startsWith("features/"))
 // every firing descriptor opts out keeps its native default before connect,
 // read off on()'s param and the on_client records) adds 103 B: 1,746 B. Issue #442
 // (a within: miss is neither queued nor prevented before connect: the records
-// parsed off the attr) adds 109 B: 1,855 B.
-const EARLY_GZIP_BUDGET = 1855
+// parsed off the attr) adds 109 B: 1,855 B; its review fix (a within: that does not parse is
+// a miss, as in runOps) 20 B: 1,875 B.
+const EARLY_GZIP_BUDGET = 1875
 // How far a ceiling may sit above the real size: the rounding it is set with.
 const SLACK = 250
 
@@ -215,8 +216,9 @@ const SLACK = 250
 // Issue #442 (the @trigger target, from:/attr: reads, detail_from and on_client within:, in the
 // runtime; the @trigger hint in devtools) adds 317 B: 41,402 B; its validation fix (a within:
 // selector that does not parse warns under verbose) 25 B: 41,427 B.
-// On top of #440 (41,362 B), #442 adds 347 B: 41,709 B.
-const BUNDLE_GZIP_CEILING = 41_709
+// On top of #440 (41,362 B), #442 adds 347 B: 41,709 B; its review fix (a from: that does not
+// parse is a miss) 4 B: 41,713 B.
+const BUNDLE_GZIP_CEILING = 41_713
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -293,8 +295,9 @@ const TARGET_BUNDLE_GZIP = 22_700
 // Issue #440 (bindingOwns / bindingOwnership: what the client bindings read) adds 73 B: 18,719 B.
 // Issue #442 (the @trigger target, from:/attr: reads, detail_from and on_client within:) adds 290 B: 18,936 B;
 // its validation fix (a within: selector that does not parse warns under verbose) 27 B: 18,963 B.
-// On top of #440 (18,719 B), #442 adds 311 B: 19,030 B.
-const CORE_GZIP_CEILING = 19_030
+// On top of #440 (18,719 B), #442 adds 311 B: 19,030 B; its review fix (a from: that does not
+// parse is a miss) 5 B: 19,035 B.
+const CORE_GZIP_CEILING = 19_035
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -441,8 +444,9 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #440 (a shared field drives the host's bindings: +73 B core, +12 B bindings, +53 B compute) adds 138 B: 50,255 B;
 // its review fixes (+72 B bindings, +119 B compute) 191 B: 50,446 B.
 // Issue #442 (+290 B core, +46 B devtools) adds 336 B: 50,453 B; its validation fix (+27 B core) 50,480 B.
-// On top of #440 (50,446 B), #442 (+311 B core, +46 B devtools) adds 357 B: 50,803 B.
-const SPLIT_TOTAL_GZIP_CEILING = 50_803
+// On top of #440 (50,446 B), #442 (+311 B core, +46 B devtools) adds 357 B: 50,803 B;
+// its review fix (+5 B core) 50,808 B.
+const SPLIT_TOTAL_GZIP_CEILING = 50_808
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

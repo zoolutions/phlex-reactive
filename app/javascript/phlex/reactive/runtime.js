@@ -1985,7 +1985,12 @@ function readArgs(name, args, resolveTargets, onZeroTargets) {
   const reads = detail ? args.detail_from : READ_OPS.has(name) && args.from != null && { value: args.attr }
   if (!reads) return args
   const from = detail ? "@trigger" : args.from
-  const source = resolveTargets({ ...args, to: from })[0]
+  let source
+  // A from that does not parse is a miss like one that matches nothing (the
+  // copy_media precedent): the op is skipped, its siblings still run.
+  try {
+    source = resolveTargets({ ...args, to: from })[0]
+  } catch {}
   if (!source) return onZeroTargets?.(name, { ...args, to: from }), null
   const values = detail ? { ...args.detail } : {}
   for (const [key, attr] of Object.entries(reads)) {

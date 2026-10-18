@@ -318,6 +318,21 @@ test("a from that matches nothing skips the op (verbose: one zero-target warning
   expect(root.querySelector("#item-label").getAttribute("data-ran")).toBe("yes")
 })
 
+test("a from: selector that does not parse skips that read; its siblings run", () => {
+  const { root, controller } = mount(`<button id="go">Go</button>`)
+  bind(root.querySelector("#go"), controller, {
+    on: "click",
+    ops: [
+      ["text", { to: "#item-label", from: "[[nope", attr: "data-label" }],
+      ["set_attr", { to: "#item-label", name: "data-ran", value: "yes" }],
+    ],
+  })
+
+  expect(() => click(root.querySelector("#go"))).not.toThrow()
+  expect(root.querySelector("#item-label").textContent).toBe("")
+  expect(root.querySelector("#item-label").getAttribute("data-ran")).toBe("yes")
+})
+
 test("detail_from fills event.detail with Strings off the trigger, over the literal detail", () => {
   const { root, controller } = mount(`<ul id="menu">${ROWS}</ul>`)
   let detail = null

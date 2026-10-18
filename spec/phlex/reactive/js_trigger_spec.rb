@@ -219,6 +219,20 @@ RSpec.describe Phlex::Reactive::JS do
         .to raise_error(ArgumentError, /add_class names @trigger/)
     end
 
+    it "refuses a hand-built JS chain with Symbol keys and ignores a malformed op (no args Hash)" do
+      expect { counter.reply.with.js(described_class.new([["show", { to: "@trigger" }]])) }
+        .to raise_error(ArgumentError, /show names @trigger/)
+      expect { counter.reply.with.js(described_class.new([["show"]])) }.not_to raise_error
+      expect do
+        Class.new do
+          include Phlex::Reactive::Component
+
+          def self.name = "SymbolTriggerRun"
+          reactive_on_complete if: { a: "1" }, run: Phlex::Reactive::JS.new([["show", { to: "@trigger" }]])
+        end
+      end.to raise_error(ArgumentError, /show names @trigger/)
+    end
+
     it "still lets reply.js read off a selector" do
       stream = counter.reply.with.js(js.text("#l", from: "#src", attr: "data-label")).streams.first
       expect(stream).to include("&quot;from&quot;:&quot;#src&quot;")

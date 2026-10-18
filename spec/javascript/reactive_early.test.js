@@ -851,10 +851,10 @@ test("listens for trigger types of roots added after start (MutationObserver)", 
 // delete/backspace chords (issue #366); 1,643 B since it records the chord it
 // prevents for a shortcut as a shortcut's (issue #429); 1,746 B since a
 // prevent: false trigger keeps its native default before connect (issue #433);
-// 1,855 B since a within: miss is neither queued nor prevented (issue #442).
-test("early.min.js gzips to at most 1,855 bytes", () => {
+// 1,875 B since a within: miss is neither queued nor prevented (issue #442).
+test("early.min.js gzips to at most 1,875 bytes", () => {
   const built = readFileSync(join(import.meta.dir, "../../app/javascript/phlex/reactive/early.min.js"))
-  expect(gzipSync(built, { level: 9 }).length).toBeLessThanOrEqual(1855)
+  expect(gzipSync(built, { level: 9 }).length).toBeLessThanOrEqual(1875)
 })
 
 // --- reactive_controller.js: connect() marks, announces and drains ------------
@@ -962,6 +962,21 @@ test("a click outside every row of a within: list before connect is neither prev
   const hit = click(root.querySelector("#north"))
   expect(hit.defaultPrevented).toBe(true)
   expect(state().queue).toHaveLength(1)
+})
+
+test("a within: selector that does not parse is a miss before connect too (neither prevented nor queued)", async () => {
+  const record = JSON.stringify({ on: "click", within: "[[nope", ops: [] })
+  const root = await mount(`
+    <div id="picker" data-controller="reactive">
+      <ul data-action="click->reactive#runOps" data-reactive-ops-param='${record}'>
+        <li><a id="more" href="#more">More</a></li>
+      </ul>
+    </div>`)
+
+  const event = click(root.querySelector("#more"))
+
+  expect(event.defaultPrevented).toBe(false)
+  expect(state().queue).toHaveLength(0)
 })
 
 test("a within: record beside a plain record on the same event still prevents and queues a miss", async () => {

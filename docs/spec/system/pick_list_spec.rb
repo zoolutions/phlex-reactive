@@ -10,8 +10,11 @@ RSpec.describe 'Pick list demo', type: :system do
     find('#pick-list[data-reactive-connected]')
   end
 
-  it 'binds the list once: no row carries an ops record' do
+  it 'binds the list once: the list carries the one ops record, no row carries one' do
     expect(page.evaluate_script("document.querySelectorAll('#pick-list [data-reactive-ops-param]').length")).to eq(1)
+    expect(page.evaluate_script("document.querySelectorAll('#pl-menu[data-reactive-ops-param]').length")).to eq(1)
+    expect(page.evaluate_script("document.querySelectorAll('#pick-list [role=option][data-reactive-ops-param]').length"))
+      .to eq(0)
   end
 
   it 'picks the row that was clicked, reading its value and label off it' do
@@ -30,9 +33,16 @@ RSpec.describe 'Pick list demo', type: :system do
     expect(page).to have_css('#pl-label', exact_text: 'East')
   end
 
-  it 'runs nothing for a click on the heading inside the list' do
+  it 'runs nothing for a click on the heading inside the list, and keeps its default' do
+    page.execute_script(<<~JS)
+      window.__picked = 0
+      document.addEventListener('region:picked', () => window.__picked++)
+      document.addEventListener('click', (e) => { window.__prevented = e.defaultPrevented })
+    JS
     within('#pick-list') { find('.menu-title').click }
 
+    expect(page.evaluate_script('window.__prevented')).to be(false)
+    expect(page.evaluate_script('window.__picked')).to eq(0)
     expect(page).to have_css('#pl-label', exact_text: 'nothing yet')
     expect(page).to have_no_css('[role=option][aria-selected]')
   end

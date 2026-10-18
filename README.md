@@ -1386,8 +1386,9 @@ end
   element matching the selector, under the bound element and owned by this root
   (a row of a nested reactive root is that root's). That element is the ops'
   `:trigger`. Anywhere else (the list's padding, a heading) is a complete no-op:
-  no `preventDefault`, no confirm, no ops. Enter on a row `reactive_listnav`
-  highlights picks it through the same binding, and so does a click before the
+  no `preventDefault`, no confirm, no ops. Keyboard picking needs
+  `reactive_listnav` on the search input (not on the rows): Enter on the row it
+  highlights clicks that row, which goes through the same binding, and so does a click before the
   root connects (`phlex/reactive/early` queues a row's click and leaves a click
   outside every row alone, so a link in the list still navigates; a row inside
   a nested reactive root is held too, and its replay is a miss). A `within:`

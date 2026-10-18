@@ -149,7 +149,7 @@ module Phlex
       # reactive_on_complete run.
       def self.refuse_trigger!(list, where = "a server-pushed op (reply.js, broadcast_to(js:)) " \
                                              "or a reactive_on_complete run")
-        op = list.is_a?(JS) ? list.trigger_op : trigger_op(list)
+        op = trigger_op(list.is_a?(JS) ? list.ops : list)
         return if op.nil?
 
         raise ArgumentError,
@@ -158,21 +158,14 @@ module Phlex
           "with a CSS selector."
       end
 
-      # The name of the first op in a raw list that names @trigger, or nil.
-      # A raw list's args may carry Symbol keys.
+      # The name of the first op that names @trigger, or nil. A raw list, or a
+      # hand-built JS.new([...]), may carry Symbol keys or no args Hash.
       def self.trigger_op(list)
         Array(list).each do |op, args|
           next unless args.is_a?(::Hash)
           return op.to_s if arg(args, "detail_from") || TARGET_KEYS.any? { arg(args, it) == TRIGGER_SENTINEL }
         end
         nil
-      end
-
-      # Whether builder-made (String-keyed) args name @trigger. value? is the
-      # one-call prefilter; the key check keeps a literal "@trigger" text
-      # value from counting.
-      def self.names_trigger?(args)
-        args.key?("detail_from") || (args.value?(TRIGGER_SENTINEL) && TARGET_KEYS.any? { args[it] == TRIGGER_SENTINEL })
       end
 
       # What attr: may read (issue #442): :text (or its "@text" wire form) or a
@@ -624,13 +617,6 @@ module Phlex
 
       def empty?
         @ops.empty?
-      end
-
-      # The name of the first op in this chain that names @trigger, or nil
-      # (issue #442). The builder writes String keys: no Symbol lookups.
-      def trigger_op
-        @ops.each { |name, args| return name if self.class.names_trigger?(args) }
-        nil
       end
 
       # --- Client-only drafts (issue #239) ---

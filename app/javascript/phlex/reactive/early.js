@@ -138,15 +138,25 @@ function enqueue(event, el, descs, win, shortcut) {
 // would run nothing and prevent nothing — so it is neither queued nor
 // prevented: a link in a delegated list's footer still navigates before
 // connect. A record without within:, or an attr that does not parse (a legacy
-// list, a bad selector), keeps the descriptor. (A row of a nested root is
-// still queued; the replay's ownership check makes it a miss.)
-function delegatedMiss(el, d, target) {
+// list), keeps the descriptor; a within: that does not parse is a miss, as
+// it is for runOps. (A row of a nested root is still queued; the replay's
+// ownership check makes it a miss.)
+const outside = (el, target, within) => {
   try {
-    const mine = el.dataset.reactiveOpsParam.split(" ").map(JSON.parse).filter((r) => r.on === d.token.split("->")[0])
-    return mine.length > 0 && mine.every((r) => r.within != null && !el.contains(target.closest(r.within)?.parentElement ?? null))
+    return !el.contains(target.closest(within)?.parentElement ?? null)
+  } catch {
+    return true
+  }
+}
+
+function delegatedMiss(el, d, target) {
+  let mine
+  try {
+    mine = el.dataset.reactiveOpsParam.split(" ").map(JSON.parse).filter((r) => r.on === d.token.split("->")[0])
   } catch {
     return false
   }
+  return mine.length > 0 && mine.every((r) => r.within != null && outside(el, target, r.within))
 }
 
 function record(event) {
