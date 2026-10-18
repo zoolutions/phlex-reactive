@@ -76,14 +76,16 @@ const HANDLES = ["nw", "n", "ne", "e", "se", "s", "sw", "w"]
 const style = ({ x, y, width, height }) =>
   `position: absolute; box-sizing: border-box; left: ${x * 100}%; top: ${y * 100}%; width: ${width * 100}%; height: ${height * 100}%; touch-action: none;`
 
-function picker({ value = { x: 0.1, y: 0.1, width: 0.5, height: 0.4 }, attrs = "", inside = "", beside = "", outside = "", token = "tok" } = {}) {
+// `scale` (issue #428): the fields render on it, as the app renders them, and
+// the box carries data-reactive-box-scale.
+function picker({ value = { x: 0.1, y: 0.1, width: 0.5, height: 0.4 }, attrs = "", inside = "", beside = "", outside = "", token = "tok", scale = 1 } = {}) {
   const fields = Object.entries(value)
-    .map(([key, v]) => `<input type="hidden" name="r[${key}]" value="${v}">`)
+    .map(([key, v]) => `<input type="hidden" name="r[${key}]" value="${scale === 1 ? v : Math.round(v * scale * 100) / 100}">`)
     .join("")
   return `<div id="picker" data-controller="reactive" ${token ? `data-reactive-token-value="${token}"` : ""}>
     <div data-reactive-frame>
       <div id="box" tabindex="0" style="${style(value)}" data-reactive-box="${BOX_FIELDS}" data-reactive-box-min="0.05"
-           data-reactive-box-messages="${MESSAGES}" ${attrs}>
+           data-reactive-box-messages="${MESSAGES}" ${scale === 1 ? "" : `data-reactive-box-scale="${scale}"`} ${attrs}>
         ${HANDLES.map((edge) => `<span tabindex="-1" data-reactive-box-handle="${edge}" id="h-${edge}"></span>`).join("")}
         ${inside}
       </div>${beside}
@@ -582,6 +584,143 @@ describe("morphs", () => {
     expect(changes).toBe(0)
     expect(requests).toEqual([])
     expect(document.querySelector("[data-reactive-frame]").hasAttribute("data-reactive-frame-active")).toBe(false)
+  })
+})
+
+// --- scale: (issue #428) ------------------------------------------------------------
+describe("scale:", () => {
+  const morphed = (el) => el.dispatchEvent(new window.CustomEvent("turbo:morph-element", { bubbles: true }))
+  const radios = (checked) =>
+    ["", "2:1", "4:1"].map((v) => `<input type="radio" name="ratio" value="${v}" ${v === checked ? "checked" : ""}>`).join("")
+
+  test("a field on a scale holds the fraction times it, to 4 - log10(scale) decimals", () => {
+    expect(drag.scaled(0.25, 100)).toBe("25")
+    expect(drag.scaled(0.1235, 100)).toBe("12.35")
+    expect(drag.scaled(0.123456, 100)).toBe("12.35")
+    expect(drag.scaled(0.07, 100)).toBe("7")
+    expect(drag.scaled(0.1235, 640)).toBe("79.04")
+    expect(drag.scaled(0.1236, 1000)).toBe("123.6")
+    expect(drag.scaled(0.12345678, 1e5)).toBe("12350") // rounded to 4 decimals first
+    // Scale 1 (the default) is the fraction rounded to 4 decimals, as before.
+    for (const v of [0.123456, 0.1 + 0.2, 0.45545, 0.54455, 1, 0]) expect(drag.scaled(v, 1)).toBe(String(drag.round(v)))
+    expect(drag.scaled(0.123456)).toBe("0.1235")
+  })
+
+  test("a box on scale 100 writes 25 where it wrote 0.25, one change on release", async () => {
+    mount(picker({ scale: 100 }))
+    const changes = listen("change")
+    dragBy(box(), 60, 20) // x 0.1 -> 0.25, y 0.1 -> 0.2
+    await flush()
+    expect(field("r[x]").value).toBe("25")
+    expect(values()).toEqual({ x: 25, y: 20, width: 50, height: 40 })
+    expect(box().style.left).toBe("25%")
+    expect(changes).toEqual(["r[x]", "r[y]"])
+  })
+
+  test("a field already holding its number is left alone: no input, no change ('50.0' is the 50 Ruby renders)", async () => {
+    mount(picker({ scale: 100 }))
+    for (const [key, text] of Object.entries({ x: "10.0", y: "10.0", width: "50.0", height: "40.0" })) field(`r[${key}]`).value = text
+    const inputs = listen("input")
+    const changes = listen("change")
+    dragBy(box(), 40, 0) // x only
+    await flush()
+    expect(inputs).toEqual(["r[x]"])
+    expect(changes).toEqual(["r[x]"])
+    expect([field("r[x]").value, field("r[width]").value]).toEqual(["20", "50.0"])
+  })
+
+  test("an empty field is written, even with the box at 0", async () => {
+    mount(picker({ scale: 100, value: { x: 0, y: 0.1, width: 0.5, height: 0.4 } }))
+    field("r[x]").value = ""
+    press(box(), "ArrowDown")
+    await flush()
+    expect([field("r[x]").value, field("r[y]").value]).toEqual(["0", "11"])
+  })
+
+  test("a cancel after a move writes the start back on the scale", async () => {
+    mount(picker({ scale: 100 }))
+    field("r[x]").value = "10.0"
+    key(box(), "ArrowRight")
+    expect(field("r[x]").value).toBe("11")
+    key(box(), "Escape")
+    await flush()
+    expect(field("r[x]").value).toBe("10")
+  })
+
+  test("action: params stay fractions", async () => {
+    mount(picker({ scale: 100, attrs: 'data-reactive-box-action="crop"' }))
+    dragBy(box(), 60, 20)
+    await flush()
+    expect(requests).toHaveLength(1)
+    expect(requests[0].params).toMatchObject({ x: 0.25, y: 0.2, width: 0.5, height: 0.4 })
+  })
+
+  test("a resize writes no float noise", async () => {
+    mount(picker({ scale: 100 }))
+    dragBy(document.getElementById("h-se"), 40, 20)
+    await flush()
+    expect([field("r[width]").value, field("r[height]").value]).toEqual(["60", "50"])
+  })
+
+  test("the keyboard writes the scale; the words stay whole percents; Escape puts the scaled value back", async () => {
+    mount(picker({ scale: 100 }))
+    press(box(), "ArrowRight")
+    await flush()
+    expect(field("r[x]").value).toBe("11")
+    expect(live()).toBe("Moved to 11%, 10%")
+    key(box(), "ArrowDown")
+    expect(field("r[y]").value).toBe("11")
+    key(box(), "Escape")
+    await flush()
+    expect(field("r[y]").value).toBe("10")
+  })
+
+  test("a re-fit to a new aspect writes the scale", async () => {
+    mount(picker({ scale: 100, value: { x: 0.3, y: 0.3, width: 0.4, height: 0.4 }, attrs: 'data-reactive-box-aspect="ratio"', outside: radios("") }))
+    const four = document.querySelector('[name="ratio"][value="4:1"]')
+    four.checked = true
+    four.dispatchEvent(new window.Event("change", { bubbles: true }))
+    await flush()
+    // area 0.16 at 2 (fractions): 0.5657 × 0.2828, centred on (0.5, 0.5)
+    expect(values()).toEqual({ x: 21.72, y: 35.86, width: 56.57, height: 28.28 })
+  })
+
+  test("a morph that moved a scaled box brings its fields along in the scaled unit", async () => {
+    mount(picker({ scale: 100 }))
+    const inputs = listen("input")
+    box().style.left = "30%"
+    morphed(box())
+    await flush()
+    expect(field("r[x]").value).toBe("30")
+    expect(inputs).toEqual(["r[x]"])
+  })
+
+  test("a morph that left a scaled box where its fields say writes nothing, float noise included", async () => {
+    mount(picker({ scale: 100 }))
+    // What `value: @box[:x] * 100` renders in Ruby for 0.1 and 0.57.
+    field("r[x]").value = "10.000000000000002"
+    field("r[y]").value = "9.999999999999998"
+    const inputs = listen("input")
+    morphed(box())
+    await flush()
+    expect(inputs).toEqual([])
+    expect(field("r[x]").value).toBe("10.000000000000002")
+  })
+
+  test("a point on scale 100 writes percentages; a box's scale is its own", async () => {
+    const fields = json({ x: "f[x]", y: "f[y]" })
+    const point = (scale) =>
+      `<span id="point" tabindex="0" style="position: absolute; left: 50%; top: 50%;" data-reactive-point="${fields}"
+         data-reactive-point-messages="${MESSAGES}" ${scale ? `data-reactive-point-scale="${scale}"` : ""}></span>`
+    mount(picker({ beside: point(100), outside: '<input type="hidden" name="f[x]" value="50"><input type="hidden" name="f[y]" value="50">' }))
+    dragBy(document.getElementById("point"), 100, 1000)
+    await flush()
+    expect([field("f[x]").value, field("f[y]").value]).toEqual(["75", "100"])
+    document.body.innerHTML = ""
+    mount(picker({ scale: 100, beside: point(), outside: '<input type="hidden" name="f[x]" value="0.5"><input type="hidden" name="f[y]" value="0.5">' }))
+    dragBy(document.getElementById("point"), 100, 1000)
+    await flush()
+    expect([field("f[x]").value, field("f[y]").value]).toEqual(["0.75", "1"])
   })
 })
 

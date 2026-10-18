@@ -6,6 +6,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **A draggable box or point can write its fields on another scale (#428).**
+  `reactive_box(..., scale: 100)` and `reactive_point(..., scale: 100)` make
+  the fields hold the fraction times the scale — `25` where they held `0.25` —
+  rounded to `4 - log10(scale)` decimals (2 for percent, so `12.35`). Only the
+  fields change: `value:`, the rendered position, the `action:` params and the
+  live-region words stay fractions, so the server contract and a re-render do
+  not depend on how a form shows the numbers. The morph hook that brings the
+  fields along compares on the scale, and a field that already holds its
+  number (`25.0`, as Ruby prints it) is left alone, with no `input` and no
+  `change`. The app renders the fields' first value on the scale itself
+  (`value: (@box[:x] * 100).round(2)`); otherwise the first drag or morph
+  rewrites them. `scale:` must be a positive finite Numeric (`0`, `-1`,
+  `"100"` and `Float::INFINITY` raise `ArgumentError` at render); the default,
+  `1`, emits no `data-reactive-box-scale` / `data-reactive-point-scale`, so an
+  existing region's markup is byte-identical. `features/drag` grows by 110 B
+  gzipped (3,686 B), the default bundle by 98 B (40,744 B).
+
 ## [0.16.3] - 2026-10-18
 
 ### Added

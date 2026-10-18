@@ -114,6 +114,8 @@ Rails.application.routes.draw do
   get "sortable" => "demos#sortable"
   # Issue #416: draggable regions — a crop box with a focal point, a client-only box.
   get "drag" => "demos#drag"
+  # Issue #428: a box and a point whose fields hold percentages (scale: 100).
+  get "drag_scale" => "demos#drag_scale"
   # Issue #358: a presence roster (needs pgbus with per-connection presence).
   get "presence" => "demos#presence"
   post "bulk_outcome" => "demos#bulk_outcome_submit"

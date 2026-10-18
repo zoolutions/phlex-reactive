@@ -7,10 +7,10 @@
 //
 //   data-reactive-frame                     the coordinate space: its padding box
 //   data-reactive-box='{"x":"crop[x]",…}'   a box and the names of its fields
-//     -min / -ratio / -aspect / -action / -busy / -messages
+//     -min / -ratio / -aspect / -scale / -action / -busy / -messages
 //   data-reactive-box-handle="se"           an edge or corner (inside the box)
 //   data-reactive-point='{"x":…,"y":…}'     a point (its centre)
-//     -within / -action / -busy / -messages
+//     -within / -scale / -action / -busy / -messages
 //
 // and what it sets while a pointer drag is on, for the app's CSS:
 //
@@ -20,12 +20,14 @@
 // Where an element is lives in its own inline style — left/top/width/height
 // in percent, rendered by the server and written here — so a morph that
 // renders new values moves it, and nothing is cached between drags. Each
-// field's .value is the same number as a fraction, rounded to 4 decimals and
-// written as set_value writes (core.setValue: a bubbling `input` when it
-// moved), at most once a frame while a pointer drags; one `change` follows on
-// release. A box's x/y/width/height are fractions of the frame; a point's x/y
-// of the element it sits in that matches its -within selector, else of the
-// frame.
+// field's .value is the same number as a fraction, rounded to 4 decimals —
+// or, with -scale (issue #428), that fraction times the scale (100: percent,
+// 2 decimals) — written as set_value writes (core.setValue: a bubbling
+// `input` when it moved), at most once a frame while a pointer drags; one
+// `change` follows on release. A box's x/y/width/height are fractions of the
+// frame; a point's x/y of the element it sits in that matches its -within
+// selector, else of the frame. Everything else — the style, the action's
+// params, the words — stays in fractions.
 //
 // Input is pointer events: mouse, pen and touch behave the same (the helpers
 // render touch-action: none, so a finger drag does not scroll), and a drag
@@ -97,6 +99,17 @@ export function disconnect(controller) {
 const clamp = (value, low, high) => Math.min(Math.max(value, low), high)
 
 export const round = (value) => Math.round(value * 1e4) / 1e4
+
+// A number on a field's `scale`, rounded to the 4 - log10(scale) decimals
+// that keep a fraction's 4 (1: 4, 100: 2, 1000: 1).
+const onScale = (number, scale) => {
+  const places = 10 ** Math.max(0, Math.ceil(4 - Math.log10(scale)))
+  return Math.round(number * places) / places
+}
+
+// What a field on `scale` holds for a fraction: 0.1235 is "0.1235", or
+// "12.35" on 100 (not 12.350000000000001).
+export const scaled = (value, scale = 1) => String(onScale(round(value) * scale, scale))
 
 // A position as the fields will hold it: each number rounded to 4 decimals,
 // a box's x/y then pulled in so it still ends inside the frame (rounded
@@ -179,6 +192,7 @@ const json = (value, fallback) => {
   }
 }
 const kind = (el) => (el.matches(POINT) ? "point" : "box")
+const scaleOf = (el) => Number(attr(el, `${kind(el)}-scale`)) || 1
 const keysOf = (el) => (kind(el) === "point" ? ["x", "y"] : ["x", "y", "width", "height"])
 
 function read(el) {
@@ -256,16 +270,25 @@ function begin(core, root, grip, keyboard) {
     value,
     ratio: point ? 0 : ratioOf(el, frame, root, core),
     min: Number(attr(el, "box-min")) || 0,
+    scale: scaleOf(el),
     fields,
     before: Object.fromEntries(Object.entries(fields).map(([key, field]) => [key, field.value])),
   }
+}
+
+// Write a field the fraction on its scale, as set_value writes — unless it
+// already holds that number ("50.0", the 50 a server rendered for 0.5 × 100,
+// is not a move: no `input`, and no `change` on release).
+function put(core, field, value, scale) {
+  const text = scaled(value, scale)
+  if (field.value === "" || onScale(Number(field.value), scale) !== Number(text)) core.setValue(field, text)
 }
 
 // Write the fields now (set_value's write: `input` on each that moved).
 function flush(record) {
   cancelAnimationFrame(record.writing)
   record.writing = 0
-  for (const [key, field] of Object.entries(record.fields)) record.core.setValue(field, String(round(record.value[key])))
+  for (const [key, field] of Object.entries(record.fields)) put(record.core, field, record.value[key], record.scale)
 }
 
 // --- Pointer --------------------------------------------------------------------------
@@ -515,8 +538,7 @@ function holdMorphs() {
     const core = cores.get(root)
     if (!core?.owns(el)) return
     const value = read(el)
-    for (const [key, field] of Object.entries(fieldsOf(el, root, core))) {
-      if (round(Number(field.value)) !== round(value[key])) core.setValue(field, String(round(value[key])))
-    }
+    const scale = scaleOf(el)
+    for (const [key, field] of Object.entries(fieldsOf(el, root, core))) put(core, field, value[key], scale)
   })
 }

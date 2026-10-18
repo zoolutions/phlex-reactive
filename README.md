@@ -302,7 +302,7 @@ imports one the first time a root on the page needs it:
 | `phlex/reactive/features/bindings` (`reactive_show`, show targets, `reactive_on_complete`, `reactive_filter`, `reactive_tags`, `reactive_css_vars`, nested rows, the conditional `confirm:`) | 8.4 KB | inside the one file | fetched when a root declares one of them, or holds a trigger with a conditional confirm |
 | `phlex/reactive/features/compute` (`reactive_compute`, `reactive_text`) | 2.1 KB | inside the one file | fetched when a root carries a compute binding |
 | `phlex/reactive/features/sortable` (`reactive_sortable` drag and drop) | 3.1 KB | inside the one file | fetched when a root is or holds a sortable or source list |
-| `phlex/reactive/features/drag` (`reactive_box`, `reactive_point` draggable regions) | 3.5 KB | inside the one file | fetched when a root is or holds a frame, a box or a point |
+| `phlex/reactive/features/drag` (`reactive_box`, `reactive_point` draggable regions) | 3.6 KB | inside the one file | fetched when a root is or holds a frame, a box or a point |
 | `phlex/reactive/features/countdown` (`reactive_countdown`) | 1.0 KB | inside the one file | fetched when a root is or holds a countdown |
 | `phlex/reactive/features/hints` (`optimistic:`, `busy:`) | 1.0 KB | inside the one file | fetched when a root holds a trigger that declares a hint |
 | `phlex/reactive/features/devtools` (the latency simulator, the zero-target warnings, the debug trace) | 1.6 KB | inside the one file | fetched with the core on a page that carries `<meta name="phlex-reactive-env" content="development">` or while a delay is stored for the tab; at connect for a root in debug mode; otherwise the first time a verbose root has something to warn about. In production with none of these, never |
@@ -1906,8 +1906,9 @@ Full guide: [Sortable lists](https://phlex-reactive.zoolutions.llc/docs/sortable
 
 Move and resize a box, or move a point, over an image, a chart or a diagram —
 with a mouse, a pen, a finger or the keyboard — and its fields always hold
-where it is, as fractions of the frame (0..1 on each axis). A crop box, a
-focal point, a hotspot, a selection: no Stimulus controller of your own.
+where it is, as fractions of the frame (0..1 on each axis) or, with
+`scale: 100`, as percentages. A crop box, a focal point, a hotspot, a
+selection: no Stimulus controller of your own.
 
 ```ruby
 class CropPicker < Phlex::HTML
@@ -1961,6 +1962,12 @@ coordinate space.
   4 decimals, a bubbling `input` at most once per field per frame), so
   `reactive_show`, compute reducers and other bindings follow the box. One
   `change` fires on release.
+- **`scale:`**: `scale: 100` makes the fields hold percentages (`25`, 2
+  decimals) instead of fractions (`0.25`), for number inputs a person reads;
+  `value:`, the rendered position, the `action:` params and the announcements
+  stay fractions. Render the fields' first value on the scale yourself
+  (`value: (@box[:x] * 100).round(2)`), or the first drag or morph rewrites
+  them. `reactive_point` takes it too.
 - **`aspect:`**: a Numeric (`16/9r`) or the name of a field holding `"16:9"`, a
   decimal or `""` (free), read at drag start. When the field changes (a preset
   radio), the box re-fits to the new ratio around its centre.
