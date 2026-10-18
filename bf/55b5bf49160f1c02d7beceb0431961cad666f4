@@ -1,0 +1,29 @@
+Rakefile
+  s_601896216f96ff::t_8b0c30a95a0267 69
+spec/dummy/app/components/city_filter_component.rb
+  s_601896216f96ff::t_49cff8154f250a 11
+spec/javascript/reactive_filter.test.js
+  s_601896216f96ff::t_49cff8154f250a 430,455,555,560
+  s_601896216f96ff::t_8b0c30a95a0267 480,498
+README.md
+  s_601896216f96ff::t_49cff8154f250a 2531,2563
+  s_601896216f96ff::t_d161b56e8ac03a 2533-2534
+spec/system/filter_match_spec.rb
+  s_601896216f96ff::t_49cff8154f250a 10,38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "bf55b5bf49160f1c02d7beceb0431961cad666f4",
+  "prompts": {},
+  "sessions": {
+    "s_601896216f96ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad8fa3ec-23b3-4a3a-b359-07bf91dc2fa4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
