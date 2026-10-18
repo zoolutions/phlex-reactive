@@ -1490,16 +1490,36 @@ function previewFile(input, args, resolveTargets) {
   // `invalid` event fired into the app's own listeners.
   const files = [...(args.valid === true && input.validity?.valid === false ? [] : (input.files ?? []))]
   const accepts = previewAccepts(input, args.accept)
-  const listed = files.filter((f) => typeof f?.type === "string" && accepts(f))
-  // Only an image is painted: a listed PDF clears the preview, unrefused.
-  let file = listed.find((f) => f.type.startsWith("image/"))
-  // A refused file (issue #391) clears like an empty pick and says why. The
-  // input keeps its files and its validity: the page owns the reset. Size is
-  // read BEFORE an object URL exists, so an over-size file never gets one.
-  let reason = files.length > 0 && listed.length === 0 ? "type" : null
-  if (file && Number.isInteger(args.max_bytes) && file.size > args.max_bytes) reason = "size"
-  const refused = reason === "size" ? file : files[0]
-  if (reason) file = null
+  // Size is read BEFORE an object URL exists, so an over-size file never gets one.
+  const oversize = (f) => Number.isInteger(args.max_bytes) && f.size > args.max_bytes
+  const rejected = []
+  let file
+  if (args.per_file === true && input.multiple) {
+    // Several files (issue #439): every file is checked, accept then
+    // max_bytes. The refused ones leave input.files here, synchronously, so an
+    // action bound after the op on the same event posts only the kept ones.
+    const kept = files.filter((f, index) => {
+      const reason = typeof f?.type === "string" && accepts(f) ? oversize(f) && "size" : "type"
+      if (reason) rejected.push({ reason, file: f, index })
+      return !reason
+    })
+    // remaining: the files the input keeps, and so the ones an action posts.
+    const remaining = rejected.length > 0 && !keepFiles(input, kept) ? files.length : kept.length
+    for (const detail of rejected) detail.remaining = remaining
+    file = kept.find((f) => f.type.startsWith("image/"))
+  } else {
+    const listed = files.filter((f) => typeof f?.type === "string" && accepts(f))
+    // Only an image is painted: a listed PDF clears the preview, unrefused.
+    file = listed.find((f) => f.type.startsWith("image/"))
+    // A refused file (issue #391) clears like an empty pick and says why. The
+    // input keeps its files and its validity: the page owns the reset.
+    let reason = files.length > 0 && listed.length === 0 ? "type" : null
+    if (file && oversize(file)) reason = "size"
+    if (reason) {
+      rejected.push({ reason, file: reason === "size" ? file : files[0] })
+      file = null
+    }
+  }
   forgetPreview(img)
   if (file) {
     const url = URL.createObjectURL(file)
@@ -1516,9 +1536,23 @@ function previewFile(input, args, resolveTargets) {
   if (args.name != null) {
     for (const node of resolveTargets({ ...args, to: args.name })) node.textContent = file ? file.name : ""
   }
-  if (reason) {
-    input.dispatchEvent(new CustomEvent("reactive:file-rejected", { bubbles: true, detail: { reason, file: refused } }))
+  for (const detail of rejected) input.dispatchEvent(new CustomEvent("reactive:file-rejected", { bubbles: true, detail }))
+}
+
+// Rebuild input.files from the kept files (issue #439); true once it did. A
+// DataTransfer is the one way to make a FileList; without one the refused
+// files stay in the input (the rejections still fire), and a verbose root is told.
+function keepFiles(input, kept) {
+  if (typeof DataTransfer !== "function") {
+    if (input.closest?.('[data-reactive-verbose="true"], [data-reactive-debug="true"]')) {
+      warnPreview("per_file: has no DataTransfer to drop the refused files from the input")
+    }
+    return false
   }
+  const transfer = new DataTransfer()
+  for (const f of kept) transfer.items.add(f)
+  input.files = transfer.files
+  return true
 }
 
 // Which files the page takes: an image by default. accept: true reads the

@@ -329,8 +329,21 @@ module Phlex
       #   input(type: "file", id: "photo-file", accept: "image/png,image/jpeg",
       #     **on_client(:change, js.preview_file("#photo-file", into: "#photo",
       #       wrap: "#photo-frame", max_bytes: 2_000_000, accept: true)))
+      #
+      # Several files (issue #439): `per_file: true` on an input with
+      # `multiple` checks EVERY file (accept, then max_bytes), rebuilds
+      # input.files from the accepted ones (synchronously, so an
+      # `on(:action, event: "change")` mixed in AFTER the op posts only those),
+      # dispatches one `reactive:file-rejected` per refused file
+      # (detail.reason, file, index — its place in the pick — and remaining,
+      # how many files the input keeps), and paints the first accepted image.
+      # A single input, or per_file: omitted, keeps the behaviour above.
+      #   input(type: "file", id: "pick", name: "file", multiple: true, accept: "image/png",
+      #     **mix(on_client(:change, js.preview_file("#pick", into: "#shot", max_bytes: 1_000_000,
+      #       accept: true, per_file: true)), on(:upload, event: "change")))
 
-      def preview_file(to, into:, name: nil, global: false, valid: false, wrap: nil, max_bytes: nil, accept: nil)
+      def preview_file(to, into:, name: nil, global: false, valid: false, wrap: nil, max_bytes: nil, accept: nil,
+                       per_file: false)
         if [:root, ROOT_SENTINEL].include?(to)
           raise ArgumentError,
             "#{self.class}: preview_file reads a file input, not the component root — " \
@@ -344,6 +357,7 @@ module Phlex
         args["wrap"] = preview_selector(:wrap, wrap) unless wrap.nil?
         args["max_bytes"] = preview_max_bytes(max_bytes) unless max_bytes.nil?
         args["accept"] = preview_accept(accept) unless accept.nil? || accept == false
+        args["per_file"] = true if preview_per_file(per_file)
         append("preview_file", args.freeze)
       end
 
@@ -558,6 +572,15 @@ module Phlex
 
         raise ArgumentError,
           "#{self.class}: preview_file max_bytes: must be a positive Integer, got #{bytes.inspect}"
+      end
+
+      # per_file: is a strict boolean (nil, like the other keywords, means
+      # omitted): a typo'd truthy value must not change which files an upload posts.
+      def preview_per_file(per_file)
+        return per_file == true if [true, false, nil].include?(per_file)
+
+        raise ArgumentError,
+          "#{self.class}: preview_file per_file: must be true, false or nil, got #{per_file.inspect}"
       end
 
       # true reads the input's accept attribute; a String is the list itself.
