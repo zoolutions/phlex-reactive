@@ -8,7 +8,7 @@
 class CityFilterComponent < ApplicationComponent
   include Phlex::Reactive::ClientBindings
 
-  CITIES = ["Århus", "Berlin", "Nantes", "New York", "Santander", "Zürich"].freeze
+  CITIES = ["Århus", "Barcelona", "Berlin", "Nantes", "New York", "Santander", "Zürich"].freeze
 
   def view_template
     div(**mix(

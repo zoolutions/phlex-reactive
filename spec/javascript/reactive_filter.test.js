@@ -427,7 +427,7 @@ test("disconnect() removes the filter listeners", () => {
 // whitespace or one of - ' ( ) , . /) — and data-reactive-filter-fold folds
 // diacritics on both sides (NFD, combining marks stripped) before comparing.
 
-const CITIES = ["Århus", "Berlin", "Nantes", "New York", "Santander", "Zürich"]
+const CITIES = ["Århus", "Barcelona", "Berlin", "Nantes", "New York", "Santander", "Zürich"]
 
 // The issue's reproduction: a city list whose haystack is each option's own
 // text (no data-reactive-filter-text), filtered word-start + folded.
@@ -452,7 +452,7 @@ test("word_start + fold: 'n' keeps only the cities that START with N", () => {
   expect(type("n")).toEqual(["Nantes", "New York"])
 })
 
-test("word_start + fold: 'ar' matches Århus by its folded start, not Santander's interior 'ar'", () => {
+test("word_start + fold: 'ar' matches Århus by its folded start, not Barcelona's interior 'ar'", () => {
   const { type } = cityRoot(WORD_START_FOLD)
   expect(type("ar")).toEqual(["Århus"])
 })
@@ -477,7 +477,7 @@ test("word_start: a multi-word query matches across the separator", () => {
 test("word_start: the query may start after any declared separator", () => {
   const root = filterRoot({ "data-reactive-filter-match": "word_start" })
   const input = searchInput("")
-  const names = ["Côte d'Ivoire", "Guinea-Bissau", "Congo (Kinshasa)", "Bonaire/Sint Eustatius", "St.Kitts", "Korea, South"]
+  const names = ["Côte d'Ivoire", "Guinea-Bissau", "Congo (Kinshasa)", "Bonaire/Sint Eustatius", "St.Kitts", "Korea, South", "Mexico (DF)City"]
   const options = names.map((name) => option(name, null))
   root.append(input, ...options)
   buildController(root).connect()
@@ -495,6 +495,7 @@ test("word_start: the query may start after any declared separator", () => {
   expect(visibleFor("eus")).toEqual(["Bonaire/Sint Eustatius"])
   expect(visibleFor("kit")).toEqual(["St.Kitts"]) // after .
   expect(visibleFor("sou")).toEqual(["Korea, South"]) // after , (and the space)
+  expect(visibleFor("cit")).toEqual(["Mexico (DF)City"]) // after )
   expect(visibleFor("ssa")).toEqual([]) // interior only (Bissau)
 })
 
@@ -551,7 +552,8 @@ test("fold applies to the data-reactive-filter-text haystack, which keeps preced
 test("without fold the accent still decides (fold is opt-in; the default is unchanged)", () => {
   const { type } = cityRoot({})
   expect(type("zur")).toEqual([])
-  expect(type("n")).toEqual(["Berlin", "Nantes", "New York", "Santander"]) // substring
+  expect(type("n")).toEqual(["Barcelona", "Berlin", "Nantes", "New York", "Santander"]) // substring
+  expect(type("ar")).toEqual(["Barcelona"]) // Århus keeps its å; the interior "ar" counts
 })
 
 test("an unknown match mode on the root falls back to substring matching", () => {

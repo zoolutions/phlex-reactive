@@ -7,7 +7,7 @@ require "system_helper"
 # both sides (String#normalize("NFD") and the \p{M} strip run in the engine
 # the page runs in), with zero action POSTs.
 RSpec.describe "reactive_filter match: :word_start, fold: true", type: :system do
-  let(:cities) { %w[arhus berlin nantes new-york santander zurich] }
+  let(:cities) { %w[arhus barcelona berlin nantes new-york santander zurich] }
 
   # Waiting matchers on both sides: every named city shows, every other hides.
   def expect_visible(*shown)
@@ -17,7 +17,7 @@ RSpec.describe "reactive_filter match: :word_start, fold: true", type: :system d
 
   def visit_city_filter
     visit "/city_filter"
-    expect(page).to have_css("[role=option]", count: 6)
+    expect(page).to have_css("[role=option]", count: 7)
     page.execute_script(<<~JS)
       window.__actionPosts = 0
       const orig = window.fetch
@@ -35,7 +35,7 @@ RSpec.describe "reactive_filter match: :word_start, fold: true", type: :system d
     query.set("n")
     expect_visible("nantes", "new-york")
 
-    query.set("ar") # Århus by its folded start; Santander's interior "ar" does not count
+    query.set("ar") # Århus by its folded start; Barcelona's interior "ar" does not count
     expect_visible("arhus")
 
     query.set("zur")
@@ -48,7 +48,7 @@ RSpec.describe "reactive_filter match: :word_start, fold: true", type: :system d
     expect_visible("new-york")
 
     query.set("")
-    expect(page).to have_css("[role=option]", count: 6)
+    expect(page).to have_css("[role=option]", count: 7)
     expect(page.evaluate_script("window.__actionPosts")).to eq(0)
   end
 

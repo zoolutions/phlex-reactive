@@ -2528,9 +2528,10 @@ end
 ```
 
 On every keystroke the generic controller lowercases the input's value and
-toggles `hidden` on each option by a **substring match** against its
+toggles `hidden` on each option by matching it against its
 `data-reactive-filter-text` haystack (falling back to the option's own text) —
-a declared literal match, never an expression, so there is no eval surface. A
+a **substring match** by default, or the mode `match:` names (below); a
+declared literal match, never an expression, so there is no eval surface. A
 group whose every contained option is hidden collapses with them; the empty
 node reveals at 0 visible. Everything resolves **within this root only** and
 re-applies after a morph.
