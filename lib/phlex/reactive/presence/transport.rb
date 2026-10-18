@@ -29,6 +29,10 @@ module Phlex
         # is absent or does not expose the setting.
         DEFAULT_HEARTBEAT = 15
 
+        # The Store key of the lock register_ttl holds across its read, merge
+        # and write.
+        TTL_LOCK_KEY = :phlex_reactive_presence_ttl_lock
+
         # The change hook install! sets: the app's own hook (if any) first, then
         # presence's. Its class is how a second install! knows it is in place.
         ChainedHook = Data.define(:previous, :on_change) do
@@ -144,12 +148,15 @@ module Phlex
           # pattern => seconds with a :default; an Integer becomes the Hash's
           # default so the app's own setting still covers every other stream.
           # A new Hash every time: a component can load after pgbus froze the
-          # setting at boot (eager_load off).
+          # setting at boot (eager_load off). Under a lock: two classes that
+          # load at once on two threads must each see the other's write.
           def register_ttl(name, seconds)
-            config = ::Pgbus.configuration
-            ttl = config.streams_presence_ttl
-            ttl = { default: ttl } unless ttl.is_a?(Hash)
-            config.streams_presence_ttl = ttl.merge(/:presence:#{Regexp.escape(name.to_s)}\z/ => seconds)
+            Phlex::Reactive::Store.fetch(TTL_LOCK_KEY) { Mutex.new }.synchronize do
+              config = ::Pgbus.configuration
+              ttl = config.streams_presence_ttl
+              ttl = { default: ttl } unless ttl.is_a?(Hash)
+              config.streams_presence_ttl = ttl.merge(/:presence:#{Regexp.escape(name.to_s)}\z/ => seconds)
+            end
           end
         end
       end

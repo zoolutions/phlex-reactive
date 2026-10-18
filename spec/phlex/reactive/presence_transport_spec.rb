@@ -175,6 +175,25 @@ RSpec.describe Phlex::Reactive::Presence::Transport do
       expect(config.streams_presence_ttl).to eq("lobby" => 30, :default => 90, /:presence:viewers\z/ => 45)
     end
 
+    # Two presence classes loading at once on two threads (eager_load off): each
+    # read-merge-set must see the other's write, or one ttl is lost.
+    it "keeps both ttls when two components register at once" do
+      _store, config = FakePgbusPresence.install!(self)
+      slow_read = Module.new do
+        def streams_presence_ttl
+          value = super
+          sleep 0.05 # widen the read-to-write window so the threads interleave
+          value
+        end
+      end
+      config.singleton_class.prepend(slow_read)
+
+      threads = [Thread.new { described_class.register_ttl(:viewers, 30) }]
+      threads << Thread.new { described_class.register_ttl(:editors, 45) }
+      threads.each(&:join)
+      expect(config.streams_presence_ttl).to eq(default: 60, /:presence:viewers\z/ => 30, /:presence:editors\z/ => 45)
+    end
+
     it "replaces a component's earlier ttl when its class loads again" do
       _store, config = FakePgbusPresence.install!(self)
       described_class.register_ttl(:viewers, 30)
