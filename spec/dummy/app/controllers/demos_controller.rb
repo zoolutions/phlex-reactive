@@ -172,6 +172,11 @@ class DemosController < ActionController::Base
     render_component FilterComboboxComponent.new
   end
 
+  # reactive_filter match: :word_start, fold: true (issue #425) over accented names.
+  def city_filter
+    render_component CityFilterComponent.new
+  end
+
   # The tag-chip input (issue #203): reactive_tags ∘ reactive_filter ∘
   # reactive_listnav, all client-side. The widget's own GET form submits back
   # HERE — params[:tags] carries the hidden field's comma-joined value, and the

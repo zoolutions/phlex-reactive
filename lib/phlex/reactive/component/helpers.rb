@@ -741,7 +741,18 @@ module Phlex
         # exactly one of field/input: per call — the field form stays the
         # blessed default:
         #   reactive_filter(input: "#user_tags_query")
-        def reactive_filter(field = nil, input: nil, option: nil, group: nil, empty: nil)
+        #
+        # Issue #425: `match:` picks where the query must sit in the haystack —
+        # :substring (anywhere, the default), :prefix (at its start) or
+        # :word_start (at its start, or right after whitespace or one of
+        # - ' ( ) , . /). A long alphabetical list (countries, cities, people)
+        # wants :word_start, so "n" keeps Nantes and New York, not every name
+        # with an n in it. `fold: true` folds diacritics on BOTH sides before
+        # comparing, so "zur" finds Zürich and "zür" still does. The defaults
+        # emit nothing, so an existing filter's wire is byte-identical:
+        #   reactive_filter(:q, match: :word_start, fold: true)
+        def reactive_filter(field = nil, input: nil, option: nil, group: nil, empty: nil,
+                            match: :substring, fold: false)
           # nil-presence, NOT truthiness: `input: cond && "#sel"` with cond false
           # must fail loudly in filter_selector! below (a boolean is never a
           # selector), never slip into the field branch and emit a dead binding.
@@ -768,6 +779,10 @@ module Phlex
           # byte-stable wire and always-emit an attribute the client would then query).
           data[:reactive_filter_group] = filter_selector!(:group, group) if group
           data[:reactive_filter_empty] = filter_selector!(:empty, empty) if empty
+          # match:/fold: too (issue #425): the defaults emit nothing.
+          mode = filter_match!(match)
+          data[:reactive_filter_match] = mode.to_s unless mode == :substring
+          data[:reactive_filter_fold] = "true" if fold
 
           { data: }
         end
@@ -1427,7 +1442,23 @@ module Phlex
         LEGACY_SHOW_PREDICATE_KEYS = %i[equals not in gte gt lte lt].freeze
         LEGACY_SHOW_CONNECTIVE_KEYS = %i[all any].freeze
 
+        # reactive_filter's match: modes (issue #425), in the order the error names them.
+        FILTER_MATCH_MODES = %i[substring prefix word_start].freeze
+        private_constant :FILTER_MATCH_MODES
+
         private
+
+        # reactive_filter's match: (issue #425), a Symbol or a String naming one
+        # of FILTER_MATCH_MODES (the reactive_persist storage: precedent).
+        # Anything else raises at render: the client would fall back to
+        # substring matching and the list would narrow the wrong way.
+        def filter_match!(match)
+          mode = match.to_sym if match.is_a?(Symbol) || match.is_a?(String)
+          return mode if FILTER_MATCH_MODES.include?(mode)
+
+          raise ArgumentError,
+            "reactive_filter match: must be one of #{FILTER_MATCH_MODES.join(", ")}, got #{match.inspect}"
+        end
 
         # A reactive_filter/reactive_listnav selector, validated non-blank and
         # stringified (issue #163). A blank selector is a dead binding — the

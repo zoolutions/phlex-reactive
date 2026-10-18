@@ -192,7 +192,8 @@ const SLACK = 250
 // frame, a keyboard drag whose element was removed) 95 B: 40,043 B;
 // on top of #417 (37,706 B), 2,788 B: 40,494 B; its PR review fix (a release after a morph removed
 // the element sends nothing) 1 B: 40,495 B.
-const BUNDLE_GZIP_CEILING = 40_495
+// Issue #425 (reactive_filter match: and fold:, in bindings) adds 151 B: 40,646 B.
+const BUNDLE_GZIP_CEILING = 40_646
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -283,7 +284,8 @@ const FEATURE_GZIP_CEILINGS = {
   // on top of #398, 7,783 B.
   // Issue #417 (reactive_css_vars: the number read, the unit and name allowlists) to 8,238 B;
   // its review fix (a to: that does not parse matches nothing) to 8,245 B.
-  "features/bindings": 8_245,
+  // Issue #425 (reactive_filter match: and fold:) takes it from 8,241 B to 8,396 B.
+  "features/bindings": 8_396,
   // Issue #336 (render a defer reply now) takes it from 2,845 B to 2,974 B.
   "features/defer": 2_974,
   "features/compute": 2_050,
@@ -389,7 +391,8 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #416 (the drag feature module, 3,478 B, plus 55 B in the core) adds 3,533 B: 48,947 B;
 // its review fixes (+94 B drag) take it to 49,041 B;
 // on top of #417 (45,888 B), 3,623 B: 49,511 B; its PR review fix (+4 B drag): 49,515 B.
-const SPLIT_TOTAL_GZIP_CEILING = 49_515
+// Issue #425 (reactive_filter match: and fold:, in bindings) adds 155 B: 49,670 B.
+const SPLIT_TOTAL_GZIP_CEILING = 49_670
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

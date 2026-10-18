@@ -228,7 +228,8 @@ function ownedText(root, allRoots) {
 }
 
 // reactive_filter lives on the ROOT itself (the input/option/group/empty
-// selectors it narrows client-side). Null when the root declares no filter.
+// selectors it narrows client-side, and how it matches: issue #425's mode and
+// fold). Null when the root declares no filter.
 function readFilter(el) {
   const input = el.getAttribute("data-reactive-filter-input")
   if (!input) return null
@@ -237,5 +238,7 @@ function readFilter(el) {
     option: el.getAttribute("data-reactive-filter-option"),
     group: el.getAttribute("data-reactive-filter-group"),
     empty: el.getAttribute("data-reactive-filter-empty"),
+    match: el.getAttribute("data-reactive-filter-match") ?? "substring",
+    fold: el.hasAttribute("data-reactive-filter-fold"),
   }
 }

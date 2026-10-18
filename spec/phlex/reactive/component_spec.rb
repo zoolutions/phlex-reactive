@@ -2750,6 +2750,100 @@ RSpec.describe Phlex::Reactive::Component do
         .to raise_error(ArgumentError, /option:/)
     end
 
+    # Issue #425: match: picks how an option's haystack must contain the query —
+    # :substring (anywhere, the default), :prefix (at its start) or :word_start
+    # (at its start or right after a separator) — and fold: true folds diacritics
+    # on both sides. The defaults emit nothing, so an existing filter's wire is
+    # byte-identical.
+    context "with match: and fold: (issue #425)" do
+      it "emits no match or fold attribute by default (byte-stable wire)" do
+        attrs = instance.send(:reactive_filter, :q)
+        expect(attrs[:data]).not_to have_key(:reactive_filter_match)
+        expect(attrs[:data]).not_to have_key(:reactive_filter_fold)
+      end
+
+      it "emits nothing for an explicit match: :substring (the default)" do
+        attrs = instance.send(:reactive_filter, :q, match: :substring)
+        expect(attrs[:data]).not_to have_key(:reactive_filter_match)
+      end
+
+      it "emits data-reactive-filter-match for match: :prefix" do
+        attrs = instance.send(:reactive_filter, :q, match: :prefix)
+        expect(attrs[:data][:reactive_filter_match]).to eq("prefix")
+      end
+
+      it "emits data-reactive-filter-match for match: :word_start" do
+        attrs = instance.send(:reactive_filter, :q, match: :word_start)
+        expect(attrs[:data][:reactive_filter_match]).to eq("word_start")
+      end
+
+      it "accepts the mode as a String (the reactive_persist storage: precedent)" do
+        attrs = instance.send(:reactive_filter, :q, match: "word_start")
+        expect(attrs[:data][:reactive_filter_match]).to eq("word_start")
+      end
+
+      it "raises on an unknown mode, naming the valid ones" do
+        expect { instance.send(:reactive_filter, :q, match: :fuzzy) }
+          .to raise_error(ArgumentError, /match: must be one of substring, prefix, word_start, got :fuzzy/)
+      end
+
+      it "raises on a mode that is neither a Symbol nor a String" do
+        expect { instance.send(:reactive_filter, :q, match: nil) }
+          .to raise_error(ArgumentError, /match:/)
+      end
+
+      it "emits data-reactive-filter-fold for fold: true" do
+        attrs = instance.send(:reactive_filter, :q, fold: true)
+        expect(attrs[:data][:reactive_filter_fold]).to eq("true")
+      end
+
+      it "composes with the input: escape hatch" do
+        attrs = instance.send(:reactive_filter, input: "#q", match: :prefix, fold: true)
+        expect(attrs[:data][:reactive_filter_input]).to eq("#q")
+        expect(attrs[:data][:reactive_filter_match]).to eq("prefix")
+        expect(attrs[:data][:reactive_filter_fold]).to eq("true")
+      end
+
+      it "renders both attributes onto the root element" do
+        klass = Class.new(Phlex::HTML) do
+          include Phlex::Reactive::ClientBindings
+
+          def self.name = "FilterMatchRender"
+
+          def view_template
+            div(**reactive_filter(:q, match: :word_start, fold: true), id: "cities") { "c" }
+          end
+        end
+
+        html = klass.new.call
+        expect(html).to include('data-reactive-filter-match="word_start"')
+        expect(html).to include('data-reactive-filter-fold="true"')
+      end
+
+      # reactive_tags does not compose reactive_filter: a tag picker mixes the
+      # two onto one root, and the tags passes re-run that root's filter — so
+      # match:/fold: reach the picker through the reactive_filter it already
+      # declares, not through a kwarg on reactive_tags.
+      it "reaches a tag picker through the reactive_filter it mixes in" do
+        klass = Class.new(Phlex::HTML) do
+          include Phlex::Reactive::ClientBindings
+
+          def self.name = "TagsFilterMatchRender"
+
+          def view_template
+            div(**mix(reactive_tags(:tags), reactive_filter(:tag_query, match: :word_start, fold: true)),
+              id: "tags") { "t" }
+          end
+        end
+
+        html = klass.new.call
+        expect(html).to include('data-reactive-tags-field="[name=&quot;tags&quot;]"')
+        expect(html).to include('data-reactive-filter-input="[name=&quot;tag_query&quot;]"')
+        expect(html).to include('data-reactive-filter-match="word_start"')
+        expect(html).to include('data-reactive-filter-fold="true"')
+      end
+    end
+
     it "renders the compiled wire attributes onto the root element" do
       klass = Class.new(Phlex::HTML) do
         include Phlex::Reactive::Component

@@ -6,6 +6,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`reactive_filter` matches by prefix or word start, and can ignore accents
+  (#425).** `match:` sets where the query must sit in an option's haystack:
+  `:substring` (anywhere, the default), `:prefix` (at its start) or
+  `:word_start` (at its start, or right after whitespace or one of
+  `- ' ( ) , . /`). For a long alphabetical list, `match: :word_start` makes
+  `n` keep Nantes and New York instead of every name with an n in it.
+  `fold: true` folds diacritics on both sides before comparing (Unicode NFD,
+  combining marks stripped), so `zur` finds Zürich and `zür` still does.
+  `reactive_filter(:q, match: :word_start, fold: true)` emits
+  `data-reactive-filter-match` and `data-reactive-filter-fold`; the defaults
+  emit neither, so an existing filter's markup is byte-identical. An unknown
+  mode raises `ArgumentError` at render. A tag picker gets both through the
+  `reactive_filter` it mixes onto the `reactive_tags` root. The client
+  inspector reports each filter's mode and fold. `features/bindings` grows
+  by 155 B gzipped (8,396 B), the default bundle by 151 B (40,646 B).
+
 ## [0.16.2] - 2026-10-17
 
 ### Fixed
