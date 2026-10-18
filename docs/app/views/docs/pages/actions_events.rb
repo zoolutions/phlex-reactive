@@ -329,7 +329,10 @@ module Views
                 listener — the shortcut does nothing (issue #429). Another
                 shortcut's `preventDefault` does not count: two shortcuts on one
                 chord both run. To run regardless, use the Hash form:
-                `shortcut: { keys: "esc", handled: true }`.
+                `shortcut: { keys: "esc", handled: true }`. One exception: while a
+                root with a shortcut on that chord has not connected yet,
+                `phlex/reactive/early` prevents the key for it first, so a drag's
+                Escape then still runs the shortcuts on it.
               - **The chord is prevented**, synchronously and before any `confirm:`
                 dialog, so `mod+s` does not also open the save dialog — including a
                 chord pressed before the controller connects, with

@@ -599,6 +599,18 @@ test("a shortcut early.js prevented for an unconnected root does not stop a conn
   expect(seenA).toEqual(["a"])
 })
 
+test("a shortcut whose key a handler prevented before early.js saw it is not replayed", async () => {
+  const root = await mount(`<div id="a" data-controller="reactive"><span data-action="keydown.esc@window->reactive#dispatch" data-reactive-action-param="a" data-reactive-window-param="true" data-reactive-shortcut-param="esc"></span></div>`)
+  const seen = countDispatches(root)
+  const event = new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })
+  event.preventDefault()
+  document.body.dispatchEvent(event)
+  expect(state().queue).toHaveLength(1)
+
+  realConnect(root)
+  expect(seen).toEqual([])
+})
+
 test("two :once window bindings on separate elements of one root each replay, and each swallows its own live firing", async () => {
   const root = await mount(`
     <div id="p" data-controller="reactive">

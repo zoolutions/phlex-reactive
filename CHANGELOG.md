@@ -25,8 +25,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   shortcuts on it, as before). `shortcut: { keys: "esc", handled:
   true }` runs regardless; `handled:` is validated like `in_editable:` (true
   or false, else `ArgumentError` at render), and the wire Hash carries it as
-  `"handled": true`. The default bundle grows by 55 B gzipped (40,701 B), the
-  core by 74 B (18,374 B), `early` by 22 B (1,643 B).
+  `"handled": true`. The default bundle grows by 69 B gzipped (40,715 B), the
+  core by 67 B (18,367 B), `early` by 22 B (1,643 B).
 
 ## [0.16.3] - 2026-10-18
 

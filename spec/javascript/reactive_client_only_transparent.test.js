@@ -255,6 +255,21 @@ test("a held shortcut whose key another handler prevented first sends nothing on
   expect(posts).toHaveLength(0)
 })
 
+test("a shortcut that does not apply is neither prevented nor held for a dormant root", async () => {
+  document.body.innerHTML = `
+    <div id="panel" data-reactive-dormant="reactive" data-reactive-token-value="outer-token">
+      <div id="inner" data-controller="reactive"><input id="field"></div>
+    </div>`
+  connect(document.getElementById("inner"))
+  const event = new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })
+  Object.defineProperty(event, "target", { value: document.getElementById("field"), configurable: true })
+  Object.defineProperty(event, "currentTarget", { value: window, configurable: true })
+  event.params = { action: "close", params: "{}", window: true, shortcut: "esc" }
+  document.getElementById("inner").__controller.dispatch(event)
+  expect(event.defaultPrevented).toBe(false)
+  expect(document.getElementById("panel").dataset.reactiveDormant).toBe("reactive")
+})
+
 test("a dormant token-bearing ancestor is woken and receives the forwarded dispatch", async () => {
   document.body.innerHTML = `
     <div id="picker" data-reactive-dormant="reactive" data-reactive-token-value="outer-token">

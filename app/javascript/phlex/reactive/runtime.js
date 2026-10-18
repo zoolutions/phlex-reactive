@@ -1757,7 +1757,7 @@ const shortcutKeys = (spec) => (spec && typeof spec === "object" ? spec.keys : S
 // `handled: true` — but a shortcut's OWN preventDefault does not count: two
 // shortcuts on one chord both run. Nor does early.js's, made for a shortcut
 // whose root had not connected: it adds the event to this same set (shared
-// through the early state), and the replay of it carries EARLY_KEY. (So while
+// through the early state), and its replay reads as not prevented. (So while
 // such a root is on the page, early.js's capture-phase preventDefault lands
 // before a drag's, and that Escape still runs the shortcuts on its chord — as
 // before #429: a preventDefault cannot tell who came second.)
@@ -1772,8 +1772,7 @@ function preventTrigger(event, shortcut) {
 // A shortcut record keeps a bare `on: "keydown"`, so bindingMatches lets every
 // keydown through and this check, per record, picks the chord that fired.
 function shortcutApplies(spec, event, keyMappings) {
-  if (event.defaultPrevented && spec?.handled !== true && !event[EARLY_KEY] && !shortcutPrevented().has(event))
-    return false
+  if (event.defaultPrevented && spec?.handled !== true && !shortcutPrevented().has(event)) return false
   const target = event.target
   if (spec?.inEditable !== true && (target?.isContentEditable || /^(input|textarea|select)$/.test(target?.localName)))
     return false
@@ -2494,7 +2493,9 @@ function earlyReplayEvent(event, el, win) {
     submitter: event.submitter,
     bubbles: event.bubbles,
     timeStamp: event.timeStamp,
-    defaultPrevented: event.defaultPrevented,
+    // Not when early.js prevented it for a shortcut (issue #429): a shortcut
+    // skips only a key some OTHER handler prevented first.
+    defaultPrevented: event.defaultPrevented && !shortcutPrevented().has(event),
     preventDefault() {},
     stopPropagation() {},
     stopImmediatePropagation() {},
@@ -3395,6 +3396,9 @@ export default class extends Controller {
     // Held past this event's dispatch: cancel its native default NOW, by
     // dispatch()'s own rule, or a submit/link would act before the request.
     const { shortcut, window: windowBound, optimistic } = event.params
+    // A shortcut that does not apply (the other twin, a field, a key handled
+    // first) is neither prevented nor held, as dispatch() would leave it.
+    if (shortcut != null && !shortcutApplies(shortcut, event, this.application?.schema?.keyMappings)) return
     const target = event.currentTarget ?? event.target
     if ((shortcut != null || !windowBound) && !this.#keepsNativeToggle(optimistic, target))
       preventTrigger(event, shortcut)
