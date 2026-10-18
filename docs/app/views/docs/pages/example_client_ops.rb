@@ -457,6 +457,38 @@ module Views
               ```js
               input.addEventListener("reactive:file-rejected", (event) => toast(event.detail.reason))
               ```
+
+              **Several files (#439).** On an `<input type="file" multiple>` the checks
+              above read one file, the first the `accept` list takes. `per_file: true`
+              checks **every** file and drops only the refused ones, so an action on the
+              same `change` posts the good ones:
+
+              ```ruby
+              op = js.preview_file("#pick", into: "#shot", max_bytes: 1_000_000, accept: true, per_file: true)
+              input(type: "file", id: "pick", name: "file", multiple: true, accept: "image/png,image/jpeg",
+                **mix(on_client(:change, op), on(:upload, event: "change")))
+              img(id: "shot", alt: "")
+              ```
+
+              - Each file is checked against `accept:`, then `max_bytes:`. The accepted
+                ones are written back into `input.files` (through a `DataTransfer`) before
+                the next binding on the event runs: put the op **first** in the `mix`, and
+                the action posts only those. In the other order the action has already
+                collected every file.
+              - One **`reactive:file-rejected`** fires per refused file, with
+                `detail.reason`, `detail.file`, `detail.index` (its place in the pick)
+                and `detail.remaining` (how many were kept), so a page can say
+                "2 of 3 added".
+              - The first accepted image is painted into `into:`, as for one file. Every
+                file refused empties the input, and the action receives no file.
+              - A browser without `DataTransfer` still gets every rejection, but the input
+                keeps its files (a verbose root logs why). A single input, and
+                `per_file:` omitted, keep the one-file check above.
+
+              ```js
+              input.addEventListener("reactive:file-rejected", ({ detail }) =>
+                note(`${detail.file.name}: ${detail.reason} (${detail.remaining} kept)`))
+              ```
             MD
             DocsUI::Callout(:warning) do
               md <<~MD

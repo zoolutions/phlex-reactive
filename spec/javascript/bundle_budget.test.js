@@ -203,7 +203,9 @@ const SLACK = 250
 // Issue #434 (a shared field posts with the host, in the runtime) adds 32 B: 40,846 B.
 // Issue #433 (prevent: false keeps an element-bound trigger's native default, in the runtime) adds 33 B: 40,847 B;
 // on top of #434 (40,846 B), 34 B: 40,880 B.
-const BUNDLE_GZIP_CEILING = 40_880
+// Issue #439 (preview_file per_file: — every file of a multiple input checked, the refused
+// ones dropped from input.files, one rejection each, in the runtime) adds 196 B: 41,076 B.
+const BUNDLE_GZIP_CEILING = 41_076
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -276,7 +278,8 @@ const TARGET_BUNDLE_GZIP = 22_700
 // Issue #434 (a shared field posts with the host) adds 37 B: 18,404 B.
 // Issue #433 (prevent: false keeps an element-bound trigger's native default) adds 33 B: 18,400 B;
 // on top of #434 (18,404 B), 34 B: 18,438 B.
-const CORE_GZIP_CEILING = 18_438
+// Issue #439 (preview_file per_file: on a multiple input) adds 197 B: 18,635 B.
+const CORE_GZIP_CEILING = 18_635
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -412,7 +415,8 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #429 (a shortcut skips a key another handler prevented, in the core) adds 67 B: 49,737 B; on top of #428 (49,771 B), 67 B: 49,838 B.
 // Issue #434 (a shared field posts with the host, in the core) adds 37 B: 49,875 B.
 // Issue #433 (prevent: false, in the core) adds 33 B: 49,871 B; on top of #434 (49,875 B), 34 B: 49,909 B.
-const SPLIT_TOTAL_GZIP_CEILING = 49_909
+// Issue #439 (preview_file per_file:, in the core) adds 197 B: 50,106 B.
+const SPLIT_TOTAL_GZIP_CEILING = 50_106
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

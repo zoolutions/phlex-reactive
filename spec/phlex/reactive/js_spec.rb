@@ -382,6 +382,19 @@ RSpec.describe Phlex::Reactive::JS do
       ["", " ", :png, 1].each { expect_preview_refused(accept: it) }
     end
 
+    # Issue #439: per_file: true checks every file of a multiple input. It
+    # rides last and only when true, so an op without it serializes as before.
+    it "carries per_file: only when true" do
+      expect(JSON.parse(js.preview_file("#f", into: "#p", max_bytes: 10, per_file: true).to_json).dig(0, 1))
+        .to eq("to" => "#f", "into" => "#p", "max_bytes" => 10, "per_file" => true)
+      expect(JSON.parse(js.preview_file("#f", into: "#p", per_file: false).to_json).dig(0, 1))
+        .to eq("to" => "#f", "into" => "#p")
+    end
+
+    it "rejects a per_file: that is not a boolean" do
+      [nil, 1, "true", :yes].each { expect_preview_refused(per_file: it) }
+    end
+
     it "passes the ops allowlist" do
       expect { described_class.assert_ops_allowed!(js.preview_file("#f", into: "#p").ops) }.not_to raise_error
     end

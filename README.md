@@ -1444,7 +1444,7 @@ button(**on_client(:click, js
   (a broadcast that reads every subscriber's clipboard would be hostile). The
   op is async fire-and-forget — chained siblings apply immediately, never
   waiting for the read.
-- **`preview_file(to, into:, name: nil, global: false, valid: false, wrap: nil, max_bytes: nil, accept: nil)`** (#375; `global: true`
+- **`preview_file(to, into:, name: nil, global: false, valid: false, wrap: nil, max_bytes: nil, accept: nil, per_file: false)`** (#375; `global: true`
   resolves `to`, `into:` and `name:` document-wide, for an `img` outside the
   root) paints the file a file input
   holds onto an `img` **before any upload**:
@@ -1481,6 +1481,19 @@ button(**on_client(:click, js
   file clears the preview, hides `wrap:` and dispatches `reactive:file-rejected`
   on the input with `detail.reason` `"type"` or `"size"`; `input.files` and the
   validity are left alone.
+  **Several files (#439):** on an `<input type="file" multiple>`, `per_file: true`
+  checks **every** file (`accept:`, then `max_bytes:`), rebuilds `input.files`
+  from the accepted ones (through a `DataTransfer`, synchronously), dispatches one
+  `reactive:file-rejected` per refused file with `detail.reason`, `detail.file`,
+  `detail.index` (its place in the pick) and `detail.remaining` (how many were
+  kept), and paints the first accepted image. An action mixed in **after** the op
+  on the same event posts only the kept files: `input(type: "file", id: "pick",
+  name: "file", multiple: true, accept: "image/png", **mix(on_client(:change,
+  js.preview_file("#pick", into: "#shot", max_bytes: 1_000_000, accept: true,
+  per_file: true)), on(:upload, event: "change")))`. With every file refused the
+  input is emptied and the action receives none. The reverse `mix` order posts
+  before the op runs. A single input, and `per_file:` omitted, keep the one-file
+  check above; `per_file:` takes only `true` or `false`.
 - **`expanded:`** on `show`/`hide`/`toggle` (#271) keeps a disclosure trigger's
   `aria-expanded` honest: `js.toggle("#menu", expanded: "#trigger")` writes the
   op's **intended** state (`show` → `"true"`, `hide` → `"false"`, `toggle` → the

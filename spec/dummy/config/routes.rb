@@ -78,6 +78,7 @@ Rails.application.routes.draw do
   get "css_vars" => "demos#css_vars" # issue #417: reactive_css_vars
   get "validated_photo_preview" => "demos#validated_photo_preview" # issue #382: preview_file valid:
   get "framed_photo_preview" => "demos#framed_photo_preview" # issue #391: preview_file wrap:/max_bytes:/accept:
+  get "multi_photo_preview" => "demos#multi_photo_preview" # issue #439: preview_file per_file: on a multiple input
   get "notes_fill" => "demos#notes_fill" # issue #374: js.set_value
   get "kept_selection" => "demos#kept_selection" # issue #369: keep: on client ops survives a morph
   get "field_checks" => "demos#field_checks" # issues #394-#396: same:, digits:/after:, show transitions
