@@ -29,8 +29,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   re-syncs the host's bindings and (when it seeds) its compute, as a morph
   already did. Which bindings a root evaluates is unchanged:
   a nested root's own bindings stay its own. Client ops, listnav, `busy_on`,
-  `reactive_filter`, a select-all header (its count includes the marked box),
-  dirty tracking and `reactive_persist` keep strict ownership. Without the
+  `reactive_filter`, a select-all header (its checked state and the boxes it
+  ticks leave the marked box out, while `reactive_count` and `checked_*`
+  include it), dirty tracking and `reactive_persist` keep strict ownership. Without the
   marker nothing changes. A root with no nested root keeps the constant-true
   fast path; a compute root reads one attribute per `input` event.
 
