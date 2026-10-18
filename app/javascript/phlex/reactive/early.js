@@ -94,9 +94,21 @@ function enqueue(event, el, descs, win, shortcut) {
   // shortcut's chord is remembered as prevented FOR a shortcut (issue #429):
   // a connected root's shortcut on the same chord still runs, as a shortcut
   // only skips a key some other handler prevented.
+  //
+  // `prevent: false` (issue #433) keeps the default when EVERY descriptor that
+  // fired opts out: on() through its element-wide param, an on_client
+  // descriptor when every record on its `on` carries `"prevent":false`,
+  // written right after `on` (a legacy attr has no `on`, so it is prevented).
   const keepsToggle =
     /^(checkbox|radio)$/.test(el.type) && /"checked":"keep"/.test(el.dataset.reactiveOptimisticParam)
-  if (win ? shortcut : !keepsToggle || descs.some((d) => d.method === "runOps")) {
+  const ops = el.dataset.reactiveOpsParam ?? ""
+  const keeps = (d) => {
+    const on = `"on":"${d.token.split("->")[0]}"`
+    return d.method === "runOps"
+      ? ops.includes(on) && ops.split(on).length === ops.split(`${on},"prevent":false`).length
+      : keepsToggle || el.dataset.reactivePreventParam === "false"
+  }
+  if (win ? shortcut : !descs.every(keeps)) {
     if (win && !event.defaultPrevented) (state.prevented ??= new WeakSet()).add(event)
     event.preventDefault()
   }

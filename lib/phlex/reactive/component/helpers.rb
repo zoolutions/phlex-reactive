@@ -321,6 +321,16 @@ module Phlex
         #   span(**on(:close, shortcut: { keys: "esc", in_editable: true }))
         #   span(**on(:leave, shortcut: { keys: "esc", handled: true }))
         #
+        # `prevent: false` (issue #433, also RESERVED) lets an ELEMENT-BOUND
+        # trigger keep the event's native default: the client skips its
+        # preventDefault, so a drop still reaches a native file input inside
+        # the trigger. Default `true` (today's behaviour, no attribute). A
+        # window-bound or outside: trigger never prevents, so there it is a
+        # no-op; with shortcut: (a chord the page claims) it raises. The
+        # forced type="button" of a click trigger stays. With confirm:, the
+        # native default has run before the dialog answers.
+        #   div(**on(:track, event: "drop", prevent: false))
+        #
         # `optimistic:` (issue #98) — a small, ALWAYS-REVERSIBLE vocabulary of
         # COSMETIC hints the client applies the instant the trigger fires and
         # REVERTS if the round trip fails, so a click/toggle gives instant feedback
@@ -367,7 +377,7 @@ module Phlex
         #   button(**on(:destroy, confirm: "Sure?", busy: { add_class: "opacity-50" })) { "Delete" }
         def on(action_name, event: nil, debounce: nil, throttle: nil, confirm: nil,
                window: false, once: false, outside: false, optimistic: nil, busy: nil,
-               shortcut: nil, **params)
+               shortcut: nil, prevent: true, **params)
           reject_removed_on_kwargs!(action_name, params)
           # A typo'd or forgotten action renders fine and only surfaces as an
           # opaque 403 at CLICK time (the endpoint's default-deny). Under
@@ -401,6 +411,7 @@ module Phlex
 
           # Guarded here, not inside: building the caller label allocates (on() is a hot path).
           shortcut = shortcut_for!("on(#{action_name.inspect})", shortcut, event:, window:, outside:) unless shortcut.nil?
+          keeps_default!("on(#{action_name.inspect})", prevent, shortcut) unless prevent == true
           event ||= "click"
           window_bound = window || outside || !shortcut.nil?
           action = trigger_descriptors(event, shortcut, window_bound, "dispatch", once)
@@ -424,6 +435,10 @@ module Phlex
           # The client decides preventDefault behavior from event.params (never by
           # sniffing the descriptor), so EVERY window binding flags the param.
           attrs[:data][:reactive_window_param] = "true" if window_bound
+          # Issue #433: the STRING "false" (Phlex drops a false attribute;
+          # Stimulus typecasts "false" back to false). A window binding never
+          # prevents, so it carries nothing.
+          attrs[:data][:reactive_prevent_param] = "false" unless prevent || window_bound
           # Issue #357: the client reads the shortcut to pick the twin for its
           # platform, skip editable targets and prevent the chord.
           attrs[:data][:reactive_shortcut_param] = shortcut_param_attr(shortcut) if shortcut
@@ -481,6 +496,13 @@ module Phlex
         #   input(**on_client(:input, js.submit("#search"), debounce: 300))
         #   div(**on_client(:scroll, js.add_class("#bar", "stuck"), window: true, throttle: 250))
         #
+        # Issue #433: `prevent: false` lets an element-bound binding keep the
+        # event's native default (on()'s rule): a drop on a native file input
+        # inside the element still sets the input's files while the ops run.
+        # It rides on the record ("prevent":false, right after "on"); a no-op
+        # on a window-bound binding, an ArgumentError with shortcut:.
+        #   div(**on_client(:drop, js.remove_class("#zone", "is-over"), prevent: false))
+        #
         # Ops are EPHEMERAL UI: any server re-render of the component (an action
         # reply, a broadcast, a morph) rebuilds from server state and resets
         # whatever they toggled — by design (the LiveView JS-commands caveat). Use
@@ -490,7 +512,7 @@ module Phlex
         # accepted — a dead trigger should fail at render, not no-op in the
         # browser.
         def on_client(event, ops, window: false, once: false, outside: false, confirm: nil, detail: nil,
-                      shortcut: nil, debounce: nil, throttle: nil)
+                      shortcut: nil, debounce: nil, throttle: nil, prevent: true)
           unless ops.is_a?(Phlex::Reactive::JS)
             raise ArgumentError,
               "on_client expects a Phlex::Reactive::JS chain (e.g. js.toggle(\"#menu\")), " \
@@ -508,8 +530,10 @@ module Phlex
               "(change/input), or gate it behind a reducer's $ops / reactive_on_complete."
           end
           shortcut = client_shortcut!(event, shortcut, window:, outside:)
+          keeps_default!("on_client(#{event.inspect})", prevent, shortcut) unless prevent == true
           window_bound = window || outside || !shortcut.nil?
-          record = client_binding_record(event, ops, window_bound:, outside:, once:, confirm:, detail:)
+          keep_default = !prevent && !window_bound
+          record = client_binding_record(event, ops, window_bound:, outside:, once:, confirm:, detail:, keep_default:)
           client_binding_wait!(record, event, debounce, throttle) unless debounce.nil? && throttle.nil?
           # The record's `on` stays the bare keydown: the client reads a key
           # filter from `on`, and `mod` is not a key.
@@ -1571,8 +1595,11 @@ module Phlex
         # overridable confirmResolver on(:action, confirm:) uses (#52/#55); the
         # client prompts BEFORE applying the ops. Issue #179: a Hash confirm: is
         # CONDITIONAL, compiled by the shared compile_conditional_confirm.
-        def client_binding_record(event, ops, window_bound:, outside:, once:, confirm:, detail:)
+        def client_binding_record(event, ops, window_bound:, outside:, once:, confirm:, detail:, keep_default:)
           record = { "on" => event }
+          # Issue #433: RIGHT AFTER "on" — phlex/reactive/early reads the pair
+          # `"on":"<event>","prevent":false` off the raw attribute before connect.
+          record["prevent"] = false if keep_default
           record["window"] = true if window_bound
           record["outside"] = true if outside
           # A mix-ed regular sibling keeps calling runOps after Stimulus drops
@@ -1887,6 +1914,17 @@ module Phlex
               "binding; drop #{name}"
           end
           Phlex::Reactive::Shortcut.parse(shortcut)
+        end
+
+        # Issue #433: validate prevent: once it is not the default true — only
+        # false is left, and a shortcut (a chord the page claims) refuses it.
+        def keeps_default!(caller, prevent, shortcut)
+          raise ArgumentError, "#{caller} prevent: must be true or false, got #{prevent.inspect}" unless prevent == false
+          return if shortcut.nil?
+
+          raise ArgumentError,
+            "#{caller} got shortcut: with prevent: false — a shortcut is a chord the page claims, " \
+            "so it is always prevented; drop prevent:"
         end
 
         # on_client's event is positional: with shortcut: it must be the bare

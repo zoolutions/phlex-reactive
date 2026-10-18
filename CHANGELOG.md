@@ -6,6 +6,34 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`prevent: false` lets an element-bound trigger keep the event's native
+  default (#433).** Every element-bound `on`/`on_client` trigger calls
+  `preventDefault()` before its ops or action run, which cancelled a `drop` a
+  native `<input type="file">` inside the bound element needed: the file never
+  reached the input. `on_client(:drop, js.remove_class("#zone", "is-over"),
+  prevent: false)` runs the ops and leaves the default alone, so the browser
+  sets the input's files and fires `change`; `on(:track, event: "drop",
+  prevent: false)` does the same for a server trigger. The flag belongs to its
+  binding: `on_client` writes `"prevent":false` into its binding record (right
+  after `"on"`), `on` writes `data-reactive-prevent-param="false"`, and a
+  sibling binding on another event, or one on the same event without the flag,
+  is still prevented. `phlex/reactive/early` follows the same rule before the
+  controller connects. The default, `prevent: true`, renders nothing, so
+  existing markup is byte-identical. A `window:` or `outside:` trigger never
+  prevents, so the keyword changes nothing there; with `shortcut:` it raises
+  `ArgumentError` at render, as does anything but `true`/`false`. A click
+  trigger keeps its forced `type="button"`. The default bundle grows by 33 B
+  gzipped (40,847 B), the split core by 33 B (18,400 B), `early.min.js` by 83 B
+  (1,726 B).
+
+### Changed
+
+- **`prevent:` is a reserved keyword on `on(...)` (#433).** It used to pass
+  through as an action param; it now takes `true` or `false` only (anything
+  else raises `ArgumentError`). Rename an action param called `prevent`.
+
 ## [0.16.5] - 2026-10-18
 
 ### Fixed

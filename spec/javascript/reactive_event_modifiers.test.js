@@ -158,6 +158,40 @@ test("an element-bound trigger still preventDefaults unconditionally (issue #11)
   expect(calls()).toBe(1)
 })
 
+// --- prevent: false (issue #433) -------------------------------------------
+
+test("prevent: false keeps an element-bound trigger's native default and still dispatches", async () => {
+  const { controller, calls } = buildController()
+
+  const event = makeEvent({ action: "track", params: "{}", prevent: false })
+  await controller.dispatch(event)
+
+  expect(event.defaultPrevented).toBe(false) // a drop still reaches a file input...
+  expect(calls()).toBe(1) // ...and the round trip still runs
+})
+
+test("a shortcut stays prevented even with a hand-edited prevent: false", async () => {
+  const { controller } = buildController()
+  const realNavigator = globalThis.navigator
+  Object.defineProperty(globalThis, "navigator", { value: { platform: "Linux x86_64" }, configurable: true })
+  try {
+    const event = {
+      ...makeEvent({ action: "save", params: "{}", window: true, shortcut: "ctrl+s", prevent: false }),
+      type: "keydown",
+      key: "s",
+      ctrlKey: true,
+      metaKey: false,
+      altKey: false,
+      shiftKey: false,
+    }
+    await controller.dispatch(event)
+
+    expect(event.defaultPrevented).toBe(true)
+  } finally {
+    Object.defineProperty(globalThis, "navigator", { value: realNavigator, configurable: true })
+  }
+})
+
 // --- throttle: ---------------------------------------------------------------
 
 test("throttled dispatches fire LEADING-EDGE: first immediately, burst suppressed, next window fires again", async () => {

@@ -657,6 +657,12 @@ class DemosController < ActionController::Base
     render html: render_to_string(BlurMenuComponent.new, layout: false).html_safe, layout: true
   end
 
+  # Issue #433: on_client(:drop, ..., prevent: false) — a dropped file still
+  # reaches the native file input inside the bound zone. No actions.
+  def drop_zone
+    render html: render_to_string(DropZoneComponent.new, layout: false).html_safe, layout: true
+  end
+
   # Issue #179: DECLARATIVE conditional confirm — the save warns only when total
   # is 0 (the reactive_show conditions language evaluated client-side).
   def conditional_confirm

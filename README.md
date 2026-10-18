@@ -145,7 +145,8 @@ Good to know:
 - `data-reactive-connected` is set at connect; an in-place morph strips it
   again. Listen for `reactive:connect` rather than reading the attribute later.
 - Until the controller connects, a captured link or form trigger has its
-  native behavior stopped and nothing else happens. If the controller never
+  native behavior stopped and nothing else happens (one with `prevent: false`
+  keeps it, as it does once connected). If the controller never
   loads, or the entry is dropped (older than the TTL, its element gone, more
   than 50 queued), that click or submit does nothing.
 - `window:` triggers — how a **hotkey** is usually bound
@@ -685,7 +686,8 @@ Use in controllers: `render turbo_stream: Counter.replace(counter)`.
 | `on(:save, loading: { disable: true, class: "opacity-50", text: "…" })` | Full loading form: `disable:`, a loading `class:` (on the trigger or a `to:` target), a `text:` swap. Reverts on settle. |
 | `busy_on(:save)` | Mark any element so it carries `data-reactive-busy` **only while `save` is in flight** — a spinner styled with pure CSS, zero Ruby. See [Loading states](#declarative-loading-states-loading--disable_with). |
 | `on(:action, once: true)` | Fire at most once, then unbind (Stimulus's native `:once`). |
-| `on_client(:click, js.toggle("#menu"))` | **Client-only** trigger: applies declared DOM ops with ZERO round trip — no token, no POST, ever. Takes the same `window:`/`once:`/`outside:` modifiers and `debounce:`/`throttle:` waits (ms) as `on`, plus `detail:` (run only when `event.detail` carries the listed values). See [Client-only ops](#client-only-ops-on_client--js--zero-round-trips). |
+| `on(:track, event: "drop", prevent: false)` | Keep the event's **native default** on an element-bound trigger: the client skips its `preventDefault`. See [Keep the native default](#keep-the-native-default--prevent-false). |
+| `on_client(:click, js.toggle("#menu"))` | **Client-only** trigger: applies declared DOM ops with ZERO round trip — no token, no POST, ever. Takes the same `window:`/`once:`/`outside:` modifiers, `debounce:`/`throttle:` waits (ms) and `prevent: false` as `on`, plus `detail:` (run only when `event.detail` carries the listed values). See [Client-only ops](#client-only-ops-on_client--js--zero-round-trips). |
 | `js` | The immutable op builder behind `on_client`: `show`/`hide`/`toggle` (the `hidden` attribute, with an optional `transition:` and `expanded:`), `add_class`/`remove_class`/`toggle_class`, `set_attr`/`remove_attr`/`toggle_attr` (allowlisted names; `toggle_attr` also flips between two values), `focus`/`focus_first`/`blur`, `show_modal`/`close_dialog` (a real modal `<dialog>`), `copy_media` (copy `src`/`srcset`/`alt` from a server-rendered `<img>`, no URL argument), `text` (set `textContent` — XSS-safe), `set_value` (set a field's live `.value` and dispatch `input`), `dispatch`, `submit` (requestSubmit the target's own form, optionally through a `submitter:`), `paste_into` (read the clipboard into a field, gesture-gated), `preview_file` (paint a chosen image file onto an `img` through an object URL the client makes and revokes), `check_group` (tick or untick a checkbox group, then re-sync its bindings), and `persist_state`/`persist_clear` (the `reactive_persist` draft) — chainable. `keep: true` on the visibility, class and attr ops makes their result survive a morph. |
 | `reactive_field(:param, **attrs)` | The attribute hash that binds a control to an action param (no magic `name:`) — spread onto any control: `input(**reactive_field(:value, value: @record.name))`, `select(**reactive_field(:status)) { … }`. |
 | `reactive_editable(:name, multiline: false, placeholder: nil, on_enter: nil, on_escape: :revert, spellcheck: true)` | A plain-text **editable element** as a field (issue #351): `h3(**reactive_editable(:title)) { @card.title }`. Its text travels under the scope-aware `name`: with `multiline: true` its line breaks are sent as `\n`; a single-line field (the default) folds them to spaces; a morph keeps the focused element's text and caret (attributes still morph); paste is plain text; Enter runs `on_enter:` (a single-line field swallows it); Escape reverts. `reactive_dirty` and `reactive_persist` treat it like an input. See the [Editable text](https://phlex-reactive.zoolutions.llc/docs/editable-text) page. |
@@ -938,7 +940,9 @@ hand-written Stimulus controller:
 - `window: true` binds the trigger to the window (Stimulus's native `@window`)
   for page-level events like `scroll`/`resize`. Window-bound triggers are
   **never `preventDefault`-ed** — a mounted dropdown must not kill link clicks
-  elsewhere on the page — and skip the forced `type="button"`.
+  elsewhere on the page — and skip the forced `type="button"`. An
+  element-bound trigger is prevented unless it says `prevent: false` (see
+  [Keep the native default](#keep-the-native-default--prevent-false)).
 - `once: true` fires at most once, then unbinds (Stimulus's `:once`).
 - `throttle: 250` rate-limits **leading-edge**: the first event fires
   immediately, further events are dropped until the window elapses. The mirror
@@ -1016,6 +1020,42 @@ browser, but the `:once` listener is already spent. So does a press another
 handler already handled (a drag's Escape). Keep `once:` off a shortcut that
 can be pressed while the user types or while a drag is on, or pair it with
 `in_editable: true` and `handled: true`.
+
+#### Keep the native default — `prevent: false`
+
+An element-bound trigger (`on` or `on_client`) calls `preventDefault()` before
+anything else runs, so a bare button inside a `<form>` cannot submit it. Some
+listeners only observe an event and need the browser to carry on: a drop zone
+built from a native `<input type="file">` stretched over an area gets the
+dropped file only when nothing cancelled the `drop`. `prevent: false` (#433)
+skips the `preventDefault` for that trigger, and its ops or action still run:
+
+```ruby
+div(id: "zone", class: "relative", **mix(
+  on_client(:dragenter, js.add_class("#zone", "is-over")),
+  on_client(:dragleave, js.remove_class("#zone", "is-over")),
+  on_client(:drop, js.remove_class("#zone", "is-over"), prevent: false) # the file still reaches the input
+)) do
+  input(type: "file", name: "file", class: "absolute inset-0 opacity-0")
+  plain "Drop a file here"
+end
+
+div(**on(:track, event: "drop", prevent: false))  # the same keyword on a server trigger
+```
+
+- The default, `prevent: true`, renders no attribute: existing markup is
+  byte-identical.
+- It belongs to its own binding: a sibling `on_client` on another event (the
+  `dragenter` above) is still prevented, and so is the event when another
+  binding on the same element and event does not opt out.
+- A `window:` or `outside:` trigger never prevents, so `prevent: false` changes
+  nothing there; with `shortcut:` (a chord the page claims) it raises
+  `ArgumentError`. Anything but `true`/`false` raises too.
+- A click trigger keeps its forced `type="button"`.
+- With `confirm:`, the native default has already run when the dialog answers:
+  the dialog gates only the ops or the action.
+- `phlex/reactive/early` follows the same rule before the controller connects.
+- `prevent:` is a reserved keyword name on `on(...)`, like the event modifiers.
 
 ### Optimistic visual hints (`optimistic:`)
 
@@ -1446,6 +1486,9 @@ button(**on_client(:click, js
 `window:`, `once:`, and `outside:` compose exactly like `on(...)`'s event
 modifiers: the dropdown above closes on any click outside the component, and
 window-bound triggers never `preventDefault`, so links elsewhere keep working.
+An element-bound binding does, unless it says `prevent: false` (a drop that must
+still reach a native file input; see
+[Keep the native default](#keep-the-native-default--prevent-false)).
 
 **Gate on the event's payload with `detail:` (#346).** A Hash of top-level
 `event.detail` keys to the value each must strictly equal (`===`). Values are

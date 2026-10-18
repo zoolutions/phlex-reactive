@@ -282,6 +282,77 @@ test("an element-bound record preventDefaults; its window-bound sibling's flags 
   expect(event.defaultPrevented).toBe(true)
 })
 
+// --- prevent: false (issue #433) ---------------------------------------------
+
+test("a prevent:false record runs its ops and leaves the event's default alone", () => {
+  const root = makeRoot()
+  const controller = buildController(root)
+  const ops = wire({ on: "dragenter", ops: [["add_class", { to: "@root", class: ["is-over"] }]] },
+    { on: "drop", prevent: false, ops: [["hide", { to: "@root" }]] })
+
+  const drop = makeEvent({ type: "drop", ops, currentTarget: root })
+  controller.runOps(drop)
+
+  expect(root.hidden).toBe(true)
+  expect(drop.defaultPrevented).toBe(false)
+})
+
+test("a sibling record on another event keeps its preventDefault", () => {
+  const root = makeRoot()
+  const controller = buildController(root)
+  const ops = wire({ on: "dragover", ops: [["show", { to: "@root" }]] },
+    { on: "drop", prevent: false, ops: [["hide", { to: "@root" }]] })
+
+  const over = makeEvent({ type: "dragover", ops, currentTarget: root })
+  controller.runOps(over)
+
+  expect(over.defaultPrevented).toBe(true)
+})
+
+test("a sibling record on the SAME event without the flag still prevents it", () => {
+  const root = makeRoot()
+  const controller = buildController(root)
+  let runs = 0
+  root.dispatchEvent = () => runs++
+  const ops = wire({ on: "drop", prevent: false, ops: [["hide", { to: "@root" }]] },
+    { on: "drop", ops: [["dispatch", { name: "dropped", to: "@root" }]] })
+
+  const drop = makeEvent({ type: "drop", ops, currentTarget: root })
+  controller.runOps(drop)
+
+  expect(root.hidden).toBe(true)
+  expect(runs).toBe(1)
+  expect(drop.defaultPrevented).toBe(true)
+})
+
+test("a legacy [[op, args]] attr ignores a mix-ed on()'s element-wide prevent: false (it is the dispatch's)", () => {
+  const root = makeRoot()
+  const controller = buildController(root)
+
+  const event = makeEvent({ ops: [["hide", { to: "@root" }]], params: { prevent: false }, currentTarget: root })
+  controller.runOps(event)
+
+  expect(root.hidden).toBe(true)
+  expect(event.defaultPrevented).toBe(true)
+})
+
+test("a shortcut record stays prevented even with a hand-edited prevent:false", () => {
+  const root = makeRoot()
+  const controller = buildController(root)
+  const realNavigator = globalThis.navigator
+  Object.defineProperty(globalThis, "navigator", { value: { platform: "Linux x86_64" }, configurable: true })
+  try {
+    const ops = { on: "keydown", window: true, shortcut: "mod+k", prevent: false, ops: [["hide", { to: "@root" }]] }
+    const event = makeEvent({ type: "keydown", key: "k", mods: { ctrlKey: true }, ops, currentTarget: globalThis.window, target: {} })
+    controller.runOps(event)
+
+    expect(root.hidden).toBe(true)
+    expect(event.defaultPrevented).toBe(true)
+  } finally {
+    Object.defineProperty(globalThis, "navigator", { value: realNavigator, configurable: true })
+  }
+})
+
 // --- run-once for duplicate descriptors -----------------------------------------
 
 test("two identical descriptors (runOps called twice for one event) run each record once, in order", () => {
