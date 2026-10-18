@@ -10,6 +10,7 @@
 //
 // Run with: bun test spec/javascript
 import { test, expect, mock, beforeAll } from "bun:test"
+import { Window } from "happy-dom"
 
 let ReactiveController
 
@@ -175,4 +176,57 @@ test("listnav handlers are a no-op when there are no options (empty dropdown)", 
   controller.listnavPick(event())
   controller.listnavClose(event())
   expect(true).toBe(true)
+})
+
+// Issue #442: Enter clicks the highlighted option, and that click bubbles to a
+// list bound ONCE with on_client(..., within: "[role=option]") — keyboard
+// picking runs the delegated binding with the option as @trigger, no binding
+// on the option itself. Real DOM (happy-dom) for the bubbling.
+test("Enter on a highlighted option runs the list's delegated binding with that option as @trigger", () => {
+  const win = new Window()
+  const saved = { document: globalThis.document, window: globalThis.window, Event: globalThis.Event }
+  globalThis.document = win.document
+  globalThis.window = win
+  globalThis.Event = win.Event
+  try {
+    win.document.body.innerHTML = `
+      <div id="picker" data-controller="reactive">
+        <input id="q" data-reactive-listnav-option-param="[role=option]">
+        <input id="item-value" type="hidden">
+        <ul id="menu">
+          <li><button role="option" id="opt-1" data-value="v1">North</button></li>
+          <li><button role="option" id="opt-2" data-value="v2">South</button></li>
+        </ul>
+      </div>`
+    const root = win.document.getElementById("picker")
+    const controller = new ReactiveController()
+    controller.element = root
+    const record = {
+      on: "click",
+      within: "[role=option]",
+      ops: [
+        ["set_value", { to: "#item-value", from: "@trigger", attr: "data-value" }],
+        ["set_attr", { to: "@trigger", name: "aria-selected", value: "true" }],
+      ],
+    }
+    root.querySelector("#menu").addEventListener("click", (e) => {
+      e.params = { ops: record }
+      controller.runOps(e)
+    })
+    const q = root.querySelector("#q")
+    const key = () => ({ currentTarget: q, target: q, preventDefault() {} })
+
+    controller.listnavNext(key())
+    controller.listnavNext(key())
+    controller.listnavPick(key())
+
+    expect(root.querySelector("#item-value").value).toBe("v2")
+    expect(root.querySelector("#opt-2").getAttribute("aria-selected")).toBe("true")
+    expect(root.querySelector("#opt-1").hasAttribute("aria-selected")).toBe(false)
+  } finally {
+    for (const [name, value] of Object.entries(saved)) {
+      if (value === undefined) delete globalThis[name]
+      else globalThis[name] = value
+    }
+  }
 })

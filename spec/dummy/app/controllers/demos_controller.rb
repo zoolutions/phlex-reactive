@@ -408,6 +408,10 @@ class DemosController < ActionController::Base
     render_component NotesFillComponent.new
   end
 
+  def item_picker
+    render_component ItemPickerComponent.new
+  end
+
   # Issue #369: ?renamed=N renders item N renamed (a server-side change).
   def kept_selection
     render_component KeptSelectionComponent.new(renamed: params[:renamed]&.to_i)

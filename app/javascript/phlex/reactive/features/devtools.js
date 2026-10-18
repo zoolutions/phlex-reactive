@@ -141,8 +141,8 @@ function emitZeroTargetWarn(label, to, scope, hint) {
 export function diagnoseStream(name, args, root) {
   const to = args.to
   if (typeof to !== "string" || to === "" || to === "@root") return
-  let hint = ""
-  if (root && !args.global) {
+  let hint = to === "@trigger" ? " — a server-pushed op has no trigger element" : ""
+  if (!hint && root && !args.global) {
     const n = countMatches(globalThis.document, to)
     if (n > 0) hint = ` — it matches ${n} element(s) outside the stream's target root; use global: true`
   }
@@ -166,8 +166,10 @@ export function diagnose(controller, label, args) {
   const root = controller.element
   const to = args.to
   if (typeof to !== "string" || to === "" || to === "@root") return
-  let hint = ""
-  if (!args.global) {
+  // Issue #442: "@trigger" is no selector — probing it would throw. It matched
+  // nothing because this run had no trigger element.
+  let hint = to === "@trigger" ? " — this run has no trigger element" : ""
+  if (!hint && !args.global) {
     if (root?.matches?.(to)) {
       hint = " — the selector matches this component's own root, which root-scoped resolution never includes; use to: :root"
     } else if (countMatches(root, to) > 0) {

@@ -2101,6 +2101,20 @@ RSpec.describe Phlex::Reactive::Component do
           end.to raise_error(ArgumentError, /onclick/)
         end
 
+        # Issue #442: a completion run has no element whose binding fired.
+        it "refuses a :trigger op, as a chain and as a raw list" do
+          [Phlex::Reactive::JS.new.add_class(:trigger, "done"), [["show", { "to" => "@trigger" }]]].each do |run|
+            expect do
+              Class.new do
+                include Phlex::Reactive::Component
+
+                def self.name = "TriggerRun"
+                reactive_on_complete if: { a: "1" }, run:
+              end
+            end.to raise_error(ArgumentError, /names @trigger.*reactive_on_complete run has no trigger/)
+          end
+        end
+
         it "requires conditions (the ShowConditions kwargs)" do
           expect do
             Class.new do

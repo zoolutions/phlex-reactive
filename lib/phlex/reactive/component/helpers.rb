@@ -504,6 +504,23 @@ module Phlex
         # on a window-bound binding, an ArgumentError with shortcut:.
         #   div(**on_client(:drop, js.remove_class("#zone", "is-over"), prevent: false))
         #
+        # Issue #442: `within:` makes ONE binding serve a whole subtree — a list
+        # of N rows binds once instead of N times. The record runs only for an
+        # event from inside an element matching the selector under the bound
+        # element (owned by this root: a row of a nested reactive root is that
+        # root's), and that element is the ops' `:trigger`; read each row's
+        # value off it with from:/attr: (see Phlex::Reactive::JS#set_value):
+        #   ul(**on_client(:click, js.set_value("#item-value", from: :trigger, attr: "data-value")
+        #                            .set_attr(:trigger, "aria-selected", "true"),
+        #                  within: "[role=option]"))
+        # Anywhere else (the list's padding) is a complete no-op: no
+        # preventDefault, no confirm, no ops. The bound element is a container,
+        # so a click binding is not forced to type="button". window:, outside:
+        # and shortcut: raise (a delegated binding is element-bound), and so
+        # does once: (Stimulus would drop the listener on the first click, a
+        # miss included). A `:trigger` op on a window-bound binding raises too:
+        # it has no trigger element.
+        #
         # Ops are EPHEMERAL UI: any server re-render of the component (an action
         # reply, a broadcast, a morph) rebuilds from server state and resets
         # whatever they toggled — by design (the LiveView JS-commands caveat). Use
@@ -513,7 +530,7 @@ module Phlex
         # accepted — a dead trigger should fail at render, not no-op in the
         # browser.
         def on_client(event, ops, window: false, once: false, outside: false, confirm: nil, detail: nil,
-                      shortcut: nil, debounce: nil, throttle: nil, prevent: true)
+                      shortcut: nil, debounce: nil, throttle: nil, prevent: true, within: nil)
           unless ops.is_a?(Phlex::Reactive::JS)
             raise ArgumentError,
               "on_client expects a Phlex::Reactive::JS chain (e.g. js.toggle(\"#menu\")), " \
@@ -533,8 +550,13 @@ module Phlex
           shortcut = client_shortcut!(event, shortcut, window:, outside:)
           keeps_default!("on_client(#{event.inspect})", prevent, shortcut) unless prevent == true
           window_bound = window || outside || !shortcut.nil?
+          client_within!(event, within, window:, outside:, shortcut:, once:) unless within.nil?
+          if window_bound
+            Phlex::Reactive::JS.refuse_trigger!(ops.ops, "a window-bound on_client binding (window:, outside:, shortcut:)")
+          end
           keep_default = !prevent && !window_bound
-          record = client_binding_record(event, ops, window_bound:, outside:, once:, confirm:, detail:, keep_default:)
+          record = client_binding_record(event, ops, window_bound:, outside:, once:, confirm:, detail:, keep_default:,
+            within:)
           client_binding_wait!(record, event, debounce, throttle) unless debounce.nil? && throttle.nil?
           # The record's `on` stays the bare keydown: the client reads a key
           # filter from `on`, and `mod` is not a key.
@@ -553,7 +575,7 @@ module Phlex
           # hidden = !navigator.clipboard.readText. Render the trigger `hidden`
           # for reveal-when-available (a dead paste button never shows).
           attrs[:data][:reactive_clipboard] = "true" if ops.ops.any? { |name, _| name == "paste_into" }
-          attrs[:type] = "button" if event == "click" && !window_bound
+          attrs[:type] = "button" if event == "click" && !window_bound && within.nil?
           attrs
         end
 
@@ -1596,7 +1618,8 @@ module Phlex
         # overridable confirmResolver on(:action, confirm:) uses (#52/#55); the
         # client prompts BEFORE applying the ops. Issue #179: a Hash confirm: is
         # CONDITIONAL, compiled by the shared compile_conditional_confirm.
-        def client_binding_record(event, ops, window_bound:, outside:, once:, confirm:, detail:, keep_default:)
+        def client_binding_record(event, ops, window_bound:, outside:, once:, confirm:, detail:, keep_default:,
+                                  within: nil)
           record = { "on" => event }
           # Issue #433: RIGHT AFTER "on" — phlex/reactive/early reads the pair
           # `"on":"<event>","prevent":false` off the raw attribute before connect.
@@ -1607,6 +1630,9 @@ module Phlex
           # this binding's :once listener — the client skips a spent once record.
           record["once"] = true if once
           record["detail"] = client_binding_detail(detail, once:) unless detail.nil?
+          # Issue #442: written only when given, so a record without it is
+          # byte-identical to before.
+          record["within"] = within unless within.nil?
           case confirm
           when nil, false then nil
           when String then record["confirm"] = confirm
@@ -1615,6 +1641,29 @@ module Phlex
           end
           record["ops"] = ops.ops
           record
+        end
+
+        # Issue #442: validate on_client's within: — a non-empty CSS selector,
+        # on an element-bound binding that can survive a miss.
+        def client_within!(event, within, window:, outside:, shortcut:, once:)
+          label = "on_client(#{event.inspect})"
+          unless within.is_a?(String) && !within.strip.empty?
+            raise ArgumentError,
+              "#{label} within: takes a non-empty CSS selector String naming the elements to delegate " \
+              "from (e.g. within: \"[role=option]\"), got #{within.inspect}"
+          end
+          { "window:" => window, "outside:" => outside, "shortcut:" => shortcut }.each do |name, value|
+            next unless value
+
+            raise ArgumentError,
+              "#{label} within: delegates from the bound element's own subtree — it cannot be " \
+              "window-bound; drop #{name}"
+          end
+          return unless once
+
+          raise ArgumentError,
+            "#{label} within: cannot combine with once: — Stimulus removes a :once listener on its " \
+            "first event, so a first event outside every match would leave the binding dead"
         end
 
         # Issue #393: the one message on() and on_client() raise when given both

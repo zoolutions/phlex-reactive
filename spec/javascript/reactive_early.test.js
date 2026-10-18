@@ -907,6 +907,38 @@ test("connect() replays an on_client trigger through runOps, carrying the custom
   expect(calls[0].event.detail).toEqual({ n: 1 })
 })
 
+// Issue #442: a delegated binding (within:) on a list is captured like any
+// container descriptor — record() walks up from the clicked span to the list —
+// and the replay keeps the original target, so it resolves the same row as
+// the ops' @trigger.
+test("a click on a row before connect replays onto that row through the list's delegated binding", async () => {
+  const record = JSON.stringify({
+    on: "click",
+    within: "[role=option]",
+    ops: [
+      ["set_value", { to: "#item-value", from: "@trigger", attr: "data-value" }],
+      ["set_attr", { to: "@trigger", name: "aria-selected", value: "true" }],
+    ],
+  })
+  const root = await mount(`
+    <div id="picker" data-controller="reactive">
+      <input id="item-value" type="hidden">
+      <ul data-action="click->reactive#runOps" data-reactive-ops-param='${record}'>
+        <li><button role="option" id="row-1" data-value="v1"><span>North</span></button></li>
+        <li><button role="option" id="row-2" data-value="v2"><span id="south">South</span></button></li>
+      </ul>
+    </div>`)
+  globalThis.Event = window.Event
+  click(root.querySelector("#south"))
+  expect(state().queue).toHaveLength(1)
+
+  realConnect(root)
+
+  expect(root.querySelector("#item-value").value).toBe("v2")
+  expect(root.querySelector("#row-2").getAttribute("aria-selected")).toBe("true")
+  expect(root.querySelector("#row-1").hasAttribute("aria-selected")).toBe(false)
+})
+
 test("a :once trigger fired three times replays once, leaving the markup alone", async () => {
   const root = await mount(`<div id="p" data-controller="reactive"><button data-action="click->reactive#dispatch:once mouseover->reactive#dispatch">Go</button></div>`)
   const button = root.querySelector("button")

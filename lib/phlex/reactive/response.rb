@@ -302,10 +302,14 @@ data-reactive-ops="#{ERB::Util.html_escape(json)}"></turbo-stream>).html_safe
         # Normalize `ops` to its JSON wire form, rejecting an empty chain — a
         # reactive:js stream with no ops is a dead stream (a mistake at the call
         # site), so fail loudly rather than emit an inert tag.
+        # Every op the server pushes (reply.js, broadcast_to(js:)) passes here,
+        # so this is where @trigger is refused for a chain too (issue #442): a
+        # pushed op has no element whose binding fired.
         def js_ops_json(ops)
           if ops.is_a?(Phlex::Reactive::JS)
             raise ArgumentError, "js(...) got no ops — a dead reactive:js stream" if ops.empty?
 
+            Phlex::Reactive::JS.refuse_trigger!(ops.ops)
             ops.to_json
           else
             list = Array(ops)
