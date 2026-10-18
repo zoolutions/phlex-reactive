@@ -29,6 +29,7 @@ Rails.application.routes.draw do
   get "todos" => "demos#todos"
   get "combobox" => "demos#combobox"
   get "filter_combobox" => "demos#filter_combobox"
+  get "city_filter" => "demos#city_filter"
   get "tags_field" => "demos#tags_field"
   # Issue #224: the form-builder shape — verbatim name: + id-targeted input:.
   get "form_tags_field" => "demos#form_tags_field"

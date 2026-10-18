@@ -299,7 +299,7 @@ imports one the first time a root on the page needs it:
 | `phlex/reactive/features/defer` (`reply.defer`, `reactive_lazy`) | 2.8 KB | inside the one file | fetched when a root is a `reactive_lazy` shell, a morph turns one into a shell, or a `reply.defer` arrives |
 | `phlex/reactive/features/form` (dirty tracking, `warn_unsaved`, the paste-trigger gate) | 1.0 KB | inside the one file | fetched when a root tracks dirty fields or holds a `paste_into` trigger |
 | `phlex/reactive/features/effects` (`reactive_effects`, `dismiss_after`) | 1.7 KB | inside the one file | fetched when a root declares an effect, or when the first stream that needs it arrives: one with an effect, or with a dismissing flash |
-| `phlex/reactive/features/bindings` (`reactive_show`, show targets, `reactive_on_complete`, `reactive_filter`, `reactive_tags`, `reactive_css_vars`, nested rows, the conditional `confirm:`) | 8.2 KB | inside the one file | fetched when a root declares one of them, or holds a trigger with a conditional confirm |
+| `phlex/reactive/features/bindings` (`reactive_show`, show targets, `reactive_on_complete`, `reactive_filter`, `reactive_tags`, `reactive_css_vars`, nested rows, the conditional `confirm:`) | 8.4 KB | inside the one file | fetched when a root declares one of them, or holds a trigger with a conditional confirm |
 | `phlex/reactive/features/compute` (`reactive_compute`, `reactive_text`) | 2.1 KB | inside the one file | fetched when a root carries a compute binding |
 | `phlex/reactive/features/sortable` (`reactive_sortable` drag and drop) | 3.1 KB | inside the one file | fetched when a root is or holds a sortable or source list |
 | `phlex/reactive/features/drag` (`reactive_box`, `reactive_point` draggable regions) | 3.5 KB | inside the one file | fetched when a root is or holds a frame, a box or a point |
@@ -701,7 +701,7 @@ Use in controllers: `render turbo_stream: Counter.replace(counter)`.
 | `reactive_show_targets(:field, "#id" => value)` | **Cross-root visibility**: the component that owns the field declares which **outside**, id-allowlisted elements it governs (a nav tab, a panel in another pane) — the visibility parallel of `mirror:`. Spread on the **root** via `mix(reactive_root, …)`, **once per root** — several fields go in one call via the hash form. The value uses the same `where`-style vocabulary (`"advanced"`, `%w[a b]`, `10..`); a `"#id"` **key** takes a full conditions Hash for a **multi-field** predicate (`"#warn" => { if: { type: "trade", price: ..0 } }`). Id selectors only (raise at render + client warn-skip); toggles `hidden` only. See [Value-conditional visibility](#value-conditional-visibility-reactive_show). |
 | `reactive_persist(key:, ttl: 7.days)` | **Client-only drafts**: spread on the **root** (once) and the generic controller keeps a `localStorage` draft of every **owned** control — debounced write on `input`, immediate on `change`, flushed on disconnect, restored into **blank** controls on the next connect (`restore: :always` lets the draft win), cleared by a successful Turbo submit / `ttl` / `js.persist_clear`. Never hidden/file/password; `reactive_persist_skip` opts a control out; `fields:` narrows; `storage: :session` keeps the draft in this tab's `sessionStorage` instead. See [Client-only drafts](#client-only-drafts-reactive_persist). |
 | `js.persist_state(step: 2)` / `js.persist_clear` | The draft ops (actor-only): merge a flat state bag into the draft (restored as `data-reactive-persist-state` + the `reactive:persist-restored` event) / forget the draft. |
-| `reactive_filter(:field, option: nil, group: nil, empty: nil)` | **Client-side option filtering** for a preloaded combobox: spread onto the root and name the **field** that drives it — `reactive_filter(:q)` compiles `:q` to `[name="q"]` (scope-aware) and typing shows/hides the options by their `data-reactive-filter-text` haystack, **zero round trips**. `option:` defaults to `[role=option]`; optional `group:` collapses an all-hidden group header; `empty:` reveals a no-matches node. `input:` is the escape hatch — a raw CSS selector for a **name-less** driving input (`input: "#tags_query"`), the form-builder case. See [Client-side option filtering](#client-side-option-filtering-reactive_filter). |
+| `reactive_filter(:field, option: nil, group: nil, empty: nil, match: :substring, fold: false)` | **Client-side option filtering** for a preloaded combobox: spread onto the root and name the **field** that drives it — `reactive_filter(:q)` compiles `:q` to `[name="q"]` (scope-aware) and typing shows/hides the options by their `data-reactive-filter-text` haystack, **zero round trips**. `option:` defaults to `[role=option]`; optional `group:` collapses an all-hidden group header; `empty:` reveals a no-matches node. `match:` is where the query must sit in the haystack — `:substring` (anywhere, the default), `:prefix` (at its start) or `:word_start` (at the start of any word); `fold: true` strips accents (combining marks) on both sides (`"zur"` finds Zürich). `input:` is the escape hatch — a raw CSS selector for a **name-less** driving input (`input: "#tags_query"`), the form-builder case. See [Client-side option filtering](#client-side-option-filtering-reactive_filter). |
 | `reactive_listnav("[role=option]")` | The **standalone** combobox keyboard wiring (Arrow/Enter/Escape) for an input that fires **no action** — the preload-and-filter case. Same behavior as `on(…, listnav:)`, minus the POST. `reactive_listnav(focus: true)` is the **roving-focus** variant for a `role="menu"` container: Arrow Down/Up move real focus among `[role=menuitem]` (wrapping), Home/End jump to the edges; Enter/Space stay native and Escape is yours to bind. |
 | `reactive_tags(:tags)` | **Tag-chip input** (the combobox/tags widget): spread onto the root and name the hidden field that stores the **comma-joined** value — the client maintains that field + the chip list entirely client-side (form state, zero round trips), rebuilding chips from your server-owned `<template>`. Composes with `reactive_filter` (type to narrow) and `reactive_listnav` (Enter picks the highlighted option). `name:` is the escape hatch — a **verbatim** wire name (`name: "user[tags]"`, never re-scoped), the form-builder case. See [Tag-chip input](#tag-chip-input-reactive_tags). |
 | `reactive_tags_add` / `reactive_tags_option(tag)` / `reactive_tags_remove(tag)` | The tags triggers, all **client-only**: `reactive_tags_add` on the query input adds the typed text on Enter (mix it **after** `reactive_listnav`; Enter never submits the enclosing form); `reactive_tags_option` makes a preloaded suggestion add its declared tag on click; `reactive_tags_remove` is a chip's remove button (no arg inside the template — the client fills the tag per chip). |
@@ -2528,12 +2528,41 @@ end
 ```
 
 On every keystroke the generic controller lowercases the input's value and
-toggles `hidden` on each option by a **substring match** against its
+toggles `hidden` on each option by matching it against its
 `data-reactive-filter-text` haystack (falling back to the option's own text) —
-a declared literal match, never an expression, so there is no eval surface. A
+a **substring match** by default, or the mode `match:` names (below); a
+declared literal match, never an expression, so there is no eval surface. A
 group whose every contained option is hidden collapses with them; the empty
 node reveals at 0 visible. Everything resolves **within this root only** and
 re-applies after a morph.
+
+**How the query matches — `match:` and `fold:`.** A substring match is right
+for a short catalog with packed synonyms. For a long alphabetical list
+(countries, cities, time zones, people) it is the wrong default once the query
+is a letter or two: `n` keeps every name that merely *contains* an n. Two
+opt-in kwargs change that; the defaults emit nothing, so an existing filter's
+markup is unchanged:
+
+```ruby
+reactive_filter(:q, match: :word_start, fold: true)
+```
+
+| `match:` | keeps an option when… |
+|---|---|
+| `:substring` (default) | the haystack contains the query |
+| `:prefix` | the haystack starts with the query |
+| `:word_start` | the haystack starts with the query, or the query sits right after whitespace or one of `-` `'` `(` `)` `,` `.` `/` (the straight apostrophe only, not `’`) |
+
+`fold: true` folds diacritics on **both** sides before comparing (Unicode NFD,
+combining marks stripped), so `zur` finds Zürich and a query typed with the
+accent, `zür`, still does. Only letters that decompose into a base letter and a
+combining mark fold: `ø`, `æ`, `ł`, `đ` and `ß` stay as they are, so pack an
+ASCII spelling into `data-reactive-filter-text` when a list needs one
+(`"Ørsted Orsted"`). Use `:word_start` for a list people scan by its first
+letters: `n` keeps Nantes and New York, `ar` keeps Århus (with `fold:`) but not
+Santander, and a multi-word query works as typed (`new y` → New York). An
+unknown `match:` raises at render. A tag picker (`reactive_tags`, below) takes
+the same two kwargs on the `reactive_filter` it mixes in.
 
 It composes: `reactive_listnav` gives the input Arrow/Enter/Escape **without an
 action** (Arrow keys skip filtered-out options; `on(…, listnav:)` requires a

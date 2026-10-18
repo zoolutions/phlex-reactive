@@ -420,3 +420,157 @@ test("disconnect() removes the filter listeners", () => {
   root.emit("input", { target: input })
   expect(mango.hidden).toBe(false)
 })
+
+// Issue #425: data-reactive-filter-match picks WHERE the query must sit in an
+// option's haystack — "substring" (anywhere, the default when absent),
+// "prefix" (at its start) or "word_start" (at its start, or right after
+// whitespace or one of - ' ( ) , . /) — and data-reactive-filter-fold folds
+// diacritics on both sides (NFD, combining marks stripped) before comparing.
+
+const CITIES = ["Århus", "Barcelona", "Berlin", "Nantes", "New York", "Santander", "Zürich"]
+
+// The issue's reproduction: a city list whose haystack is each option's own
+// text (no data-reactive-filter-text), filtered word-start + folded.
+function cityRoot(attrs) {
+  const root = filterRoot(attrs)
+  const input = searchInput("")
+  const options = Object.fromEntries(CITIES.map((city) => [city, option(city, null)]))
+  root.append(input, ...Object.values(options))
+  buildController(root).connect()
+  const type = (value) => {
+    input.value = value
+    root.emit("input", { target: input })
+    return CITIES.filter((city) => !options[city].hidden)
+  }
+  return { root, input, options, type }
+}
+
+const WORD_START_FOLD = { "data-reactive-filter-match": "word_start", "data-reactive-filter-fold": "true" }
+
+test("word_start + fold: 'n' keeps only the cities that START with N", () => {
+  const { type } = cityRoot(WORD_START_FOLD)
+  expect(type("n")).toEqual(["Nantes", "New York"])
+})
+
+test("word_start + fold: 'ar' matches Århus by its folded start, not Barcelona's interior 'ar'", () => {
+  const { type } = cityRoot(WORD_START_FOLD)
+  expect(type("ar")).toEqual(["Århus"])
+})
+
+test("word_start + fold: 'zur' finds Zürich", () => {
+  const { type } = cityRoot(WORD_START_FOLD)
+  expect(type("zur")).toEqual(["Zürich"])
+})
+
+test("fold: a query typed WITH accents still matches (both sides fold)", () => {
+  const { type } = cityRoot(WORD_START_FOLD)
+  expect(type("zür")).toEqual(["Zürich"])
+  expect(type("ÅR")).toEqual(["Århus"])
+})
+
+test("word_start: a multi-word query matches across the separator", () => {
+  const { type } = cityRoot(WORD_START_FOLD)
+  expect(type("new y")).toEqual(["New York"])
+  expect(type("york")).toEqual(["New York"]) // the second word starts after a space
+})
+
+test("word_start: the query may start after any declared separator", () => {
+  const root = filterRoot({ "data-reactive-filter-match": "word_start" })
+  const input = searchInput("")
+  const names = ["Côte d'Ivoire", "Guinea-Bissau", "Congo (Kinshasa)", "Bonaire/Sint Eustatius", "St.Kitts", "Korea, South", "Mexico (DF)City"]
+  const options = names.map((name) => option(name, null))
+  root.append(input, ...options)
+  buildController(root).connect()
+
+  const visibleFor = (value) => {
+    input.value = value
+    root.emit("input", { target: input })
+    return names.filter((_, i) => !options[i].hidden)
+  }
+
+  expect(visibleFor("ivo")).toEqual(["Côte d'Ivoire"]) // after '
+  expect(visibleFor("bis")).toEqual(["Guinea-Bissau"]) // after -
+  expect(visibleFor("kin")).toEqual(["Congo (Kinshasa)"]) // after (
+  expect(visibleFor("sint")).toEqual(["Bonaire/Sint Eustatius"]) // after a space
+  expect(visibleFor("eus")).toEqual(["Bonaire/Sint Eustatius"])
+  expect(visibleFor("kit")).toEqual(["St.Kitts"]) // after .
+  expect(visibleFor("sou")).toEqual(["Korea, South"]) // after , (and the space)
+  expect(visibleFor("cit")).toEqual(["Mexico (DF)City"]) // after )
+  expect(visibleFor("ssa")).toEqual([]) // interior only (Bissau)
+})
+
+test("word_start: a word-start occurrence after an interior one still matches", () => {
+  const root = filterRoot({ "data-reactive-filter-match": "word_start" })
+  const input = searchInput("ana")
+  const banana = option("Banana Ana", null) // "ana" at 1 and 3 (interior), then at 7
+  const havana = option("Havana", null) // interior only
+  root.append(input, banana, havana)
+
+  buildController(root).connect()
+
+  expect(banana.hidden).toBe(false)
+  expect(havana.hidden).toBe(true)
+})
+
+test("prefix: only the haystack's start counts — 'york' hides New York", () => {
+  const root = filterRoot({ "data-reactive-filter-match": "prefix" })
+  const input = searchInput("york")
+  const newYork = option("New York", null)
+  const yorkshire = option("Yorkshire", null)
+  root.append(input, newYork, yorkshire)
+
+  buildController(root).connect()
+
+  expect(newYork.hidden).toBe(true)
+  expect(yorkshire.hidden).toBe(false)
+})
+
+test("prefix: leading whitespace in an option's text does not defeat the match", () => {
+  const root = filterRoot({ "data-reactive-filter-match": "prefix" })
+  const input = searchInput("nan")
+  const nantes = option("\n    Nantes\n  ", null) // markup indentation in textContent
+  root.append(input, nantes)
+
+  buildController(root).connect()
+
+  expect(nantes.hidden).toBe(false)
+})
+
+test("fold applies to the data-reactive-filter-text haystack, which keeps precedence over the text", () => {
+  const root = filterRoot({ "data-reactive-filter-fold": "true" })
+  const input = searchInput("cote")
+  const ivory = option("CI", "Côte d'Ivoire") // the label never says it; the haystack does
+  const other = option("Côte", "elsewhere") // the text would match, the haystack does not
+  root.append(input, ivory, other)
+
+  buildController(root).connect()
+
+  expect(ivory.hidden).toBe(false)
+  expect(other.hidden).toBe(true)
+})
+
+test("without fold the accent still decides (fold is opt-in; the default is unchanged)", () => {
+  const { type } = cityRoot({})
+  expect(type("zur")).toEqual([])
+  expect(type("n")).toEqual(["Barcelona", "Berlin", "Nantes", "New York", "Santander"]) // substring
+  expect(type("ar")).toEqual(["Barcelona"]) // Århus keeps its å; the interior "ar" counts
+})
+
+test("an unknown match mode on the root falls back to substring matching", () => {
+  const { type } = cityRoot({ "data-reactive-filter-match": "fuzzy" })
+  expect(type("an")).toEqual(["Nantes", "Santander"])
+})
+
+test("word_start + fold keeps an already-selected tag hidden (the reactive_tags composition)", () => {
+  const root = filterRoot(WORD_START_FOLD)
+  const input = searchInput("zu")
+  const zurich = option("Zürich", null)
+  const zug = option("Zug", null)
+  zug.setAttribute("data-reactive-tags-selected", "")
+  root.append(input, zurich, zug)
+
+  buildController(root).connect()
+
+  expect(zurich.hidden).toBe(false)
+  expect(zug.hidden).toBe(true) // matches the query, but its tag is already a chip
+})

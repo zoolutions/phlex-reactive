@@ -190,6 +190,19 @@ describe("scan(document)", () => {
     expect(root.show[0].field).toBe("mode")
     expect(root.text).toContain("preview")
     expect(root.filter).not.toBeNull()
+    expect(root.filter.match).toBe("substring") // the default when the root says nothing
+    expect(root.filter.fold).toBe(false)
+  })
+
+  test("reports a filter's match mode and fold (issue #425)", () => {
+    document.body.innerHTML = `
+      <div id="f" data-controller="reactive" data-reactive-token-value="${signedToken({ c: "CityPicker", v: 1 })}"
+           data-reactive-filter-input="[name=q]" data-reactive-filter-option="[role=option]"
+           data-reactive-filter-match="word_start" data-reactive-filter-fold="true"></div>`
+
+    const [root] = scan(document)
+    expect(root.filter.match).toBe("word_start")
+    expect(root.filter.fold).toBe(true)
   })
 
   describe("token decoding degradation", () => {

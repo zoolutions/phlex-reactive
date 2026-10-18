@@ -1021,11 +1021,30 @@ function filterInputEvent(c, event) {
   return !!selector && typeof event.target?.matches === "function" && event.target.matches(selector)
 }
 
+// The characters a word_start query may follow (issue #425): whitespace and
+// - ' ( ) , . /, so "ivo" finds Côte d'Ivoire and "bis" Guinea-Bissau.
+const FILTER_WORD_BREAK = /[\s\-'(),./]/
+
+// Whether a normalized haystack keeps its option for a normalized, non-empty
+// query (issue #425): "prefix" at its start, "word_start" at its start or
+// right after a FILTER_WORD_BREAK, anything else (the default "substring", or
+// a mode this client does not know) anywhere in it.
+function filterMatches(mode, haystack, query) {
+  if (mode === "prefix") return haystack.startsWith(query)
+  if (mode !== "word_start") return haystack.includes(query)
+  for (let i = haystack.indexOf(query); i !== -1; i = haystack.indexOf(query, i + 1)) {
+    if (i === 0 || FILTER_WORD_BREAK.test(haystack[i - 1])) return true
+  }
+  return false
+}
+
 // Re-apply the filter in one pass (issue #163): lowercase the named input's
-// current value, toggle `hidden` on every OWNED option by a substring match
-// against its haystack (data-reactive-filter-text, falling back to the
-// option's own text), collapse any group whose every contained option is
-// hidden, and reveal the empty target at 0 visible. A filtered-out option
+// current value, toggle `hidden` on every OWNED option by matching it against
+// its haystack (data-reactive-filter-text, falling back to the option's own
+// text) in the root's data-reactive-filter-match mode (issue #425; substring
+// when absent), with diacritics folded on both sides under
+// data-reactive-filter-fold, collapse any group whose every contained option
+// is hidden, and reveal the empty target at 0 visible. A filtered-out option
 // also loses its listnav highlight so Enter can never pick an invisible row.
 // No owned input → leave visibility ALONE — a binding that can't resolve
 // must never break or blank the page (client-side default-deny). All
@@ -1041,16 +1060,27 @@ function syncFilter(c) {
   const input = [...c.root.querySelectorAll(inputSelector)].find(owns)
   if (!input) return
 
-  const query = (input.value ?? "").trim().toLowerCase()
+  const mode = c.root.getAttribute("data-reactive-filter-match")
+  const fold = c.root.hasAttribute?.("data-reactive-filter-fold")
+  // Both sides go through the same normalization: lowercased and trimmed
+  // (markup indentation in a textContent haystack must not defeat a prefix),
+  // then, under fold, decomposed with the combining marks stripped — so
+  // "zur" and "zür" both find Zürich.
+  const norm = (s) => {
+    const text = (s ?? "").toLowerCase().trim()
+    return fold ? text.normalize("NFD").replace(/\p{M}/gu, "") : text
+  }
+  const query = norm(input.value)
   let visible = 0
   for (const el of c.root.querySelectorAll(optionSelector)) {
     if (!owns(el)) continue // a nested root's option is its own controller's job
-    const haystack = (el.getAttribute("data-reactive-filter-text") ?? el.textContent ?? "").toLowerCase()
     // An option whose tag is already selected (reactive_tags, issue #203)
     // stays hidden through every re-filter — clearing the query must not
     // resurface an already-added tag.
     const hidden =
-      el.hasAttribute?.("data-reactive-tags-selected") || (query !== "" && !haystack.includes(query))
+      el.hasAttribute?.("data-reactive-tags-selected") ||
+      (query !== "" &&
+        !filterMatches(mode, norm(el.getAttribute("data-reactive-filter-text") ?? el.textContent), query))
     el.hidden = hidden
     if (hidden) el.removeAttribute("data-reactive-highlighted")
     else visible++
