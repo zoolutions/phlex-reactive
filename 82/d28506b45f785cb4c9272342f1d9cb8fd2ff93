@@ -1,0 +1,24 @@
+spec/javascript/reactive_client_only_transparent.test.js
+  s_6818721d2f5036::t_592994de10d8dc 247
+  s_6818721d2f5036::t_bcf0fa5d9dce2d 221-246,248-257
+CHANGELOG.md
+  s_6818721d2f5036::t_7fe2d7def56c63 17-19,23-25
+app/javascript/phlex/reactive/runtime.js
+  s_6818721d2f5036::t_616c6fa1351fdf 1760-1763
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "82d28506b45f785cb4c9272342f1d9cb8fd2ff93",
+  "prompts": {},
+  "sessions": {
+    "s_6818721d2f5036": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d65d88db-bd36-44d3-962b-77fc9c35cda5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
