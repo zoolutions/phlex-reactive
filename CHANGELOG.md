@@ -32,7 +32,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     element and owned by this root; that element is the ops' `:trigger`.
     Anywhere else is a complete no-op (no `preventDefault`, no confirm, no ops).
     Keyboard picking through `reactive_listnav` and a click before the root
-    connects reach the same binding. The bound element is not forced to
+    connects reach the same binding; before connect, `phlex/reactive/early`
+    leaves a click outside every row alone (a link in the list navigates). The bound element is not forced to
     `type="button"`. `within:` raises with `window:`, `outside:`, `shortcut:` and
     `once:` (Stimulus would drop a `:once` listener on its first event, a miss
     included).
@@ -42,7 +43,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   list). In the browser a stream op naming `@trigger`, or one in a window-bound
   binding, resolves to nothing (verbose: warned). Every record that
   asks for none of this is byte-identical. Client: the core gains 290 B
-  gzipped, the default bundle 317 B.
+  gzipped, the default bundle 317 B, `phlex/reactive/early` 109 B.
 
 ## [0.16.7] - 2026-10-18
 

@@ -740,8 +740,9 @@ module Views
                 no-op: no `preventDefault`, no confirm, no ops. A row inside a **nested**
                 reactive root belongs to that root, so it is a miss too.
               - **Keyboard picking** needs nothing extra: Enter on the row `reactive_listnav`
-                highlights clicks it, and the click bubbles to the list. A click before the
-                root connects is replayed onto the same row.
+                highlights clicks it, and the click bubbles to the list. A click on a row
+                before the root connects is replayed onto that row; any other click in the
+                list is left alone (a link there still navigates).
               - **What a read may take**: `attr:` is a `data-*` attribute or `:text` (the
                 element's `textContent`) — checked at render and again in the browser. A
                 missing attribute reads `""`, so it clears; a `from:` that matches nothing

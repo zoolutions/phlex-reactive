@@ -59,8 +59,10 @@ const FEATURES = ENTRIES.filter((name) => name.startsWith("features/"))
 // shortcut is recorded as a shortcut's, so a connected root's shortcut on it
 // still runs) adds 22 B: 1,643 B. Issue #433 (prevent: false: a trigger whose
 // every firing descriptor opts out keeps its native default before connect,
-// read off on()'s param and the on_client records) adds 103 B: 1,746 B.
-const EARLY_GZIP_BUDGET = 1746
+// read off on()'s param and the on_client records) adds 103 B: 1,746 B. Issue #442
+// (a within: miss is neither queued nor prevented before connect: the records
+// parsed off the attr) adds 109 B: 1,855 B.
+const EARLY_GZIP_BUDGET = 1855
 // How far a ceiling may sit above the real size: the rounding it is set with.
 const SLACK = 250
 

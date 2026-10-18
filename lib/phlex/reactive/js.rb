@@ -137,8 +137,8 @@ module Phlex
 
           name = arg(args, "name")
           assert_allowed_attr(name.to_s) if name && ATTR_NAME_OPS.include?(op.to_s)
-          attr = arg(args, "attr")
-          read_attr(attr, op) if !attr.nil? || (READ_OPS.include?(op.to_s) && arg(args, "from"))
+          # A read: the client takes args.attr only on a read op with a from.
+          read_attr(arg(args, "attr"), op) if READ_OPS.include?(op.to_s) && arg(args, "from")
         end
       end
 

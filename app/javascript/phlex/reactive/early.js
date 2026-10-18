@@ -132,10 +132,27 @@ function enqueue(event, el, descs, win, shortcut) {
   }
 }
 
+// Issue #442: an on_client descriptor whose every record on its `on` is a
+// within: delegation the event's target falls outside of (no matching element
+// strictly under `el`: its parent is not inside `el`) is a miss — runOps
+// would run nothing and prevent nothing — so it is neither queued nor
+// prevented: a link in a delegated list's footer still navigates before
+// connect. A record without within:, or an attr that does not parse (a legacy
+// list, a bad selector), keeps the descriptor. (A row of a nested root is
+// still queued; the replay's ownership check makes it a miss.)
+function delegatedMiss(el, d, target) {
+  try {
+    const mine = el.dataset.reactiveOpsParam.split(" ").map(JSON.parse).filter((r) => r.on === d.token.split("->")[0])
+    return mine.length > 0 && mine.every((r) => r.within != null && !el.contains(target.closest(r.within)?.parentElement ?? null))
+  } catch {
+    return false
+  }
+}
+
 function record(event) {
   for (let el = event.target; el?.closest; el = el.parentElement) {
     if (!event.bubbles && el !== event.target) break
-    const descs = matching(el, event, false)
+    const descs = matching(el, event, false).filter((d) => d.method !== "runOps" || !delegatedMiss(el, d, event.target))
     if (descs.length) enqueue(event, el, descs, false)
   }
 }

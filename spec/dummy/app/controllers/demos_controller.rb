@@ -408,8 +408,13 @@ class DemosController < ActionController::Base
     render_component NotesFillComponent.new
   end
 
+  # ?lazy=1: on the lazily loaded controller layout (issue #273), so clicks
+  # land before the root connects.
   def item_picker
-    render_component ItemPickerComponent.new
+    return render_component ItemPickerComponent.new if params[:lazy].blank?
+
+    html = render_to_string(ItemPickerComponent.new, layout: false)
+    render html: "#{html}<span data-testid=\"connects\">0</span>".html_safe, layout: "lazy_controller"
   end
 
   # Issue #369: ?renamed=N renders item N renamed (a server-side change).

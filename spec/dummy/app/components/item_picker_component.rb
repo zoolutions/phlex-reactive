@@ -5,8 +5,9 @@
 # pick (a click anywhere in a row, or Enter on the row reactive_listnav
 # highlights) writes the row's value into the hidden field, its label into the
 # label node, marks it aria-selected and tells the page with a CustomEvent
-# whose detail is read off the row. The "Recent" heading inside the list is no
-# row: a click there runs nothing and keeps its default. Client-only: no
+# whose detail is read off the row. The "Recent" heading and the "More" link
+# inside the list are no rows: a click there runs nothing and keeps its
+# default (the link navigates), before the root connects too. Client-only: no
 # action, no token.
 class ItemPickerComponent < ApplicationComponent
   include Phlex::Reactive::ClientBindings
@@ -27,6 +28,7 @@ class ItemPickerComponent < ApplicationComponent
         **mix(on_client(:click, pick_ops, within: "[role=option]"), data: { testid: "item-menu" })) do
         li(data: { testid: "item-gap" }) { "Recent" }
         ITEMS.each { row(it) }
+        li { a(href: "#more", data: { testid: "item-more" }) { "More" } }
       end
     end
   end

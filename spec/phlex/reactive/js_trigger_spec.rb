@@ -184,6 +184,13 @@ RSpec.describe Phlex::Reactive::JS do
       expect { described_class.assert_ops_allowed!(raw) }.to raise_error(ArgumentError, /data-\* attribute or :text/)
     end
 
+    it "checks attr only where it is a read (set_value, text, set_attr with from)" do
+      raw = [["show", { "to" => "#x", "attr" => "anything" }], ["text", { "to" => "#l", "value" => "x", "attr" => "id" }]]
+      expect { described_class.assert_ops_allowed!(raw) }.not_to raise_error
+      expect { described_class.assert_ops_allowed!([["text", { "to" => "#l", "from" => "#s" }]]) }
+        .to raise_error(ArgumentError, /text attr: reads a data-\* attribute or :text \(textContent\), got nil/)
+    end
+
     it "passes a data-* read off a selector" do
       raw = [["text", { "to" => "#l", "from" => "#src", "attr" => "data-label" }],
              ["set_attr", { "to" => "#l", "name" => "data-x", "from" => "#src", "attr" => "@text" }]]

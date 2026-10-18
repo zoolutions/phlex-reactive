@@ -82,4 +82,42 @@ RSpec.describe "One delegated binding for a pickable list (issue #442)", type: :
     expect(item_value).to eq("south")
     expect(page.evaluate_script("window.__picked")).to eq([{ "id" => "2", "value" => "south", "text" => "South" }])
   end
+
+  # Before the root connects (a lazily loaded controller, issue #273):
+  # phlex/reactive/early queues a click on a row and replays it onto that row,
+  # and leaves a click outside every row alone — the list's link navigates.
+  describe "before the root connects" do
+    def visit_unconnected
+      visit "/item_picker?lazy=1"
+      expect(page.evaluate_script("window.__earlyReady === true")).to be(true)
+      expect(page).to have_css("[data-testid='connects']", exact_text: "0")
+    end
+
+    def load_controller
+      page.execute_script("window.__loadReactive()")
+      expect(page).to have_css("[data-testid='connects']", text: /\A[1-9]/)
+    end
+
+    it "replays a row click onto that row once the root connects" do
+      visit_unconnected
+      find("[data-testid='item-3-text']").click
+      expect(page).to have_no_css("[role=option][aria-selected]")
+
+      load_controller
+
+      expect(page).to have_css("[data-testid='item-3'][aria-selected='true']")
+      expect(page).to have_css("[data-testid='item-label']", exact_text: "East")
+    end
+
+    it "lets a link in the list navigate, and replays nothing for it" do
+      visit_unconnected
+      find("[data-testid='item-more']").click
+      expect(page).to have_current_path(/#more\z/, url: true)
+
+      load_controller
+
+      expect(page).to have_no_css("[role=option][aria-selected]")
+      expect(page.evaluate_script("document.getElementById('item-value').value")).to eq("")
+    end
+  end
 end
