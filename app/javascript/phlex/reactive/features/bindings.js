@@ -68,6 +68,7 @@ export function connect(controller, core) {
   // here, and again from reseed() — a stream can render a root's first show
   // target, filter or nested list into it after connect (issue #356).
   let resetting
+  let sharing
   let filtering
   let tagging
   let serializing
@@ -105,10 +106,11 @@ export function connect(controller, core) {
       listen(c, "input change", c.show)
       // The after: gate (issue #396): an owned field's first blur marks its
       // name touched for this controller (a morph keeps it, a new one starts
-      // without), and re-syncs once if a binding waits on a blur.
+      // without), and re-syncs once if a binding waits on a blur. A shared
+      // field just below counts as owned here (issue #440).
       listen(c, "focusout", (event) => {
         const name = event.target?.getAttribute?.("name")
-        if (!name || c.touched?.has(name) || !c.core.owns(event.target)) return
+        if (!name || c.touched?.has(name) || !c.core.bindingOwns(event.target)) return
         ;(c.touched ??= new Set()).add(name)
         if (c.root.querySelector?.("[data-reactive-show-after]")) syncShow(c)
       })
@@ -149,6 +151,21 @@ export function connect(controller, core) {
           c.arm?.()
         }, 0),
       )
+    }
+
+    // Issue #440: a nested root that comes back through a plain replace (a
+    // morph already bubbles turbo:morph-element here) brings a fresh shared
+    // field: a hidden disable: true group must disable it again, and the
+    // bindings read its new value. So does one whose draft restore wrote its
+    // fields without an input event. Each announces itself with a bubbling
+    // event; only a root holding a shared field this root reads (one level,
+    // core.bindingOwns) re-syncs it.
+    if (!sharing && (sharing = c.show || c.arm)) {
+      listen(c, "reactive:connect reactive:persist-restored", (event) => {
+        if (event.target === c.root || !sharedWith(c, event.target)) return
+        c.show?.()
+        c.arm?.()
+      })
     }
 
     // Option filtering (issue #163) — ONLY when the root declares the binding
@@ -199,6 +216,11 @@ export function connect(controller, core) {
   listen(c, "keydown", (event) => editableKey(c, event))
   listen(c, "paste drop", (event) => editablePaste(c, event))
   listen(c, "input", (event) => editableEmptied(c, event))
+}
+
+// Whether `root` holds a shared field this root's bindings read (issue #440).
+function sharedWith(c, root) {
+  return [...(root.querySelectorAll?.("[data-reactive-shared-field]") ?? [])].some(c.core.bindingOwns)
 }
 
 // Remove every listener connect() added, so a stray event after a Turbo
@@ -423,7 +445,7 @@ function syncOnComplete(c, event) {
   const bindings = onCompleteBindings(c)
   if (!bindings.length) return
 
-  const fieldValue = fieldResolver(c, c.core.ownership())
+  const fieldValue = fieldResolver(c, c.core.bindingOwnership())
   bindings.forEach((binding, i) => {
     const matches = anyOfAllsMatches(binding.any, fieldValue)
     if (matches === null) return
@@ -443,15 +465,21 @@ function syncOnComplete(c, event) {
 // pass). A binding whose field can't be resolved, or whose predicate is
 // malformed, leaves visibility ALONE — a bad binding must never break or
 // blank the page (client-side default-deny).
+//
+// Two predicates (issue #440): `owns` picks the binding ELEMENTS this root
+// evaluates (a nested root's are its own); `reads` picks the FIELDS they read,
+// and the controls disable:/clear: may write: this root's own, plus a control
+// marked data-reactive-shared-field just below (core.bindingOwnership).
 function syncShow(c) {
   if (typeof c.root?.querySelectorAll !== "function") return
 
   const owns = c.core.ownership()
+  const reads = c.core.bindingOwnership()
   const scope = c.root.getAttribute?.("data-reactive-scope") || null
   // A memoized resolver shared by every binding in this pass — a field driving
   // several bindings (and several DNF terms) reads exactly once. Scope-aware:
   // a bare field `director` resolves as `[name="scope[director]"]` (issue #180).
-  const fieldValue = fieldResolver(c, owns)
+  const fieldValue = fieldResolver(c, reads)
   // Bindings whose visibility flipped this pass and that declare transition
   // work (issue #394) — run after the pass, so the `input` a clear dispatches
   // re-syncs from fresh values instead of this pass's memo.
@@ -469,7 +497,7 @@ function syncShow(c) {
       // after: (issue #396) keeps it hidden until its field has blurred once.
       const after = el.getAttribute("data-reactive-show-after")
       const visible = match && (after == null || !!c.touched?.has(wireName(after, scope)))
-      applyShowVisibility(el, visible, owns, scope)
+      applyShowVisibility(el, visible, reads)
       // The previous visibility lives on this controller (absent on connect,
       // kept by a morph), so first paint never counts as a change.
       // Tracked for every binding, so a morph that drops the transition attrs
@@ -488,17 +516,17 @@ function syncShow(c) {
     if (value === null) continue // no owned field with that name — leave it be
     const match = showBindingMatches(el, value)
     if (match === null) continue // malformed predicate — warned + skipped
-    applyShowVisibility(el, match, owns, scope)
+    applyShowVisibility(el, match, reads)
   }
 
   // The group bindings (issue #319) and the cross-root pass (issue #164)
   // share the same owned-field memo, so a field driving several reads once.
   if (c.groups) syncGroups(c, fieldValue, owns, scope)
   syncMedia(c, fieldValue, owns)
-  syncCssVars(c, fieldValue, owns, scope)
+  syncCssVars(c, fieldValue, owns, scope, reads)
   syncShowTargets(c, fieldValue)
   syncGroupTargets(c, fieldValue)
-  for (const el of moved) showMoved(c, el, owns, scope)
+  for (const el of moved) showMoved(c, el, reads, scope)
 }
 
 // The transition attrs a show binding may declare (issue #394).
@@ -542,8 +570,9 @@ function showMoved(c, el, owns, scope) {
 // the `disabled` of every owned named control inside it) from a match result
 // (issue #180). Disabling a hidden section's controls stops them submitting —
 // the stale-value fix. A visible section re-enables them. Controls a nested
-// reactive root owns are left alone (#15 ownership).
-function applyShowVisibility(el, match, owns, scope) {
+// reactive root owns are left alone (#15 ownership), except one marked
+// data-reactive-shared-field: it declared itself the host's too (issue #440).
+function applyShowVisibility(el, match, owns) {
   el.hidden = !match
   if (el.getAttribute("data-reactive-show-disable") !== "true") return
   if (typeof el.querySelectorAll !== "function") return
@@ -556,8 +585,9 @@ function applyShowVisibility(el, match, owns, scope) {
 
 // Apply the declared cross-root show targets (issue #164) — the visibility
 // parallel of #applyComputeMirrors. For each declared field: read the OWNED
-// field's current value (never a nested root's — you can only drive outside
-// visibility from a field this root owns), then for each "#id" → predicate
+// field's current value (never a nested root's, except a shared field just
+// below, issue #440 — you can only drive outside visibility from a field this
+// root reads), then for each "#id" → predicate
 // entry: guard the selector id-only (warn-and-skip; the Ruby helper raised
 // at declare time — two-sided default-deny), resolve it DOCUMENT-WIDE, and
 // toggle `hidden`. A target id not on the page is silently skipped (an
@@ -694,7 +724,9 @@ function wireName(name, scope) {
 // The per-pass field resolver every DNF fold reads (show, enable, on-complete).
 // fieldValue(name) is the field's string value; fieldValue(name, true) is how
 // many owned boxes of that checkbox group are ticked (the checked_* terms,
-// issue #319). Memoized, so a field driving several bindings reads once.
+// issue #319). `owns` is what the bindings read: core.bindingOwnership, so a
+// shared field just below counts as owned (issue #440). Memoized, so a field
+// driving several bindings reads once.
 function fieldResolver(c, owns) {
   const scope = c.root.getAttribute?.("data-reactive-scope") || null
   const values = new Map()
@@ -795,7 +827,7 @@ const CSS_VARS_SELECTOR = "[data-reactive-css-vars]"
 const CSS_VAR_NAME = /^--[a-z0-9-]+$/i
 const CSS_VAR_UNITS = ["", "px", "%", "deg", "turn", "ms", "s", "em", "rem", "fr"]
 
-function syncCssVars(c, fieldValue, owns, scope) {
+function syncCssVars(c, fieldValue, owns, scope, reads) {
   const nodes = [...c.root.querySelectorAll(CSS_VARS_SELECTOR)].filter(owns)
   if (c.root.hasAttribute("data-reactive-css-vars")) nodes.unshift(c.root)
   for (const el of nodes) {
@@ -825,7 +857,7 @@ function syncCssVars(c, fieldValue, owns, scope) {
         console.warn(`[phlex-reactive] refused reactive_css_vars entry ${JSON.stringify(name)} — skipped`)
         continue
       }
-      const number = cssVarNumber(c, fieldValue, spec.field, owns, scope)
+      const number = cssVarNumber(c, fieldValue, spec.field, reads, scope)
       if (number === undefined) continue
       const value = number === null ? "" : `${number}${unit}`
       for (const target of targets) {
@@ -872,7 +904,9 @@ function hasGroups(c) {
 }
 
 // The owned checkboxes of a group (a nested root's boxes are its own, #15).
-// With `under` (a nested header, issue #398) only the boxes whose
+// `owns` decides which: strict for a select-all header and the boxes it
+// ticks; core.bindingOwnership for a count, which takes a shared box just
+// below too (issue #440). With `under` (a nested header, issue #398) only the boxes whose
 // data-reactive-group is that path or below it, on whole segments.
 function groupBoxes(c, name, owns, scope, under) {
   return [...c.root.querySelectorAll(namedSelector(name, scope))].filter(
@@ -957,7 +991,8 @@ function syncGroups(c, fieldValue, owns, scope) {
 // The declared cross-root group targets (issue #343) — the count and enable
 // parallel of syncShowTargets, declared on the root that OWNS the group:
 // { group: { count: ["#id", …], enable: { "#id": { any: … } } } }. The count
-// is this root's owned ticked boxes (a nested root's are its own, #15), the
+// is this root's owned ticked boxes (a nested root's are its own, #15, except
+// a shared box just below, issue #440), the
 // enable folds its DNF payload with the same owned-field memo as every other
 // binding. Targets are id-only (warn-skip — the Ruby helper raised at
 // declare time) and resolved document-wide; a missing one is skipped.

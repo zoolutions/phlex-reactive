@@ -425,6 +425,10 @@ class DemosController < ActionController::Base
     render_component SharedFieldFormComponent.new
   end
 
+  def shared_bindings
+    render_component SharedBindingsFormComponent.new
+  end
+
   def tag_picker
     render_component TagPickerComponent.new
   end
