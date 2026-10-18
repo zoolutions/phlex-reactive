@@ -1,0 +1,19 @@
+CHANGELOG.md
+  s_a622f9c9a4fcac::t_1bd88d8dae4b45 9-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "2ca7069e64501cdbd1ef9f21e047b39a88ac836c",
+  "prompts": {},
+  "sessions": {
+    "s_a622f9c9a4fcac": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fea44453-760a-41d7-bfc8-86f0d5e5c5cc",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
