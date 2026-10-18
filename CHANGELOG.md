@@ -18,11 +18,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `DataTransfer`, synchronously, so an `on(:action, event: "change")` mixed in
   after the op posts only those), one `reactive:file-rejected` fires per refused
   file with `detail.reason`, `detail.file`, `detail.index` (its place in the
-  pick) and `detail.remaining` (the accepted count), and the first accepted
-  image is painted. Every file refused empties the input. Without a
-  `DataTransfer` the rejections still fire and the input keeps its files (a
-  verbose root is told). A single input, and `per_file:` omitted, behave as
-  before; `per_file:` takes only `true` or `false`.
+  pick) and `detail.remaining` (how many files the input keeps), and the first
+  accepted image is painted. Every file refused empties the input, and the
+  action receives no file. Without a `DataTransfer` the rejections still fire
+  and the input keeps every file (`remaining` counts them all; a verbose root
+  is told). A single input, and `per_file:` omitted, behave as before;
+  `per_file:` takes only `true`, `false` or `nil`.
 
 ## [0.16.6] - 2026-10-18
 

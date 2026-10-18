@@ -477,13 +477,14 @@ module Views
                 collected every file.
               - One **`reactive:file-rejected`** fires per refused file, with
                 `detail.reason`, `detail.file`, `detail.index` (its place in the pick)
-                and `detail.remaining` (how many were kept), so a page can say
-                "2 of 3 added".
+                and `detail.remaining` (how many files the input keeps), so a page
+                can say "2 of 3 added".
               - The first accepted image is painted into `into:`, as for one file. Every
                 file refused empties the input, and the action receives no file.
               - A browser without `DataTransfer` still gets every rejection, but the input
-                keeps its files (a verbose root logs why). A single input, and
-                `per_file:` omitted, keep the one-file check above.
+                keeps every file and `remaining` counts them all (a verbose root logs
+                why). A single input, and `per_file:` omitted, keep the one-file check
+                above.
 
               ```js
               input.addEventListener("reactive:file-rejected", ({ detail }) =>

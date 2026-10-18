@@ -387,12 +387,14 @@ RSpec.describe Phlex::Reactive::JS do
     it "carries per_file: only when true" do
       expect(JSON.parse(js.preview_file("#f", into: "#p", max_bytes: 10, per_file: true).to_json).dig(0, 1))
         .to eq("to" => "#f", "into" => "#p", "max_bytes" => 10, "per_file" => true)
-      expect(JSON.parse(js.preview_file("#f", into: "#p", per_file: false).to_json).dig(0, 1))
-        .to eq("to" => "#f", "into" => "#p")
+      [false, nil].each do
+        expect(JSON.parse(js.preview_file("#f", into: "#p", per_file: it).to_json).dig(0, 1))
+          .to eq("to" => "#f", "into" => "#p")
+      end
     end
 
-    it "rejects a per_file: that is not a boolean" do
-      [nil, 1, "true", :yes].each { expect_preview_refused(per_file: it) }
+    it "rejects a per_file: that is not true, false or nil" do
+      [1, "true", :yes, "false"].each { expect_preview_refused(per_file: it) }
     end
 
     it "passes the ops allowlist" do

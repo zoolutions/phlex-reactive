@@ -233,9 +233,10 @@ test("without DataTransfer every file is still checked and announced; the input 
   run(controller, [op()])
 
   expect(names(input)).toEqual(["a.png", "b.png", "c.svg"])
-  expect(seen.map(({ reason, index, remaining }) => [reason, index, remaining])).toEqual([
-    ["size", 1, 1],
-    ["type", 2, 1],
+  // remaining is what the input keeps (and the action posts): all three here.
+  expect(seen.map(({ reason, index, remaining, filesNow }) => [reason, index, remaining, filesNow])).toEqual([
+    ["size", 1, 3, 3],
+    ["type", 2, 3, 3],
   ])
   expect(warnings).toEqual([])
 })

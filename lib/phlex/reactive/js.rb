@@ -336,8 +336,8 @@ module Phlex
       # `on(:action, event: "change")` mixed in AFTER the op posts only those),
       # dispatches one `reactive:file-rejected` per refused file
       # (detail.reason, file, index — its place in the pick — and remaining,
-      # the accepted count), and paints the first accepted image. A single
-      # input, or per_file: omitted, keeps the behaviour above.
+      # how many files the input keeps), and paints the first accepted image.
+      # A single input, or per_file: omitted, keeps the behaviour above.
       #   input(type: "file", id: "pick", name: "file", multiple: true, accept: "image/png",
       #     **mix(on_client(:change, js.preview_file("#pick", into: "#shot", max_bytes: 1_000_000,
       #       accept: true, per_file: true)), on(:upload, event: "change")))
@@ -574,12 +574,13 @@ module Phlex
           "#{self.class}: preview_file max_bytes: must be a positive Integer, got #{bytes.inspect}"
       end
 
-      # per_file: is a strict boolean: a typo'd truthy value must not change
-      # which files an upload posts.
+      # per_file: is a strict boolean (nil, like the other keywords, means
+      # omitted): a typo'd truthy value must not change which files an upload posts.
       def preview_per_file(per_file)
-        return per_file if [true, false].include?(per_file)
+        return per_file == true if [true, false, nil].include?(per_file)
 
-        raise ArgumentError, "#{self.class}: preview_file per_file: must be true or false, got #{per_file.inspect}"
+        raise ArgumentError,
+          "#{self.class}: preview_file per_file: must be true, false or nil, got #{per_file.inspect}"
       end
 
       # true reads the input's accept attribute; a String is the list itself.

@@ -1503,8 +1503,9 @@ function previewFile(input, args, resolveTargets) {
       if (reason) rejected.push({ reason, file: f, index })
       return !reason
     })
-    if (rejected.length > 0) keepFiles(input, kept)
-    for (const detail of rejected) detail.remaining = kept.length
+    // remaining: the files the input keeps, and so the ones an action posts.
+    const remaining = rejected.length > 0 && !keepFiles(input, kept) ? files.length : kept.length
+    for (const detail of rejected) detail.remaining = remaining
     file = kept.find((f) => f.type.startsWith("image/"))
   } else {
     const listed = files.filter((f) => typeof f?.type === "string" && accepts(f))
@@ -1538,19 +1539,20 @@ function previewFile(input, args, resolveTargets) {
   for (const detail of rejected) input.dispatchEvent(new CustomEvent("reactive:file-rejected", { bubbles: true, detail }))
 }
 
-// Rebuild input.files from the kept files (issue #439). A DataTransfer is the
-// one way to make a FileList; without one the refused files stay in the input
-// (the rejections still fire), and a verbose root is told.
+// Rebuild input.files from the kept files (issue #439); true once it did. A
+// DataTransfer is the one way to make a FileList; without one the refused
+// files stay in the input (the rejections still fire), and a verbose root is told.
 function keepFiles(input, kept) {
   if (typeof DataTransfer !== "function") {
     if (input.closest?.('[data-reactive-verbose="true"], [data-reactive-debug="true"]')) {
       warnPreview("per_file: has no DataTransfer to drop the refused files from the input")
     }
-    return
+    return false
   }
   const transfer = new DataTransfer()
   for (const f of kept) transfer.items.add(f)
   input.files = transfer.files
+  return true
 }
 
 // Which files the page takes: an image by default. accept: true reads the
