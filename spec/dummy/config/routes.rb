@@ -116,6 +116,8 @@ Rails.application.routes.draw do
   get "drag" => "demos#drag"
   # Issue #428: a box and a point whose fields hold percentages (scale: 100).
   get "drag_scale" => "demos#drag_scale"
+  # Issue #429: Escape shortcuts skip the key a drag already took.
+  get "drag_shortcut" => "demos#drag_shortcut"
   # Issue #358: a presence roster (needs pgbus with per-connection presence).
   get "presence" => "demos#presence"
   post "bulk_outcome" => "demos#bulk_outcome_submit"

@@ -42,6 +42,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   0 (an empty field read as 0), so a form submit sent `""` for it. It now
   writes `0`, as a drag already did.
 
+- **A `shortcut:` skips a key another handler already handled (#429).**
+  Escape during a drag (`reactive_box`, `reactive_point`, keyboard or
+  pointer) cancels the drag and calls `preventDefault`, but a window
+  `on(:close, shortcut: "esc")` ran on the same keypress too, so one Escape
+  both put the box back and, say, left the screen. A shortcut — on `on(...)`
+  and `on_client(:keydown, …)` alike — now does nothing for a keydown whose
+  default a handler inside the page already prevented: the drag, a sortable
+  list's keyboard Escape, `reactive_editable`'s Escape revert (an
+  `in_editable: true` Escape shortcut no longer runs beside it), an
+  element-bound `on`/`on_client` keydown binding, the app's own listener.
+  Another shortcut's `preventDefault` does not count, so two shortcuts on one
+  chord still both run, and neither does the one `phlex/reactive/early` makes
+  for a root that has not connected yet (while such a root, one with a
+  shortcut on the chord, is on the page, a drag's Escape still runs the
+  shortcuts on it, as before). `shortcut: { keys: "esc", handled:
+  true }` runs regardless; `handled:` is validated like `in_editable:` (true
+  or false, else `ArgumentError` at render), and the wire Hash carries it as
+  `"handled": true`. The default bundle grows by 78 B gzipped (40,814 B), the
+  core by 67 B (18,367 B), `early` by 22 B (1,643 B).
+
 ## [0.16.3] - 2026-10-18
 
 ### Added

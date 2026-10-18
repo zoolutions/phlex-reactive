@@ -444,3 +444,150 @@ test("on_client bare backspace: a press in an input is left to the field", () =>
   expect(panel.hidden).toBe(true)
   expect(event.defaultPrevented).toBe(false)
 })
+
+// --- a key another handler already handled (issue #429) -----------------------
+// A keydown whose default a NON-shortcut handler already prevented (the drag
+// feature's Escape cancelling a drag, an element-bound keydown binding) is
+// not the shortcut's: a complete no-op. A shortcut's OWN preventDefault does
+// not count, so two shortcuts on one chord both run, as before. The Hash form
+// `handled: true` runs regardless.
+
+const close = (extra = {}) => ({ action: "close", params: "{}", window: true, shortcut: "esc", ...extra })
+
+// Escape as a handler inside the page (a drag, a focused widget) left it.
+function handledEscape(params) {
+  const event = keydown("Escape", { params })
+  event.preventDefault()
+  return event
+}
+
+test("on(): a keydown another handler prevented dispatches nothing and announces nothing", async () => {
+  onPlatform("Linux x86_64")
+  const { controller, root, calls } = buildController()
+
+  await controller.dispatch(handledEscape(close()))
+  await flush()
+  expect(calls()).toBe(0)
+  expect(root.events).toHaveLength(0)
+})
+
+test("on(): the Hash form with handled: true dispatches after another handler prevented the key", async () => {
+  onPlatform("Linux x86_64")
+  const { controller, calls } = buildController()
+
+  await controller.dispatch(handledEscape(close({ shortcut: { keys: "esc", handled: true } })))
+  await flush()
+  expect(calls()).toBe(1)
+})
+
+test("on(): an Escape nobody handled still dispatches and is prevented", async () => {
+  onPlatform("Linux x86_64")
+  const { controller, calls } = buildController()
+
+  const event = keydown("Escape", { params: close() })
+  await controller.dispatch(event)
+  await flush()
+  expect(event.defaultPrevented).toBe(true)
+  expect(calls()).toBe(1)
+})
+
+test("on(): two shortcuts on one chord both dispatch — the first one's preventDefault does not stop the second", async () => {
+  onPlatform("Linux x86_64")
+  const first = buildController()
+  const second = buildController()
+
+  // Stimulus hands each window binding the SAME event object.
+  const event = keydown("Escape", { params: close() })
+  await first.controller.dispatch(event)
+  await second.controller.dispatch(event)
+  await flush()
+  expect(event.defaultPrevented).toBe(true)
+  // (Both controllers' requests go through the fetch the last build installed.)
+  expect(second.calls()).toBe(2)
+})
+
+test("on(): handled: true running on a handled key does not make it a shortcut's for the next one", async () => {
+  onPlatform("Linux x86_64")
+  const first = buildController()
+  const second = buildController()
+
+  const event = handledEscape(close({ shortcut: { keys: "esc", handled: true } }))
+  await first.controller.dispatch(event)
+  event.params = close()
+  await second.controller.dispatch(event)
+  await flush()
+  expect(second.calls()).toBe(1)
+})
+
+test("on() and on_client on one chord: the dispatch's preventDefault does not stop the ops", async () => {
+  onPlatform("Linux x86_64")
+  const { controller, panel } = paletteController()
+
+  const event = keydown("Escape", { params: { ...close(), ops: palette({ shortcut: "esc" }) } })
+  await controller.dispatch(event)
+  controller.runOps(event)
+  expect(event.defaultPrevented).toBe(true)
+  expect(panel.hidden).toBe(false)
+})
+
+test("on_client: a lone shortcut record skips a key another handler prevented", () => {
+  onPlatform("Linux x86_64")
+  const { controller, panel } = paletteController()
+
+  controller.runOps(handledEscape({ ops: palette({ shortcut: "esc" }) }))
+  expect(panel.hidden).toBe(true)
+})
+
+test("on_client: a lone shortcut record with handled: true runs after another handler prevented the key", () => {
+  onPlatform("Linux x86_64")
+  const { controller, panel } = paletteController()
+
+  controller.runOps(handledEscape({ ops: palette({ shortcut: { keys: "esc", handled: true } }) }))
+  expect(panel.hidden).toBe(false)
+})
+
+test("on_client: of several records on a handled key, only the handled: true one runs", () => {
+  onPlatform("Linux x86_64")
+  const panel = { hidden: true, closest: () => null }
+  const dialog = { hidden: false, closest: () => null }
+  const root = {
+    ...makeRoot(),
+    querySelectorAll: (sel) => (sel === "#palette" ? [panel] : sel === "#dialog" ? [dialog] : []),
+  }
+  panel.closest = () => root
+  dialog.closest = () => root
+  const { controller } = buildController(root)
+  const records = [
+    palette({ shortcut: { keys: "esc", handled: true } }),
+    { on: "keydown", window: true, shortcut: "esc", ops: [["hide", { to: "#dialog" }]] },
+  ]
+  const wire = records.map((r) => JSON.stringify(r)).join(" ")
+
+  controller.runOps(handledEscape({ ops: wire }))
+  expect(panel.hidden).toBe(false)
+  expect(dialog.hidden).toBe(false)
+})
+
+test("on_client: two shortcut records on one chord both run on a key nobody else handled", () => {
+  onPlatform("Linux x86_64")
+  const panel = { hidden: true, closest: () => null }
+  const dialog = { hidden: false, closest: () => null }
+  const root = {
+    ...makeRoot(),
+    querySelectorAll: (sel) => (sel === "#palette" ? [panel] : sel === "#dialog" ? [dialog] : []),
+  }
+  panel.closest = () => root
+  dialog.closest = () => root
+  const { controller } = buildController(root)
+  const records = [
+    palette({ shortcut: "esc" }),
+    { on: "keydown", window: true, shortcut: "esc", ops: [["hide", { to: "#dialog" }]] },
+  ]
+  const wire = records.map((r) => JSON.stringify(r)).join(" ")
+
+  const event = keydown("Escape", { params: { ops: wire } })
+  controller.runOps(event)
+  expect(event.defaultPrevented).toBe(true)
+  expect(panel.hidden).toBe(false)
+  expect(dialog.hidden).toBe(true)
+})

@@ -969,7 +969,7 @@ div(**mix(reactive_root, on_client(:keydown, js.toggle("#palette"), shortcut: "m
 end
 ```
 
-A shortcut is a window `keydown` binding with three rules a plain
+A shortcut is a window `keydown` binding with four rules a plain
 `event: "keydown.meta+z", window: true` does not have:
 
 - **`mod` is ⌘ on Apple platforms and Ctrl elsewhere.** The helper renders a
@@ -981,6 +981,16 @@ A shortcut is a window `keydown` binding with three rules a plain
   anything `contenteditable` (including `reactive_editable`), the shortcut does
   nothing and the browser's own handling (text undo) runs. Opt in with the Hash
   form: `shortcut: { keys: "esc", in_editable: true }`.
+- **A key something else handled is left to it.** When a handler inside the
+  page already called `preventDefault` on the keydown — Escape cancelling a
+  drag (`reactive_box`, `reactive_point`), an element-bound `on`/`on_client`
+  binding on `keydown.esc`, your own listener — the shortcut does nothing
+  (issue #429). Another shortcut's `preventDefault` does not count: two
+  shortcuts on one chord both run. To run regardless, use the Hash form:
+  `shortcut: { keys: "esc", handled: true }`. One exception: while a root
+  with a shortcut on that chord has not connected yet, `phlex/reactive/early`
+  prevents the key for it first (before any other handler), so a drag's
+  Escape then still runs the shortcuts on it.
 - **The chord is prevented.** A matching shortcut calls `preventDefault`
   synchronously, before any `confirm:` dialog, so `mod+s` does not also open
   the save dialog. (Other window bindings are still never prevented.)
@@ -1002,9 +1012,10 @@ pressed of any kind would spend the bare binding).
 
 `once: true` on a shortcut unbinds the Stimulus descriptor after its first
 firing, and a press inside a field counts: the guard leaves the chord to the
-browser, but the `:once` listener is already spent. Keep `once:` off a
-shortcut that can be pressed while the user types, or pair it with
-`in_editable: true`.
+browser, but the `:once` listener is already spent. So does a press another
+handler already handled (a drag's Escape). Keep `once:` off a shortcut that
+can be pressed while the user types or while a drag is on, or pair it with
+`in_editable: true` and `handled: true`.
 
 ### Optimistic visual hints (`optimistic:`)
 

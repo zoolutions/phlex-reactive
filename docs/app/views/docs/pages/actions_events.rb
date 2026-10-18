@@ -309,7 +309,7 @@ module Views
               end
               ```
 
-              A shortcut is a window `keydown` binding with three rules a plain
+              A shortcut is a window `keydown` binding with four rules a plain
               `event: "keydown.meta+z", window: true` does not have:
 
               - **`mod` is ⌘ on Apple platforms and Ctrl elsewhere.** The helper
@@ -322,6 +322,17 @@ module Views
                 `reactive_editable`), the shortcut does nothing and the browser's own
                 handling (text undo) runs. Opt in with the Hash form:
                 `shortcut: { keys: "esc", in_editable: true }`.
+              - **A key something else handled is left to it.** When a handler
+                inside the page already called `preventDefault` on the keydown —
+                Escape cancelling a [drag](/docs/draggable-regions), an
+                element-bound `on`/`on_client` binding on `keydown.esc`, your own
+                listener — the shortcut does nothing (issue #429). Another
+                shortcut's `preventDefault` does not count: two shortcuts on one
+                chord both run. To run regardless, use the Hash form:
+                `shortcut: { keys: "esc", handled: true }`. One exception: while a
+                root with a shortcut on that chord has not connected yet,
+                `phlex/reactive/early` prevents the key for it first, so a drag's
+                Escape then still runs the shortcuts on it.
               - **The chord is prevented**, synchronously and before any `confirm:`
                 dialog, so `mod+s` does not also open the save dialog — including a
                 chord pressed before the controller connects, with
@@ -367,7 +378,7 @@ module Views
               | `window:` | bind to the window |
               | `outside:` | fire only outside the root (implies `window:`) |
               | `once:` | fire at most once |
-              | `shortcut:` | a page-level keyboard chord (`"mod+z"`): platform `mod`, skips typing, prevented |
+              | `shortcut:` | a page-level keyboard chord (`"mod+z"`): platform `mod`, skips typing and a key already handled, prevented |
               | `confirm:` | gate behind a confirmation dialog — a String (always), or a Hash (conditional, #179) |
               | `optimistic:` | reversible cosmetic hint applied before the round trip |
               | `busy:` | declarative pending state on the trigger |

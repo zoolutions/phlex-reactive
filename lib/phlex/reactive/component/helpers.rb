@@ -313,10 +313,13 @@ module Phlex
         # runs the one for its platform). Unlike a plain window binding, the
         # client prevents the chord's native default, and it skips the chord
         # while focus is in an input, textarea, select or contenteditable
-        # (native text undo keeps working) unless the Hash form opts in. It
-        # decides event:, window: and outside:, so passing one raises.
+        # (native text undo keeps working) unless the Hash form opts in. A
+        # keydown another handler already prevented (the drag's Escape
+        # cancelling a drag) is skipped too, unless `handled: true` (issue
+        # #429). It decides event:, window: and outside:, so passing one raises.
         #   span(**on(:undo, shortcut: "mod+z"))
         #   span(**on(:close, shortcut: { keys: "esc", in_editable: true }))
+        #   span(**on(:leave, shortcut: { keys: "esc", handled: true }))
         #
         # `optimistic:` (issue #98) — a small, ALWAYS-REVERSIBLE vocabulary of
         # COSMETIC hints the client applies the instant the trigger fires and

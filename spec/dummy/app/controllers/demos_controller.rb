@@ -561,6 +561,11 @@ class DemosController < ActionController::Base
     render_component DragScaleComponent.new
   end
 
+  # Issue #429: Escape shortcuts beside a draggable box (see DragShortcutPageComponent).
+  def drag_shortcut
+    render_component DragShortcutPageComponent.new
+  end
+
   # Issue #358: a presence roster of the first todo (see PresencePageComponent).
   def presence
     render_component PresencePageComponent.new(todo: Todo.first || Todo.create!(title: "Presence"))

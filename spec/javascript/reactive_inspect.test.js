@@ -146,7 +146,8 @@ describe("scan(document)", () => {
   test("reports a shortcut on on() triggers and on_client records (issue #357)", () => {
     const record = { on: "keydown", window: true, ops: [["toggle", { to: "#palette" }]], shortcut: "mod+k" }
     const editableRecord = { ...record, shortcut: { keys: "esc", inEditable: true } }
-    const attr = [record, editableRecord].map((r) => JSON.stringify(r)).join(" ").replaceAll('"', "&quot;")
+    const handledRecord = { ...record, shortcut: { keys: "esc", handled: true } }
+    const attr = [record, editableRecord, handledRecord].map((r) => JSON.stringify(r)).join(" ").replaceAll('"', "&quot;")
     document.body.innerHTML = `
       <div id="s" data-controller="reactive" data-reactive-token-value="${signedToken({ c: "ShortcutComponent", v: 1 })}">
         <span data-reactive-action-param="undo" data-action="keydown.meta+z@window->reactive#dispatch keydown.ctrl+z@window->reactive#dispatch" data-reactive-shortcut-param="mod+z"></span>
@@ -158,6 +159,7 @@ describe("scan(document)", () => {
     expect(root.clientOps.map((op) => op.event)).toEqual([
       "keydown@window shortcut=mod+k",
       "keydown@window shortcut=esc editable",
+      "keydown@window shortcut=esc handled",
     ])
   })
 

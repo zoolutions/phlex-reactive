@@ -90,10 +90,16 @@ function enqueue(event, el, descs, win, shortcut) {
   // never prevents a window binding — but a shortcut (issue #357), the chord
   // the page claims (mod+s must not open the save dialog before connect), is
   // always prevented: the keepsToggle exemption is for element-bound clicks
-  // only. Everything else is prevented now, as the controller would.
+  // only. Everything else is prevented now, as the controller would. A
+  // shortcut's chord is remembered as prevented FOR a shortcut (issue #429):
+  // a connected root's shortcut on the same chord still runs, as a shortcut
+  // only skips a key some other handler prevented.
   const keepsToggle =
     /^(checkbox|radio)$/.test(el.type) && /"checked":"keep"/.test(el.dataset.reactiveOptimisticParam)
-  if (win ? shortcut : !keepsToggle || descs.some((d) => d.method === "runOps")) event.preventDefault()
+  if (win ? shortcut : !keepsToggle || descs.some((d) => d.method === "runOps")) {
+    if (win && !event.defaultPrevented) (state.prevented ??= new WeakSet()).add(event)
+    event.preventDefault()
+  }
   // Every firing is queued — a `:once` repeat included: the replay skips a
   // descriptor already consumed (reactive_controller.js #replayEarly).
   const { queue } = state

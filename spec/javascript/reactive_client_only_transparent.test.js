@@ -218,6 +218,58 @@ test("a held dispatch cancels the native default now, and the trigger reaches th
   expect(posts[0].token).toBe("outer-token")
 })
 
+// Issue #429: a shortcut held for a dormant server root. The hold prevents the
+// chord at once (as dispatch() would) and records it as the shortcut's own, so
+// the woken root still runs it; a key another handler prevented first (a drag's
+// Escape) is skipped when the held dispatch runs.
+function heldEscape({ handledFirst }) {
+  document.body.innerHTML = `
+    <div id="panel" data-reactive-dormant="reactive" data-reactive-token-value="outer-token">
+      <div id="inner" data-controller="reactive"><span id="esc"></span></div>
+    </div>`
+  connect(document.getElementById("inner"))
+  const event = new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })
+  if (handledFirst) event.preventDefault()
+  Object.defineProperty(event, "currentTarget", { value: window, configurable: true })
+  event.params = { action: "close", params: "{}", window: true, shortcut: "esc" }
+  document.getElementById("inner").__controller.dispatch(event)
+  expect(event.defaultPrevented).toBe(true)
+  Object.defineProperty(event, "currentTarget", { value: null, configurable: true })
+  return document.getElementById("panel")
+}
+
+test("a held shortcut runs on the woken root (its own preventDefault does not count)", async () => {
+  connect(heldEscape({ handledFirst: false }))
+  await flush()
+  await flush()
+
+  expect(posts).toHaveLength(1)
+  expect(posts[0].act).toBe("close")
+})
+
+test("a held shortcut whose key another handler prevented first sends nothing on wake", async () => {
+  connect(heldEscape({ handledFirst: true }))
+  await flush()
+  await flush()
+
+  expect(posts).toHaveLength(0)
+})
+
+test("a shortcut that does not apply is neither prevented nor held for a dormant root", async () => {
+  document.body.innerHTML = `
+    <div id="panel" data-reactive-dormant="reactive" data-reactive-token-value="outer-token">
+      <div id="inner" data-controller="reactive"><input id="field"></div>
+    </div>`
+  connect(document.getElementById("inner"))
+  const event = new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })
+  Object.defineProperty(event, "target", { value: document.getElementById("field"), configurable: true })
+  Object.defineProperty(event, "currentTarget", { value: window, configurable: true })
+  event.params = { action: "close", params: "{}", window: true, shortcut: "esc" }
+  document.getElementById("inner").__controller.dispatch(event)
+  expect(event.defaultPrevented).toBe(false)
+  expect(document.getElementById("panel").dataset.reactiveDormant).toBe("reactive")
+})
+
 test("a dormant token-bearing ancestor is woken and receives the forwarded dispatch", async () => {
   document.body.innerHTML = `
     <div id="picker" data-reactive-dormant="reactive" data-reactive-token-value="outer-token">
