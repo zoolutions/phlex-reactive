@@ -222,13 +222,6 @@ RSpec.describe Phlex::Reactive::ClientBindings do
           .to raise_error(ArgumentError, /within: takes a non-empty CSS selector String/)
       end
     end
-
-    it "refuses a :trigger op on a window-bound binding (it has no trigger element)" do
-      ops = instance.send(:js).hide(:trigger)
-      expect { on_client(:click, ops, outside: true) }.to raise_error(ArgumentError, /hide names @trigger.*window-bound/)
-      expect { on_client("keydown.esc", ops, window: true) }.to raise_error(ArgumentError, /window-bound/)
-      expect { on_client(:click, ops) }.not_to raise_error
-    end
   end
 
   # Issue #442's byte budget: a pickable list binds ONCE. The rows carry only

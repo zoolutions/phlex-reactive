@@ -142,13 +142,14 @@ module Phlex
         end
       end
 
-      # Raise when an op in `list` names @trigger (a target, from:, or
-      # dispatch's detail_from:, which reads off it). Called for every op the
-      # server pushes (Response.js_ops_json: reply.js and broadcast_to(js:),
-      # a chain or a raw list) and for a reactive_on_complete run.
+      # Raise when an op in `list` (a JS chain or a raw [[op, args]] list)
+      # names @trigger (a target, from:, or dispatch's detail_from:, which
+      # reads off it). Called for every op the server pushes
+      # (Response.js_ops_json: reply.js and broadcast_to(js:)) and for a
+      # reactive_on_complete run.
       def self.refuse_trigger!(list, where = "a server-pushed op (reply.js, broadcast_to(js:)) " \
                                              "or a reactive_on_complete run")
-        op = trigger_op(list)
+        op = list.is_a?(JS) ? list.trigger_op : trigger_op(list)
         return if op.nil?
 
         raise ArgumentError,
@@ -157,13 +158,21 @@ module Phlex
           "with a CSS selector."
       end
 
-      # The name of the first op in `list` that names @trigger, or nil.
+      # The name of the first op in a raw list that names @trigger, or nil.
+      # A raw list's args may carry Symbol keys.
       def self.trigger_op(list)
         Array(list).each do |op, args|
           next unless args.is_a?(::Hash)
           return op.to_s if arg(args, "detail_from") || TARGET_KEYS.any? { arg(args, it) == TRIGGER_SENTINEL }
         end
         nil
+      end
+
+      # Whether builder-made (String-keyed) args name @trigger. value? is the
+      # one-call prefilter; the key check keeps a literal "@trigger" text
+      # value from counting.
+      def self.names_trigger?(args)
+        args.key?("detail_from") || (args.value?(TRIGGER_SENTINEL) && TARGET_KEYS.any? { args[it] == TRIGGER_SENTINEL })
       end
 
       # What attr: may read (issue #442): :text (or its "@text" wire form) or a
@@ -615,6 +624,13 @@ module Phlex
 
       def empty?
         @ops.empty?
+      end
+
+      # The name of the first op in this chain that names @trigger, or nil
+      # (issue #442). The builder writes String keys: no Symbol lookups.
+      def trigger_op
+        @ops.each { |name, args| return name if self.class.names_trigger?(args) }
+        nil
       end
 
       # --- Client-only drafts (issue #239) ---

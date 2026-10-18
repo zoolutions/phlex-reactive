@@ -39,8 +39,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
   A server-pushed op has no trigger: `reply.js`, `broadcast_to(js:)` and
   `reactive_on_complete` refuse `@trigger` and `detail_from:` (a chain or a raw
-  list), and so does a window-bound `on_client`. In the browser a stream op
-  naming `@trigger` resolves to nothing (verbose: warned). Every record that
+  list). In the browser a stream op naming `@trigger`, or one in a window-bound
+  binding, resolves to nothing (verbose: warned). Every record that
   asks for none of this is byte-identical. Client: the core gains 290 B
   gzipped, the default bundle 317 B.
 

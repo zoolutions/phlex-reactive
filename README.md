@@ -1379,7 +1379,9 @@ end
   raises).
 - A server-pushed op has no trigger: `reply.js`, `broadcast_to(js:)` and
   `reactive_on_complete` raise on `:trigger`, `from: :trigger` and
-  `detail_from:`, and so does a window-bound `on_client`.
+  `detail_from:`. Nor does a window-bound `on_client` (`window:`, `outside:`,
+  `shortcut:`): its `:trigger` ops resolve to nothing, warned under
+  `verbose_errors`.
 
 In development and test (`verbose_errors`), an op whose selector resolves to
 **zero elements** also warns once per unique (op, selector, scope) — with a

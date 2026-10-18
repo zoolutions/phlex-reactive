@@ -309,7 +309,7 @@ data-reactive-ops="#{ERB::Util.html_escape(json)}"></turbo-stream>).html_safe
           if ops.is_a?(Phlex::Reactive::JS)
             raise ArgumentError, "js(...) got no ops — a dead reactive:js stream" if ops.empty?
 
-            Phlex::Reactive::JS.refuse_trigger!(ops.ops)
+            Phlex::Reactive::JS.refuse_trigger!(ops)
             ops.to_json
           else
             list = Array(ops)

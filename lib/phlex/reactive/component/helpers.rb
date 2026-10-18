@@ -518,8 +518,8 @@ module Phlex
         # so a click binding is not forced to type="button". window:, outside:
         # and shortcut: raise (a delegated binding is element-bound), and so
         # does once: (Stimulus would drop the listener on the first click, a
-        # miss included). A `:trigger` op on a window-bound binding raises too:
-        # it has no trigger element.
+        # miss included). A window-bound binding has no trigger element: its
+        # `:trigger` ops resolve to nothing (warned under verbose_errors).
         #
         # Ops are EPHEMERAL UI: any server re-render of the component (an action
         # reply, a broadcast, a morph) rebuilds from server state and resets
@@ -551,9 +551,6 @@ module Phlex
           keeps_default!("on_client(#{event.inspect})", prevent, shortcut) unless prevent == true
           window_bound = window || outside || !shortcut.nil?
           client_within!(event, within, window:, outside:, shortcut:, once:) unless within.nil?
-          if window_bound
-            Phlex::Reactive::JS.refuse_trigger!(ops.ops, "a window-bound on_client binding (window:, outside:, shortcut:)")
-          end
           keep_default = !prevent && !window_bound
           record = client_binding_record(event, ops, window_bound:, outside:, once:, confirm:, detail:, keep_default:,
             within:)

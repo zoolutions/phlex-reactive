@@ -755,8 +755,9 @@ module Views
                 included); `:trigger` as the field of `set_value`, `paste_into` or
                 `preview_file`; and `:trigger`, `from: :trigger` or `detail_from:` in
                 anything the server pushes — `reply.js`, `broadcast_to(js:)`,
-                `reactive_on_complete` — or in a window-bound binding: none of them has a
-                trigger element.
+                `reactive_on_complete`: none of them has a trigger element. Neither has a
+                window-bound binding (`window:`, `outside:`, `shortcut:`); there a
+                `:trigger` op resolves to nothing, warned under `verbose_errors`.
 
               Click a row, or focus the search box and use the arrow keys and Enter. The
               list's markup carries one ops record; each row carries only its `data-*`.

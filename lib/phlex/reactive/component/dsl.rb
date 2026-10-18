@@ -658,7 +658,7 @@ module Phlex
             raise ArgumentError, "reactive_on_complete #{name.inspect} got no ops — a dead binding" if pairs.empty?
 
             # Issue #442: a completion has no element whose binding fired.
-            Phlex::Reactive::JS.refuse_trigger!(pairs, "a reactive_on_complete run")
+            Phlex::Reactive::JS.refuse_trigger!(run, "a reactive_on_complete run")
             Phlex::Reactive::JS.assert_ops_allowed!(pairs) unless run.is_a?(Phlex::Reactive::JS)
             pairs
           end
