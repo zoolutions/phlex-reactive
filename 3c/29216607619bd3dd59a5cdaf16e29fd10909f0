@@ -1,0 +1,22 @@
+spec/requests/js_broadcast_spec.rb
+  s_039165cf117b7c::t_c3470e48a89423 151-162
+spec/phlex/reactive/js_spec.rb
+  s_039165cf117b7c::t_44dd820d9977c9 402-423
+  s_039165cf117b7c::t_383ccfb9273d11 367-368,370-371
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "3c29216607619bd3dd59a5cdaf16e29fd10909f0",
+  "prompts": {},
+  "sessions": {
+    "s_039165cf117b7c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c644b7ed-8e6b-44ea-aff6-e4b3d4cd1c83",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
