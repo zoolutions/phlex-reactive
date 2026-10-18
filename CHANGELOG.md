@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.16.5] - 2026-10-18
+
 ### Fixed
 
 - **A presence component no longer raises `FrozenError` when pgbus's presence
@@ -4241,7 +4243,8 @@ room for dogfood fixes.
   scaffolds a reactive component (and an RSpec spec when the app uses RSpec),
   state-backed by default or record-backed with `--record`.
 
-[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.4...HEAD
+[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.5...HEAD
+[0.16.5]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.4...v0.16.5
 [0.16.4]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.3...v0.16.4
 [0.16.3]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.2...v0.16.3
 [0.16.2]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.1...v0.16.2
