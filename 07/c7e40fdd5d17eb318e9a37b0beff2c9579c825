@@ -1,0 +1,23 @@
+lib/phlex/reactive/component/shared_field.rb
+  s_039165cf117b7c::t_f8664bce8c344d 1-39
+spec/javascript/reactive_shared_field.test.js
+  s_039165cf117b7c::t_db56914b192aa5 1-205
+spec/phlex/reactive/shared_field_spec.rb
+  s_039165cf117b7c::t_1d7a4a15867d59 1-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "07c7e40fdd5d17eb318e9a37b0beff2c9579c825",
+  "prompts": {},
+  "sessions": {
+    "s_039165cf117b7c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c644b7ed-8e6b-44ea-aff6-e4b3d4cd1c83",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
