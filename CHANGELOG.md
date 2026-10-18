@@ -20,8 +20,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   next server component above it (client-only roots in between stay
   transparent, #410), on the JSON body and the multipart one alike. One level
   only: a component above that host collects it only when the host marks a
-  copy of its own. The name is the host's param, verbatim; a blank name
-  raises at render. Without the marker nothing changes. Dirty tracking,
+  copy of its own. The name is the host's param, verbatim (the widget's own
+  actions receive it under that name too, so they declare it there when they
+  read it); a blank name raises at render. Without the marker nothing changes. Dirty tracking,
   `reactive_persist` and the client bindings keep strict ownership. The
   collect walk is unchanged for a root with no nested server component; with
   one, an unmarked foreign control costs one attribute read.

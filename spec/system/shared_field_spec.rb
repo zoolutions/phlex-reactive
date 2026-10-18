@@ -11,15 +11,18 @@ RSpec.describe "A field a nested component shares with its host (issue #434)", t
     visit "/shared_field"
     page.execute_script("window.__noReload = 'alive'")
 
-    find("[data-testid='picker-pick']").click
-    # The widget's own action received its own fields.
-    expect(page).to have_css("[data-testid='picker-state']", text: "choice=b note=internal")
+    find("[data-testid='picker-pick-b']").click
+    expect(page).to have_css("[data-testid='picker-state']", text: "choice=b previous= note=internal")
+    # The widget's own action posts the shared hidden field too: `previous` is
+    # what it held before this pick.
+    find("[data-testid='picker-pick-c']").click
+    expect(page).to have_css("[data-testid='picker-state']", text: "choice=c previous=b note=internal")
 
     find("[data-testid='item-title']").set("Lamp")
     find("[data-testid='item-save']").click
 
     # The form's save received the shared field, and not the widget's own note.
-    expect(page).to have_css("[data-testid='item-saved']", text: "title=Lamp choice=b note=")
+    expect(page).to have_css("[data-testid='item-saved']", text: "title=Lamp choice=c note=")
     expect(page.evaluate_script("window.__noReload")).to eq("alive")
   end
 end
