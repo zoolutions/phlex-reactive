@@ -21,11 +21,40 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   removes the marked entries first (a heading and the `<template>` stay), so the
   next pick replaces the list and a pick with no refusal empties it; a morph
   that reaches the container (the upload action's `reply.morph`) keeps them, a
-  Turbo cache restore included. Works for one
-  file and with `per_file: true`. A container that is not on the page, or has
-  no `<template>`, warns on a verbose root and the rejections still fire. The
-  keyword is serialized only when given, so every existing op is byte-identical;
-  `broadcast_to(js:)` still refuses `preview_file`.
+  Turbo cache restore included. Works for one file and with `per_file: true`. A
+  container that is not on the page, or has no `<template>`, warns on a verbose
+  root and the rejections still fire. The keyword is serialized only when given,
+  so every existing op is byte-identical; `broadcast_to(js:)` still refuses
+  `preview_file`.
+
+### Changed
+
+- **A `reactive_shared_field` drives its host's client bindings too (#440).**
+  A widget with its own root (a `ClientBindings` picker with a filter and
+  `on_client` ops, or a server component) that keeps its value field inside
+  that root left the host's bindings blind to it: a host
+  `reactive_show(if: { choice: "b" })` or `reactive_enable` never followed the
+  pick, and a `reactive_show(disable: true)` group around the widget never
+  disabled its `required` field, which then blocked a native submit from a
+  hidden section. The `data-reactive-shared-field` marker (#434) now also
+  counts for the next root up's client bindings, one level, client-only roots
+  between skipped (the #434 rule): `reactive_show` (every term, `after:`,
+  `clear:`), `disable: true` (the marked control is disabled and re-enabled
+  with the group), `reactive_enable`, `reactive_show_targets`,
+  `reactive_group_targets`, `checked_*` counts and `reactive_count`,
+  `reactive_on_complete`, `reactive_media`, `reactive_css_vars`, and
+  `reactive_compute`: a marked control is an input (an edit inside a nested
+  root now recomputes the host, which Stimulus never routed there) and, when
+  its name is a declared output, an output the host writes. A nested root that
+  comes back through a plain replace, or restores a `reactive_persist` draft,
+  re-syncs the host's bindings and (when it seeds) its compute, as a morph
+  already did. Which bindings a root evaluates is unchanged:
+  a nested root's own bindings stay its own. Client ops, listnav, `busy_on`,
+  `reactive_filter`, a select-all header (its checked state and the boxes it
+  ticks leave the marked box out, while `reactive_count` and `checked_*`
+  include it), dirty tracking and `reactive_persist` keep strict ownership. Without the
+  marker nothing changes. A root with no nested root keeps the constant-true
+  fast path; a compute root reads one attribute per `input` event.
 
 ## [0.16.7] - 2026-10-18
 

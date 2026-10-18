@@ -206,9 +206,13 @@ const SLACK = 250
 // Issue #439 (preview_file per_file: — every file of a multiple input checked, the refused
 // ones dropped from input.files, one rejection each, in the runtime) adds 196 B: 41,076 B;
 // its review fix (remaining counts what the input keeps when there is no DataTransfer) 9 B: 41,085 B.
+// Issue #440 (a shared field drives the host's client bindings: the runtime's bindingOwns, the
+// bindings' field reads, compute's listener for a shared field in a nested root) adds 133 B: 41,218 B;
+// its review fixes (a nested root replaced, or restoring a draft, with a shared field the host reads
+// re-syncs it) 144 B: 41,362 B.
 // Issue #445 (preview_file rejected: — a refused file's name listed from an app <template>, kept
-// across a morph, in the runtime) adds 283 B: 41,368 B.
-const BUNDLE_GZIP_CEILING = 41_368
+// across a morph, in the runtime) adds 261 B on top of #440: 41,623 B.
+const BUNDLE_GZIP_CEILING = 41_623
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -282,8 +286,9 @@ const TARGET_BUNDLE_GZIP = 22_700
 // Issue #433 (prevent: false keeps an element-bound trigger's native default) adds 33 B: 18,400 B;
 // on top of #434 (18,404 B), 34 B: 18,438 B.
 // Issue #439 (preview_file per_file: on a multiple input) adds 197 B: 18,635 B; its review fix 11 B: 18,646 B.
-// Issue #445 (preview_file rejected: lists each refused file) adds 290 B: 18,936 B.
-const CORE_GZIP_CEILING = 18_936
+// Issue #440 (bindingOwns / bindingOwnership: what the client bindings read) adds 73 B: 18,719 B.
+// Issue #445 (preview_file rejected: lists each refused file) adds 287 B on top of #440: 19,006 B.
+const CORE_GZIP_CEILING = 19_006
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -307,10 +312,17 @@ const FEATURE_GZIP_CEILINGS = {
   // Issue #417 (reactive_css_vars: the number read, the unit and name allowlists) to 8,238 B;
   // its review fix (a to: that does not parse matches nothing) to 8,245 B.
   // Issue #425 (reactive_filter match: and fold:) to 8,396 B (+155 B on main's real 8,241 B).
-  "features/bindings": 8_396,
+  // Issue #440 (field reads through bindingOwnership: a shared field just below) to 8,408 B;
+  // its review fixes (re-sync when a nested root holding a shared field it reads connects or
+  // restores a draft) to 8,480 B.
+  "features/bindings": 8_480,
   // Issue #336 (render a defer reply now) takes it from 2,845 B to 2,974 B.
   "features/defer": 2_974,
-  "features/compute": 2_050,
+  // Issue #440 (the input listener for a shared field in a nested root, which Stimulus
+  // never routes to this root's recompute) takes it from 2,050 B to 2,103 B; its review
+  // fixes (the marker read first, a re-seed when such a nested root connects or restores a
+  // draft) to 2,222 B.
+  "features/compute": 2_222,
   "features/hints": 1_000,
   "features/effects": 1_750,
   // Issue #351 (an editable drafted through the core's collector) takes it to 3,167 B.
@@ -420,8 +432,10 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #434 (a shared field posts with the host, in the core) adds 37 B: 49,875 B.
 // Issue #433 (prevent: false, in the core) adds 33 B: 49,871 B; on top of #434 (49,875 B), 34 B: 49,909 B.
 // Issue #439 (preview_file per_file:, in the core) adds 197 B: 50,106 B; its review fix 11 B: 50,117 B.
-// Issue #445 (preview_file rejected:, in the core) adds 290 B: 50,407 B.
-const SPLIT_TOTAL_GZIP_CEILING = 50_407
+// Issue #440 (a shared field drives the host's bindings: +73 B core, +12 B bindings, +53 B compute) adds 138 B: 50,255 B;
+// its review fixes (+72 B bindings, +119 B compute) 191 B: 50,446 B.
+// Issue #445 (preview_file rejected:, in the core) adds 287 B on top of #440: 50,733 B.
+const SPLIT_TOTAL_GZIP_CEILING = 50_733
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 
