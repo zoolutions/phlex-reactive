@@ -148,7 +148,8 @@ Good to know:
   native behavior stopped and nothing else happens (one with `prevent: false`
   keeps it, as it does once connected). If the controller never
   loads, or the entry is dropped (older than the TTL, its element gone, more
-  than 50 queued), that click or submit does nothing.
+  than 50 queued), a prevented click or submit does nothing (one with
+  `prevent: false` still did its native default).
 - `window:` triggers — how a **hotkey** is usually bound
   (`on(:toggle, event: "keydown.k", window: true)` or
   `on_client("keydown.k", …, window: true)`) — are captured too: a hotkey
@@ -1023,8 +1024,10 @@ can be pressed while the user types or while a drag is on, or pair it with
 
 #### Keep the native default — `prevent: false`
 
-An element-bound trigger (`on` or `on_client`) calls `preventDefault()` before
-anything else runs, so a bare button inside a `<form>` cannot submit it. Some
+An element-bound trigger (`on` or `on_client`) whose binding matches the event
+(its key filter, `detail:` and `once:` guards passed) calls `preventDefault()`
+before its ops or action run, so a bare button inside a `<form>` cannot submit
+it. Some
 listeners only observe an event and need the browser to carry on: a drop zone
 built from a native `<input type="file">` stretched over an area gets the
 dropped file only when nothing cancelled the `drop`. `prevent: false` (#433)
@@ -1053,8 +1056,8 @@ div(**on(:track, event: "drop", prevent: false))  # the same keyword on a server
   `ArgumentError`. Anything but `true`/`false` raises too.
 - A click trigger keeps its forced `type="button"`; a button that should
   submit its form natively says so with `mix(on(...), type!: "submit")`.
-- With `confirm:`, the native default has already run when the dialog answers:
-  the dialog gates only the ops or the action.
+- With `confirm:`, the native default is never cancelled, whatever the dialog
+  answers: the dialog gates only the ops or the action.
 - `phlex/reactive/early` follows the same rule before the controller connects.
 - `prevent:` is a reserved keyword name on `on(...)`, like the event modifiers.
 

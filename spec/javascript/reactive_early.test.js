@@ -849,11 +849,11 @@ test("listens for trigger types of roots added after start (MutationObserver)", 
 // The one module every page loads eagerly. 1,024 B before dormant roots (issue
 // #274) added the second root selector and the wake; 1,621 B since the bare
 // delete/backspace chords (issue #366); 1,643 B since it records the chord it
-// prevents for a shortcut as a shortcut's (issue #429); 1,734 B since a
+// prevents for a shortcut as a shortcut's (issue #429); 1,746 B since a
 // prevent: false trigger keeps its native default before connect (issue #433).
-test("early.min.js gzips to at most 1,734 bytes", () => {
+test("early.min.js gzips to at most 1,746 bytes", () => {
   const built = readFileSync(join(import.meta.dir, "../../app/javascript/phlex/reactive/early.min.js"))
-  expect(gzipSync(built, { level: 9 }).length).toBeLessThanOrEqual(1734)
+  expect(gzipSync(built, { level: 9 }).length).toBeLessThanOrEqual(1746)
 })
 
 // --- reactive_controller.js: connect() marks, announces and drains ------------

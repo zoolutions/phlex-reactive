@@ -328,7 +328,7 @@ module Phlex
         # window-bound or outside: trigger never prevents, so there it is a
         # no-op; with shortcut: (a chord the page claims) it raises. The
         # forced type="button" of a click trigger stays. With confirm:, the
-        # native default has run before the dialog answers.
+        # native default is never cancelled; the dialog gates only the action.
         #   div(**on(:track, event: "drop", prevent: false))
         #
         # `optimistic:` (issue #98) — a small, ALWAYS-REVERSIBLE vocabulary of

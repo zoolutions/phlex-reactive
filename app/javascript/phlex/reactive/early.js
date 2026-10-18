@@ -106,7 +106,7 @@ function enqueue(event, el, descs, win, shortcut) {
     /^(checkbox|radio)$/.test(el.type) && /"checked":"keep"/.test(el.dataset.reactiveOptimisticParam)
   const ops = ` ${el.dataset.reactiveOpsParam ?? ""}`
   const keeps = (d) => {
-    const on = ` {"on":"${d.token.split("->")[0]}"`
+    const on = ` {"on":${JSON.stringify(d.token.split("->")[0])}`
     return d.method === "runOps"
       ? ops.includes(on) && ops.split(on).length === ops.split(`${on},"prevent":false`).length
       : keepsToggle || el.dataset.reactivePreventParam === "false"
