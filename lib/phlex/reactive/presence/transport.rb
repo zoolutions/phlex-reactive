@@ -126,10 +126,12 @@ module Phlex
 
           # At boot: auto-join presence streams, and hear their changes. An
           # app's own change hook keeps running (chained, first).
+          # Settings change through their setters only: pgbus >= 0.19 freezes
+          # its Arrays and Hashes at boot (Configuration#finalize!).
           def install!(on_change)
             config = ::Pgbus.configuration
             patterns = config.streams_presence_patterns
-            patterns << PATTERN unless patterns.include?(PATTERN)
+            config.streams_presence_patterns = [*patterns, PATTERN] unless patterns.include?(PATTERN)
             previous = config.streams_presence_on_change
             return if previous.is_a?(ChainedHook)
 
@@ -141,11 +143,13 @@ module Phlex
           # pgbus takes an Integer (every stream) or a Hash of stream name /
           # pattern => seconds with a :default; an Integer becomes the Hash's
           # default so the app's own setting still covers every other stream.
+          # A new Hash every time: a component can load after pgbus froze the
+          # setting at boot (eager_load off).
           def register_ttl(name, seconds)
             config = ::Pgbus.configuration
             ttl = config.streams_presence_ttl
-            config.streams_presence_ttl = ttl = { default: ttl } unless ttl.is_a?(Hash)
-            ttl.store(/:presence:#{Regexp.escape(name.to_s)}\z/, seconds)
+            ttl = { default: ttl } unless ttl.is_a?(Hash)
+            config.streams_presence_ttl = ttl.merge(/:presence:#{Regexp.escape(name.to_s)}\z/ => seconds)
           end
         end
       end

@@ -79,6 +79,16 @@ RSpec.describe Phlex::Reactive::Presence::Transport do
       expect(Phlex::Reactive::PresenceRenderJob).to have_received(:perform_later).once.with("board_1:presence:viewers")
     end
 
+    # pgbus >= 0.19 deep-freezes its plain-data settings at boot
+    # (Configuration#finalize!, zoolutions/pgbus#527); only a setter may change one.
+    it "adds the pattern through the setter when pgbus froze the list" do
+      _store, config = FakePgbusPresence.install!(self)
+      config.streams_presence_patterns = ["chat:lobby"].freeze
+
+      expect { Phlex::Reactive::Presence.install! }.not_to raise_error
+      expect(config.streams_presence_patterns).to eq(["chat:lobby", described_class::PATTERN])
+    end
+
     it "only enqueues for presence streams" do
       _store, config = FakePgbusPresence.install!(self)
       allow(Phlex::Reactive::PresenceRenderJob).to receive(:perform_later)
@@ -152,6 +162,26 @@ RSpec.describe Phlex::Reactive::Presence::Transport do
       config.streams_presence_ttl = { "lobby" => 30, default: 90 }
       described_class.register_ttl(:viewers, 45)
       expect(config.streams_presence_ttl).to eq("lobby" => 30, :default => 90, /:presence:viewers\z/ => 45)
+    end
+
+    # pgbus >= 0.19 freezes an app's Hash at boot (Configuration#finalize!,
+    # zoolutions/pgbus#527), and a component that loads later (eager_load off)
+    # still registers its ttl.
+    it "adds to an app's Hash setting that pgbus froze at boot" do
+      _store, config = FakePgbusPresence.install!(self)
+      config.streams_presence_ttl = { "lobby" => 30, default: 90 }.freeze
+
+      expect { described_class.register_ttl(:viewers, 45) }.not_to raise_error
+      expect(config.streams_presence_ttl).to eq("lobby" => 30, :default => 90, /:presence:viewers\z/ => 45)
+    end
+
+    it "replaces a component's earlier ttl when its class loads again" do
+      _store, config = FakePgbusPresence.install!(self)
+      described_class.register_ttl(:viewers, 30)
+      config.streams_presence_ttl.freeze
+
+      described_class.register_ttl(:viewers, 45)
+      expect(config.streams_presence_ttl).to eq(default: 60, /:presence:viewers\z/ => 45)
     end
   end
 end
