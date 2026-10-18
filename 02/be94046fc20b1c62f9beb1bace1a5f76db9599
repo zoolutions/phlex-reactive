@@ -1,0 +1,23 @@
+Gemfile
+  s_601896216f96ff::t_a2773e646521f3 77-83
+  s_601896216f96ff::t_7a77e5aee57c66 94
+CHANGELOG.md
+  s_601896216f96ff::t_c42a1a1b570b78 9-10,15-16,18-22
+  s_601896216f96ff::t_8db6b4b4189417 11-14,17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "02be94046fc20b1c62f9beb1bace1a5f76db9599",
+  "prompts": {},
+  "sessions": {
+    "s_601896216f96ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad8fa3ec-23b3-4a3a-b359-07bf91dc2fa4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    }
+  }
+}
