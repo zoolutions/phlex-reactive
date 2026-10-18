@@ -57,8 +57,10 @@ const FEATURES = ENTRIES.filter((name) => name.startsWith("features/"))
 // a bare keydown: the chord read off the element decides what is queued and
 // prevented) adds 134 B: 1,487 → 1,621 B. Issue #429 (the chord it prevents for a
 // shortcut is recorded as a shortcut's, so a connected root's shortcut on it
-// still runs) adds 22 B: 1,643 B.
-const EARLY_GZIP_BUDGET = 1643
+// still runs) adds 22 B: 1,643 B. Issue #433 (prevent: false: a trigger whose
+// every firing descriptor opts out keeps its native default before connect,
+// read off on()'s param and the on_client records) adds 103 B: 1,746 B.
+const EARLY_GZIP_BUDGET = 1746
 // How far a ceiling may sit above the real size: the rounding it is set with.
 const SLACK = 250
 
@@ -199,7 +201,9 @@ const SLACK = 250
 // Issue #429 (a shortcut skips a key another handler prevented, in the runtime) adds 55 B: 40,701 B;
 // its review fixes (the replay marker, the held-forward gate) 14 B: 40,715 B; on top of #428 (40,736 B), 78 B: 40,814 B.
 // Issue #434 (a shared field posts with the host, in the runtime) adds 32 B: 40,846 B.
-const BUNDLE_GZIP_CEILING = 40_846
+// Issue #433 (prevent: false keeps an element-bound trigger's native default, in the runtime) adds 33 B: 40,847 B;
+// on top of #434 (40,846 B), 34 B: 40,880 B.
+const BUNDLE_GZIP_CEILING = 40_880
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -270,7 +274,9 @@ const TARGET_BUNDLE_GZIP = 22_700
 // Issue #429 (a shortcut skips a key another handler prevented) adds 74 B: 18,374 B;
 // its review fixes save 7 B: 18,367 B.
 // Issue #434 (a shared field posts with the host) adds 37 B: 18,404 B.
-const CORE_GZIP_CEILING = 18_404
+// Issue #433 (prevent: false keeps an element-bound trigger's native default) adds 33 B: 18,400 B;
+// on top of #434 (18,404 B), 34 B: 18,438 B.
+const CORE_GZIP_CEILING = 18_438
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -405,7 +411,8 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #428 (a box's or point's fields on another scale, in drag) adds 101 B: 49,771 B.
 // Issue #429 (a shortcut skips a key another handler prevented, in the core) adds 67 B: 49,737 B; on top of #428 (49,771 B), 67 B: 49,838 B.
 // Issue #434 (a shared field posts with the host, in the core) adds 37 B: 49,875 B.
-const SPLIT_TOTAL_GZIP_CEILING = 49_875
+// Issue #433 (prevent: false, in the core) adds 33 B: 49,871 B; on top of #434 (49,875 B), 34 B: 49,909 B.
+const SPLIT_TOTAL_GZIP_CEILING = 49_909
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

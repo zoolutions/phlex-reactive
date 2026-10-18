@@ -3223,7 +3223,7 @@ export default class extends Controller {
     // modifier params (issue #80). The client decides preventDefault behavior
     // from event.params — set by the Ruby on() — never by sniffing the
     // Stimulus descriptor.
-    const { action, params, debounce, throttle, confirm, confirmWhen, outside, window: windowBound, optimistic } =
+    const { action, params, debounce, throttle, confirm, confirmWhen, outside, window: windowBound, optimistic, prevent } =
       event.params
     if (!action) return
 
@@ -3276,7 +3276,11 @@ export default class extends Controller {
     // A shortcut (issue #357) IS prevented: its key filter has already narrowed
     // the window binding to one chord the page claims (mod+s must not also open
     // the browser's save dialog).
-    if ((shortcut != null || !windowBound) && !this.#keepsNativeToggle(optimistic, target))
+    //
+    // `prevent: false` (issue #433) opts an element-bound trigger out too: the
+    // event keeps its native default (a drop still reaches a file input). A
+    // shortcut stays prevented whatever the markup says.
+    if ((shortcut != null || (!windowBound && prevent !== false)) && !this.#keepsNativeToggle(optimistic, target))
       preventTrigger(event, shortcut)
 
     // A reactive_lazy(on:) shell's trigger (issue #276) goes through the one
@@ -3395,12 +3399,12 @@ export default class extends Controller {
     if (controller) return controller.dispatch(event)
     // Held past this event's dispatch: cancel its native default NOW, by
     // dispatch()'s own rule, or a submit/link would act before the request.
-    const { shortcut, window: windowBound, optimistic } = event.params
+    const { shortcut, window: windowBound, optimistic, prevent } = event.params
     // A shortcut that does not apply (the other twin, a field, a key handled
     // first) is neither prevented nor held, as dispatch() would leave it.
     if (shortcut != null && !shortcutApplies(shortcut, event, this.application?.schema?.keyMappings)) return
     const target = event.currentTarget ?? event.target
-    if ((shortcut != null || !windowBound) && !this.#keepsNativeToggle(optimistic, target))
+    if ((shortcut != null || (!windowBound && prevent !== false)) && !this.#keepsNativeToggle(optimistic, target))
       preventTrigger(event, shortcut)
     heldForwards.set(root, [...(heldForwards.get(root) ?? []), [event, target]])
     const data = root.dataset
@@ -3463,9 +3467,10 @@ export default class extends Controller {
         continue
       if (onceBindingSpent(this, event, record)) continue
       // A legacy attr reads its flags element-wide — but never a mix-ed on()'s
-      // debounce/throttle params (issue #393): those belong to the dispatch.
+      // debounce/throttle (issue #393) or prevent (issue #433) params: those
+      // belong to the dispatch.
       this.#runBinding(
-        record.legacy ? { ...params, ops: record.ops, debounce: undefined, throttle: undefined } : record,
+        record.legacy ? { ...params, ops: record.ops, debounce: undefined, throttle: undefined, prevent: undefined } : record,
         event,
         trigger,
         records.indexOf(record),
@@ -3476,7 +3481,7 @@ export default class extends Controller {
   // One on_client binding (issue #95): its outside guard, preventDefault rule,
   // confirm gate, then its ops — every flag read from the binding itself.
   #runBinding(record, event, trigger, ordinal) {
-    const { ops, confirm, confirmWhen, outside, window: windowBound, shortcut } = record
+    const { ops, confirm, confirmWhen, outside, window: windowBound, shortcut, prevent } = record
     // Outside guard FIRST — identical semantics to dispatch() (issue #80): an
     // outside: trigger is a COMPLETE no-op for events inside this root, before
     // preventDefault and before any op runs.
@@ -3489,7 +3494,8 @@ export default class extends Controller {
     // (possibly async) confirm gate below — a native default can't wait for a
     // pending dialog (same ordering as dispatch()).
     // A shortcut (issue #357) is prevented: it is one chord the page claims.
-    if (shortcut != null || !windowBound) preventTrigger(event, shortcut)
+    // A record with `prevent: false` (issue #433) keeps the native default.
+    if (shortcut != null || (!windowBound && prevent !== false)) preventTrigger(event, shortcut)
 
     // Resolve the effective confirm message — static string, or the conditional
     // Hash form (issue #179) evaluated over collected fields (a promise of it

@@ -1161,6 +1161,52 @@ RSpec.describe Phlex::Reactive::Component do
     end
   end
 
+  # Issue #433: prevent: false lets an element-bound trigger keep the event's
+  # native default (a drop that must still reach a native file input).
+  describe "#on prevent: (issue #433)" do
+    subject(:instance) { state_klass.new }
+
+    it "flags an element-bound trigger with the STRING \"false\" (Phlex drops a false attribute)" do
+      attrs = instance.send(:on, :track, event: "drop", prevent: false)
+
+      expect(attrs[:data][:action]).to eq("drop->reactive#dispatch")
+      expect(attrs[:data][:reactive_prevent_param]).to eq("false")
+    end
+
+    it "keeps prevent: out of the explicit params payload (a reserved keyword)" do
+      attrs = instance.send(:on, :track, event: "drop", prevent: false, zone: "a")
+
+      expect(JSON.parse(attrs[:data][:reactive_params_param])).to eq({ "zone" => "a" })
+    end
+
+    it "emits nothing for the default or an explicit prevent: true (byte-identical markup)" do
+      expect(instance.send(:on, :track, prevent: true)).to eq(instance.send(:on, :track))
+      expect(instance.send(:on, :track)[:data]).not_to have_key(:reactive_prevent_param)
+    end
+
+    it "keeps the forced type=button on a click trigger" do
+      expect(instance.send(:on, :track, prevent: false)[:type]).to eq("button")
+    end
+
+    it "is a no-op on a window-bound or outside: trigger (they never prevent)" do
+      expect(instance.send(:on, :track, window: true, prevent: false)).to eq(instance.send(:on, :track, window: true))
+      expect(instance.send(:on, :close_menu, outside: true, prevent: false))
+        .to eq(instance.send(:on, :close_menu, outside: true))
+    end
+
+    it "raises with shortcut: (a shortcut's chord is always prevented)" do
+      expect { instance.send(:on, :save, shortcut: "mod+s", prevent: false) }
+        .to raise_error(ArgumentError, /on\(:save\) got shortcut: with prevent: false/)
+    end
+
+    [nil, "false", 0, :off].each do |bad|
+      it "raises on prevent: #{bad.inspect} (true or false only)" do
+        expect { instance.send(:on, :track, prevent: bad) }
+          .to raise_error(ArgumentError, "on(:track) prevent: must be true or false, got #{bad.inspect}")
+      end
+    end
+  end
+
   describe "#on optimistic hints (issue #98 — declared, reversible visual hints)" do
     subject(:instance) { state_klass.new }
 
@@ -1464,6 +1510,57 @@ RSpec.describe Phlex::Reactive::Component do
         expect(instance.send(:on, :set, event: "input", debounce: 1.5)[:data][:reactive_debounce_param]).to eq(1.5)
         expect { instance.send(:on, :set, debounce: 1, throttle: 1) }
           .to raise_error(ArgumentError, /on\(:set\) got both debounce: and throttle:/)
+      end
+    end
+
+    # Issue #433: prevent: false rides on the binding record, right after "on"
+    # (phlex/reactive/early reads the pair off the raw attribute before connect).
+    describe "prevent: (issue #433)" do
+      it "writes \"prevent\": false into the record, right after on" do
+        attrs = instance.send(:on_client, :drop, ops, prevent: false)
+
+        expect(attrs[:data][:action]).to eq("drop->reactive#runOps")
+        expect(attrs[:data][:reactive_ops_param])
+          .to eq('{"on":"drop","prevent":false,"ops":[["toggle",{"to":"#menu"}]]}')
+      end
+
+      it "stays right after on next to once: and a key filter" do
+        attrs = instance.send(:on_client, "keydown.enter", ops, prevent: false, once: true)
+
+        expect(attrs[:data][:reactive_ops_param]).to start_with('{"on":"keydown.enter","prevent":false,"once":true,')
+      end
+
+      it "keeps the flag out of the element-wide params" do
+        expect(instance.send(:on_client, :drop, ops, prevent: false)[:data].keys)
+          .to contain_exactly(:action, :reactive_ops_param)
+      end
+
+      it "emits nothing for the default or an explicit prevent: true (byte-identical markup)" do
+        expect(instance.send(:on_client, :drop, ops, prevent: true)).to eq(instance.send(:on_client, :drop, ops))
+        expect(binding_record(instance.send(:on_client, :drop, ops))).not_to have_key("prevent")
+      end
+
+      it "is a no-op on a window-bound or outside: trigger (they never prevent)" do
+        expect(instance.send(:on_client, :scroll, ops, window: true, prevent: false))
+          .to eq(instance.send(:on_client, :scroll, ops, window: true))
+        expect(instance.send(:on_client, :click, ops, outside: true, prevent: false))
+          .to eq(instance.send(:on_client, :click, ops, outside: true))
+      end
+
+      it "keeps the forced type=button on a click trigger" do
+        expect(instance.send(:on_client, :click, ops, prevent: false)[:type]).to eq("button")
+      end
+
+      it "raises with shortcut: (a shortcut's chord is always prevented)" do
+        expect { instance.send(:on_client, :keydown, ops, shortcut: "mod+k", prevent: false) }
+          .to raise_error(ArgumentError, /on_client\("keydown"\) got shortcut: with prevent: false/)
+      end
+
+      [nil, "false", 0].each do |bad|
+        it "raises on prevent: #{bad.inspect} (true or false only)" do
+          expect { instance.send(:on_client, :drop, ops, prevent: bad) }
+            .to raise_error(ArgumentError, "on_client(\"drop\") prevent: must be true or false, got #{bad.inspect}")
+        end
       end
     end
 

@@ -158,6 +158,95 @@ test("keeps the native toggle of a checked: :keep checkbox, like dispatch() does
   expect(state().queue).toHaveLength(1)
 })
 
+// Issue #433: prevent: false — the trigger is queued and replayed, but its
+// native default is left alone before connect too, exactly where dispatch()
+// and runOps() leave it.
+function fire(el, type) {
+  const event = new window.Event(type, { bubbles: true, cancelable: true })
+  el.dispatchEvent(event)
+  return event
+}
+
+test("leaves the default of an on() trigger with prevent: false, and still replays it", async () => {
+  const root = await mount(`
+    <div id="z" data-controller="reactive">
+      <div data-action="drop->reactive#dispatch" data-reactive-action-param="track" data-reactive-prevent-param="false"><input type="file"></div>
+    </div>`)
+  const event = fire(root.querySelector("input"), "drop")
+
+  expect(event.defaultPrevented).toBe(false)
+  expect(state().queue).toHaveLength(1)
+  const { calls } = connect(root)
+  expect(calls.map((call) => call.method)).toEqual(["dispatch"])
+})
+
+test("leaves the default of an on_client record with prevent:false; its sibling on another event is prevented", async () => {
+  const root = await mount(`
+    <div id="z" data-controller="reactive">
+      <div data-action="dragenter->reactive#runOps drop->reactive#runOps" data-reactive-ops-param='{"on":"dragenter","ops":[]} {"on":"drop","prevent":false,"ops":[]}'><input type="file"></div>
+    </div>`)
+  const input = root.querySelector("input")
+  const enter = fire(input, "dragenter")
+  const drop = fire(input, "drop")
+
+  expect(enter.defaultPrevented).toBe(true)
+  expect(drop.defaultPrevented).toBe(false)
+  expect(state().queue).toHaveLength(2)
+})
+
+test("prevents when another record on the same event lacks the flag", async () => {
+  const root = await mount(`
+    <div id="z" data-controller="reactive">
+      <div data-action="drop->reactive#runOps" data-reactive-ops-param='{"on":"drop","prevent":false,"ops":[]} {"on":"drop","ops":[]}'></div>
+    </div>`)
+  const event = fire(root.firstElementChild, "drop")
+
+  expect(event.defaultPrevented).toBe(true)
+})
+
+test("prevents when an on() on the same element and event keeps preventing", async () => {
+  const root = await mount(`
+    <div id="z" data-controller="reactive">
+      <div data-action="drop->reactive#runOps drop->reactive#dispatch" data-reactive-action-param="track" data-reactive-ops-param='{"on":"drop","prevent":false,"ops":[]}'></div>
+    </div>`)
+  const event = fire(root.firstElementChild, "drop")
+
+  expect(event.defaultPrevented).toBe(true)
+})
+
+test("matches a key-filtered record by its whole on, filter included", async () => {
+  const root = await mount(`
+    <div id="z" data-controller="reactive">
+      <input data-action="keydown.enter->reactive#runOps keydown.esc->reactive#runOps" data-reactive-ops-param='{"on":"keydown.enter","prevent":false,"ops":[]} {"on":"keydown.esc","ops":[]}'>
+    </div>`)
+  const input = root.querySelector("input")
+  const enter = press(input, "Enter")
+  const esc = press(input, "Escape")
+
+  expect(enter.defaultPrevented).toBe(false)
+  expect(esc.defaultPrevented).toBe(true)
+})
+
+test("reads only a record's own on, never an op argument that looks like one", async () => {
+  const root = await mount(`
+    <div id="z" data-controller="reactive">
+      <div data-action="drop->reactive#runOps" data-reactive-ops-param='{"on":"drop","prevent":false,"ops":[["dispatch",{"name":"x","detail":{"on":"drop"}}]]}'></div>
+    </div>`)
+  const event = fire(root.firstElementChild, "drop")
+
+  expect(event.defaultPrevented).toBe(false)
+})
+
+test("still prevents a legacy ops attr (it has no on to carry the flag)", async () => {
+  const root = await mount(`
+    <div id="z" data-controller="reactive">
+      <div data-action="drop->reactive#runOps" data-reactive-ops-param='[["hide",{"to":"@root"}]]' data-reactive-prevent-param="false"></div>
+    </div>`)
+  const event = fire(root.firstElementChild, "drop")
+
+  expect(event.defaultPrevented).toBe(true)
+})
+
 test("ignores roots whose controller already connected (no double fire)", async () => {
   const root = await mount(`<div id="p" data-controller="reactive"><button data-action="click->reactive#dispatch">Go</button></div>`)
   state().connected.add(root)
@@ -760,10 +849,11 @@ test("listens for trigger types of roots added after start (MutationObserver)", 
 // The one module every page loads eagerly. 1,024 B before dormant roots (issue
 // #274) added the second root selector and the wake; 1,621 B since the bare
 // delete/backspace chords (issue #366); 1,643 B since it records the chord it
-// prevents for a shortcut as a shortcut's (issue #429).
-test("early.min.js gzips to at most 1,643 bytes", () => {
+// prevents for a shortcut as a shortcut's (issue #429); 1,746 B since a
+// prevent: false trigger keeps its native default before connect (issue #433).
+test("early.min.js gzips to at most 1,746 bytes", () => {
   const built = readFileSync(join(import.meta.dir, "../../app/javascript/phlex/reactive/early.min.js"))
-  expect(gzipSync(built, { level: 9 }).length).toBeLessThanOrEqual(1643)
+  expect(gzipSync(built, { level: 9 }).length).toBeLessThanOrEqual(1746)
 })
 
 // --- reactive_controller.js: connect() marks, announces and drains ------------

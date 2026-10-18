@@ -218,6 +218,31 @@ test("a held dispatch cancels the native default now, and the trigger reaches th
   expect(posts[0].token).toBe("outer-token")
 })
 
+// Issue #433: prevent: false holds the trigger for the woken root but leaves
+// the native default alone, as dispatch() would.
+test("a held prevent: false dispatch keeps the native default and still reaches the woken root", async () => {
+  document.body.innerHTML = `
+    <div id="picker" data-reactive-dormant="reactive" data-reactive-token-value="outer-token">
+      <div id="search" data-controller="reactive"><div id="zone" data-reactive-action-param="pick" data-reactive-prevent-param="false"></div></div>
+    </div>`
+  connect(document.getElementById("search"))
+  const zone = document.getElementById("zone")
+  const event = new window.Event("drop", { bubbles: true, cancelable: true })
+  Object.defineProperty(event, "currentTarget", { value: zone, configurable: true })
+  event.params = { action: "pick", params: "{}", prevent: false }
+
+  document.getElementById("search").__controller.dispatch(event)
+  expect(event.defaultPrevented).toBe(false)
+
+  Object.defineProperty(event, "currentTarget", { value: null, configurable: true })
+  connect(document.getElementById("picker"))
+  await flush()
+  await flush()
+
+  expect(posts).toHaveLength(1)
+  expect(posts[0].token).toBe("outer-token")
+})
+
 // Issue #429: a shortcut held for a dormant server root. The hold prevents the
 // chord at once (as dispatch() would) and records it as the shortcut's own, so
 // the woken root still runs it; a key another handler prevented first (a drag's
