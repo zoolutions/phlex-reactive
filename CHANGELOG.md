@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.16.3] - 2026-10-18
+
 ### Added
 
 - **`reactive_filter` matches by prefix or word start, and can ignore accents
