@@ -1,0 +1,23 @@
+spec/dummy/app/components/multi_photo_preview_component.rb
+  s_039165cf117b7c::t_94e36e8c9a828f 32-39
+spec/system/preview_file_multiple_spec.rb
+  s_039165cf117b7c::t_2207124580061f 1-67
+spec/javascript/reactive_preview_file_multiple.test.js
+  s_039165cf117b7c::t_a48648fc9f202c 1-292
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "afb7287101a571924fe49e40ab8e14170a6b415e",
+  "prompts": {},
+  "sessions": {
+    "s_039165cf117b7c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c644b7ed-8e6b-44ea-aff6-e4b3d4cd1c83",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
