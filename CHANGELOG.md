@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.16.4] - 2026-10-18
+
 ### Added
 
 - **A draggable box or point can write its fields on another scale (#428).**
@@ -4225,7 +4227,9 @@ room for dogfood fixes.
   scaffolds a reactive component (and an RSpec spec when the app uses RSpec),
   state-backed by default or record-backed with `--record`.
 
-[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.2...HEAD
+[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.4...HEAD
+[0.16.4]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.3...v0.16.4
+[0.16.3]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.2...v0.16.3
 [0.16.2]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.1...v0.16.2
 [0.16.1]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.0...v0.16.1
 [0.16.0]: https://github.com/mhenrixon/phlex-reactive/compare/v0.15.5...v0.16.0
