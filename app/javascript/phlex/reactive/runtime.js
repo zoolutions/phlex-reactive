@@ -2088,6 +2088,10 @@ function streamOpTargets(args, root) {
 //   core.owns(el)                         is this control this root's own, not
 //                                         a nested reactive root's (issue #15)
 //   core.ownership()                      the hoisted per-pass form of owns
+//   core.bindingOwns(el)                  may this root's bindings READ this
+//                                         control: owns, or a shared field
+//                                         just below (issue #440)
+//   core.bindingOwnership()               the hoisted per-pass form of it
 //   core.opTargets(args)                  the elements an op's `to:` names
 //   core.applyOps(list, defaultTo)        run an op list root-scoped
 //   core.diagnose(label, args)            the zero-target warning
@@ -3033,6 +3037,8 @@ export default class extends Controller {
       },
       owns: (el) => this.#ownsField(el),
       ownership: () => this.#ownershipFilter(),
+      bindingOwns: (el) => this.#bindingOwns(el),
+      bindingOwnership: () => this.#bindingOwnership(),
       opTargets: (args) => this.#opTargets(args),
       diagnose: (label, args) => this.#diagnoseZeroTargets(label, args),
       // Apply an op list root-scoped, with the zero-target diagnostics; a
@@ -4462,7 +4468,8 @@ export default class extends Controller {
   // the control's own server root sits directly below this one. One level: a
   // grand-host never sees it. Whatever reads #collectFields sees it too: the
   // request, and the conditional confirm (it judges the fields the action is
-  // about to post). Bindings, computes, listnav, dirty tracking and persist
+  // about to post). The client bindings read such a control too
+  // (#bindingOwnership); listnav, ops, busy_on, dirty tracking and persist
   // keep the strict nearest-root #ownershipFilter / #ownsField.
   #serverFieldFilter() {
     const nested = this.element.querySelectorAll(AWAKE_ROOT)
@@ -4473,6 +4480,30 @@ export default class extends Controller {
       return el.getAttribute("data-reactive-shared-field") != null &&
         serverRoot(own.parentElement, AWAKE_ROOT, this.element) === this.element
     }
+  }
+
+  // What this root's client BINDINGS read (issue #440): its own controls, as
+  // #ownsField, plus a control marked data-reactive-shared-field whose own
+  // server root is this one (under client-only roots, issue #410) or sits
+  // directly below it: one level, the #serverFieldFilter rule. Field reads
+  // only: show (every term, after:, clear:, disable: true), enable, show and
+  // group targets, checked_* counts, on_complete, media, css vars, compute
+  // inputs and outputs. Which binding ELEMENTS a root evaluates, and every op, listnav,
+  // busy_on, dirty and persist read, stay on the strict #ownsField. An
+  // unmarked control in a nested root costs one attribute read more.
+  #bindingOwns(el) {
+    if (this.#ownsField(el)) return true
+    if (el.getAttribute?.("data-reactive-shared-field") == null) return false
+    const own = serverRoot(el, AWAKE_ROOT, this.element)
+    return own === this.element || serverRoot(own?.parentElement, AWAKE_ROOT, this.element) === this.element
+  }
+
+  // The hoisted per-pass form of #bindingOwns, with #ownershipFilter's fast
+  // path: no nested root, every control is this root's. Never cached on the
+  // instance (a morph replaces nodes).
+  #bindingOwnership() {
+    if (this.element.querySelectorAll(AWAKE_ROOT).length === 0) return () => true
+    return (el) => this.#bindingOwns(el)
   }
 
   // One walk over THIS root's named controls (not a nested reactive root's),

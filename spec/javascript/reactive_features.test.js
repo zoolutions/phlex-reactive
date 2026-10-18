@@ -597,6 +597,8 @@ test("a feature receives the core handle on connect and on disconnect", async ()
 
   expect(Object.keys(core).sort()).toEqual([
     "applyOps",
+    "bindingOwnership",
+    "bindingOwns",
     "collectFields",
     "confirm",
     "copyMedia",
