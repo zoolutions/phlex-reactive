@@ -1,0 +1,23 @@
+lib/phlex/reactive/presence/transport.rb
+  s_601896216f96ff::t_d4a42ad0496e5d 146-147,151-152
+  s_601896216f96ff::t_59ed9d3c5a55cd 129-130,134
+spec/phlex/reactive/presence_transport_spec.rb
+  s_601896216f96ff::t_e7b63863e85c91 82-91
+  s_601896216f96ff::t_7f93eb7a85513a 166-185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "7420b45e652e466a3a0c450cb79f239c316e4e2f",
+  "prompts": {},
+  "sessions": {
+    "s_601896216f96ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad8fa3ec-23b3-4a3a-b359-07bf91dc2fa4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
