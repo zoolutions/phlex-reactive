@@ -490,6 +490,47 @@ module Views
               input.addEventListener("reactive:file-rejected", ({ detail }) =>
                 note(`${detail.file.name}: ${detail.reason} (${detail.remaining} kept)`))
               ```
+
+              **Name each refused file (#445).** The event says why a file was refused, but
+              an op cannot read it, so without JavaScript the page could only say "a file
+              was too large". `rejected:` names a container whose `<template>` the client
+              fills once per refused file:
+
+              ```ruby
+              op = js.preview_file("#pick", into: "#shot", max_bytes: 1_000_000, accept: true,
+                per_file: true, rejected: "#refused")
+              input(type: "file", id: "pick", name: "file", multiple: true, accept: "image/png",
+                **mix(on_client(:change, op), on(:upload, event: "change")))
+              ul(id: "refused") do
+                template do
+                  li do
+                    span(data: { reactive_file_reason: "size" }) { b(data: { reactive_file: "name" }); plain " is larger than 1 MB." }
+                    span(data: { reactive_file_reason: "type" }) { b(data: { reactive_file: "name" }); plain " is not a PNG." }
+                  end
+                end
+              end
+              ```
+
+              - For each refused file, in pick order, the client deep-clones the
+                container's first `<template>` child. Every `[data-reactive-file="name"]`
+                in the clone gets the file's name as `textContent`: a file name is the
+                user's input, so it is never parsed as HTML.
+              - Every `[data-reactive-file-reason]` part whose value is not this file's
+                reason (`"size"` or `"type"`) is removed; parts without the attribute stay.
+                Each reason carries its own name slot, so a translation can put the name
+                anywhere in its sentence.
+              - Each top-level element of the clone is marked `data-reactive-file-rejected`
+                and appended to the container. The list is filled **before** the first
+                `reactive:file-rejected` fires, so a handler of the event sees it.
+              - Every run of the op first removes the marked entries, and only those: a
+                heading in the container and the `<template>` stay. The next pick replaces
+                the list; a pick with no refusal empties it.
+              - A morph of the container keeps the entries, so the upload action's
+                `reply.morph` on the same `change` does not wipe them. A plain replace
+                renders the container afresh.
+              - It works for one file and with `per_file: true`. A container that is not on
+                the page, or has no `<template>` child, warns on a verbose root; the
+                rejections still fire.
             MD
             DocsUI::Callout(:warning) do
               md <<~MD

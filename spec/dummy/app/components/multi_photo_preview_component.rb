@@ -5,6 +5,10 @@
 # before the action mixed in AFTER the op on the same change collects it, so
 # the upload posts only the accepted files. A second picker has no action, so
 # its preview and its kept files stay on the page to be read.
+#
+# Issue #445: the uploading picker names each refused file in #photos-refused,
+# cloned from the list's <template>; the upload replies with a morph, which
+# keeps the list.
 class MultiPhotoPreviewComponent < ApplicationComponent
   include Phlex::Reactive::Component
 
@@ -14,6 +18,7 @@ class MultiPhotoPreviewComponent < ApplicationComponent
 
   def upload(photos: [])
     @posted = photos.map(&:original_filename)
+    reply.morph
   end
 
   def view_template
@@ -26,11 +31,30 @@ class MultiPhotoPreviewComponent < ApplicationComponent
   private
 
   def uploading_picker
-    op = js.preview_file("#photos-file", into: "#photos-shot", max_bytes: 1024, accept: true, per_file: true)
+    op = js.preview_file("#photos-file", into: "#photos-shot", max_bytes: 1024, accept: true, per_file: true,
+      rejected: "#photos-refused")
     input(type: "file", id: "photos-file", name: "photos", multiple: true, accept: "image/png",
       **mix(on_client(:change, op), on(:upload, event: "change"), data: { testid: "photos-file" }))
     img(id: "photos-shot", alt: "", data: { testid: "photos-shot" })
     p(data: { testid: "posted" }) { posted }
+    refused_list
+  end
+
+  def refused_list
+    ul(id: "photos-refused", data: { testid: "photos-refused" }) do
+      template do
+        li(data: { testid: "refused-file" }) do
+          span(data: { reactive_file_reason: "size" }) do
+            b(data: { reactive_file: "name" })
+            plain " is larger than 1 KB."
+          end
+          span(data: { reactive_file_reason: "type" }) do
+            b(data: { reactive_file: "name" })
+            plain " is not a PNG."
+          end
+        end
+      end
+    end
   end
 
   def posted
