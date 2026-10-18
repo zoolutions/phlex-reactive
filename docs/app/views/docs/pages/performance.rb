@@ -1055,7 +1055,8 @@ module Views
                   plain ' via a full dispatch over happy-dom: ~34 µs for a 5-field form, ~96 µs for a '
                   plain '60-field grid. Adding 2 nested server roots (a token each: the ownership filter, '
                   plain 'issue #15) adds ~4–7%; a shared field in each (issue #434) stays within noise of that. '
-                  plain 'Tokenless nested roots are client-only and transparent (issue #410), so they take '
+                  plain 'Tokenless client-only nested roots (not lazy or deferred shells) are transparent '
+                  plain '(issue #410), so they take '
                   plain 'the fast path. The ownership check is hoisted to once per dispatch (issue #117): with '
                   plain 'no nested server root — the common case — the '
                   code { 'closest()' }

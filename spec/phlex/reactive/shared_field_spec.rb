@@ -67,10 +67,10 @@ RSpec.describe Phlex::Reactive::Component::SharedField do
     expect(html).to include('<input type="hidden" name="item[choice]" data-reactive-shared-field>')
   end
 
-  [nil, "", "  ", :""].each do |blank|
-    it "raises at render for a blank name (#{blank.inspect})" do
-      expect { view.reactive_shared_field(name: blank) }
-        .to raise_error(ArgumentError, /reactive_shared_field needs a non-blank name:/)
+  [nil, "", "  ", :"", false, true, 1].each do |bad|
+    it "raises at render for a blank or non-String/Symbol name (#{bad.inspect})" do
+      expect { view.reactive_shared_field(name: bad) }
+        .to raise_error(ArgumentError, /reactive_shared_field needs a non-blank String or Symbol name:/)
     end
   end
 end

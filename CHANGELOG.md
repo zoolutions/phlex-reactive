@@ -22,8 +22,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   only: a component above that host collects it only when the host marks a
   copy of its own. The name is the host's param, verbatim (the widget's own
   actions receive it under that name too, so they declare it there when they
-  read it); a blank name raises at render. Without the marker nothing changes. Dirty tracking,
-  `reactive_persist` and the client bindings keep strict ownership. The
+  read it, or the action drops it); a String or Symbol name only, a blank
+  one raises at render. Without the marker nothing changes. A conditional
+  `confirm:` reads the fields the action posts, so it sees the shared field
+  too; dirty tracking, `reactive_persist` and the client bindings keep strict
+  ownership. The
   collect walk is unchanged for a root with no nested server component; with
   one, an unmarked foreign control costs one attribute read.
 

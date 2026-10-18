@@ -22,9 +22,10 @@ module Phlex
       # re-scoped under this component's reactive_scope.
       module SharedField
         def reactive_shared_field(name:, value: nil, **attrs)
-          if name.to_s.strip.empty?
+          unless (name.is_a?(String) || name.is_a?(Symbol)) && !name.to_s.strip.empty?
             raise ArgumentError,
-              "reactive_shared_field needs a non-blank name: (the host's param, e.g. name: \"item[choice]\"), " \
+              "reactive_shared_field needs a non-blank String or Symbol name: " \
+              "(the host's param, e.g. name: \"item[choice]\"), " \
               "got #{name.inspect}"
           end
 

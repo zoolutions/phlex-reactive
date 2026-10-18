@@ -4355,8 +4355,10 @@ export default class extends Controller {
   // keeps its own fields (issue #15), except a control marked
   // data-reactive-shared-field (issue #434): this root collects it too when
   // the control's own server root sits directly below this one. One level: a
-  // grand-host never sees it. Bindings, computes, listnav, dirty tracking and
-  // persist keep the strict nearest-root #ownershipFilter / #ownsField.
+  // grand-host never sees it. Whatever reads #collectFields sees it too: the
+  // request, and the conditional confirm (it judges the fields the action is
+  // about to post). Bindings, computes, listnav, dirty tracking and persist
+  // keep the strict nearest-root #ownershipFilter / #ownsField.
   #serverFieldFilter() {
     const nested = this.element.querySelectorAll(AWAKE_ROOT)
     if (nested.length === 0 || [...nested].every(clientOnlyRoot)) return () => true
