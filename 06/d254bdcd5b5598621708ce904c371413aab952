@@ -1,0 +1,40 @@
+spec/javascript/reactive_filter.test.js
+  s_a622f9c9a4fcac::t_cb18dabcc66bd0 498
+app/javascript/phlex/reactive/features/bindings.js
+  s_a622f9c9a4fcac::t_d642c295700b2f 1024-1040,1042-1047,1063-1073,1081-1083
+spec/dummy/app/controllers/demos_controller.rb
+  s_a622f9c9a4fcac::t_89aa0b2938974a 175-179
+spec/javascript/reactive_inspect.test.js
+  s_a622f9c9a4fcac::t_ada408fa1e72b3 193-205
+spec/phlex/reactive/component_spec.rb
+  s_a622f9c9a4fcac::t_f853ae3b688bdb 2753-2846
+CHANGELOG.md
+  s_a622f9c9a4fcac::t_899068ae347e50 9-26
+lib/phlex/reactive/component/helpers.rb
+  s_a622f9c9a4fcac::t_eb14ad974b51d1 1445-1448,1451-1461
+  s_a622f9c9a4fcac::t_0986c1b9c2999e 744-755
+  s_a622f9c9a4fcac::t_72bde2834fc197 782-785
+app/javascript/phlex/reactive/inspect.js
+  s_a622f9c9a4fcac::t_1dbc32cfd04e18 231-232,241-242
+spec/dummy/config/routes.rb
+  s_a622f9c9a4fcac::t_8d674935024837 32
+spec/system/filter_match_spec.rb
+  s_a622f9c9a4fcac::t_53e0af8f37598e 1-9,16-61
+  s_a622f9c9a4fcac::t_1ca26d9b9067d1 10-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "06d254bdcd5b5598621708ce904c371413aab952",
+  "prompts": {},
+  "sessions": {
+    "s_a622f9c9a4fcac": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fea44453-760a-41d7-bfc8-86f0d5e5c5cc",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
