@@ -272,8 +272,9 @@ module Views
               times the scale, as above — or the first drag, or the first morph
               of the box, rewrites them. `.round(2)` keeps Ruby's float noise
               out of a visible field (`0.07 * 100` is `7.000000000000001`). A
-              field that already holds its number — `25.0`, as Ruby prints it —
-              is left alone: no `input`, and no `change` on release.
+              field the drag does not move keeps its text — `25.0`, as Ruby
+              prints it, is already 25 — with no `input` and no `change` on
+              release.
             MD
           end
         end

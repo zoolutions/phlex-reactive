@@ -15,11 +15,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   fields change: `value:`, the rendered position, the `action:` params and the
   live-region words stay fractions, so the server contract and a re-render do
   not depend on how a form shows the numbers. The morph hook that brings the
-  fields along compares on the scale, and a field that already holds its
-  number (`25.0`, as Ruby prints it) is left alone, with no `input` and no
-  `change`. The app renders the fields' first value on the scale itself
-  (`value: (@box[:x] * 100).round(2)`); otherwise the first drag or morph
-  rewrites them. `scale:` must be a positive finite Numeric (`0`, `-1`,
+  fields along compares on the scale, and a field the drag does not move
+  keeps its text (`25.0`, as Ruby prints it, is already 25), with no `input`
+  and no `change`. The same rule holds without `scale:`: a drag no longer
+  rewrites a field that holds its number in other words (`0.10`), and a
+  morph now writes an empty field of a box at 0. The app renders the fields'
+  first value on the scale itself (`value: (@box[:x] * 100).round(2)`);
+  otherwise the first drag or morph rewrites them. `scale:` must be a positive finite Numeric (`0`, `-1`,
   `"100"` and `Float::INFINITY` raise `ArgumentError` at render); the default,
   `1`, emits no `data-reactive-box-scale` / `data-reactive-point-scale`, so an
   existing region's markup is byte-identical. `features/drag` grows by 110 B

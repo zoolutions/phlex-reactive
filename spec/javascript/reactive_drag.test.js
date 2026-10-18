@@ -629,6 +629,37 @@ describe("scale:", () => {
     expect([field("r[x]").value, field("r[width]").value]).toEqual(["20", "50.0"])
   })
 
+  test("a field moved and brought back gets its change (its text is now the client's), but no action", async () => {
+    mount(picker({ scale: 100, attrs: 'data-reactive-box-action="crop"' }))
+    field("r[x]").value = "10.0"
+    const changes = listen("change")
+    key(box(), "ArrowRight")
+    key(box(), "ArrowLeft")
+    key(box(), "ArrowLeft", {}, "keyup")
+    await flush()
+    expect(field("r[x]").value).toBe("10")
+    expect(changes).toEqual(["r[x]"])
+    expect(requests).toEqual([])
+  })
+
+  test("without scale:, a drag leaves a field that holds its number in other words alone", async () => {
+    mount(picker())
+    field("r[y]").value = "0.10"
+    const changes = listen("change")
+    dragBy(box(), 40, 0) // x only
+    await flush()
+    expect([field("r[x]").value, field("r[y]").value]).toEqual(["0.2", "0.10"])
+    expect(changes).toEqual(["r[x]"])
+  })
+
+  test("without scale:, a morph writes an empty field, even with the box at 0", async () => {
+    mount(picker({ value: { x: 0, y: 0.1, width: 0.5, height: 0.4 } }))
+    field("r[x]").value = ""
+    morphed(box())
+    await flush()
+    expect(field("r[x]").value).toBe("0")
+  })
+
   test("an empty field is written, even with the box at 0", async () => {
     mount(picker({ scale: 100, value: { x: 0, y: 0.1, width: 0.5, height: 0.4 } }))
     field("r[x]").value = ""
