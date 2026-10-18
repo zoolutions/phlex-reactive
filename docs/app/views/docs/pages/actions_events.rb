@@ -27,6 +27,7 @@ module Views
           timing
           modifiers
           shortcuts
+          keep_default
           reserved
           client_only
         end
@@ -273,7 +274,8 @@ module Views
                 `@window`) for page-level events like `scroll`/`resize`. A
                 window-bound trigger is **never `preventDefault`-ed** — a mounted
                 dropdown must not kill link clicks elsewhere — and skips the forced
-                `type="button"`.
+                `type="button"`. An element-bound trigger is prevented unless it says
+                `prevent: false` ([below](#keep-the-native-default-prevent-false)).
               - **`outside: true`** fires the action only for events whose target is
                 **outside** this component's root — the close-a-dropdown-on-outside-click
                 pattern. An event inside the root is a complete client-side no-op.
@@ -362,6 +364,48 @@ module Views
           end
         end
 
+        def keep_default
+          DocsUI::Section('Keep the native default — prevent: false') do
+            md <<~MD
+              An element-bound trigger (`on` or `on_client`) calls `preventDefault()`
+              before anything else runs, so a bare button inside a `<form>` cannot
+              submit it. Some listeners only observe an event and need the browser to
+              carry on: a drop zone built from a native `<input type="file">` stretched
+              over an area gets the dropped file only when nothing cancelled the
+              `drop`. `prevent: false` (#433) skips the `preventDefault` for that
+              trigger, and its ops or action still run:
+
+              ```ruby
+              div(id: "zone", class: "relative", **mix(
+                on_client(:dragenter, js.add_class("#zone", "is-over")),
+                on_client(:dragleave, js.remove_class("#zone", "is-over")),
+                on_client(:drop, js.remove_class("#zone", "is-over"), prevent: false) # keeps the drop
+              )) do
+                input(type: "file", name: "file", class: "absolute inset-0 opacity-0")
+                plain "Drop a file here"
+              end
+
+              div(**on(:track, event: "drop", prevent: false))  # the same keyword on a server trigger
+              ```
+
+              - The default, `prevent: true`, renders no attribute: existing markup is
+                byte-identical.
+              - It belongs to its own binding: a sibling `on_client` on another event
+                (the `dragenter` above) is still prevented, and so is the event when
+                another binding on the same element and event does not opt out.
+              - A `window:` or `outside:` trigger never prevents, so `prevent: false`
+                changes nothing there; with `shortcut:` (a chord the page claims) it
+                raises `ArgumentError`. Anything but `true`/`false` raises too.
+              - A click trigger keeps its forced `type="button"`; a button that should
+                submit its form natively says so with `mix(on(...), type!: "submit")`.
+              - With `confirm:`, the native default has already run when the dialog
+                answers: the dialog gates only the ops or the action.
+              - `phlex/reactive/early` follows the same rule before the controller
+                connects.
+            MD
+          end
+        end
+
         def reserved
           DocsUI::Section('Reserved keyword names') do
             md <<~MD
@@ -378,6 +422,7 @@ module Views
               | `window:` | bind to the window |
               | `outside:` | fire only outside the root (implies `window:`) |
               | `once:` | fire at most once |
+              | `prevent:` | `false` keeps an element-bound trigger's native default (#433) |
               | `shortcut:` | a page-level keyboard chord (`"mod+z"`): platform `mod`, skips typing and a key already handled, prevented |
               | `confirm:` | gate behind a confirmation dialog — a String (always), or a Hash (conditional, #179) |
               | `optimistic:` | reversible cosmetic hint applied before the round trip |
@@ -445,7 +490,8 @@ module Views
 
               `window:`, `once:`, and `outside:` compose **exactly** as they do on
               `on(...)`: the menu above closes on any outside click, and the
-              window-bound trigger never `preventDefault`s. Reach for `on_client` when
+              window-bound trigger never `preventDefault`s (an element-bound one does,
+              unless it says `prevent: false`). Reach for `on_client` when
               the interaction is presentational; reach for a signed `action` (a token
               + POST) only when the server must **decide** or **persist** something.
               See the [client-only ops example](/docs/example-client-ops) for the live

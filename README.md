@@ -1034,7 +1034,7 @@ skips the `preventDefault` for that trigger, and its ops or action still run:
 div(id: "zone", class: "relative", **mix(
   on_client(:dragenter, js.add_class("#zone", "is-over")),
   on_client(:dragleave, js.remove_class("#zone", "is-over")),
-  on_client(:drop, js.remove_class("#zone", "is-over"), prevent: false) # the file still reaches the input
+  on_client(:drop, js.remove_class("#zone", "is-over"), prevent: false) # keeps the drop
 )) do
   input(type: "file", name: "file", class: "absolute inset-0 opacity-0")
   plain "Drop a file here"
@@ -1051,7 +1051,8 @@ div(**on(:track, event: "drop", prevent: false))  # the same keyword on a server
 - A `window:` or `outside:` trigger never prevents, so `prevent: false` changes
   nothing there; with `shortcut:` (a chord the page claims) it raises
   `ArgumentError`. Anything but `true`/`false` raises too.
-- A click trigger keeps its forced `type="button"`.
+- A click trigger keeps its forced `type="button"`; a button that should
+  submit its form natively says so with `mix(on(...), type!: "submit")`.
 - With `confirm:`, the native default has already run when the dialog answers:
   the dialog gates only the ops or the action.
 - `phlex/reactive/early` follows the same rule before the controller connects.

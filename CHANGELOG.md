@@ -25,8 +25,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   prevents, so the keyword changes nothing there; with `shortcut:` it raises
   `ArgumentError` at render, as does anything but `true`/`false`. A click
   trigger keeps its forced `type="button"`. The default bundle grows by 33 B
-  gzipped (40,847 B), the split core by 33 B (18,400 B), `early.min.js` by 83 B
-  (1,726 B).
+  gzipped (40,847 B), the split core by 33 B (18,400 B), `early.min.js` by 91 B
+  (1,734 B).
 
 ### Changed
 

@@ -99,11 +99,14 @@ function enqueue(event, el, descs, win, shortcut) {
   // fired opts out: on() through its element-wide param, an on_client
   // descriptor when every record on its `on` carries `"prevent":false`,
   // written right after `on` (a legacy attr has no `on`, so it is prevented).
+  // A record starts the attribute or follows the space mix joins records with
+  // (a record writes its own spaces as \u0020), so ` {"on":"…"` is a record's
+  // start and never an op's argument.
   const keepsToggle =
     /^(checkbox|radio)$/.test(el.type) && /"checked":"keep"/.test(el.dataset.reactiveOptimisticParam)
-  const ops = el.dataset.reactiveOpsParam ?? ""
+  const ops = ` ${el.dataset.reactiveOpsParam ?? ""}`
   const keeps = (d) => {
-    const on = `"on":"${d.token.split("->")[0]}"`
+    const on = ` {"on":"${d.token.split("->")[0]}"`
     return d.method === "runOps"
       ? ops.includes(on) && ops.split(on).length === ops.split(`${on},"prevent":false`).length
       : keepsToggle || el.dataset.reactivePreventParam === "false"

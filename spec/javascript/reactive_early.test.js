@@ -227,6 +227,16 @@ test("matches a key-filtered record by its whole on, filter included", async () 
   expect(esc.defaultPrevented).toBe(true)
 })
 
+test("reads only a record's own on, never an op argument that looks like one", async () => {
+  const root = await mount(`
+    <div id="z" data-controller="reactive">
+      <div data-action="drop->reactive#runOps" data-reactive-ops-param='{"on":"drop","prevent":false,"ops":[["dispatch",{"name":"x","detail":{"on":"drop"}}]]}'></div>
+    </div>`)
+  const event = fire(root.firstElementChild, "drop")
+
+  expect(event.defaultPrevented).toBe(false)
+})
+
 test("still prevents a legacy ops attr (it has no on to carry the flag)", async () => {
   const root = await mount(`
     <div id="z" data-controller="reactive">
@@ -839,11 +849,11 @@ test("listens for trigger types of roots added after start (MutationObserver)", 
 // The one module every page loads eagerly. 1,024 B before dormant roots (issue
 // #274) added the second root selector and the wake; 1,621 B since the bare
 // delete/backspace chords (issue #366); 1,643 B since it records the chord it
-// prevents for a shortcut as a shortcut's (issue #429); 1,726 B since a
+// prevents for a shortcut as a shortcut's (issue #429); 1,734 B since a
 // prevent: false trigger keeps its native default before connect (issue #433).
-test("early.min.js gzips to at most 1,726 bytes", () => {
+test("early.min.js gzips to at most 1,734 bytes", () => {
   const built = readFileSync(join(import.meta.dir, "../../app/javascript/phlex/reactive/early.min.js"))
-  expect(gzipSync(built, { level: 9 }).length).toBeLessThanOrEqual(1726)
+  expect(gzipSync(built, { level: 9 }).length).toBeLessThanOrEqual(1734)
 })
 
 // --- reactive_controller.js: connect() marks, announces and drains ------------
