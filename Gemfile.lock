@@ -230,7 +230,7 @@ GEM
     pg (1.7.0-aarch64-linux)
     pg (1.7.0-arm64-darwin)
     pg (1.7.0-x86_64-linux)
-    pgbus (0.18.1)
+    pgbus (0.20.1)
       concurrent-ruby (~> 1.2)
       fugit (~> 1.11, >= 1.11.1)
       globalid (~> 1.0)
@@ -419,7 +419,7 @@ DEPENDENCIES
   mcp
   memory_profiler (~> 1.0)
   pg (~> 1.5)
-  pgbus (>= 0.18.1)
+  pgbus (>= 0.20.1)
   phlex-reactive!
   playwright-ruby-client (~> 1.64.0)
   puma
@@ -518,7 +518,7 @@ CHECKSUMS
   pg (1.7.0-aarch64-linux) sha256=101dd3a261000eb64b03ff41a5890674b735b626dbdce88652969b59fb0b1157
   pg (1.7.0-arm64-darwin) sha256=9fa895bbe28bdd579b83ccc80464c01d1015ea7549a7919134c9f8f10c060e4b
   pg (1.7.0-x86_64-linux) sha256=d0a24f448b3c874c8b2658d4efbbbefce7315c228ede84f6f6f42089d1d704b6
-  pgbus (0.18.1) sha256=4123f742dc86d56d2c94a979562ab947afcad568c4db18f2b2b6f659c8b47a6f
+  pgbus (0.20.1) sha256=c15a808f26138cb27873417e469d27dcd1dd763d514a6b960cac14a2c8a07169
   pgmq-ruby (0.7.1) sha256=d5057dd16fb2bc2668978a942809749b4a27092ff92c904fc96ebab5ebc418f5
   phlex (2.4.1) sha256=e596717fbfe38b5271840266758779ebe75092e02629f0c170287e6290a70b12
   phlex-rails (2.4.0) sha256=2bcddbd488681acb25753bab1887d3ac150e644244ff8ba307f2171a4d0195f5

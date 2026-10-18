@@ -91,6 +91,7 @@ ThreadSafety/NewThread:
     # under test must survive (a Queue handshake or Thread.pass at the window).
     - spec/phlex/authorization_boot_instrumentation_spec.rb
     - spec/phlex/fragment_viewer_warned_spec.rb
+    - spec/phlex/reactive/presence_transport_spec.rb
     - spec/phlex/reactive/store_spec.rb
     # Concurrent renders must not interleave view-context buffers.
     - spec/phlex/reactive/streamable_view_context_spec.rb

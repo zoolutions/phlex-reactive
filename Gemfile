@@ -74,9 +74,13 @@ group :development, :test do
   # don't raise the floor for that — the push-lane queue lifecycle is an
   # operational (Dispatcher) concern, not a code dependency.
   #
-  # The DEV floor is 0.18.1: presence (issue #358) needs per-connection seats,
-  # pgbus:connected after the join, the close watcher and streams_authorize
-  # (zoolutions/pgbus#516, #520, #523, #524; 0.18.1 adds the worker read-ahead fix #526), and the browser suite exercises it.
+  # Presence (issue #358) needs per-connection seats, pgbus:connected after the
+  # join, the close watcher and streams_authorize (zoolutions/pgbus#516, #520,
+  # #523, #524; 0.18.1 adds the worker read-ahead fix #526), and the browser
+  # suite exercises it. The DEV floor is 0.20.1 (issue #427): it runs presence
+  # SQL under the adapter's lock (zoolutions/pgbus#566), so the seat sweep can
+  # no longer share the transactional tests' pinned connection with a request
+  # and wedge the dummy server.
   # An app without presence components still works on any pgbus with the
   # Streams primitives (the gem capability-detects at runtime).
   #
@@ -87,7 +91,7 @@ group :development, :test do
   if (pgbus_path = ENV.fetch("PGBUS_PATH", nil))
     gem "pgbus", path: pgbus_path, require: false
   else
-    gem "pgbus", ">= 0.18.1", require: false
+    gem "pgbus", ">= 0.20.1", require: false
   end
   gem "pg", "~> 1.5", require: false # pgbus needs PostgreSQL
 

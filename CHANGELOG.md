@@ -6,6 +6,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A presence component no longer raises `FrozenError` when pgbus's presence
+  settings are frozen (#427).** pgbus 0.19 and later freeze the
+  configuration's Arrays and Hashes once boot is over (an app can also freeze
+  its own Hash). `reactive_presence ..., ttl:` added its seconds to
+  `streams_presence_ttl` in place, so a component that loaded after boot
+  (`eager_load` off, the development and test default) raised
+  `can't modify frozen Hash` when that setting was a frozen Hash.
+  The ttl, and the presence stream pattern that boot registers in
+  `streams_presence_patterns`, now go through pgbus's setters as a new value.
+  The development and test pin moves to pgbus 0.20.1: from that release,
+  presence runs its SQL under the adapter's lock (zoolutions/pgbus#566).
+
 ## [0.16.4] - 2026-10-18
 
 ### Added
