@@ -459,7 +459,7 @@ module Views
               ```
 
               **Several files (#439).** On an `<input type="file" multiple>` the checks
-              above read one file, the first the `accept` list takes. `per_file: true`
+              above read one file, the first image the `accept` list takes. `per_file: true`
               checks **every** file and drops only the refused ones, so an action on the
               same `change` posts the good ones:
 

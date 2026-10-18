@@ -291,3 +291,41 @@ test("a multiple input without per_file: still refuses its first file by size wi
   expect(input.files).toBe(files)
   expect(details).toEqual([{ reason: "size", file: big }])
 })
+
+// --- the action bound after the op on the same change -------------------------
+
+test("an action dispatched after the op on the same change posts only the kept files", async () => {
+  const { controller, input } = mount(picker())
+  document.head.innerHTML =
+    `<meta name="reactive-action-path" content="/reactive/actions"><meta name="csrf-token" content="csrf">`
+  let body = null
+  const savedFetch = globalThis.fetch
+  const savedFormData = globalThis.FormData
+  // happy-dom's FormData, so it takes happy-dom's File.
+  globalThis.FormData = window.FormData
+  window.Turbo = { renderStreamMessage() {} }
+  globalThis.fetch = (_path, opts) => {
+    body = opts.body
+    return Promise.resolve({
+      redirected: false,
+      ok: true,
+      status: 200,
+      headers: { get: () => "text/vnd.turbo-stream.html" },
+      text: () => Promise.resolve(""),
+    })
+  }
+  try {
+    choose(input, [png("a.png"), png("b.png", 11), svg("c.svg")])
+    // The order mix(on_client(:change, op), on(:upload, event: "change")) gives:
+    // runOps first, then dispatch, with the same change event.
+    run(controller, [op()])
+    await controller.dispatch({ params: { action: "upload", params: "{}" }, target: input, preventDefault() {} })
+  } finally {
+    globalThis.fetch = savedFetch
+    globalThis.FormData = savedFormData
+    delete window.Turbo
+  }
+
+  expect(body instanceof window.FormData).toBe(true)
+  expect(body.getAll("params[file][]").map((file) => file.name)).toEqual(["a.png"])
+})

@@ -10,7 +10,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **`js.preview_file(…, per_file: true)` checks every file of a `multiple`
   input and drops only the refused ones (#439).** The op checked one file, the
-  first its `accept` list took, so on an `<input type="file" multiple>` an
+  first image its `accept` list took, so on an `<input type="file" multiple>` an
   oversize or wrong-type file next to good ones was never refused, and the only
   way to keep a refused file from being posted was to clear the whole input.
   With `per_file: true` on a `multiple` input every file is checked (`accept:`,
