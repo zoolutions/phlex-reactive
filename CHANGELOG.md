@@ -8,6 +8,28 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **A field inside a nested component can post with its host's actions:
+  `reactive_shared_field` (#434).** A reactive component rendered inside
+  another is its own root, and its named fields are its own (#15), so a form
+  widget with actions of its own (a picker that keeps the chosen id in a
+  hidden field) could not hand its value to the form around it without a
+  second component beside it and a `js.set_value` in every action.
+  `input(type: "hidden", **reactive_shared_field(name: "item[choice]", value: @choice))`
+  renders the name, the value and a `data-reactive-shared-field` marker: the
+  widget's own actions still collect the field, and so do the actions of the
+  next server component above it (client-only roots in between stay
+  transparent, #410), on the JSON body and the multipart one alike. One level
+  only: a component above that host collects it only when the host marks a
+  copy of its own. The name is the host's param, verbatim (the widget's own
+  actions receive it under that name too, so they declare it there when they
+  read it, or the action drops it); a String or Symbol name only, a blank
+  one raises at render. Without the marker nothing changes. A conditional
+  `confirm:` reads the fields the action posts, so it sees the shared field
+  too; dirty tracking, `reactive_persist` and the client bindings keep strict
+  ownership. The
+  collect walk is unchanged for a root with no nested server component; with
+  one, an unmarked foreign control costs one attribute read.
+
 - **`prevent: false` lets an element-bound trigger keep the event's native
   default (#433).** By default, a matching element-bound `on`/`on_client`
   trigger calls `preventDefault()` before its ops or action run (only a
@@ -26,8 +48,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   byte-identical. A `window:` or `outside:` trigger never prevents, so the
   keyword changes nothing there; with `shortcut:` it raises `ArgumentError` at
   render, as does anything but `true`/`false`. A click trigger keeps its forced
-  `type="button"`. The default bundle grows by 33 B gzipped (40,847 B), the
-  split core by 33 B (18,400 B), `early.min.js` by 103 B (1,746 B).
+  `type="button"`. The default bundle grows by 34 B gzipped (40,880 B), the
+  split core by 34 B (18,438 B), `early.min.js` by 103 B (1,746 B).
 
 ### Changed
 

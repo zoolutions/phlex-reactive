@@ -82,6 +82,7 @@ Rails.application.routes.draw do
   get "kept_selection" => "demos#kept_selection" # issue #369: keep: on client ops survives a morph
   get "field_checks" => "demos#field_checks" # issues #394-#396: same:, digits:/after:, show transitions
   get "nested_editor" => "demos#nested_editor"
+  get "shared_field" => "demos#shared_field" # issue #434: reactive_shared_field
   get "tag_picker" => "demos#tag_picker"
   get "nested_params" => "demos#nested_params"
   get "debounce" => "demos#debounce"

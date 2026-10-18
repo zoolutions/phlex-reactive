@@ -20,6 +20,7 @@ module Phlex
         include ImageFallbackBinding
         include CountdownBinding
         include CssVarsBinding
+        include SharedField
         include FieldReferences
         include ShowOptions
 
