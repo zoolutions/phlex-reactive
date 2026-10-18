@@ -21,13 +21,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `clear:`), `disable: true` (the marked control is disabled and re-enabled
   with the group), `reactive_enable`, `reactive_show_targets`,
   `reactive_group_targets`, `checked_*` counts and `reactive_count`,
-  `reactive_on_complete`, `reactive_media`, `reactive_css_vars`, and a
-  `reactive_compute` input (an edit inside a nested root now recomputes the
-  host, which Stimulus never routed). Which bindings a root evaluates is
-  unchanged: a nested root's own bindings stay its own. Client ops, listnav,
-  `busy_on`, `reactive_filter`, a select-all header, dirty tracking and
-  `reactive_persist` keep strict ownership. Without the marker nothing
-  changes; a page with no nested root pays nothing.
+  `reactive_on_complete`, `reactive_media`, `reactive_css_vars`, and
+  `reactive_compute`: a marked control is an input (an edit inside a nested
+  root now recomputes the host, which Stimulus never routed there) and, when
+  its name is a declared output, an output the host writes. A nested root that
+  comes back through a plain replace re-syncs the host's bindings and compute
+  seed, as a morph already did. Which bindings a root evaluates is unchanged:
+  a nested root's own bindings stay its own. Client ops, listnav, `busy_on`,
+  `reactive_filter`, a select-all header (its count includes the marked box),
+  dirty tracking and `reactive_persist` keep strict ownership. Without the
+  marker nothing changes. A root with no nested root keeps the constant-true
+  fast path; a compute root reads one attribute per `input` event.
 
 ## [0.16.7] - 2026-10-18
 

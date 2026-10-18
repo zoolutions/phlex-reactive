@@ -354,3 +354,80 @@ test("a host client op never reaches a marked control: ops keep strict ownership
   expect($("title").value).toBe("zzz")
   expect($("choice").value).toBe("")
 })
+
+// A nested root that comes back through a plain replace (not a morph) connects
+// again and announces it with a bubbling reactive:connect. The host re-syncs on
+// it when the new root holds a shared field: a hidden disable: true group
+// disables the fresh control, and the host's bindings read its new value.
+function replacePicker(html) {
+  const old = $("picker")
+  old.__controller?.disconnect()
+  const holder = document.createElement("div")
+  holder.innerHTML = html
+  const fresh = holder.firstElementChild
+  old.replaceWith(fresh)
+  const controller = new ReactiveController()
+  controller.element = fresh
+  controller.tokenValue = fresh.getAttribute("data-reactive-token-value") ?? ""
+  fresh.__controller = controller
+  controller.connect()
+}
+
+test("a nested root replaced inside a hidden disable: true group comes back disabled", () => {
+  mount(disableGroupPage({ pickerToken: true }))
+  expect($("choice").disabled).toBe(true)
+  replacePicker(`<div id="picker" data-controller="reactive" data-reactive-token-value="picker-token-2">
+    <input id="choice" name="choice" value="c" required ${MARK}><input id="q" name="q" form="none"></div>`)
+  expect($("choice").disabled).toBe(true)
+  expect($("q").disabled).toBe(false)
+})
+
+test("a nested root replaced with a new shared value re-syncs the host's show, enable and compute", () => {
+  computeModule.setComputeReducer("label", (values) => ({ label: `picked ${values.choice}` }))
+  mount(`
+    <div id="host" data-controller="reactive" data-reactive-token-value="host-token"
+         data-action="input->reactive#recompute"
+         data-reactive-compute-reducer-param="label"
+         data-reactive-compute-inputs-param='{"choice":"string"}'
+         data-reactive-compute-outputs-param='["label"]'
+         data-reactive-compute-seed="true">
+      <div id="picker" data-controller="reactive" data-reactive-token-value="picker-token">
+        <input id="choice" name="choice" value="" ${MARK}>
+      </div>
+      ${hostBindings}
+      <span id="label" data-reactive-text="label"></span>
+    </div>`)
+  expect($("label").textContent).toBe("picked ")
+  replacePicker(`<div id="picker" data-controller="reactive" data-reactive-token-value="picker-token-2">
+    <input id="choice" name="choice" value="b" ${MARK}></div>`)
+  expect($("picked").hidden).toBe(false)
+  expect($("save").disabled).toBe(false)
+  expect($("label").textContent).toBe("picked b")
+})
+
+test("a nested root without a shared field connecting never re-syncs the host", () => {
+  mount(`
+    <div id="host" data-controller="reactive" data-reactive-token-value="host-token">
+      <input id="mode" name="mode" value="a">
+      <div id="picker" data-controller="reactive" data-reactive-token-value="picker-token"><input name="q"></div>
+      <p id="shown" data-reactive-show=${show("mode", "a")}>a</p>
+    </div>`)
+  // Flip the host's binding by hand: only a host re-sync would undo it.
+  $("shown").hidden = true
+  replacePicker(`<div id="picker" data-controller="reactive" data-reactive-token-value="picker-token-2"><input name="q"></div>`)
+  expect($("shown").hidden).toBe(true)
+})
+
+test("a same: term compares a host field with a marked field", () => {
+  mount(`
+    <div id="host" data-controller="reactive" data-reactive-token-value="host-token">
+      <input id="confirm" name="confirm" value="">
+      <div id="picker" data-controller="reactive"><input id="choice" name="choice" value="b" ${MARK}></div>
+      <p id="match" data-reactive-show='{"any":[[{"field":"confirm","same":"choice"}]]}' hidden>match</p>
+    </div>`)
+  expect($("match").hidden).toBe(true)
+  edit("confirm", "b", "input")
+  expect($("match").hidden).toBe(false)
+  edit("choice", "c", "input")
+  expect($("match").hidden).toBe(true)
+})

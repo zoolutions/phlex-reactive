@@ -4422,8 +4422,8 @@ export default class extends Controller {
   // server root is this one (under client-only roots, issue #410) or sits
   // directly below it: one level, the #serverFieldFilter rule. Field reads
   // only: show (every term, after:, clear:, disable: true), enable, show and
-  // group targets, checked_* counts, on_complete, media, css vars and compute
-  // inputs. Which binding ELEMENTS a root evaluates, and every op, listnav,
+  // group targets, checked_* counts, on_complete, media, css vars, compute
+  // inputs and outputs. Which binding ELEMENTS a root evaluates, and every op, listnav,
   // busy_on, dirty and persist read, stay on the strict #ownsField. An
   // unmarked control in a nested root costs one attribute read more.
   #bindingOwns(el) {

@@ -68,6 +68,7 @@ export function connect(controller, core) {
   // here, and again from reseed() — a stream can render a root's first show
   // target, filter or nested list into it after connect (issue #356).
   let resetting
+  let sharing
   let filtering
   let tagging
   let serializing
@@ -150,6 +151,19 @@ export function connect(controller, core) {
           c.arm?.()
         }, 0),
       )
+    }
+
+    // Issue #440: a nested root that comes back through a plain replace (a
+    // morph already bubbles turbo:morph-element here) brings a fresh shared
+    // field: a hidden disable: true group must disable it again, and the
+    // bindings read its new value. It announces itself with a bubbling
+    // reactive:connect; a root without a shared field changes nothing here.
+    if (!sharing && (sharing = c.show || c.arm)) {
+      listen(c, "reactive:connect", (event) => {
+        if (event.target === c.root || !event.target.querySelector?.("[data-reactive-shared-field]")) return
+        c.show?.()
+        c.arm?.()
+      })
     }
 
     // Option filtering (issue #163) — ONLY when the root declares the binding
@@ -564,8 +578,9 @@ function applyShowVisibility(el, match, owns) {
 
 // Apply the declared cross-root show targets (issue #164) — the visibility
 // parallel of #applyComputeMirrors. For each declared field: read the OWNED
-// field's current value (never a nested root's — you can only drive outside
-// visibility from a field this root owns), then for each "#id" → predicate
+// field's current value (never a nested root's, except a shared field just
+// below, issue #440 — you can only drive outside visibility from a field this
+// root reads), then for each "#id" → predicate
 // entry: guard the selector id-only (warn-and-skip; the Ruby helper raised
 // at declare time — two-sided default-deny), resolve it DOCUMENT-WIDE, and
 // toggle `hidden`. A target id not on the page is silently skipped (an
@@ -702,7 +717,9 @@ function wireName(name, scope) {
 // The per-pass field resolver every DNF fold reads (show, enable, on-complete).
 // fieldValue(name) is the field's string value; fieldValue(name, true) is how
 // many owned boxes of that checkbox group are ticked (the checked_* terms,
-// issue #319). Memoized, so a field driving several bindings reads once.
+// issue #319). `owns` is what the bindings read: core.bindingOwnership, so a
+// shared field just below counts as owned (issue #440). Memoized, so a field
+// driving several bindings reads once.
 function fieldResolver(c, owns) {
   const scope = c.root.getAttribute?.("data-reactive-scope") || null
   const values = new Map()
@@ -880,7 +897,9 @@ function hasGroups(c) {
 }
 
 // The owned checkboxes of a group (a nested root's boxes are its own, #15).
-// With `under` (a nested header, issue #398) only the boxes whose
+// `owns` decides which: strict for a select-all header and the boxes it
+// ticks; core.bindingOwnership for a count, which takes a shared box just
+// below too (issue #440). With `under` (a nested header, issue #398) only the boxes whose
 // data-reactive-group is that path or below it, on whole segments.
 function groupBoxes(c, name, owns, scope, under) {
   return [...c.root.querySelectorAll(namedSelector(name, scope))].filter(
@@ -965,7 +984,8 @@ function syncGroups(c, fieldValue, owns, scope) {
 // The declared cross-root group targets (issue #343) — the count and enable
 // parallel of syncShowTargets, declared on the root that OWNS the group:
 // { group: { count: ["#id", …], enable: { "#id": { any: … } } } }. The count
-// is this root's owned ticked boxes (a nested root's are its own, #15), the
+// is this root's owned ticked boxes (a nested root's are its own, #15, except
+// a shared box just below, issue #440), the
 // enable folds its DNF payload with the same owned-field memo as every other
 // binding. Targets are id-only (warn-skip — the Ruby helper raised at
 // declare time) and resolved document-wide; a missing one is skipped.

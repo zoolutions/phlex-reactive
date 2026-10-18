@@ -207,8 +207,9 @@ const SLACK = 250
 // ones dropped from input.files, one rejection each, in the runtime) adds 196 B: 41,076 B;
 // its review fix (remaining counts what the input keeps when there is no DataTransfer) 9 B: 41,085 B.
 // Issue #440 (a shared field drives the host's client bindings: the runtime's bindingOwns, the
-// bindings' field reads, compute's listener for a shared field in a nested root) adds 133 B: 41,218 B.
-const BUNDLE_GZIP_CEILING = 41_218
+// bindings' field reads, compute's listener for a shared field in a nested root) adds 133 B: 41,218 B;
+// its review fixes (a nested root replaced with a shared field re-syncs the host) 91 B: 41,309 B.
+const BUNDLE_GZIP_CEILING = 41_309
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -307,13 +308,15 @@ const FEATURE_GZIP_CEILINGS = {
   // Issue #417 (reactive_css_vars: the number read, the unit and name allowlists) to 8,238 B;
   // its review fix (a to: that does not parse matches nothing) to 8,245 B.
   // Issue #425 (reactive_filter match: and fold:) to 8,396 B (+155 B on main's real 8,241 B).
-  // Issue #440 (field reads through bindingOwnership: a shared field just below) to 8,408 B.
-  "features/bindings": 8_408,
+  // Issue #440 (field reads through bindingOwnership: a shared field just below) to 8,408 B;
+  // its review fix (re-sync when a nested root holding a shared field connects) to 8,451 B.
+  "features/bindings": 8_451,
   // Issue #336 (render a defer reply now) takes it from 2,845 B to 2,974 B.
   "features/defer": 2_974,
   // Issue #440 (the input listener for a shared field in a nested root, which Stimulus
-  // never routes to this root's recompute) takes it from 2,050 B to 2,103 B.
-  "features/compute": 2_103,
+  // never routes to this root's recompute) takes it from 2,050 B to 2,103 B; its review
+  // fixes (the marker read first, a re-seed when such a nested root connects) to 2,171 B.
+  "features/compute": 2_171,
   "features/hints": 1_000,
   "features/effects": 1_750,
   // Issue #351 (an editable drafted through the core's collector) takes it to 3,167 B.
@@ -423,8 +426,9 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #434 (a shared field posts with the host, in the core) adds 37 B: 49,875 B.
 // Issue #433 (prevent: false, in the core) adds 33 B: 49,871 B; on top of #434 (49,875 B), 34 B: 49,909 B.
 // Issue #439 (preview_file per_file:, in the core) adds 197 B: 50,106 B; its review fix 11 B: 50,117 B.
-// Issue #440 (a shared field drives the host's bindings: +73 B core, +12 B bindings, +53 B compute) adds 138 B: 50,255 B.
-const SPLIT_TOTAL_GZIP_CEILING = 50_255
+// Issue #440 (a shared field drives the host's bindings: +73 B core, +12 B bindings, +53 B compute) adds 138 B: 50,255 B;
+// its review fixes (+43 B bindings, +68 B compute) 111 B: 50,366 B.
+const SPLIT_TOTAL_GZIP_CEILING = 50_366
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

@@ -26,6 +26,7 @@ import { computeReducer } from "phlex/reactive/compute"
 //            (and ONLY one of ours)
 //   opsSig   the reducer's last $ops chain (issue #226), the rising-edge latch
 //   seed     the connect-time seed, when the root opts in
+//   nested   re-seeds when a nested root holding a shared field connects
 //   share    the input listener for shared fields in nested roots (issue #440)
 const contexts = new WeakMap()
 
@@ -59,13 +60,20 @@ export function connect(controller, core, _morphed, pending) {
   if (seeds) {
     c.seed = () => recompute(c)
     c.root.addEventListener?.("turbo:morph-element", c.seed)
+    // Issue #440: a nested root that comes back through a plain replace (a
+    // morph bubbles turbo:morph-element above) announces itself with a
+    // bubbling reactive:connect; when it holds a shared field, its new value
+    // is an input of this root's.
+    c.nested = (event) => event.target !== c.root && event.target.querySelector?.(SHARED_FIELD) && c.seed()
+    c.root.addEventListener?.("reactive:connect", c.nested)
   }
   // Issue #440: Stimulus never routes an event from inside a nested reactive
   // root to this root's input->reactive#recompute, yet a control there marked
   // data-reactive-shared-field is one of this root's inputs. Its edits come
   // through this listener instead; an owned field's stay Stimulus's (a second
-  // run would be a double one).
-  c.share = (event) => !c.core.owns(event.target) && c.core.bindingOwns(event.target) && recompute(c, event)
+  // run would be a double one); any other edit costs one attribute read.
+  c.share = (event) =>
+    event.target?.matches?.(SHARED_FIELD) && !c.core.owns(event.target) && c.core.bindingOwns(event.target) && recompute(c, event)
   c.root.addEventListener?.("input", c.share)
   // The one pass a root that waited for this module owes: its seed, or the
   // recompute an edit in the window asked for.
@@ -77,6 +85,7 @@ export function disconnect(controller) {
   if (!c) return
   contexts.delete(controller)
   if (c.seed) c.root.removeEventListener?.("turbo:morph-element", c.seed)
+  c.root.removeEventListener?.("reactive:connect", c.nested)
   c.root.removeEventListener?.("input", c.share)
 }
 
@@ -92,6 +101,9 @@ function publicRecompute(controller, core, event) {
   return recompute(ctx(controller, core), event)
 }
 export { publicRecompute as recompute }
+
+// The marker reactive_shared_field renders (issue #434).
+const SHARED_FIELD = "[data-reactive-shared-field]"
 
 // The control for a name nothing owned resolves to.
 const COMPUTE_NO_CONTROL = Object.freeze({ el: null, kind: "" })

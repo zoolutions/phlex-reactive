@@ -963,12 +963,14 @@ button(**mix(on(:save), reactive_enable(if: { choice: "b" }))) { "Save" }
 
 `reactive_show` (every term, `after:`, `clear:`), `reactive_enable`,
 `reactive_show_targets`, `reactive_group_targets`, the `checked_*` counts,
-`reactive_on_complete`, `reactive_media`, `reactive_css_vars` and a
-`reactive_compute` input all read it, and a `disable: true` group disables and
-re-enables it with its own controls, so a `required` field in a hidden section
-never blocks a native submit. The widget's unmarked fields (its query input)
-stay its own, and a nested root's own bindings are still evaluated by that
-root alone. Client ops, listnav, `busy_on`, `reactive_filter`, a select-all
+`reactive_on_complete`, `reactive_media` and `reactive_css_vars` all read it,
+and a `disable: true` group disables and re-enables it with its own controls,
+so a `required` field in a hidden section never blocks a native submit. For a
+`reactive_compute` it is an input (its edits recompute the host) and, when its
+name is a declared output, an output the host writes. When the widget
+re-renders, by a morph or a plain replace, the host re-syncs against the new
+field. The widget's unmarked fields (its query input) stay its own, and a
+nested root's own bindings are still evaluated by that root alone. Client ops, listnav, `busy_on`, `reactive_filter`, a select-all
 header, dirty tracking and `reactive_persist` keep strict ownership, so the
 field is the widget's there. A native `<form>` posts it anyway, like any named
 control.
