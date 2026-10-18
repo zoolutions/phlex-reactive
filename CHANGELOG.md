@@ -14,10 +14,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (#425).** `match:` sets where the query must sit in an option's haystack:
   `:substring` (anywhere, the default), `:prefix` (at its start) or
   `:word_start` (at its start, or right after whitespace or one of
-  `- ' ( ) , . /`). For a long alphabetical list, `match: :word_start` makes
+  `- ' ( ) , . /`, the straight apostrophe only). For a long alphabetical list, `match: :word_start` makes
   `n` keep Nantes and New York instead of every name with an n in it.
   `fold: true` folds diacritics on both sides before comparing (Unicode NFD,
-  combining marks stripped), so `zur` finds Zürich and `zür` still does.
+  combining marks stripped), so `zur` finds Zürich and `zür` still does;
+  a letter with no decomposition (`ø`, `æ`, `ł`, `đ`, `ß`) stays as it is.
   `reactive_filter(:q, match: :word_start, fold: true)` emits
   `data-reactive-filter-match` and `data-reactive-filter-fold`; the defaults
   emit neither, so an existing filter's markup is byte-identical. An unknown

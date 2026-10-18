@@ -284,7 +284,7 @@ const FEATURE_GZIP_CEILINGS = {
   // on top of #398, 7,783 B.
   // Issue #417 (reactive_css_vars: the number read, the unit and name allowlists) to 8,238 B;
   // its review fix (a to: that does not parse matches nothing) to 8,245 B.
-  // Issue #425 (reactive_filter match: and fold:) takes it from 8,241 B to 8,396 B.
+  // Issue #425 (reactive_filter match: and fold:) to 8,396 B (+155 B on main's real 8,241 B).
   "features/bindings": 8_396,
   // Issue #336 (render a defer reply now) takes it from 2,845 B to 2,974 B.
   "features/defer": 2_974,
