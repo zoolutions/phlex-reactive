@@ -26,6 +26,7 @@ import { computeReducer } from "phlex/reactive/compute"
 //            (and ONLY one of ours)
 //   opsSig   the reducer's last $ops chain (issue #226), the rising-edge latch
 //   seed     the connect-time seed, when the root opts in
+//   share    the input listener for shared fields in nested roots (issue #440)
 const contexts = new WeakMap()
 
 function ctx(controller, core) {
@@ -59,6 +60,13 @@ export function connect(controller, core, _morphed, pending) {
     c.seed = () => recompute(c)
     c.root.addEventListener?.("turbo:morph-element", c.seed)
   }
+  // Issue #440: Stimulus never routes an event from inside a nested reactive
+  // root to this root's input->reactive#recompute, yet a control there marked
+  // data-reactive-shared-field is one of this root's inputs. Its edits come
+  // through this listener instead; an owned field's stay Stimulus's (a second
+  // run would be a double one).
+  c.share = (event) => !c.core.owns(event.target) && c.core.bindingOwns(event.target) && recompute(c, event)
+  c.root.addEventListener?.("input", c.share)
   // The one pass a root that waited for this module owes: its seed, or the
   // recompute an edit in the window asked for.
   if (seeds || pending?.edited) recompute(c)
@@ -69,6 +77,7 @@ export function disconnect(controller) {
   if (!c) return
   contexts.delete(controller)
   if (c.seed) c.root.removeEventListener?.("turbo:morph-element", c.seed)
+  c.root.removeEventListener?.("input", c.share)
 }
 
 // Re-run the seed (for a feature that changed field values after connect:
@@ -252,8 +261,9 @@ function parseComputeInputs(c) {
 // The declared compute input the event just edited — the reducer's
 // meta.changed (issue #75). The triggering field counts only when it is a
 // named form control OWNED by this root (not a nested reactive root's, issue
-// #15) AND its name is among the declared compute inputs; anything else
-// (a direct call, an unowned/undeclared target) yields null.
+// #15, unless it is a shared field just below, issue #440) AND its name is
+// among the declared compute inputs; anything else (a direct call, an
+// unowned/undeclared target) yields null.
 //
 // Scope-aware (issue #184): under data-reactive-scope, the edited field's DOM
 // name is scoped (order[allowance]) while the declared inputs are BARE
@@ -265,7 +275,7 @@ function changedComputeField(c, event, inputs, scope) {
   if (!target?.name || typeof target.closest !== "function") return null
   const bare = unscopeName(target.name, scope)
   if (!inputs.includes(bare)) return null
-  return c.core.owns(target) ? bare : null
+  return c.core.bindingOwns(target) ? bare : null
 }
 
 // Strip a leading `scope[…]` wrapper off a DOM field name, returning the bare
@@ -414,7 +424,10 @@ function recompute(c, event) {
   const scope = c.root.getAttribute?.("data-reactive-scope") || null
   const scoped = (name) => (scope && !name.includes("[") ? `${scope}[${name}]` : name)
 
-  const owns = c.core.ownership()
+  // Inputs AND outputs resolve through what the bindings read (issue #440):
+  // a control marked data-reactive-shared-field just below is this root's
+  // too. Text nodes (reactive_text) stay strictly this root's own.
+  const owns = c.core.bindingOwnership()
   const byName = new Map()
   const ownedControl = (name) => {
     const known = byName.get(name)

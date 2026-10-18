@@ -105,10 +105,11 @@ export function connect(controller, core) {
       listen(c, "input change", c.show)
       // The after: gate (issue #396): an owned field's first blur marks its
       // name touched for this controller (a morph keeps it, a new one starts
-      // without), and re-syncs once if a binding waits on a blur.
+      // without), and re-syncs once if a binding waits on a blur. A shared
+      // field just below counts as owned here (issue #440).
       listen(c, "focusout", (event) => {
         const name = event.target?.getAttribute?.("name")
-        if (!name || c.touched?.has(name) || !c.core.owns(event.target)) return
+        if (!name || c.touched?.has(name) || !c.core.bindingOwns(event.target)) return
         ;(c.touched ??= new Set()).add(name)
         if (c.root.querySelector?.("[data-reactive-show-after]")) syncShow(c)
       })
@@ -423,7 +424,7 @@ function syncOnComplete(c, event) {
   const bindings = onCompleteBindings(c)
   if (!bindings.length) return
 
-  const fieldValue = fieldResolver(c, c.core.ownership())
+  const fieldValue = fieldResolver(c, c.core.bindingOwnership())
   bindings.forEach((binding, i) => {
     const matches = anyOfAllsMatches(binding.any, fieldValue)
     if (matches === null) return
@@ -443,15 +444,21 @@ function syncOnComplete(c, event) {
 // pass). A binding whose field can't be resolved, or whose predicate is
 // malformed, leaves visibility ALONE — a bad binding must never break or
 // blank the page (client-side default-deny).
+//
+// Two predicates (issue #440): `owns` picks the binding ELEMENTS this root
+// evaluates (a nested root's are its own); `reads` picks the FIELDS they read,
+// and the controls disable:/clear: may write: this root's own, plus a control
+// marked data-reactive-shared-field just below (core.bindingOwnership).
 function syncShow(c) {
   if (typeof c.root?.querySelectorAll !== "function") return
 
   const owns = c.core.ownership()
+  const reads = c.core.bindingOwnership()
   const scope = c.root.getAttribute?.("data-reactive-scope") || null
   // A memoized resolver shared by every binding in this pass — a field driving
   // several bindings (and several DNF terms) reads exactly once. Scope-aware:
   // a bare field `director` resolves as `[name="scope[director]"]` (issue #180).
-  const fieldValue = fieldResolver(c, owns)
+  const fieldValue = fieldResolver(c, reads)
   // Bindings whose visibility flipped this pass and that declare transition
   // work (issue #394) — run after the pass, so the `input` a clear dispatches
   // re-syncs from fresh values instead of this pass's memo.
@@ -469,7 +476,7 @@ function syncShow(c) {
       // after: (issue #396) keeps it hidden until its field has blurred once.
       const after = el.getAttribute("data-reactive-show-after")
       const visible = match && (after == null || !!c.touched?.has(wireName(after, scope)))
-      applyShowVisibility(el, visible, owns, scope)
+      applyShowVisibility(el, visible, reads)
       // The previous visibility lives on this controller (absent on connect,
       // kept by a morph), so first paint never counts as a change.
       // Tracked for every binding, so a morph that drops the transition attrs
@@ -488,17 +495,17 @@ function syncShow(c) {
     if (value === null) continue // no owned field with that name — leave it be
     const match = showBindingMatches(el, value)
     if (match === null) continue // malformed predicate — warned + skipped
-    applyShowVisibility(el, match, owns, scope)
+    applyShowVisibility(el, match, reads)
   }
 
   // The group bindings (issue #319) and the cross-root pass (issue #164)
   // share the same owned-field memo, so a field driving several reads once.
   if (c.groups) syncGroups(c, fieldValue, owns, scope)
   syncMedia(c, fieldValue, owns)
-  syncCssVars(c, fieldValue, owns, scope)
+  syncCssVars(c, fieldValue, owns, scope, reads)
   syncShowTargets(c, fieldValue)
   syncGroupTargets(c, fieldValue)
-  for (const el of moved) showMoved(c, el, owns, scope)
+  for (const el of moved) showMoved(c, el, reads, scope)
 }
 
 // The transition attrs a show binding may declare (issue #394).
@@ -542,8 +549,9 @@ function showMoved(c, el, owns, scope) {
 // the `disabled` of every owned named control inside it) from a match result
 // (issue #180). Disabling a hidden section's controls stops them submitting —
 // the stale-value fix. A visible section re-enables them. Controls a nested
-// reactive root owns are left alone (#15 ownership).
-function applyShowVisibility(el, match, owns, scope) {
+// reactive root owns are left alone (#15 ownership), except one marked
+// data-reactive-shared-field: it declared itself the host's too (issue #440).
+function applyShowVisibility(el, match, owns) {
   el.hidden = !match
   if (el.getAttribute("data-reactive-show-disable") !== "true") return
   if (typeof el.querySelectorAll !== "function") return
@@ -795,7 +803,7 @@ const CSS_VARS_SELECTOR = "[data-reactive-css-vars]"
 const CSS_VAR_NAME = /^--[a-z0-9-]+$/i
 const CSS_VAR_UNITS = ["", "px", "%", "deg", "turn", "ms", "s", "em", "rem", "fr"]
 
-function syncCssVars(c, fieldValue, owns, scope) {
+function syncCssVars(c, fieldValue, owns, scope, reads) {
   const nodes = [...c.root.querySelectorAll(CSS_VARS_SELECTOR)].filter(owns)
   if (c.root.hasAttribute("data-reactive-css-vars")) nodes.unshift(c.root)
   for (const el of nodes) {
@@ -825,7 +833,7 @@ function syncCssVars(c, fieldValue, owns, scope) {
         console.warn(`[phlex-reactive] refused reactive_css_vars entry ${JSON.stringify(name)} — skipped`)
         continue
       }
-      const number = cssVarNumber(c, fieldValue, spec.field, owns, scope)
+      const number = cssVarNumber(c, fieldValue, spec.field, reads, scope)
       if (number === undefined) continue
       const value = number === null ? "" : `${number}${unit}`
       for (const target of targets) {

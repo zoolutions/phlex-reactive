@@ -67,6 +67,22 @@ RSpec.describe Phlex::Reactive::Component::SharedField do
     expect(html).to include('<input type="hidden" name="item[choice]" data-reactive-shared-field>')
   end
 
+  # Issue #440: a client-only widget (its own root for a filter and its ops)
+  # marks the value field its host's bindings read.
+  it "is callable from a ClientBindings class" do
+    picker = Class.new(Phlex::HTML) do
+      include Phlex::Reactive::ClientBindings
+
+      def view_template
+        div(**reactive_root(id: "picker")) do
+          input(**reactive_shared_field(name: "choice", required: true, value: "b"))
+        end
+      end
+    end
+
+    expect(picker.new.call).to include('<input name="choice" value="b" data-reactive-shared-field required>')
+  end
+
   [nil, "", "  ", :"", false, true, 1].each do |bad|
     it "raises at render for a blank or non-String/Symbol name (#{bad.inspect})" do
       expect { view.reactive_shared_field(name: bad) }

@@ -6,6 +6,29 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **A `reactive_shared_field` drives its host's client bindings too (#440).**
+  A widget with its own root (a `ClientBindings` picker with a filter and
+  `on_client` ops, or a server component) that keeps its value field inside
+  that root left the host's bindings blind to it: a host
+  `reactive_show(if: { choice: "b" })` or `reactive_enable` never followed the
+  pick, and a `reactive_show(disable: true)` group around the widget never
+  disabled its `required` field, which then blocked a native submit from a
+  hidden section. The `data-reactive-shared-field` marker (#434) now also
+  counts for the next root up's client bindings, one level, client-only roots
+  between skipped (the #434 rule): `reactive_show` (every term, `after:`,
+  `clear:`), `disable: true` (the marked control is disabled and re-enabled
+  with the group), `reactive_enable`, `reactive_show_targets`,
+  `reactive_group_targets`, `checked_*` counts and `reactive_count`,
+  `reactive_on_complete`, `reactive_media`, `reactive_css_vars`, and a
+  `reactive_compute` input (an edit inside a nested root now recomputes the
+  host, which Stimulus never routed). Which bindings a root evaluates is
+  unchanged: a nested root's own bindings stay its own. Client ops, listnav,
+  `busy_on`, `reactive_filter`, a select-all header, dirty tracking and
+  `reactive_persist` keep strict ownership. Without the marker nothing
+  changes; a page with no nested root pays nothing.
+
 ## [0.16.7] - 2026-10-18
 
 ### Added
