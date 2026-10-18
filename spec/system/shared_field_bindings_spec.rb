@@ -44,6 +44,18 @@ RSpec.describe "A shared field drives its host's client bindings (issue #440)", 
     expect(page.evaluate_script("window.__noReload")).to eq("alive")
   end
 
+  it "a nested server picker replaced by its own action while hidden comes back disabled" do
+    shared = "#picker input[name='item[choice]']"
+    expect(page).to have_css("#{shared}[disabled]", visible: :hidden)
+
+    # The group is hidden, so its button is clicked from script; the action's
+    # reply is a plain replace, which renders the shared field enabled.
+    page.execute_script("document.querySelector(\"[data-testid='picker-pick-b']\").click()")
+    expect(page).to have_css("#{shared}[value='b'][disabled]", visible: :hidden)
+    expect(page.evaluate_script(form_valid)).to be(true)
+    expect(page.evaluate_script("window.__noReload")).to eq("alive")
+  end
+
   it "a pick drives the host's show, enable and compute mirror, and the save posts it" do
     find("[data-testid='mode']").select("other")
     expect(page).to have_css("[data-testid='save'][disabled]")

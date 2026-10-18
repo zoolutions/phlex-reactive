@@ -968,8 +968,9 @@ and a `disable: true` group disables and re-enables it with its own controls,
 so a `required` field in a hidden section never blocks a native submit. For a
 `reactive_compute` it is an input (its edits recompute the host) and, when its
 name is a declared output, an output the host writes. When the widget
-re-renders, by a morph or a plain replace, the host re-syncs against the new
-field. The widget's unmarked fields (its query input) stay its own, and a
+re-renders (a morph or a plain replace) or restores a `reactive_persist`
+draft, the host's bindings re-sync against the new field, and its compute
+re-runs when it seeds (the default). The widget's unmarked fields (its query input) stay its own, and a
 nested root's own bindings are still evaluated by that root alone. Client ops, listnav, `busy_on`, `reactive_filter`, a select-all
 header, dirty tracking and `reactive_persist` keep strict ownership, so the
 field is the widget's there. A native `<form>` posts it anyway, like any named

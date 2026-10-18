@@ -156,11 +156,13 @@ export function connect(controller, core) {
     // Issue #440: a nested root that comes back through a plain replace (a
     // morph already bubbles turbo:morph-element here) brings a fresh shared
     // field: a hidden disable: true group must disable it again, and the
-    // bindings read its new value. It announces itself with a bubbling
-    // reactive:connect; a root without a shared field changes nothing here.
+    // bindings read its new value. So does one whose draft restore wrote its
+    // fields without an input event. Each announces itself with a bubbling
+    // event; only a root holding a shared field this root reads (one level,
+    // core.bindingOwns) re-syncs it.
     if (!sharing && (sharing = c.show || c.arm)) {
-      listen(c, "reactive:connect", (event) => {
-        if (event.target === c.root || !event.target.querySelector?.("[data-reactive-shared-field]")) return
+      listen(c, "reactive:connect reactive:persist-restored", (event) => {
+        if (event.target === c.root || !sharedWith(c, event.target)) return
         c.show?.()
         c.arm?.()
       })
@@ -214,6 +216,11 @@ export function connect(controller, core) {
   listen(c, "keydown", (event) => editableKey(c, event))
   listen(c, "paste drop", (event) => editablePaste(c, event))
   listen(c, "input", (event) => editableEmptied(c, event))
+}
+
+// Whether `root` holds a shared field this root's bindings read (issue #440).
+function sharedWith(c, root) {
+  return [...(root.querySelectorAll?.("[data-reactive-shared-field]") ?? [])].some(c.core.bindingOwns)
 }
 
 // Remove every listener connect() added, so a stray event after a Turbo

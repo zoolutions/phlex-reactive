@@ -4,7 +4,10 @@
 # inside a native <form>. A group hidden by `mode` wraps the picker and disables
 # its controls while hidden, so the picker's required value field must not
 # block a native submit then. A section, the save button and a compute mirror
-# follow the picker's value.
+# follow the picker's value. The client-only picker also holds a nested SERVER
+# picker (SharedPickerComponent, the layered tree control -> server root ->
+# client-only root -> host): its own action replies with a plain replace, and
+# its fresh shared field must come back disabled while the group is hidden.
 class SharedBindingsFormComponent < ApplicationComponent
   include Phlex::Reactive::Streamable
   include Phlex::Reactive::Component
@@ -33,7 +36,7 @@ class SharedBindingsFormComponent < ApplicationComponent
           option(value: "other") { "other" }
         end
         div(**reactive_show(if: { mode: "other" }, disable: true, data: { testid: "picker-group" })) do
-          render SharedBindingsPickerComponent.new
+          render(SharedBindingsPickerComponent.new) { render SharedPickerComponent.new }
         end
         div(**reactive_show(if: { choice: "b" }, data: { testid: "b-picked" })) { "b picked" }
         button(**mix(on(:save), reactive_enable(if: { choice: "b" }), type: "button", data: { testid: "save" })) { "Save" }

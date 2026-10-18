@@ -3,7 +3,8 @@
 # A client-only picker (issue #440): its own root for the option filter and its
 # ops, and the chosen value in a REQUIRED named field inside that root, marked
 # with reactive_shared_field so the form around it reads it in its client
-# bindings (a show, an enable, a disable: true group, a compute input).
+# bindings (a show, an enable, a disable: true group, a compute input). The
+# caller may yield more content into the picker's root.
 class SharedBindingsPickerComponent < ApplicationComponent
   include Phlex::Reactive::ClientBindings
 
@@ -11,7 +12,7 @@ class SharedBindingsPickerComponent < ApplicationComponent
 
   def reactive_values = { q: "" }
 
-  def view_template
+  def view_template(&)
     div(**mix(
       reactive_root(id: "bindings-picker", data: { testid: "bindings-picker" }),
       reactive_filter(:q, option: "[data-option]")
@@ -24,6 +25,7 @@ class SharedBindingsPickerComponent < ApplicationComponent
           type: "button", data: { option: true, testid: "picker-option-#{option}" }
         )) { option }
       end
+      yield if block_given?
     end
   end
 end

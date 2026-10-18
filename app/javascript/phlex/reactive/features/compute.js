@@ -61,11 +61,12 @@ export function connect(controller, core, _morphed, pending) {
     c.seed = () => recompute(c)
     c.root.addEventListener?.("turbo:morph-element", c.seed)
     // Issue #440: a nested root that comes back through a plain replace (a
-    // morph bubbles turbo:morph-element above) announces itself with a
-    // bubbling reactive:connect; when it holds a shared field, its new value
-    // is an input of this root's.
-    c.nested = (event) => event.target !== c.root && event.target.querySelector?.(SHARED_FIELD) && c.seed()
-    c.root.addEventListener?.("reactive:connect", c.nested)
+    // morph bubbles turbo:morph-element above), or restored a draft without an
+    // input event, announces itself with a bubbling event; when it holds a
+    // shared field this root reads, its new value is one of this root's inputs.
+    c.nested = (event) =>
+      event.target !== c.root && [...event.target.querySelectorAll(SHARED_FIELD)].some(c.core.bindingOwns) && c.seed()
+    for (const type of NESTED_EVENTS) c.root.addEventListener?.(type, c.nested)
   }
   // Issue #440: Stimulus never routes an event from inside a nested reactive
   // root to this root's input->reactive#recompute, yet a control there marked
@@ -85,7 +86,7 @@ export function disconnect(controller) {
   if (!c) return
   contexts.delete(controller)
   if (c.seed) c.root.removeEventListener?.("turbo:morph-element", c.seed)
-  c.root.removeEventListener?.("reactive:connect", c.nested)
+  for (const type of NESTED_EVENTS) c.root.removeEventListener?.(type, c.nested)
   c.root.removeEventListener?.("input", c.share)
 }
 
@@ -102,8 +103,10 @@ function publicRecompute(controller, core, event) {
 }
 export { publicRecompute as recompute }
 
-// The marker reactive_shared_field renders (issue #434).
+// The marker reactive_shared_field renders (issue #434), and the bubbling
+// events a nested root announces fresh field values with (issue #440).
 const SHARED_FIELD = "[data-reactive-shared-field]"
+const NESTED_EVENTS = ["reactive:connect", "reactive:persist-restored"]
 
 // The control for a name nothing owned resolves to.
 const COMPUTE_NO_CONTROL = Object.freeze({ el: null, kind: "" })

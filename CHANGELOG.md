@@ -25,8 +25,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `reactive_compute`: a marked control is an input (an edit inside a nested
   root now recomputes the host, which Stimulus never routed there) and, when
   its name is a declared output, an output the host writes. A nested root that
-  comes back through a plain replace re-syncs the host's bindings and compute
-  seed, as a morph already did. Which bindings a root evaluates is unchanged:
+  comes back through a plain replace, or restores a `reactive_persist` draft,
+  re-syncs the host's bindings and (when it seeds) its compute, as a morph
+  already did. Which bindings a root evaluates is unchanged:
   a nested root's own bindings stay its own. Client ops, listnav, `busy_on`,
   `reactive_filter`, a select-all header (its count includes the marked box),
   dirty tracking and `reactive_persist` keep strict ownership. Without the

@@ -431,3 +431,47 @@ test("a same: term compares a host field with a marked field", () => {
   edit("choice", "c", "input")
   expect($("match").hidden).toBe(true)
 })
+
+test("a nested root replaced two server roots down re-syncs only the host that reads it", () => {
+  mount(`
+    <div id="grand" data-controller="reactive" data-reactive-token-value="grand-token">
+      <input id="mode" name="mode" value="a">
+      <div id="host" data-controller="reactive" data-reactive-token-value="host-token">
+        <div id="picker" data-controller="reactive" data-reactive-token-value="picker-token">
+          <input id="choice" name="choice" value="" ${MARK}>
+        </div>
+        <p id="host-picked" data-reactive-show=${show("choice", "b")} hidden>host</p>
+      </div>
+      <p id="grand-shown" data-reactive-show=${show("mode", "a")}>grand</p>
+    </div>`)
+  // Flip the grand-host's binding by hand: only a grand-host re-sync undoes it.
+  $("grand-shown").hidden = true
+  replacePicker(`<div id="picker" data-controller="reactive" data-reactive-token-value="picker-token-2">
+    <input id="choice" name="choice" value="b" ${MARK}></div>`)
+  expect($("host-picked").hidden).toBe(false)
+  expect($("grand-shown").hidden).toBe(true)
+})
+
+// A draft restore (reactive_persist) writes the nested root's fields without an
+// input event, then emits a bubbling reactive:persist-restored from that root.
+test("a nested root's draft restore re-syncs the host's show, enable and compute", () => {
+  computeModule.setComputeReducer("label", (values) => ({ label: `picked ${values.choice}` }))
+  mount(`
+    <div id="host" data-controller="reactive" data-reactive-token-value="host-token"
+         data-action="input->reactive#recompute"
+         data-reactive-compute-reducer-param="label"
+         data-reactive-compute-inputs-param='{"choice":"string"}'
+         data-reactive-compute-outputs-param='["label"]'
+         data-reactive-compute-seed="true">
+      <div id="picker" data-controller="reactive" data-reactive-token-value="picker-token">
+        <input id="choice" name="choice" value="" ${MARK}>
+      </div>
+      ${hostBindings}
+      <span id="label" data-reactive-text="label"></span>
+    </div>`)
+  $("choice").value = "b"
+  $("picker").dispatchEvent(new window.CustomEvent("reactive:persist-restored", { bubbles: true, detail: {} }))
+  expect($("picked").hidden).toBe(false)
+  expect($("save").disabled).toBe(false)
+  expect($("label").textContent).toBe("picked b")
+})
