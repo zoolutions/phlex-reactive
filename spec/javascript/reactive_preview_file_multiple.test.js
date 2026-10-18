@@ -562,6 +562,20 @@ test("a morph of the container whose render has no entries keeps them; the next 
   expect(listed(root)).toEqual(["e.svg is not a PNG."])
 })
 
+test("a container restored with its entries (a Turbo cache restore: a new node) keeps them through a morph", () => {
+  const { root, controller, input } = mount(picker() + LIST)
+  choose(input, [svg("c.svg")])
+  run(controller, [listOp()])
+  // A snapshot restore puts a copy of the page back: the same markup, new nodes
+  // the op never listed into.
+  const restored = root.querySelector("#refused").cloneNode(true)
+  root.querySelector("#refused").replaceWith(restored)
+
+  morphContainer(restored, LIST)
+
+  expect(listed(root)).toEqual(["c.svg is not a PNG."])
+})
+
 test("a morph of an element without entries leaves its render alone", () => {
   const { root } = mount(LIST)
 

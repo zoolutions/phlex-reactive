@@ -1550,17 +1550,14 @@ function previewFile(input, args, resolveTargets) {
 // [data-reactive-file-reason] parts for that file's reason kept. Each
 // top-level element of a clone is marked and appended (top-level text is
 // dropped). Every run removes the marked entries first, and only those, so
-// a heading and the <template> stay. `rejectedLists` holds the containers
-// that have entries now: the one lookup the morph listener below makes per
-// morphed element.
+// a heading and the <template> stay. The entries are always the container's
+// last children, which is what the morph listener below checks.
 const REJECTED_ENTRY = "data-reactive-file-rejected"
-const rejectedLists = new WeakSet()
 
 function listRejected(input, lists, rejected, selector) {
   if (lists.length === 0) return warnPreviewVerbose(input, `rejected: ${JSON.stringify(selector)} is not on the page`)
   for (const list of lists) {
     for (const entry of [...list.children]) if (entry.hasAttribute(REJECTED_ENTRY)) entry.remove()
-    rejectedLists.delete(list)
     const template = [...list.children].find((child) => child.localName === "template")
     if (!template) {
       warnPreviewVerbose(input, `rejected: ${JSON.stringify(selector)} has no <template> child`)
@@ -1576,7 +1573,6 @@ function listRejected(input, lists, rejected, selector) {
         if (node.nodeType !== 1) continue
         node.setAttribute(REJECTED_ENTRY, "")
         list.append(node)
-        rejectedLists.add(list)
       }
     }
   }
@@ -1587,7 +1583,10 @@ function listRejected(input, lists, rejected, selector) {
 // entries, and Idiomorph would remove them. Before it syncs the container's
 // children, copies of the entries go into the new render, so the sync keeps
 // them; the next pick still replaces them. A plain replace is a new element,
-// and the server's render of it stands.
+// and the server's render of it stands. The check reads the DOM (the last
+// child is an entry), not a record of what the op listed, so a container
+// Turbo restored from its cache (new nodes, same entries) keeps them too: one
+// lastElementChild per morphed element.
 let rejectedFilesRegistered = false
 
 export function registerReactiveRejectedFiles() {
@@ -1597,7 +1596,7 @@ export function registerReactiveRejectedFiles() {
   document.addEventListener("turbo:before-morph-element", (event) => {
     const list = event.target
     const next = event.detail?.newElement // absent when Turbo asks before a removal
-    if (!next || event.defaultPrevented || !rejectedLists.has(list)) return
+    if (!next || event.defaultPrevented || !list.lastElementChild?.hasAttribute(REJECTED_ENTRY)) return
     for (const entry of list.children) if (entry.hasAttribute(REJECTED_ENTRY)) next.append(entry.cloneNode(true))
   })
 }

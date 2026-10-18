@@ -1508,8 +1508,9 @@ button(**on_client(:click, js
   "name" }); plain " is too large." } } } }`. Every run of the op removes the
   marked entries first (and only those: a heading and the `<template>` stay),
   so the next pick replaces the list and a pick with no refusal empties it. A
-  morph of the container (the action's `reply.morph` on the same `change`)
-  keeps the entries; a plain replace renders the container afresh. It works
+  morph that reaches the container (the action's `reply.morph` of the component,
+  on the same `change`) keeps the entries; a plain replace, or an update stream
+  aimed at the container itself, renders it afresh. It works
   for one file and with `per_file: true`. A container that is not on the page,
   or has no `<template>` child, warns on a verbose root; the rejections still
   fire.

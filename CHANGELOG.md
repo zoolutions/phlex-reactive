@@ -19,8 +19,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `[data-reactive-file-reason]` parts for that file's reason, marks each
   top-level element `data-reactive-file-rejected` and appends it. Every run
   removes the marked entries first (a heading and the `<template>` stay), so the
-  next pick replaces the list and a pick with no refusal empties it; a morph of
-  the container (the upload action's `reply.morph`) keeps them. Works for one
+  next pick replaces the list and a pick with no refusal empties it; a morph
+  that reaches the container (the upload action's `reply.morph`) keeps them, a
+  Turbo cache restore included. Works for one
   file and with `per_file: true`. A container that is not on the page, or has
   no `<template>`, warns on a verbose root and the rejections still fire. The
   keyword is serialized only when given, so every existing op is byte-identical;

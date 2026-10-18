@@ -525,9 +525,10 @@ module Views
               - Every run of the op first removes the marked entries, and only those: a
                 heading in the container and the `<template>` stay. The next pick replaces
                 the list; a pick with no refusal empties it.
-              - A morph of the container keeps the entries, so the upload action's
-                `reply.morph` on the same `change` does not wipe them. A plain replace
-                renders the container afresh.
+              - A morph that reaches the container keeps the entries, so the upload
+                action's `reply.morph` of the component, on the same `change`, does not
+                wipe them. A plain replace, or an update stream aimed at the container
+                itself, renders it afresh.
               - It works for one file and with `per_file: true`. A container that is not on
                 the page, or has no `<template>` child, warns on a verbose root; the
                 rejections still fire.
