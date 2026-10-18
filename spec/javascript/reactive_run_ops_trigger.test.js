@@ -207,12 +207,22 @@ test("within: the bound element itself matching the selector is not a row", () =
   expect(root.querySelector("#item-value").value).toBe("")
 })
 
-test("within: a selector that does not parse is a miss, never a throw", () => {
+test("within: a selector that does not parse is a miss, never a throw (silent without verbose)", () => {
   const { root, controller } = mount(`<ul id="menu">${ROWS}</ul>`)
   bind(root.querySelector("#menu"), controller, { on: "click", within: "[[nope", ops: pick })
 
-  expect(() => click(root.querySelector("#row-1"))).not.toThrow()
+  const warns = captureWarns(() => expect(() => click(root.querySelector("#row-1"))).not.toThrow())
   expect(root.querySelector("#item-value").value).toBe("")
+  expect(warns).toEqual([])
+})
+
+test("within: a selector that does not parse warns under verbose_errors (a dead binding is never silent)", () => {
+  const { root, controller } = mount(`<ul id="menu">${ROWS}</ul>`, 'data-reactive-verbose="true"')
+  bind(root.querySelector("#menu"), controller, { on: "click", within: "[[nope", ops: pick })
+
+  const warns = captureWarns(() => click(root.querySelector("#row-1")))
+
+  expect(warns.some((w) => w.includes('within: "[[nope"') && w.includes("not a selector"))).toBe(true)
 })
 
 test("within: a debounced record keys its timer on the bound element; the last row wins", async () => {

@@ -33,7 +33,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     Anywhere else is a complete no-op (no `preventDefault`, no confirm, no ops).
     Keyboard picking through `reactive_listnav` and a click before the root
     connects reach the same binding; before connect, `phlex/reactive/early`
-    leaves a click outside every row alone (a link in the list navigates). The bound element is not forced to
+    leaves a click outside every row alone (a link in the list navigates). A
+    `within:` selector that does not parse runs nothing (verbose: warned). The bound element is not forced to
     `type="button"`. `within:` raises with `window:`, `outside:`, `shortcut:` and
     `once:` (Stimulus would drop a `:once` listener on its first event, a miss
     included).

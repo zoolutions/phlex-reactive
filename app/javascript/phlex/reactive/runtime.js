@@ -3561,14 +3561,17 @@ export default class extends Controller {
   // Issue #442: a within: record runs for an event from inside an element
   // matching the selector, strictly under the bound element and owned by this
   // root (issue #15: a nested root's row is that root's). That element is
-  // returned as the ops' @trigger; anything else — a selector that does not
-  // parse included — is a miss (null).
+  // returned as the ops' @trigger; anything else is a miss (null). So is a
+  // selector that does not parse (Ruby cannot check CSS), warned under
+  // verbose_errors so the dead binding is never silent in development.
   #delegatedTrigger(within, event) {
     const bound = event.currentTarget
     let row = null
     try {
       row = event.target?.closest?.(within)
-    } catch {}
+    } catch {
+      if (this.#verboseEnabled()) console.warn(`[phlex-reactive] on_client within: ${JSON.stringify(within)} is not a selector — nothing ran`)
+    }
     return row && row !== bound && bound?.contains?.(row) && this.#ownsField(row) ? row : null
   }
 

@@ -1360,9 +1360,11 @@ end
   `:trigger`. Anywhere else (the list's padding, a heading) is a complete no-op:
   no `preventDefault`, no confirm, no ops. Enter on a row `reactive_listnav`
   highlights picks it through the same binding, and so does a click before the
-  root connects (`phlex/reactive/early` queues a row's click and leaves any
-  other alone, so a link in the list still navigates). The list is not forced
-  to `type="button"`. It raises with
+  root connects (`phlex/reactive/early` queues a row's click and leaves a click
+  outside every row alone, so a link in the list still navigates; a row inside
+  a nested reactive root is held too, and its replay is a miss). A `within:`
+  selector that does not parse runs nothing, warned under `verbose_errors`. The
+  list is not forced to `type="button"`. It raises with
   `window:`, `outside:`, `shortcut:` and `once:` (Stimulus drops a `:once`
   listener on its first event, a miss included).
 - **`:trigger`** is accepted wherever an op takes a target, and by `expanded:`,

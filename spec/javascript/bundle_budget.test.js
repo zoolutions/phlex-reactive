@@ -209,8 +209,9 @@ const SLACK = 250
 // ones dropped from input.files, one rejection each, in the runtime) adds 196 B: 41,076 B;
 // its review fix (remaining counts what the input keeps when there is no DataTransfer) 9 B: 41,085 B.
 // Issue #442 (the @trigger target, from:/attr: reads, detail_from and on_client within:, in the
-// runtime; the @trigger hint in devtools) adds 317 B: 41,402 B.
-const BUNDLE_GZIP_CEILING = 41_402
+// runtime; the @trigger hint in devtools) adds 317 B: 41,402 B; its validation fix (a within:
+// selector that does not parse warns under verbose) 25 B: 41,427 B.
+const BUNDLE_GZIP_CEILING = 41_427
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -284,8 +285,9 @@ const TARGET_BUNDLE_GZIP = 22_700
 // Issue #433 (prevent: false keeps an element-bound trigger's native default) adds 33 B: 18,400 B;
 // on top of #434 (18,404 B), 34 B: 18,438 B.
 // Issue #439 (preview_file per_file: on a multiple input) adds 197 B: 18,635 B; its review fix 11 B: 18,646 B.
-// Issue #442 (the @trigger target, from:/attr: reads, detail_from and on_client within:) adds 290 B: 18,936 B.
-const CORE_GZIP_CEILING = 18_936
+// Issue #442 (the @trigger target, from:/attr: reads, detail_from and on_client within:) adds 290 B: 18,936 B;
+// its validation fix (a within: selector that does not parse warns under verbose) 27 B: 18,963 B.
+const CORE_GZIP_CEILING = 18_963
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -422,8 +424,8 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #434 (a shared field posts with the host, in the core) adds 37 B: 49,875 B.
 // Issue #433 (prevent: false, in the core) adds 33 B: 49,871 B; on top of #434 (49,875 B), 34 B: 49,909 B.
 // Issue #439 (preview_file per_file:, in the core) adds 197 B: 50,106 B; its review fix 11 B: 50,117 B.
-// Issue #442 (+290 B core, +46 B devtools) adds 336 B: 50,453 B.
-const SPLIT_TOTAL_GZIP_CEILING = 50_453
+// Issue #442 (+290 B core, +46 B devtools) adds 336 B: 50,453 B; its validation fix (+27 B core) 50,480 B.
+const SPLIT_TOTAL_GZIP_CEILING = 50_480
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 
