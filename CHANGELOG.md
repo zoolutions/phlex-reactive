@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.16.6] - 2026-10-18
+
 ### Added
 
 - **A field inside a nested component can post with its host's actions:
@@ -4294,7 +4296,8 @@ room for dogfood fixes.
   scaffolds a reactive component (and an RSpec spec when the app uses RSpec),
   state-backed by default or record-backed with `--record`.
 
-[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.5...HEAD
+[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.6...HEAD
+[0.16.6]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.5...v0.16.6
 [0.16.5]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.4...v0.16.5
 [0.16.4]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.3...v0.16.4
 [0.16.3]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.2...v0.16.3
