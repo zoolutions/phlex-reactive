@@ -1,0 +1,79 @@
+README.md
+  s_6818721d2f5036::t_fae3942e4a0be7 1909
+  s_6818721d2f5036::t_d1f71e90079c5f 305
+  s_6818721d2f5036::t_c65f18897fe68b 1965-1970
+  s_6818721d2f5036::t_a3f219697f1dc8 1910-1911
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,5-6,8
+Rakefile
+  s_6818721d2f5036::t_b483ebba3d7517 41
+spec/phlex/reactive/drag_helpers_spec.rb
+  s_6818721d2f5036::t_381ca19b5a5b92 118,120-121,124-129
+  s_6818721d2f5036::t_3944b95d547d59 109-117,119,122-123,130-144
+  s_6818721d2f5036::t_b1db54d688d3d9 315-324
+spec/dummy/app/components/drag_scale_component.rb
+  s_6818721d2f5036::t_58ba6c3b51801e 1-56,59-90
+  s_6818721d2f5036::t_6b3fef6faee3b9 57-58
+spec/system/drag_scale_spec.rb
+  s_6818721d2f5036::t_5d9aac560fa267 1-92
+app/javascript/phlex/reactive/features/drag.js
+  s_6818721d2f5036::t_0f078edb209d8d 195
+  s_6818721d2f5036::t_9878112fe8a515 279-286,291
+  s_6818721d2f5036::t_51f09e045a512b 541
+  s_6818721d2f5036::t_21c527b1bee818 542
+  s_6818721d2f5036::t_f10e7fd5226ee0 10,13
+  s_6818721d2f5036::t_c5444261b917c8 273
+  s_6818721d2f5036::t_b6787684eff700 23-30
+  s_6818721d2f5036::t_1a1230c6b19890 103-113
+CHANGELOG.md
+  s_6818721d2f5036::t_12e1277a51eeb8 9-27
+app/javascript/phlex/reactive/features/drag.min.js.map
+  ai_agent 5,7-8
+spec/javascript/reactive_drag.test.js
+  s_6818721d2f5036::t_c4236754be52d1 603,684-685
+  s_6818721d2f5036::t_b6c6bc8a76d735 79-81,83,88,590-602,604-619,650-683,686-723
+  s_6818721d2f5036::t_f51f2af1857d8f 620-649
+docs/app/views/docs/pages/performance.rb
+  s_6818721d2f5036::t_d1f71e90079c5f 1240
+spec/dummy/config/routes.rb
+  s_6818721d2f5036::t_56aa0af2cb01d3 117-118
+app/javascript/phlex/reactive/features/drag.min.js
+  ai_agent 1,3
+spec/dummy/public/vendor/features/drag.js
+  ai_agent 1,3
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,5-6,8
+docs/app/views/docs/pages/draggable_regions.rb
+  s_6818721d2f5036::t_030e3a25db93a5 364,366,373-374
+  s_6818721d2f5036::t_d13137d026ed88 381
+  s_6818721d2f5036::t_d090fa0b9dda3b 237-259,261-280
+  s_6818721d2f5036::t_2ab45bbbe84e78 203-204
+  s_6818721d2f5036::t_cfc535b813ce07 15-16
+  s_6818721d2f5036::t_c0f9786a85c462 26
+  s_6818721d2f5036::t_abd1ab90b4ae5d 260
+lib/phlex/reactive/component/drag.rb
+  s_6818721d2f5036::t_526fb7c96e16ba 12-13
+  s_6818721d2f5036::t_7b02be13de9781 71-72,76,81,106-108,113,189-199
+spec/dummy/app/controllers/demos_controller.rb
+  s_6818721d2f5036::t_31c1e6d918ef48 559-563
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 15,20-21
+spec/javascript/bundle_budget.test.js
+  s_6818721d2f5036::t_3d861dedb008ef 196-197,307-308,397-398
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d420c05f6f5d35a25cf2e984988346c815a56e4a",
+  "prompts": {},
+  "sessions": {
+    "s_6818721d2f5036": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d65d88db-bd36-44d3-962b-77fc9c35cda5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
