@@ -53,6 +53,8 @@ RSpec.describe "on_client prevent: false (issue #433)", type: :system do
   end
 
   it "keeps the default for a server trigger too: the file lands and the action still runs" do
+    # On document, capture phase: the :track reply re-renders the zone, so a
+    # listener on the input itself would be gone with it.
     page.execute_script(<<~JS)
       document.addEventListener("change", (e) => {
         if (e.target.dataset.testid === "track-input") window.__trackFiles = e.target.files.length
