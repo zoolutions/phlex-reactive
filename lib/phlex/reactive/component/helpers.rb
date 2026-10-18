@@ -328,8 +328,8 @@ module Phlex
         # the trigger. Default `true` (today's behaviour, no attribute). A
         # window-bound or outside: trigger never prevents, so there it is a
         # no-op; with shortcut: (a chord the page claims) it raises. The
-        # forced type="button" of a click trigger stays. With confirm:, the
-        # native default is never cancelled; the dialog gates only the action.
+        # forced type="button" of a click trigger stays. With confirm:, this
+        # trigger does not cancel the default; the dialog gates only its action.
         #   div(**on(:track, event: "drop", prevent: false))
         #
         # `optimistic:` (issue #98) — a small, ALWAYS-REVERSIBLE vocabulary of

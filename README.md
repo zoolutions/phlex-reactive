@@ -1052,10 +1052,11 @@ can be pressed while the user types or while a drag is on, or pair it with
 
 #### Keep the native default — `prevent: false`
 
-An element-bound trigger (`on` or `on_client`) whose binding matches the event
-(its key filter, `detail:` and `once:` guards passed) calls `preventDefault()`
-before its ops or action run, so a bare button inside a `<form>` cannot submit
-it. Some
+An element-bound trigger (`on` or `on_client`) calls `preventDefault()` before
+its ops or action run, so a bare button inside a `<form>` cannot submit it.
+(Once the controller is connected, a binding whose key filter, `detail:` or
+spent `once:` skips the event leaves it alone; before that,
+`phlex/reactive/early` prevents every firing that matches a descriptor.) Some
 listeners only observe an event and need the browser to carry on: a drop zone
 built from a native `<input type="file">` stretched over an area gets the
 dropped file only when nothing cancelled the `drop`. `prevent: false` (#433)
@@ -1084,8 +1085,8 @@ div(**on(:track, event: "drop", prevent: false))  # the same keyword on a server
   `ArgumentError`. Anything but `true`/`false` raises too.
 - A click trigger keeps its forced `type="button"`; a button that should
   submit its form natively says so with `mix(on(...), type!: "submit")`.
-- With `confirm:`, the native default is never cancelled, whatever the dialog
-  answers: the dialog gates only the ops or the action.
+- With `confirm:`, this trigger does not cancel the native default, whatever
+  the dialog answers: the dialog gates only its ops or action.
 - `phlex/reactive/early` follows the same rule before the controller connects.
 - `prevent:` is a reserved keyword name on `on(...)`, like the event modifiers.
 
