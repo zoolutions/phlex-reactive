@@ -940,9 +940,8 @@ receive the field under that same name, so declare it there too when an
 action reads it (`action :pick, params: { item: { choice: :string } }`);
 otherwise the action drops it (with `Phlex::Reactive.verbose_errors` on, the
 default in development and test, the log's dropped-param line names it).
-Only what an action posts changes, and what decides it: a conditional
-`confirm:` reads the fields the action is about to post, so it sees the
-shared field too. Dirty tracking, `reactive_persist` and the client bindings
+A conditional `confirm:` judges the fields the action is about to post, so
+it sees the shared field too. Dirty tracking, `reactive_persist` and the client bindings
 (`reactive_show`, computes) keep strict ownership, so the field is the
 widget's there. A native `<form>` posts it anyway, like any named control.
 
