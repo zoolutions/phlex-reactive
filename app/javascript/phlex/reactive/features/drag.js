@@ -100,16 +100,15 @@ const clamp = (value, low, high) => Math.min(Math.max(value, low), high)
 
 export const round = (value) => Math.round(value * 1e4) / 1e4
 
-// A number on a field's `scale`, rounded to the 4 - log10(scale) decimals
-// that keep a fraction's 4 (1: 4, 100: 2, 1000: 1).
-const onScale = (number, scale) => {
-  const places = 10 ** Math.max(0, Math.ceil(4 - Math.log10(scale)))
-  return Math.round(number * places) / places
+// What a field on `scale` holds for a fraction: its 4 decimals times the
+// scale, to 15 significant digits — every digit it has, without the float
+// noise: 0.1235 is "0.1235", "12.35" on 100 (not 12.350000000000001), "3.0875"
+// on 25. (A product that rounds up past the largest number stays as it is.)
+export function scaled(value, scale = 1) {
+  const exact = round(value) * scale
+  const clean = Number(exact.toPrecision(15))
+  return String(Number.isFinite(clean) ? clean : exact)
 }
-
-// What a field on `scale` holds for a fraction: 0.1235 is "0.1235", or
-// "12.35" on 100 (not 12.350000000000001).
-export const scaled = (value, scale = 1) => String(onScale(round(value) * scale, scale))
 
 // A position as the fields will hold it: each number rounded to 4 decimals,
 // a box's x/y then pulled in so it still ends inside the frame (rounded
@@ -277,11 +276,12 @@ function begin(core, root, grip, keyboard) {
 }
 
 // Write a field the fraction on its scale, as set_value writes — unless it
-// already holds that number ("50.0", the 50 a server rendered for 0.5 × 100,
-// is not a move: no `input`, and no `change` on release).
+// already holds that number, within half a step of the fraction's 4th
+// decimal on its scale ("50.0", the 50 a server rendered for 0.5 × 100, is
+// not a move: no `input`, and no `change` on release).
 function put(core, field, value, scale) {
   const text = scaled(value, scale)
-  if (field.value === "" || onScale(Number(field.value), scale) !== Number(text)) core.setValue(field, text)
+  if (field.value === "" || !(Math.abs(field.value - text) < scale / 2e4)) core.setValue(field, text)
 }
 
 // Write the fields now (set_value's write: `input` on each that moved).

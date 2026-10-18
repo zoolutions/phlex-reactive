@@ -187,16 +187,19 @@ module Phlex
         end
 
         # Issue #428: the fields' scale, written only when it is not 1, so a
-        # region without scale: renders as it always did.
+        # region without scale: renders as it always did. The browser reads it
+        # as a Float, so one that is Infinity (10**400) or 0 (1/10**400) as a
+        # Float is refused, like a Float that is.
         def drag_scale!(helper, scale, data)
-          unless scale.is_a?(Numeric) && scale.real? && scale.positive? && scale.finite?
+          float = scale.to_f if scale.is_a?(Numeric) && scale.real?
+          unless float&.finite? && float.positive?
             raise ArgumentError,
               "#{helper} scale: must be a positive finite Numeric (100: percent), got #{scale.inspect}"
           end
           return if scale == 1
 
           # (A Rational would render as "1000/3", which the browser cannot read.)
-          data[:"#{helper}_scale"] = scale.is_a?(Integer) || scale.is_a?(Float) ? scale : scale.to_f
+          data[:"#{helper}_scale"] = scale.is_a?(Integer) || scale.is_a?(Float) ? scale : float
         end
 
         def drag_aspect!(aspect, data)

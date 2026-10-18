@@ -1959,15 +1959,16 @@ coordinate space.
   `min:`. A drag starts after a 4 px move; `touch-action: none` keeps a finger
   drag from scrolling the page.
 - **Fields**: written as `set_value` writes them (the live `.value`, rounded to
-  4 decimals, a bubbling `input` at most once per field per frame), so
-  `reactive_show`, compute reducers and other bindings follow the box. One
-  `change` fires on release.
-- **`scale:`**: `scale: 100` makes the fields hold percentages (`25`, 2
-  decimals) instead of fractions (`0.25`), for number inputs a person reads;
+  4 decimals — or, with `scale:`, those 4 decimals times the scale — a
+  bubbling `input` at most once per field per frame), so `reactive_show`,
+  compute reducers and other bindings follow the box. One `change` fires on
+  release.
+- **`scale:`**: `scale: 100` makes the fields hold percentages (`25`, `12.35`)
+  instead of fractions (`0.25`, `0.1235`), for number inputs a person reads;
   `value:`, the rendered position, the `action:` params and the announcements
-  stay fractions. Render the fields' first value on the scale yourself
-  (`value: (@box[:x] * 100).round(2)`), or the first drag or morph rewrites
-  them. `reactive_point` takes it too.
+  stay fractions. Render each field's first value on the scale yourself
+  (`input(type: "number", name: "crop[x]", value: (@photo.crop[:x] * 100).round(2))`),
+  or the first drag or morph rewrites it. `reactive_point` takes it too.
 - **`aspect:`**: a Numeric (`16/9r`) or the name of a field holding `"16:9"`, a
   decimal or `""` (free), read at drag start. When the field changes (a preset
   radio), the box re-fits to the new ratio around its centre.

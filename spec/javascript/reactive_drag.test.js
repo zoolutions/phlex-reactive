@@ -80,7 +80,7 @@ const style = ({ x, y, width, height }) =>
 // the box carries data-reactive-box-scale.
 function picker({ value = { x: 0.1, y: 0.1, width: 0.5, height: 0.4 }, attrs = "", inside = "", beside = "", outside = "", token = "tok", scale = 1 } = {}) {
   const fields = Object.entries(value)
-    .map(([key, v]) => `<input type="hidden" name="r[${key}]" value="${scale === 1 ? v : Math.round(v * scale * 100) / 100}">`)
+    .map(([key, v]) => `<input type="hidden" name="r[${key}]" value="${scale === 1 ? v : drag.scaled(v, scale)}">`)
     .join("")
   return `<div id="picker" data-controller="reactive" ${token ? `data-reactive-token-value="${token}"` : ""}>
     <div data-reactive-frame>
@@ -593,17 +593,44 @@ describe("scale:", () => {
   const radios = (checked) =>
     ["", "2:1", "4:1"].map((v) => `<input type="radio" name="ratio" value="${v}" ${v === checked ? "checked" : ""}>`).join("")
 
-  test("a field on a scale holds the fraction times it, to 4 - log10(scale) decimals", () => {
+  test("a field on a scale holds the fraction's 4 decimals times it, exactly, with no float noise", () => {
     expect(drag.scaled(0.25, 100)).toBe("25")
     expect(drag.scaled(0.1235, 100)).toBe("12.35")
     expect(drag.scaled(0.123456, 100)).toBe("12.35")
     expect(drag.scaled(0.07, 100)).toBe("7")
+    expect(drag.scaled(0.57, 100)).toBe("57")
     expect(drag.scaled(0.1235, 640)).toBe("79.04")
     expect(drag.scaled(0.1236, 1000)).toBe("123.6")
     expect(drag.scaled(0.12345678, 1e5)).toBe("12350") // rounded to 4 decimals first
+    // A scale that is not a power of ten keeps every digit the fraction has.
+    expect(drag.scaled(0.1235, 25)).toBe("3.0875")
+    expect(drag.scaled(0.0001, 640)).toBe("0.064")
+    expect(drag.scaled(1 / 3, 1000 / 3)).toBe("111.1")
     // Scale 1 (the default) is the fraction rounded to 4 decimals, as before.
     for (const v of [0.123456, 0.1 + 0.2, 0.45545, 0.54455, 1, 0]) expect(drag.scaled(v, 1)).toBe(String(drag.round(v)))
     expect(drag.scaled(0.123456)).toBe("0.1235")
+  })
+
+  test("every scale the server accepts writes a finite number, at both ends", () => {
+    const tiny = 2.2250738585072014e-308 // Ruby's Float::MIN
+    for (const [value, scale] of [[0, tiny], [0.5, tiny], [1, tiny], [0, Number.MAX_VALUE], [0.5, Number.MAX_VALUE], [1, Number.MAX_VALUE]]) {
+      expect(Number.isFinite(Number(drag.scaled(value, scale)))).toBe(true)
+    }
+    expect(drag.scaled(0, tiny)).toBe("0")
+    expect(Number(drag.scaled(0.5, tiny))).toBeGreaterThan(0)
+    expect(drag.scaled(1, Number.MAX_VALUE)).toBe(String(Number.MAX_VALUE))
+  })
+
+  test("a box on scale 25 writes and compares every digit (3.3375, not 3.338)", async () => {
+    mount(picker({ scale: 25, value: { x: 0.1235, y: 0.1, width: 0.5, height: 0.4 } }))
+    const inputs = listen("input")
+    press(box(), "ArrowRight") // 0.1335 of the frame
+    await flush()
+    expect(field("r[x]").value).toBe("3.3375")
+    expect(inputs).toEqual(["r[x]"])
+    morphed(box())
+    await flush()
+    expect(inputs).toEqual(["r[x]"])
   })
 
   test("a box on scale 100 writes 25 where it wrote 0.25, one change on release", async () => {

@@ -255,11 +255,11 @@ module Views
               end
               ```
 
-              With `scale: 100` a field holds `25` where it held `0.25`,
-              rounded to 2 decimals (`12.35`). The decimals follow the scale,
-              `4 - log10(scale)`, so a field is as exact as a fraction's 4:
-              `scale: 1000` (per mille) keeps 1, `scale: 640` (the pixels of
-              an image 640 px wide) keeps 2. `reactive_point` takes `scale:`
+              With `scale: 100` a field holds `25` where it held `0.25`. It is
+              the fraction's 4 decimals times the scale, every digit of it and
+              no float noise: `12.35` on 100 (never `12.350000000000001`),
+              `123.5` on 1000 (per mille), `3.0875` on 25, `0.064` on 640 (the
+              pixels of an image 640 px wide). `reactive_point` takes `scale:`
               too.
 
               Only the fields change. `value:`, the position the helper

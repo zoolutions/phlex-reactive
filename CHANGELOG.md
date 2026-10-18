@@ -10,22 +10,37 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **A draggable box or point can write its fields on another scale (#428).**
   `reactive_box(..., scale: 100)` and `reactive_point(..., scale: 100)` make
-  the fields hold the fraction times the scale — `25` where they held `0.25` —
-  rounded to `4 - log10(scale)` decimals (2 for percent, so `12.35`). Only the
-  fields change: `value:`, the rendered position, the `action:` params and the
+  the fields hold the fraction's 4 decimals times the scale — `25` where they
+  held `0.25`, `12.35` (never `12.350000000000001`), `3.0875` on 25: every
+  digit the fraction has, with the float noise removed. Only the fields
+  change: `value:`, the rendered position, the `action:` params and the
   live-region words stay fractions, so the server contract and a re-render do
   not depend on how a form shows the numbers. The morph hook that brings the
   fields along compares on the scale, and a field the drag does not move
   keeps its text (`25.0`, as Ruby prints it, is already 25), with no `input`
-  and no `change`. The same rule holds without `scale:`: a drag no longer
-  rewrites a field that holds its number in other words (`0.10`), and a
-  morph now writes an empty field of a box at 0. The app renders the fields'
-  first value on the scale itself (`value: (@box[:x] * 100).round(2)`);
-  otherwise the first drag or morph rewrites them. `scale:` must be a positive finite Numeric (`0`, `-1`,
-  `"100"` and `Float::INFINITY` raise `ArgumentError` at render); the default,
+  and no `change`. The app renders the fields' first value on the scale
+  itself (`value: (@box[:x] * 100).round(2)` on the field); otherwise the
+  first drag or morph rewrites them. `scale:` must be a positive Numeric that
+  is finite and above 0 as a Float (`0`, `-1`, `"100"`, `Float::INFINITY`,
+  `10**400` and `Rational(1, 10**400)` raise `ArgumentError` at render); the default,
   `1`, emits no `data-reactive-box-scale` / `data-reactive-point-scale`, so an
-  existing region's markup is byte-identical. `features/drag` grows by 110 B
-  gzipped (3,686 B), the default bundle by 98 B (40,744 B).
+  existing region's markup is byte-identical. `features/drag` grows by 101 B
+  gzipped (3,677 B), the default bundle by 90 B (40,736 B).
+
+### Changed
+
+- **A drag leaves a field it did not move alone, when it already holds that
+  number (#428).** Without `scale:`, a field whose text is the same fraction
+  to 4 decimals in other words (`0.10` for `0.1`) is no longer rewritten (to
+  `0.1`, with an `input` and a `change`) by a drag that moves the box along the
+  other axis. A field rendered from a Ruby Float (`0.1`) sees no difference.
+
+### Fixed
+
+- **A morph that moves a box to 0 fills an empty field (#428).** The hook that
+  brings a box's fields along left an empty field empty when the box moved to
+  0 (an empty field read as 0), so a form submit sent `""` for it. It now
+  writes `0`, as a drag already did.
 
 ## [0.16.3] - 2026-10-18
 

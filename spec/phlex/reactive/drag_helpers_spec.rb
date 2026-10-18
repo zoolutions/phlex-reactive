@@ -2,6 +2,7 @@
 
 require "spec_helper"
 require "phlex"
+require "bigdecimal"
 
 # Issue #416: draggable regions — reactive_frame (the coordinate space),
 # reactive_box (a box that moves and resizes inside it), reactive_box_handle (an
@@ -140,6 +141,19 @@ RSpec.describe Phlex::Reactive::Component::Drag do
         expect { box(scale: bad) }
           .to raise_error(ArgumentError, /reactive_box scale: must be a positive finite Numeric \(100: percent\), got/)
       end
+    end
+
+    it "raises on a scale: the browser reads as Infinity or 0, at either end" do
+      [10**400, BigDecimal("1e400"), Rational(1, 10**400), BigDecimal("1e-400")].each do |bad|
+        expect { box(scale: bad) }
+          .to raise_error(ArgumentError, /reactive_box scale: must be a positive finite Numeric/)
+      end
+    end
+
+    it "takes the extreme scales the browser can still read" do
+      expect(data(box(scale: Float::MIN))[:reactive_box_scale]).to eq(Float::MIN)
+      expect(data(box(scale: Float::MAX))[:reactive_box_scale]).to eq(Float::MAX)
+      expect(data(box(scale: 10**300))[:reactive_box_scale]).to eq(10**300)
     end
 
     it "takes string keys in fields: and value:" do
