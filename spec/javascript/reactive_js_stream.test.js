@@ -461,3 +461,64 @@ test("without requestAnimationFrame the focus op applies at once rather than nev
 
   expect(doc.activeElement.id).toBe("other")
 })
+
+test("a second reactive:js stream in the same reply does not wait behind the first one's focus tail (issue #446)", () => {
+  const actions = stubTurbo()
+  registerReactiveJs()
+  const frames = stubFrames()
+  const doc = focusDocument()
+  const query = focusable(doc, "query", "[name=query]")
+  const badge = makeEl("badge")
+  doc.matches["#badge"] = [badge]
+  query.focus()
+
+  invoke(actions, streamEl({ ops: JSON.stringify([["blur", { to: "[name=query]" }]]) }))
+  invoke(actions, streamEl({ ops: JSON.stringify([["add_class", { to: "#badge", classes: ["saved"] }]]) }))
+
+  expect([...badge.classes]).toEqual(["saved"]) // the second stream ran in the render pass
+  expect(doc.activeElement.id).toBe("query") // the first stream's blur waits for the frame
+  frames.frame()
+  expect(doc.activeElement.id).toBe("body-el")
+})
+
+test("after a replace, Turbo focuses the new field first; a blur and the ops after it still land last (issue #446)", () => {
+  const actions = stubTurbo()
+  registerReactiveJs()
+  const frames = stubFrames()
+  const doc = focusDocument()
+  const list = makeEl("picker-list")
+  doc.matches["#picker-list"] = [list]
+  const old = focusable(doc, "picker-query", "[name=query]")
+  old.focus()
+  // The replace stream before the op stream swaps the focused field for a new
+  // node with the same id: focus falls to the body, and the new field's focus
+  // binding shows the list.
+  const replace = () => {
+    const fresh = focusable(doc, "picker-query", "[name=query]")
+    const focus = fresh.focus
+    fresh.focus = () => (focus(), (list.hidden = false))
+    doc.activeElement = doc.body
+  }
+
+  const before = doc.activeElement
+  requestAnimationFrame(() => {
+    replace()
+    invoke(actions, streamEl({ ops: JSON.stringify([["blur", { to: "[name=query]" }], ["hide", { to: "#picker-list" }]]) }))
+  })
+  requestAnimationFrame(() => {
+    const after = doc.activeElement
+    const restore = before?.id ? doc.getElementById(before.id) : null
+    if (restore && restore !== after) restore.focus()
+  })
+  frames.frame()
+
+  const fresh = doc.getElementById("picker-query")
+  expect(fresh).not.toBe(old)
+  expect(doc.activeElement).toBe(fresh) // Turbo's own restore of the replaced field
+  expect(fresh.focusCount).toBe(1)
+  expect(list.hidden).toBe(false) // its focus binding ran once
+
+  frames.frame()
+  expect(doc.activeElement.id).toBe("body-el")
+  expect(list.hidden).toBe(true) // the hide after the blur ran after that binding
+})

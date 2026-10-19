@@ -45,9 +45,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   focus was undone and the old field's `on_client(:focus, …)` binding ran
   again (a listnav pick that hid its list and blurred the query showed the
   list again). The first focus op in a reply's chain, and the ops after it,
-  now run on the next frame, after Turbo has found nothing to restore; the ops
-  before it still run in the render pass, and a chain without a focus op is
-  unchanged. `on_client` ops run in no stream render and stay synchronous.
+  now run on the next frame (in a hidden tab, once it is visible again), after
+  Turbo has found nothing to restore. The ops before it still run in the
+  render pass; a chain without a focus op, and a separate `.js` stream in the
+  same reply, are unchanged. After a `morph` or `update` that keeps the field,
+  its focus binding no longer runs again; a `replace` still hands focus to the
+  new field first (Turbo's own restore), so chain `js.blur(…).hide(…)` there.
+  `on_client` ops run in no stream render and stay synchronous.
 
 ## [0.16.7] - 2026-10-18
 
