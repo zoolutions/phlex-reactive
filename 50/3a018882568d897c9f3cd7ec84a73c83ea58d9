@@ -1,0 +1,26 @@
+app/javascript/phlex/reactive/runtime.js
+  s_039165cf117b7c::t_c28a7bf1d82fc2 2005,2007
+lib/phlex/reactive/js.rb
+  s_039165cf117b7c::t_bb26c7163389ee 687-688
+spec/javascript/reactive_run_ops_trigger.test.js
+  s_039165cf117b7c::t_5dfc218fd0dddf 393-409,411-432
+  s_039165cf117b7c::t_a319848e2ae09e 410
+spec/phlex/reactive/client_bindings_spec.rb
+  s_039165cf117b7c::t_658640af6c12ed 225-234
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "503a018882568d897c9f3cd7ec84a73c83ea58d9",
+  "prompts": {},
+  "sessions": {
+    "s_039165cf117b7c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c644b7ed-8e6b-44ea-aff6-e4b3d4cd1c83",
+        "model": "unknown"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
