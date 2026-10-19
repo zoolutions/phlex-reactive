@@ -347,7 +347,9 @@ module Phlex
       # once per refused file, in pick order, before any reactive:file-rejected
       # fires. In each clone every [data-reactive-file="name"] gets file.name as
       # textContent (never HTML), and every [data-reactive-file-reason] part
-      # whose value is not that file's reason is removed. Each top-level element
+      # whose value is not that file's reason is removed (a reason with no part
+      # keeps only the unmarked parts; a reason part at the top level lists only
+      # the reasons it names). Each top-level element
       # of a clone is marked data-reactive-file-rejected and appended; the next
       # run of the op removes the marked ones first (a pick with no refusal
       # empties the list), and a morph of the container keeps them.

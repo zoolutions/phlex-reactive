@@ -1533,9 +1533,13 @@ button(**on_client(:click, js
   (`"size"` or `"type"`), marks each top-level element
   `data-reactive-file-rejected` and appends it: `ul(id: "refused") { template
   { li { span(data: { reactive_file_reason: "size" }) { b(data: { reactive_file:
-  "name" }); plain " is too large." } } } }`. Every run of the op removes the
-  marked entries first (and only those: a heading and the `<template>` stay),
-  so the next pick replaces the list and a pick with no refusal empties it. A
+  "name" }); plain " is too large." } } } }`. A reason with no part of its own
+  keeps only the entry's unmarked parts (here an empty `li`), so give every
+  reason a part, or put `data-reactive-file-reason` on a top-level element of
+  the template to list only the reasons it has a sentence for. Every run of
+  the op removes the marked entries first (and only those: a heading and the
+  `<template>` stay), so the next pick replaces the list and a pick with no
+  refusal empties it. A
   morph that reaches the container (the action's `reply.morph` of the component,
   on the same `change`) keeps the entries; a plain replace, or an update stream
   aimed at the container itself, renders it afresh. It works

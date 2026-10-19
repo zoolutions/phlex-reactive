@@ -524,6 +524,88 @@ test("rejected: a miss is silent without verbose", () => {
   expect(warnings).toEqual([])
 })
 
+test("rejected: a template with no name slot lists one entry per refused file and writes no name", () => {
+  const { root, controller, input } = mount(
+    picker() + `<ul id="refused"><template><li>A file was refused.</li></template></ul>`,
+  )
+  choose(input, [png("b.png", 11), svg("c.svg")])
+
+  run(controller, [listOp()])
+
+  expect(listed(root)).toEqual(["A file was refused.", "A file was refused."])
+  expect(root.querySelector("#refused").textContent).not.toContain(".png")
+  expect(root.querySelector("#refused").textContent).not.toContain(".svg")
+})
+
+test("rejected: a reason with no part of its own keeps only the entry's unmarked parts", () => {
+  const { root, controller, input } = mount(
+    picker() +
+      `<ul id="refused"><template><li><b data-reactive-file="name"></b>` +
+      `<span data-reactive-file-reason="size"> is too large.</span></li></template></ul>`,
+  )
+  const seen = rejections(input)
+  choose(input, [png("b.png", 11), svg("c.svg")])
+
+  run(controller, [listOp()])
+
+  // c.svg is refused for its type, which has no part: its entry is the name alone.
+  expect(listed(root)).toEqual(["b.png is too large.", "c.svg"])
+  expect(root.querySelectorAll("#refused [data-reactive-file-reason]").length).toBe(1)
+  expect(seen.map(({ reason }) => reason)).toEqual(["size", "type"])
+})
+
+test("rejected: a reason part at the top level of the template lists only the reasons it has a part for", () => {
+  const { root, controller, input } = mount(
+    picker() +
+      `<ul id="refused"><template>` +
+      `<li data-reactive-file-reason="size"><b data-reactive-file="name"></b> is too large.</li>` +
+      `</template></ul>`,
+  )
+  const seen = rejections(input)
+  choose(input, [png("b.png", 11), svg("c.svg"), png("d.png", 12)])
+
+  run(controller, [listOp()])
+
+  expect(listed(root)).toEqual(["b.png is too large.", "d.png is too large."])
+  // The type refusal still fires: only the list has no sentence for it.
+  expect(seen.map(({ reason, file }) => [reason, file])).toEqual([
+    ["size", "b.png"],
+    ["type", "c.svg"],
+    ["size", "d.png"],
+  ])
+})
+
+test("rejected: a slot on a top-level element is filled; a slot value the op does not know is left untouched", () => {
+  const { root, controller, input } = mount(
+    picker() +
+      `<dl id="refused"><template><dt data-reactive-file="name">?</dt>` +
+      `<dd data-reactive-file="index">#</dd></template></dl>`,
+  )
+  choose(input, [png("b.png", 11)])
+
+  run(controller, [listOp()])
+
+  expect([...root.querySelectorAll("#refused > [data-reactive-file-rejected]")].map((node) => node.textContent)).toEqual([
+    "b.png",
+    "#",
+  ])
+})
+
+test("rejected: a selector that matches two containers lists into each", () => {
+  const { root, controller, input } = mount(
+    picker() +
+      `<ul class="refused" id="one"><template><li><b data-reactive-file="name"></b></li></template></ul>` +
+      `<ol class="refused" id="two"><template><li>refused: <i data-reactive-file="name"></i></li></template></ol>`,
+  )
+  choose(input, [svg("c.svg")])
+
+  run(controller, [listOp({ rejected: ".refused" })])
+
+  const entries = (id) => [...root.querySelectorAll(`#${id} > [data-reactive-file-rejected]`)].map((e) => e.textContent)
+  expect(entries("one")).toEqual(["c.svg"])
+  expect(entries("two")).toEqual(["refused: c.svg"])
+})
+
 // --- a morph keeps the list (issue #445) ---------------------------------------
 // The action that follows the pick on the same change replies with a morph,
 // and the server render of the container has no entries. Turbo asks
@@ -583,6 +665,49 @@ test("a morph of an element without entries leaves its render alone", () => {
 
   expect(root.querySelector("#refused-heading").textContent).toBe("Changed")
   expect(listed(root)).toEqual([])
+})
+
+test("a morph another listener cancels, before or after the runtime's, leaves the entries once", () => {
+  const { root, controller, input } = mount(picker() + LIST)
+  choose(input, [svg("c.svg")])
+  run(controller, [listOp()])
+  const container = root.querySelector("#refused")
+
+  // Before: a listener on the element runs ahead of the runtime's document one.
+  const cancel = (event) => event.preventDefault()
+  container.addEventListener("turbo:before-morph-element", cancel)
+  morphContainer(container, LIST)
+  container.removeEventListener("turbo:before-morph-element", cancel)
+  expect(listed(root)).toEqual(["c.svg is not a PNG."])
+
+  // After: a document listener added later runs behind it; the copies went
+  // into a render Turbo then discards.
+  document.addEventListener("turbo:before-morph-element", cancel)
+  try {
+    morphContainer(container, LIST)
+  } finally {
+    document.removeEventListener("turbo:before-morph-element", cancel)
+  }
+  expect(listed(root)).toEqual(["c.svg is not a PNG."])
+})
+
+test("two morphs in a row keep the entries once; the next pick clones the template the morph brought", () => {
+  const { root, controller, input } = mount(picker() + LIST)
+  choose(input, [svg("c.svg")])
+  run(controller, [listOp()])
+  const container = root.querySelector("#refused")
+  const reworded = LIST.replace(" is not a PNG.", " is the wrong type.")
+
+  morphContainer(container, reworded)
+  morphContainer(container, reworded)
+
+  // The entries made before the morph keep their words; there is one of them.
+  expect(listed(root)).toEqual(["c.svg is not a PNG."])
+
+  choose(input, [svg("e.svg")])
+  run(controller, [listOp()])
+
+  expect(listed(root)).toEqual(["e.svg is the wrong type."])
 })
 
 test("the removal ask (no newElement) is ignored", () => {

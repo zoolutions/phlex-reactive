@@ -524,7 +524,10 @@ module Views
               - Every `[data-reactive-file-reason]` part whose value is not this file's
                 reason (`"size"` or `"type"`) is removed; parts without the attribute stay.
                 Each reason carries its own name slot, so a translation can put the name
-                anywhere in its sentence.
+                anywhere in its sentence. A reason with no part of its own keeps only the
+                entry's unmarked parts (in the example above, an empty `li`): give every
+                reason a part, or put `data-reactive-file-reason` on a top-level element
+                of the template to list only the reasons it has a sentence for.
               - Each top-level element of the clone is marked `data-reactive-file-rejected`
                 and appended to the container. The list is filled **before** the first
                 `reactive:file-rejected` fires, so a handler of the event sees it.

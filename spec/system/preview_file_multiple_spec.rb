@@ -67,6 +67,23 @@ RSpec.describe "Preview and check every file of a multiple input (issue #439)", 
     expect(page.evaluate_script("window.__noReload")).to be(true)
   end
 
+  it "keeps the open list through a later morph of the component; a plain replace renders it afresh" do
+    attach_file("photos", [red, large, text])
+    expect(page).to have_css("[data-testid='refused-file']", count: 2)
+
+    find("[data-testid='refresh-morph']").click
+
+    expect(page).to have_css("[data-testid='refreshes']", exact_text: "Refreshed 1")
+    expect(page.all("[data-testid='refused-file']").map(&:text))
+      .to eq(["photo_large.png is larger than 1 KB.", "receipt.txt is not a PNG."])
+
+    find("[data-testid='refresh-replace']").click
+
+    expect(page).to have_css("[data-testid='refreshes']", exact_text: "Refreshed 2")
+    expect(page).to have_no_css("[data-testid='refused-file']")
+    expect(page).to have_css("#photos-refused > template", visible: :all, count: 1)
+  end
+
   it "replaces the refused list on the next pick and empties it when nothing is refused" do
     attach_file("photos", [large, text])
     expect(page).to have_css("[data-testid='posted']", exact_text: "Posted 0:")

@@ -8,17 +8,35 @@
 #
 # Issue #445: the uploading picker names each refused file in #photos-refused,
 # cloned from the list's <template>; the upload replies with a morph, which
-# keeps the list.
+# keeps the list. A later morph of the component keeps it too; a plain
+# replace renders it afresh.
 class MultiPhotoPreviewComponent < ApplicationComponent
   include Phlex::Reactive::Component
 
+  reactive_state :refreshes
   action :upload, params: { photos: [:file] }
+  action :refresh_morph
+  action :refresh_replace
+
+  def initialize(refreshes: 0)
+    @refreshes = refreshes
+  end
 
   def id = "multi-photo-preview"
 
   def upload(photos: [])
     @posted = photos.map(&:original_filename)
     reply.morph
+  end
+
+  def refresh_morph
+    @refreshes += 1
+    reply.morph
+  end
+
+  def refresh_replace
+    @refreshes += 1
+    reply.replace
   end
 
   def view_template
@@ -38,6 +56,9 @@ class MultiPhotoPreviewComponent < ApplicationComponent
     img(id: "photos-shot", alt: "", data: { testid: "photos-shot" })
     p(data: { testid: "posted" }) { posted }
     refused_list
+    p(data: { testid: "refreshes" }) { "Refreshed #{@refreshes}" }
+    button(**mix(on(:refresh_morph), data: { testid: "refresh-morph" })) { "Refresh (morph)" }
+    button(**mix(on(:refresh_replace), data: { testid: "refresh-replace" })) { "Refresh (replace)" }
   end
 
   def refused_list
