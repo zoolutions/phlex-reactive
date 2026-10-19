@@ -6,6 +6,27 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`js.preview_file(…, rejected: "#refused")` names each refused file in the
+  page (#445).** A `reactive:file-rejected` handler could react to the reason,
+  but no op could put the refused file's name into the page, so a picker that
+  refused two of five files could only say "a file was too large". `rejected:`
+  is a CSS selector for a container holding an app-authored `<template>`: for
+  each refused file, in pick order and before any `reactive:file-rejected`
+  fires, the client deep-clones the template, writes the file's name as
+  `textContent` into every `[data-reactive-file="name"]`, keeps only the
+  `[data-reactive-file-reason]` parts for that file's reason, marks each
+  top-level element `data-reactive-file-rejected` and appends it. Every run
+  removes the marked entries first (a heading and the `<template>` stay), so the
+  next pick replaces the list and a pick with no refusal empties it; a morph
+  that reaches the container (the upload action's `reply.morph`) keeps them, a
+  Turbo cache restore included. Works for one file and with `per_file: true`. A
+  container that is not on the page, or has no `<template>`, warns on a verbose
+  root and the rejections still fire. The keyword is serialized only when given,
+  so every existing op is byte-identical; `broadcast_to(js:)` still refuses
+  `preview_file`.
+
 ### Fixed
 
 - **`dispatch(…, detail_from:)` refuses a `detail:` that is no Hash (#442).** The

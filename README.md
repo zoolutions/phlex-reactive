@@ -1530,8 +1530,8 @@ button(**on_client(:click, js
   (a broadcast that reads every subscriber's clipboard would be hostile). The
   op is async fire-and-forget — chained siblings apply immediately, never
   waiting for the read.
-- **`preview_file(to, into:, name: nil, global: false, valid: false, wrap: nil, max_bytes: nil, accept: nil, per_file: false)`** (#375; `global: true`
-  resolves `to`, `into:` and `name:` document-wide, for an `img` outside the
+- **`preview_file(to, into:, name: nil, global: false, valid: false, wrap: nil, max_bytes: nil, accept: nil, per_file: false, rejected: nil)`** (#375; `global: true`
+  resolves `to`, `into:`, `name:`, `wrap:` and `rejected:` document-wide, for an `img` outside the
   root) paints the file a file input
   holds onto an `img` **before any upload**:
   `input(type: "file", id: "photo-file", accept: "image/*", **on_client(:change,
@@ -1582,6 +1582,30 @@ button(**on_client(:click, js
   input keeps every file (`remaining` counts them all). A single input, and
   `per_file:` omitted, keep the one-file check above; `per_file:` takes only
   `true`, `false` or `nil`.
+  **Name each refused file (#445):** `rejected: "#refused"` is a CSS selector
+  for a container holding an app-authored `<template>`. For each refused file,
+  in pick order and **before** any `reactive:file-rejected` fires, the client
+  deep-clones the template, writes the file's name as `textContent` (never
+  HTML) into every `[data-reactive-file="name"]`, removes every
+  `[data-reactive-file-reason]` part whose value is not that file's reason
+  (`"size"` or `"type"`), marks each top-level element
+  `data-reactive-file-rejected` and appends it: `ul(id: "refused") { template
+  { li { span(data: { reactive_file_reason: "size" }) { b(data: { reactive_file:
+  "name" }); plain " is too large." } } } }`. A reason with no part of its own
+  keeps only the entry's unmarked parts (here an empty `li`), so give every
+  reason a part, or put `data-reactive-file-reason` on a top-level element of
+  the template to list only the reasons it has a sentence for. Every run of
+  the op removes the marked entries first (and only those: a heading and the
+  `<template>` stay), so the next pick replaces the list and a pick with no
+  refusal empties it. A
+  morph that reaches the container (the action's `reply.morph` of the component,
+  on the same `change`) keeps the entries, after whatever the server renders
+  (so never render `data-reactive-file-rejected` children yourself); a plain
+  replace, or an update stream aimed at the container itself, renders it
+  afresh. It works
+  for one file and with `per_file: true`. A container that is not on the page,
+  or has no `<template>` child, warns on a verbose root; the rejections still
+  fire.
 - **`expanded:`** on `show`/`hide`/`toggle` (#271) keeps a disclosure trigger's
   `aria-expanded` honest: `js.toggle("#menu", expanded: "#trigger")` writes the
   op's **intended** state (`show` → `"true"`, `hide` → `"false"`, `toggle` → the

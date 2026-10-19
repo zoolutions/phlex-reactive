@@ -451,9 +451,30 @@ module Phlex
       #   input(type: "file", id: "pick", name: "file", multiple: true, accept: "image/png",
       #     **mix(on_client(:change, js.preview_file("#pick", into: "#shot", max_bytes: 1_000_000,
       #       accept: true, per_file: true)), on(:upload, event: "change")))
+      #
+      # Name each refused file (issue #445): `rejected:` is a CSS selector (like
+      # `into:`) for a container whose first <template> child the client clones
+      # once per refused file, in pick order, before any reactive:file-rejected
+      # fires. In each clone every [data-reactive-file="name"] gets file.name as
+      # textContent (never HTML), and every [data-reactive-file-reason] part
+      # whose value is not that file's reason is removed (a reason with no part
+      # keeps only the unmarked parts; a reason part at the top level lists only
+      # the reasons it names). Each top-level element
+      # of a clone is marked data-reactive-file-rejected and appended; the next
+      # run of the op removes the marked ones first (a pick with no refusal
+      # empties the list), and a morph of the container keeps them.
+      #   ul(id: "refused") do
+      #     template do
+      #       li do
+      #         span(data: { reactive_file_reason: "size" }) { b(data: { reactive_file: "name" }); plain " is too large." }
+      #         span(data: { reactive_file_reason: "type" }) { b(data: { reactive_file: "name" }); plain " is not a PNG." }
+      #       end
+      #     end
+      #   end
+      #   js.preview_file("#pick", into: "#shot", max_bytes: 1_000_000, accept: true, per_file: true, rejected: "#refused")
 
       def preview_file(to, into:, name: nil, global: false, valid: false, wrap: nil, max_bytes: nil, accept: nil,
-                       per_file: false)
+                       per_file: false, rejected: nil)
         refuse_field_target!(to, "preview_file reads a file input, not %s — pass the input's CSS selector " \
                                  "(e.g. js.preview_file(\"#photo-file\", into: \"#photo\"))")
         args = { "to" => normalize_target(to), "into" => preview_selector(:into, into) }
@@ -464,6 +485,7 @@ module Phlex
         args["max_bytes"] = preview_max_bytes(max_bytes) unless max_bytes.nil?
         args["accept"] = preview_accept(accept) unless accept.nil? || accept == false
         args["per_file"] = true if preview_per_file(per_file)
+        args["rejected"] = preview_selector(:rejected, rejected) unless rejected.nil?
         append("preview_file", args.freeze)
       end
 
@@ -681,11 +703,11 @@ module Phlex
         args.freeze
       end
 
-      # preview_file's into:/name:/wrap: — a non-empty CSS selector String,
-      # never :root or its "@root" sentinel (the root is a container, not the
-      # img — and a name: on it would replace the whole component with a file
-      # name), nor "@trigger" (issue #442; the Symbol :trigger is no String):
-      # the preview goes into elements the author names.
+      # preview_file's into:/name:/wrap:/rejected: — a non-empty CSS selector
+      # String, never :root or its "@root" sentinel (the root is a container,
+      # not the img — and a name: on it would replace the whole component with a
+      # file name), nor "@trigger" (issue #442; the Symbol :trigger is no
+      # String): the preview goes into elements the author names.
       def preview_selector(key, selector)
         if selector.is_a?(String) && !selector.strip.empty? && ![ROOT_SENTINEL, TRIGGER_SENTINEL].include?(selector)
           return selector

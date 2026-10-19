@@ -1085,6 +1085,7 @@ export function registerReactiveActions() {
   registerReactiveMorphFocus()
   registerReactiveModals()
   registerReactiveKeep()
+  registerReactiveRejectedFiles()
   registerReactiveImageFallback()
   registerReactivePlaintext()
   registerReactiveOffline()
@@ -1580,7 +1581,72 @@ function previewFile(input, args, resolveTargets) {
   if (args.name != null) {
     for (const node of resolveTargets({ ...args, to: args.name })) node.textContent = file ? file.name : ""
   }
+  // Written before any rejection is dispatched: a handler sees the list filled.
+  if (args.rejected != null) listRejected(input, resolveTargets({ ...args, to: args.rejected }), rejected, args.rejected)
   for (const detail of rejected) input.dispatchEvent(new CustomEvent("reactive:file-rejected", { bubbles: true, detail }))
+}
+
+// --- Name each refused file (issue #445) ---
+// rejected: is a container holding an app-authored <template>. Per refused
+// file, in pick order: a pure deep clone of it, the file's name written as
+// textContent into every [data-reactive-file="name"] (a file name is user
+// input: never HTML, never an attribute), and only the
+// [data-reactive-file-reason] parts for that file's reason kept. Each
+// top-level element of a clone is marked and appended (top-level text is
+// dropped). Every run removes the marked entries first, and only those, so
+// a heading and the <template> stay. The entries are always the container's
+// last children, which is what the morph listener below checks.
+const REJECTED_ENTRY = "data-reactive-file-rejected"
+
+function listRejected(input, lists, rejected, selector) {
+  if (lists.length === 0) return warnPreviewVerbose(input, `rejected: ${JSON.stringify(selector)} is not on the page`)
+  for (const list of lists) {
+    for (const entry of [...list.children]) if (entry.hasAttribute(REJECTED_ENTRY)) entry.remove()
+    const template = [...list.children].find((child) => child.localName === "template")
+    if (!template) {
+      warnPreviewVerbose(input, `rejected: ${JSON.stringify(selector)} has no <template> child`)
+      continue
+    }
+    for (const { reason, file } of rejected) {
+      const entry = template.content.cloneNode(true)
+      for (const part of entry.querySelectorAll("[data-reactive-file-reason]")) {
+        if (part.getAttribute("data-reactive-file-reason") !== reason) part.remove()
+      }
+      for (const slot of entry.querySelectorAll('[data-reactive-file="name"]')) slot.textContent = file.name
+      for (const node of [...entry.childNodes]) {
+        if (node.nodeType !== 1) continue
+        node.setAttribute(REJECTED_ENTRY, "")
+        list.append(node)
+      }
+    }
+  }
+}
+
+// A morph keeps the list (issue #445). The action that follows the pick on
+// the same change replies with a morph whose render of the container has no
+// entries, and Idiomorph would remove them. Before it syncs the container's
+// children, copies of the entries go into the new render, so the sync keeps
+// them; the next pick still replaces them. A plain replace is a new element,
+// and the server's render of it stands. The check reads the DOM (the last
+// child is an entry), not a record of what the op listed, so a container
+// Turbo restored from its cache (new nodes, same entries) keeps them too: one
+// lastElementChild per morphed element.
+let rejectedFilesRegistered = false
+
+export function registerReactiveRejectedFiles() {
+  if (rejectedFilesRegistered) return
+  if (typeof document === "undefined" || typeof document.addEventListener !== "function") return
+  rejectedFilesRegistered = true
+  document.addEventListener("turbo:before-morph-element", (event) => {
+    const list = event.target
+    const next = event.detail?.newElement // absent when Turbo asks before a removal
+    if (!next || event.defaultPrevented || !list.lastElementChild?.hasAttribute(REJECTED_ENTRY)) return
+    for (const entry of list.children) if (entry.hasAttribute(REJECTED_ENTRY)) next.append(entry.cloneNode(true))
+  })
+}
+
+export function __resetReactiveRejectedFilesForTest() {
+  rejectedFilesRegistered = false
 }
 
 // Rebuild input.files from the kept files (issue #439); true once it did. A
@@ -1588,9 +1654,7 @@ function previewFile(input, args, resolveTargets) {
 // files stay in the input (the rejections still fire), and a verbose root is told.
 function keepFiles(input, kept) {
   if (typeof DataTransfer !== "function") {
-    if (input.closest?.('[data-reactive-verbose="true"], [data-reactive-debug="true"]')) {
-      warnPreview("per_file: has no DataTransfer to drop the refused files from the input")
-    }
+    warnPreviewVerbose(input, "per_file: has no DataTransfer to drop the refused files from the input")
     return false
   }
   const transfer = new DataTransfer()
@@ -1624,6 +1688,11 @@ function previewAccepts(input, accept) {
 
 function warnPreview(why) {
   console.warn(`[phlex-reactive] preview_file ${why} — skipped`)
+}
+
+// Only a verbose (or debug) root is told: the op still did all it could.
+function warnPreviewVerbose(input, why) {
+  if (input.closest?.('[data-reactive-verbose="true"], [data-reactive-debug="true"]')) warnPreview(why)
 }
 
 // Revoke the URL preview_file made for `img`, if it made one.

@@ -413,3 +413,53 @@ test("the reactive:js stream action runs preview_file scoped to its target root"
   expect(root.querySelector("#photo").getAttribute("src")).toBe("blob:test/1")
   delete window.Turbo
 })
+
+// --- rejected: names the refused file (issue #445) ---------------------------
+// The one-file path refuses at most one file; rejected: lists it from the
+// container's <template>, and the next run of the op clears it.
+
+const REFUSED =
+  `<ul id="refused"><template><li>` +
+  `<span data-reactive-file-reason="size"><b data-reactive-file="name"></b> is too large.</span>` +
+  `<span data-reactive-file-reason="type"><b data-reactive-file="name"></b> is not an image.</span>` +
+  `</li></template></ul>`
+
+const refusedList = (root) =>
+  [...root.querySelectorAll("#refused > [data-reactive-file-rejected]")].map((entry) => entry.textContent)
+
+test("rejected: the single-file path lists its refusal (size, then type) and clears it on a valid pick", () => {
+  const { root, controller } = mount(FIELD + REFUSED)
+  const input = root.querySelector("#photo-file")
+  const order = []
+  input.addEventListener("reactive:file-rejected", (event) => order.push([event.detail.reason, refusedList(root)]))
+  const op = ["preview_file", { to: "#photo-file", into: "#photo", max_bytes: 2, rejected: "#refused" }]
+
+  choose(input, [png("big.png")])
+  run(controller, [op])
+  expect(refusedList(root)).toEqual(["big.png is too large."])
+
+  choose(input, [txt("notes.txt")])
+  run(controller, [op])
+  expect(refusedList(root)).toEqual(["notes.txt is not an image."])
+
+  choose(input, [new File(["p"], "ok.png", { type: "image/png" })])
+  run(controller, [op])
+  expect(refusedList(root)).toEqual([])
+  expect(root.querySelector("#photo").getAttribute("src")).toBe("blob:test/1")
+  // The list is filled before the event: a handler sees its own entry.
+  expect(order).toEqual([
+    ["size", ["big.png is too large."]],
+    ["type", ["notes.txt is not an image."]],
+  ])
+})
+
+test("rejected: omitted, a refusal writes nothing into the page", () => {
+  const { root, controller } = mount(FIELD + REFUSED)
+  const input = root.querySelector("#photo-file")
+  choose(input, [png("big.png")])
+
+  run(controller, [["preview_file", { to: "#photo-file", into: "#photo", max_bytes: 2 }]])
+
+  expect(refusedList(root)).toEqual([])
+  expect(root.querySelector("#refused").children.length).toBe(1)
+})

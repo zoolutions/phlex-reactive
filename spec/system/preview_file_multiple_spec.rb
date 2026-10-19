@@ -54,6 +54,47 @@ RSpec.describe "Preview and check every file of a multiple input (issue #439)", 
       .to eq([["size", 0, 0, 0], ["type", 1, 0, 0]])
   end
 
+  # Issue #445: rejected: names each refused file, from the list's <template>,
+  # and the upload's morph reply keeps the list.
+  it "names each refused file next to its reason, and the action's morph keeps the list" do
+    page.execute_script("window.__noReload = true")
+    attach_file("photos", [red, large, text])
+
+    expect(page).to have_css("[data-testid='posted']", exact_text: "Posted 1: photo_red.png")
+    expect(page.all("[data-testid='refused-file']").map(&:text))
+      .to eq(["photo_large.png is larger than 1 KB.", "receipt.txt is not a PNG."])
+    expect(page).to have_css("[data-testid='refused-file'] [data-reactive-file='name']", count: 2)
+    expect(page.evaluate_script("window.__noReload")).to be(true)
+  end
+
+  it "keeps the open list through a later morph of the component; a plain replace renders it afresh" do
+    attach_file("photos", [red, large, text])
+    expect(page).to have_css("[data-testid='refused-file']", count: 2)
+
+    find("[data-testid='refresh-morph']").click
+
+    expect(page).to have_css("[data-testid='refreshes']", exact_text: "Refreshed 1")
+    expect(page.all("[data-testid='refused-file']").map(&:text))
+      .to eq(["photo_large.png is larger than 1 KB.", "receipt.txt is not a PNG."])
+
+    find("[data-testid='refresh-replace']").click
+
+    expect(page).to have_css("[data-testid='refreshes']", exact_text: "Refreshed 2")
+    expect(page).to have_no_css("[data-testid='refused-file']")
+    expect(page).to have_css("#photos-refused > template", visible: :all, count: 1)
+  end
+
+  it "replaces the refused list on the next pick and empties it when nothing is refused" do
+    attach_file("photos", [large, text])
+    expect(page).to have_css("[data-testid='posted']", exact_text: "Posted 0:")
+    expect(page).to have_css("[data-testid='refused-file']", count: 2)
+
+    attach_file("photos", [red, blue])
+
+    expect(page).to have_css("[data-testid='posted']", exact_text: "Posted 2: photo_red.png, photo_blue.png")
+    expect(page).to have_no_css("[data-testid='refused-file']")
+  end
+
   it "paints the first accepted image and keeps only the accepted files in the input" do
     attach_file("gallery-file", [large, blue, text])
 

@@ -364,9 +364,11 @@ RSpec.describe Phlex::Reactive::JS do
     end
 
     it "never carries a URL with every keyword given" do
-      op = js.preview_file("#f", into: "#p", name: "#n", wrap: "#w", max_bytes: 10, accept: ".png", valid: true)
+      op = js.preview_file("#f", into: "#p", name: "#n", wrap: "#w", max_bytes: 10, accept: ".png", valid: true,
+        per_file: true, rejected: "#refused")
       args = op.ops.dig(0, 1)
-      expect(args.keys).to contain_exactly("to", "into", "name", "wrap", "max_bytes", "accept", "valid")
+      expect(args.keys).to contain_exactly("to", "into", "name", "wrap", "max_bytes", "accept", "valid", "per_file",
+        "rejected")
       expect(args.values).to all(satisfy { !it.to_s.match?(/\A(blob|data|https?|javascript):/i) })
     end
 
@@ -395,6 +397,28 @@ RSpec.describe Phlex::Reactive::JS do
 
     it "rejects a per_file: that is not true, false or nil" do
       [1, "true", :yes, "false"].each { expect_preview_refused(per_file: it) }
+    end
+
+    # Issue #445: rejected: names a container whose <template> the client
+    # clones once per refused file. It rides last and only when given, so an
+    # op without it serializes as before.
+    it "carries rejected: only when given" do
+      args = JSON.parse(js.preview_file("#f", into: "#p", per_file: true, rejected: "#refused").to_json).dig(0, 1)
+      expect(args).to eq("to" => "#f", "into" => "#p", "per_file" => true, "rejected" => "#refused")
+      expect(args.keys.last).to eq("rejected")
+      expect(JSON.parse(js.preview_file("#f", into: "#p", rejected: nil).to_json).dig(0, 1))
+        .to eq("to" => "#f", "into" => "#p")
+    end
+
+    it "leaves an op without rejected: byte-identical" do
+      op = js.preview_file("#f", into: "#p", name: "#n", wrap: "#w", max_bytes: 10, accept: true, per_file: true)
+      expect(op.to_json).to eq(
+        '[["preview_file",{"to":"#f","into":"#p","name":"#n","wrap":"#w","max_bytes":10,"accept":true,"per_file":true}]]'
+      )
+    end
+
+    it "rejects a rejected: that is not a CSS selector string" do
+      ["", " ", :root, "@root", :trigger, "@trigger", :refused, 1].each { expect_preview_refused(rejected: it) }
     end
 
     it "passes the ops allowlist" do

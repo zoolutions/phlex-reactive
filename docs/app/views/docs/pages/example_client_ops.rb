@@ -387,9 +387,9 @@ module Views
                 reads a `url` key, and `set_attr` of `src` (and `srcset`, #373) stays refused (#96). Only an
                 `<img>` ever gets a `src`: an `into:` that is anything else, or a `to` that
                 is not an `input[type=file]`, warns and is skipped.
-              - `to`, `into:` and `name:` resolve inside the component's root by default
-                (`global: false`). `global: true` resolves all three document-wide, for an
-                `img` outside the root.
+              - `to`, `into:`, `name:`, `wrap:` and `rejected:` resolve inside the
+                component's root by default (`global: false`). `global: true` resolves
+                them all document-wide, for an `img` or a list outside the root.
               - **Actor-only** like `paste_into`: `on_client` and `reply.js` may use it,
                 `broadcast_to(js:)` refuses it.
 
@@ -491,6 +491,61 @@ module Views
               input.addEventListener("reactive:file-rejected", ({ detail }) =>
                 note(`${detail.file.name}: ${detail.reason} (${detail.remaining} kept)`))
               ```
+
+              **Name each refused file (#445).** The event says why a file was refused, but
+              an op cannot read it, so without JavaScript the page could only say "a file
+              was too large". `rejected:` names a container whose `<template>` the client
+              fills once per refused file:
+
+              ```ruby
+              op = js.preview_file("#pick", into: "#shot", max_bytes: 1_000_000, accept: true,
+                per_file: true, rejected: "#refused")
+              input(type: "file", id: "pick", name: "file", multiple: true, accept: "image/png",
+                **mix(on_client(:change, op), on(:upload, event: "change")))
+              ul(id: "refused") do
+                template do
+                  li do
+                    span(data: { reactive_file_reason: "size" }) do
+                      b(data: { reactive_file: "name" })
+                      plain " is larger than 1 MB."
+                    end
+                    span(data: { reactive_file_reason: "type" }) do
+                      b(data: { reactive_file: "name" })
+                      plain " is not a PNG."
+                    end
+                  end
+                end
+              end
+              ```
+
+              - For each refused file, in pick order, the client deep-clones the
+                container's first `<template>` child. Every `[data-reactive-file="name"]`
+                in the clone gets the file's name as `textContent`: a file name is the
+                user's input, so it is never parsed as HTML.
+              - Every `[data-reactive-file-reason]` part whose value is not this file's
+                reason (`"size"` or `"type"`) is removed; parts without the attribute stay.
+                Each reason carries its own name slot, so a translation can put the name
+                anywhere in its sentence. A reason with no part of its own keeps only the
+                entry's unmarked parts (in the example above, an empty `li`): give every
+                reason a part, or put `data-reactive-file-reason` on a top-level element
+                of the template to list only the reasons it has a sentence for.
+              - Each top-level element of the clone is marked `data-reactive-file-rejected`
+                and appended to the container. The list is filled **before** the first
+                `reactive:file-rejected` fires, so a handler of the event sees it.
+              - Every run of the op first removes the marked entries, and only those: a
+                heading in the container and the `<template>` stay. The next pick replaces
+                the list; a pick with no refusal empties it.
+              - A morph that reaches the container keeps the entries, so the upload
+                action's `reply.morph` of the component, on the same `change`, does not
+                wipe them. A plain replace, or an update stream aimed at the container
+                itself, renders it afresh. The kept entries go after whatever the server
+                renders, so never render `data-reactive-file-rejected` children yourself:
+                they would show twice.
+              - It works for one file and with `per_file: true`, and `rejected:` follows
+                `global:` like the op's other selectors. A container that is not on the
+                page, or has no `<template>` child, warns on a verbose root; the
+                rejections still fire. A run the op skips (`into:` is not an `<img>`)
+                leaves the list as it was.
             MD
             DocsUI::Callout(:warning) do
               md <<~MD
