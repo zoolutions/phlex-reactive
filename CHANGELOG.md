@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`dispatch(…, detail_from:)` refuses a `detail:` that is no Hash (#442).** The
+  browser merges the reads over `detail:` as an object, so a String or an Array
+  `detail:` was spread into the event detail one character or element per key.
+  It now raises at render; a Hash or `nil` `detail:` is unchanged.
+
 ## [0.16.9] - 2026-10-19
 
 ### Added

@@ -758,15 +758,19 @@ module Phlex
       end
 
       # dispatch's detail_from: — detail key → read attr, the keys Strings.
-      # A key also in detail: would silently override it, so it raises.
+      # A key also in detail: would silently override it, so it raises; so does
+      # a detail: that is no Hash (the browser merges the reads over it).
       def detail_reads(detail, reads)
         unless reads.is_a?(Hash)
           raise ArgumentError,
             "#{self.class}: dispatch detail_from: takes a Hash of detail keys to data-* attributes " \
             "(or :text), got #{reads.inspect}"
         end
+        unless detail.nil? || detail.is_a?(Hash)
+          raise ArgumentError, "#{self.class}: dispatch detail_from: merges over a Hash detail:, got #{detail.inspect}"
+        end
 
-        literal = detail.is_a?(Hash) ? detail.keys.map(&:to_s) : []
+        literal = detail.nil? ? [] : detail.keys.map(&:to_s)
         normalized = reads.to_h do |key, attr|
           key = key.to_s
           if literal.include?(key)

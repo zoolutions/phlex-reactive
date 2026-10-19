@@ -1409,7 +1409,7 @@ end
   allowlist, `text`'s `textContent`, `set_value`'s `.value`).
 - **`dispatch(…, detail_from: { key => attr })`** builds the event's detail off
   the trigger, every value a String, merged over `detail:` (a key in both
-  raises).
+  raises, and so does a `detail:` that is no Hash).
 - A server-pushed op has no trigger: `reply.js`, `broadcast_to(js:)` and
   `reactive_on_complete` raise on `:trigger`, `from: :trigger` and
   `detail_from:`. Nor does a window-bound `on_client` (`window:`, `outside:`,

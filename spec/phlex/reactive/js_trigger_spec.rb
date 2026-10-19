@@ -159,6 +159,16 @@ RSpec.describe Phlex::Reactive::JS do
         .to raise_error(ArgumentError, /detail_from: key "id" is also in detail:/)
       expect { js.dispatch("app:x", detail_from: "data-id") }.to raise_error(ArgumentError, /detail_from: takes a Hash/)
     end
+
+    it "refuses a detail: that is no Hash (the reads merge over it as an object)" do
+      expect { js.dispatch("app:x", detail: "picked", detail_from: { id: "data-id" }) }
+        .to raise_error(ArgumentError, /detail_from: merges over a Hash detail:, got "picked"/)
+      expect { js.dispatch("app:x", detail: [1, 2], detail_from: { id: "data-id" }) }
+        .to raise_error(ArgumentError, /detail_from: merges over a Hash detail:/)
+      expect(args_of(js.dispatch("app:x", detail: nil, detail_from: { id: "data-id" }))["detail_from"])
+        .to eq("id" => "data-id")
+      expect(args_of(js.dispatch("app:x", detail: "picked"))["detail"]).to eq("picked")
+    end
   end
 
   describe ".assert_ops_allowed! (the raw-list escape hatch)" do
