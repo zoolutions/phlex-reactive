@@ -504,8 +504,14 @@ module Views
               ul(id: "refused") do
                 template do
                   li do
-                    span(data: { reactive_file_reason: "size" }) { b(data: { reactive_file: "name" }); plain " is larger than 1 MB." }
-                    span(data: { reactive_file_reason: "type" }) { b(data: { reactive_file: "name" }); plain " is not a PNG." }
+                    span(data: { reactive_file_reason: "size" }) do
+                      b(data: { reactive_file: "name" })
+                      plain " is larger than 1 MB."
+                    end
+                    span(data: { reactive_file_reason: "type" }) do
+                      b(data: { reactive_file: "name" })
+                      plain " is not a PNG."
+                    end
                   end
                 end
               end
