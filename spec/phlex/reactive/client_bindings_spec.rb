@@ -161,4 +161,108 @@ RSpec.describe Phlex::Reactive::ClientBindings do
       end.not_to raise_error
     end
   end
+
+  # Issue #442: on_client(..., within:) — one binding for a subtree. The record
+  # carries "within" (written only when given); the client runs it for an
+  # event from inside an element matching the selector under the bound
+  # element, and that element is the op's @trigger.
+  describe "on_client within: (issue #442)" do
+    subject(:instance) { client_klass.new }
+
+    let(:pick) { instance.send(:js).set_value("#item-value", from: :trigger, attr: "data-value") }
+
+    def record(attrs) = JSON.parse(attrs[:data][:reactive_ops_param])
+
+    def on_client(...) = instance.send(:on_client, ...)
+
+    it "writes within on the record" do
+      expect(record(on_client(:click, pick, within: "[role=option]")))
+        .to eq("on" => "click", "within" => "[role=option]", "ops" => pick.ops.map { JSON.parse(JSON.generate(it)) })
+    end
+
+    it "keeps a record without within: byte-identical" do
+      ops = instance.send(:js).toggle("#menu")
+      expect(on_client(:click, ops)).to eq(
+        data: { action: "click->reactive#runOps", reactive_ops_param: '{"on":"click","ops":[["toggle",{"to":"#menu"}]]}' },
+        type: "button"
+      )
+    end
+
+    it "does not force type=button: the bound element is a container" do
+      expect(on_client(:click, pick, within: "[role=option]")).not_to have_key(:type)
+    end
+
+    it "keeps the descriptor a plain element binding" do
+      expect(on_client(:click, pick, within: "[role=option]")[:data][:action]).to eq("click->reactive#runOps")
+    end
+
+    it "composes with confirm:, detail:, debounce: and prevent: false" do
+      rec = record(on_client("app:pick", pick, within: "li", confirm: "Sure?", detail: { ok: true }, debounce: 50,
+        prevent: false))
+      expect(rec).to include("prevent" => false, "within" => "li", "detail" => { "ok" => true }, "confirm" => "Sure?",
+        "debounce" => 50)
+    end
+
+    it "refuses window:, outside: and shortcut: (a delegated binding is element-bound)" do
+      expect { on_client(:click, pick, within: "li", window: true) }
+        .to raise_error(ArgumentError, /on_client\("click"\) within: delegates from the bound element.*window:/)
+      expect { on_client(:click, pick, within: "li", outside: true) }.to raise_error(ArgumentError, /within:.*outside:/)
+      expect { on_client(:keydown, pick, within: "li", shortcut: "mod+k") }
+        .to raise_error(ArgumentError, /within:.*shortcut:/)
+    end
+
+    it "refuses once: (Stimulus would drop the listener on a miss)" do
+      expect { on_client(:click, pick, within: "li", once: true) }
+        .to raise_error(ArgumentError, /on_client\("click"\) within: cannot combine with once:/)
+    end
+
+    it "refuses an empty or non-String selector" do
+      ["", "  ", :li, 1].each do |bad|
+        expect { on_client(:click, pick, within: bad) }
+          .to raise_error(ArgumentError, /within: takes a non-empty CSS selector String/)
+      end
+    end
+  end
+
+  # Issue #442's byte budget: a pickable list binds ONCE. The rows carry only
+  # their data-*; the delegated record lives on the list.
+  describe "a 248-row pickable list" do
+    let(:picker_klass) do
+      Class.new(Phlex::HTML) do
+        include Phlex::Reactive::ClientBindings
+
+        def self.name = "PickerBudget"
+
+        def view_template
+          div(**reactive_root) do
+            input(id: "item-value", type: "hidden", name: "item")
+            span(id: "item-label")
+            ul(id: "menu", role: "listbox", **on_client(:click, pick_ops, within: "[role=option]")) do
+              248.times do |i|
+                li { button(role: "option", data: { id: i, value: "v#{i}", label: "Item #{i}" }) { "Item #{i}" } }
+              end
+            end
+          end
+        end
+
+        private
+
+        def pick_ops
+          js.set_value("#item-value", from: :trigger, attr: "data-value")
+            .text("#item-label", from: :trigger, attr: "data-label")
+            .remove_attr("[role=option]", "aria-selected")
+            .set_attr(:trigger, "aria-selected", "true")
+            .dispatch("app:item-picked", detail_from: { id: "data-id", value: "data-value", text: "data-label" })
+        end
+      end
+    end
+
+    it "renders exactly one data-reactive-ops-param, on the list, and none on a row" do
+      html = picker_klass.new.call
+      expect(html.scan("data-reactive-ops-param").size).to eq(1)
+      expect(html).to include('<ul id="menu" role="listbox" data-action="click->reactive#runOps" data-reactive-ops-param=')
+      expect(html.scan(/<button role="option"[^>]*>/)).to all(satisfy { !it.include?("reactive") })
+      expect(html.scan('<button role="option"').size).to eq(248)
+    end
+  end
 end

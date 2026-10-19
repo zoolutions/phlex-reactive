@@ -2041,18 +2041,62 @@ function bindingsAlreadyRan(event, controller) {
 function applyOps(list, resolveTargets, onZeroTargets) {
   for (const entry of list) {
     if (!Array.isArray(entry)) continue
-    const [name, args = {}] = entry
+    let [name, args = {}] = entry
     if (!Object.hasOwn(CLIENT_OPS, name)) {
       console.warn(`[phlex-reactive] unknown client op ${JSON.stringify(name)} — skipped`)
       continue
     }
     const targets = resolveTargets(args)
     if (targets.length === 0 && onZeroTargets) onZeroTargets(name, args)
+    if (targets.length > 0) args = readArgs(name, args, resolveTargets, onZeroTargets)
+    if (!args) continue
     for (const el of targets) {
       CLIENT_OPS[name](el, args, resolveTargets)
       if (args?.keep === true) keepResult(el, name, args, resolveTargets)
     }
   }
+}
+
+// --- Reads (issue #442) ----------------------------------------------------
+// set_value, text and set_attr with `from` + `attr` take their value off an
+// element instead of a literal; dispatch's detail_from builds the detail off
+// the trigger. The read runs ONCE per op, before any target is written, with
+// the op's own scoping ("@trigger", "@root", a selector, global:), first
+// match. Returns the args with the value (or detail) in place, or null to skip
+// the op: a source that resolves to nothing (the zero-target diagnostic) or a
+// read attr off the data-*/text rule (warned). copy_media's `from` is an
+// element it copies, not a read, so it never comes here.
+const READ_OPS = new Set(["set_value", "text", "set_attr"])
+
+function readArgs(name, args, resolveTargets, onZeroTargets) {
+  const detail = name === "dispatch"
+  const reads = detail ? args.detail_from : READ_OPS.has(name) && args.from != null && { value: args.attr }
+  if (!reads) return args
+  const from = detail ? "@trigger" : args.from
+  let source
+  // A from that does not parse is a miss like one that matches nothing (the
+  // copy_media precedent): the op is skipped, its siblings still run.
+  try {
+    source = resolveTargets({ ...args, to: from })[0]
+  } catch {}
+  if (!source) return onZeroTargets?.(name, { ...args, to: from }), null
+  const values = detail ? { ...args.detail } : {}
+  for (const [key, attr] of Object.entries(reads)) {
+    const value = readValue(source, attr)
+    if (value == null) return null
+    values[key] = value
+  }
+  return detail ? { ...args, detail: values } : { ...args, ...values }
+}
+
+// What a read may take off an element: a data-* attribute (absent reads "",
+// so it clears) or "@text", its textContent. Anything else warns and is null
+// — the interpret-time side of JS::READABLE_ATTR (two-sided default-deny).
+function readValue(el, attr) {
+  if (attr === "@text") return el.textContent ?? ""
+  if (typeof attr === "string" && /^data-[a-z][a-z0-9-]*$/i.test(attr)) return el.getAttribute(attr) ?? ""
+  console.warn(`[phlex-reactive] refused client read of ${JSON.stringify(attr)} — skipped`)
+  return null
 }
 
 // Resolve a reactive:js op's targets against its `target` root (issue #97).
@@ -2066,6 +2110,9 @@ function applyOps(list, resolveTargets, onZeroTargets) {
 // documents for the controller path).
 function streamOpTargets(args, root) {
   const to = args.to
+  // A server-pushed op has no trigger (issue #442): the server refuses
+  // "@trigger", and a hand-built one resolves to nothing.
+  if (to === "@trigger") return []
   if (root) {
     if (to === "@root") return [root]
     if (typeof to !== "string" || to === "") return []
@@ -3589,6 +3636,9 @@ export default class extends Controller {
       // A detail miss (issue #346) is a complete no-op — checked before the
       // once record is spent, preventDefault and the confirm gate.
       if (!detailMatches(record, event)) continue
+      // So is a within: miss (issue #442); a hit's row is the ops' @trigger.
+      const row = record.within == null ? trigger : this.#delegatedTrigger(record.within, event)
+      if (record.within != null && !row) continue
       // So is a shortcut that is not this platform's twin or fired in an
       // editable target (issue #357).
       if (record.shortcut != null && !shortcutApplies(record.shortcut, event, this.application?.schema?.keyMappings))
@@ -3600,15 +3650,35 @@ export default class extends Controller {
       this.#runBinding(
         record.legacy ? { ...params, ops: record.ops, debounce: undefined, throttle: undefined, prevent: undefined } : record,
         event,
-        trigger,
+        row,
         records.indexOf(record),
+        trigger,
       )
     }
   }
 
+  // Issue #442: a within: record runs for an event from inside an element
+  // matching the selector, strictly under the bound element and owned by this
+  // root (issue #15: a nested root's row is that root's). That element is
+  // returned as the ops' @trigger; anything else is a miss (null). So is a
+  // selector that does not parse (Ruby cannot check CSS), warned under
+  // verbose_errors so the dead binding is never silent in development.
+  #delegatedTrigger(within, event) {
+    const bound = event.currentTarget
+    let row = null
+    try {
+      row = event.target?.closest?.(within)
+    } catch {
+      if (this.#verboseEnabled()) console.warn(`[phlex-reactive] on_client within: ${JSON.stringify(within)} is not a selector — nothing ran`)
+    }
+    return row && row !== bound && bound?.contains?.(row) && this.#ownsField(row) ? row : null
+  }
+
   // One on_client binding (issue #95): its outside guard, preventDefault rule,
   // confirm gate, then its ops — every flag read from the binding itself.
-  #runBinding(record, event, trigger, ordinal) {
+  // `trigger` is the ops' @trigger and the confirm ctx.el (with within:, the
+  // row); `bound`, the element the binding is on, keys its wait (issue #442).
+  #runBinding(record, event, trigger, ordinal, bound = trigger) {
     const { ops, confirm, confirmWhen, outside, window: windowBound, shortcut, prevent } = record
     // Outside guard FIRST — identical semantics to dispatch() (issue #80): an
     // outside: trigger is a COMPLETE no-op for events inside this root, before
@@ -3633,7 +3703,7 @@ export default class extends Controller {
     // which must NEVER prompt. The same confirmResolver gate on(:action,
     // confirm:) uses (issues #52/#55/#178), so a themed dialog covers both.
     const message = this.#effectiveConfirmMessage(confirm, confirmWhen)
-    const apply = this.#waitedOps(record, ordinal, trigger, () => this.#applyOps(this.#parseOps(ops)))
+    const apply = this.#waitedOps(record, ordinal, bound, () => this.#applyOps(this.#parseOps(ops), trigger))
     if (!message) return apply()
     if (message instanceof Promise) {
       return message.then((resolved) => (resolved ? this.#confirmThen(resolved, trigger, apply) : apply()))
@@ -4820,10 +4890,10 @@ export default class extends Controller {
   // nested-reactive-root ownership filter, issue #15). The whitelist + skip
   // logic lives in the shared applyOps so runOps and the reactive:js stream
   // action interpret the SAME vocabulary the SAME way (client-side default-deny).
-  #applyOps(list) {
+  #applyOps(list, trigger) {
     applyOps(
       list,
-      (args) => this.#opTargets(args),
+      (args) => this.#opTargets(args, trigger),
       (name, args) => this.#diagnoseZeroTargets(`client op "${name}"`, args),
     )
   }
@@ -4852,13 +4922,17 @@ export default class extends Controller {
     if (__SPLIT__) withFeature("devtools", use)
   }
 
-  // Resolve an op's targets: "@root" is this element; a selector resolves
-  // WITHIN this root and excludes nested reactive roots' subtrees (issue #15
-  // semantics — the same nearest-root ownership check the field walk uses);
-  // global: true opts a single op out to document-wide.
-  #opTargets(args) {
+  // Resolve an op's targets: "@root" is this element; "@trigger" (issue #442)
+  // the element whose on_client binding fired, when there is one and it is an
+  // element (a window-bound binding's is the window; a reducer's $ops, a
+  // feature's ops and a stream have none); a selector resolves WITHIN this
+  // root and excludes nested reactive roots' subtrees (issue #15 semantics —
+  // the same nearest-root ownership check the field walk uses); global: true
+  // opts a single op out to document-wide.
+  #opTargets(args, trigger) {
     const to = args.to
     if (to === "@root") return [this.element]
+    if (to === "@trigger") return trigger?.nodeType === 1 ? [trigger] : []
     if (typeof to !== "string" || to === "") return []
     if (args.global) return [...document.querySelectorAll(to)]
     return [...this.element.querySelectorAll(to)].filter((el) => this.#ownsField(el))

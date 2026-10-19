@@ -80,6 +80,7 @@ Rails.application.routes.draw do
   get "framed_photo_preview" => "demos#framed_photo_preview" # issue #391: preview_file wrap:/max_bytes:/accept:
   get "multi_photo_preview" => "demos#multi_photo_preview" # issue #439: preview_file per_file: on a multiple input
   get "notes_fill" => "demos#notes_fill" # issue #374: js.set_value
+  get "item_picker" => "demos#item_picker" # issue #442: one delegated binding for a list (:trigger, from:, within:)
   get "kept_selection" => "demos#kept_selection" # issue #369: keep: on client ops survives a morph
   get "field_checks" => "demos#field_checks" # issues #394-#396: same:, digits:/after:, show transitions
   get "nested_editor" => "demos#nested_editor"
