@@ -2027,7 +2027,13 @@ const READ_OPS = new Set(["set_value", "text", "set_attr"])
 function readArgs(name, args, resolveTargets, onZeroTargets) {
   const detail = name === "dispatch"
   const reads = detail ? args.detail_from : READ_OPS.has(name) && args.from != null && { value: args.attr }
-  if (!reads) return args
+  // An empty detail_from reads nothing (the builder never writes one).
+  if (!reads || (detail && !Object.keys(reads).length)) return args
+  // The reads merge over detail as an object: a String or an Array would be
+  // spread key by key (the builder refuses one; a hand-built one is warned).
+  const base = detail ? (args.detail ?? {}) : {}
+  if (typeof base != "object" || Array.isArray(base))
+    return console.warn(`[phlex-reactive] refused client read over detail ${JSON.stringify(base)} — skipped`), null
   const from = detail ? "@trigger" : args.from
   let source
   // A from that does not parse is a miss like one that matches nothing (the
@@ -2036,7 +2042,7 @@ function readArgs(name, args, resolveTargets, onZeroTargets) {
     source = resolveTargets({ ...args, to: from })[0]
   } catch {}
   if (!source) return onZeroTargets?.(name, { ...args, to: from }), null
-  const values = detail ? { ...args.detail } : {}
+  const values = { ...base }
   for (const [key, attr] of Object.entries(reads)) {
     const value = readValue(source, attr)
     if (value == null) return null
