@@ -351,6 +351,22 @@ test("focus_first focuses the first focusable descendant of the match", () => {
   expect(firstItem.focused).toBe(1)
 })
 
+// Issue #446 defers a reply's focus ops past Turbo's stream focus restore. An
+// on_client op runs in no stream render, so it stays synchronous, in order.
+test("on_client focus ops never wait for a frame (issue #446)", () => {
+  const root = makeRoot()
+  const item = makeEl({ owner: root })
+  const after = makeEl({ owner: root })
+  root.querySelectorAll = (sel) => ({ "#item": [item], "#after": [after] })[sel] ?? []
+  const controller = buildController(root)
+  globalThis.requestAnimationFrame = () => 1 // a frame that never comes
+
+  fire(controller, { ops: [["focus", { to: "#item" }], ["add_class", { to: "#after", classes: ["done"] }]] })
+
+  expect(item.focused).toBe(1)
+  expect(after.classes.has("done")).toBe(true)
+})
+
 // --- blur (issue #399) -------------------------------------------------------
 
 // A focusable node whose blur() clears document.activeElement, the way the

@@ -28,9 +28,10 @@ RSpec.describe "reply.js focus lands on the morphed field (issue #97)", type: :s
     expect(account.reload.name).to eq("typed value")
 
     # The decisive assertion: after the reply, focus is on the SECOND field —
-    # moved there by the reactive:js op running on the post-morph DOM.
-    active_testid = page.evaluate_script("document.activeElement && document.activeElement.dataset.testid")
-    expect(active_testid).to eq("next")
+    # moved there by the reactive:js op running on the post-morph DOM. A
+    # waiting matcher: the focus op lands one frame after the op stream renders
+    # (issue #446, past Turbo's stream focus restore).
+    expect(page).to have_css("[data-testid='next']:focus")
 
     # No full-page reload happened.
     expect(page.evaluate_script("window.__noReload")).to eq("alive")

@@ -147,6 +147,7 @@ Rails.application.routes.draw do
   get "morph_normalize" => "demos#morph_normalize" # issue #338: focused value survives a normalising morph
   get "held_note/:id" => "demos#held_note" # issue #370: the action knows which focused fields a morph held
   get "js_focus/:id" => "demos#js_focus"
+  get "reply_focus_ops" => "demos#reply_focus_ops" # issue #446: reply focus ops survive Turbo's focus restore
   get "partial_grid/:id" => "demos#partial_grid"
   get "checkbox_group" => "demos#checkbox_group"
   get "scoped_editor/:id" => "demos#scoped_editor" # issue #337: reactive_scope over the JSON wire
