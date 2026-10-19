@@ -1,0 +1,19 @@
+spec/javascript/reactive_run_ops_trigger.test.js
+  s_039165cf117b7c::t_a983f5acb5a0c9 403-404,412
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "df172d8fde183e01f881e153749a2131b7f02169",
+  "prompts": {},
+  "sessions": {
+    "s_039165cf117b7c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c644b7ed-8e6b-44ea-aff6-e4b3d4cd1c83",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
