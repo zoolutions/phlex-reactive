@@ -217,8 +217,8 @@ const SLACK = 250
 // runtime; the @trigger hint in devtools) adds 317 B: 41,402 B; its validation fix (a within:
 // selector that does not parse warns under verbose) 25 B: 41,427 B.
 // On top of #440 (41,362 B), #442 adds 347 B: 41,709 B; its review fix (a from: that does not
-// parse is a miss) 4 B: 41,713 B.
-const BUNDLE_GZIP_CEILING = 41_713
+// parse is a miss) 4 B: 41,713 B; the devtools probe that guards a selector that does not parse 8 B: 41,721 B.
+const BUNDLE_GZIP_CEILING = 41_721
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -342,7 +342,8 @@ const FEATURE_GZIP_CEILINGS = {
   // Issue #356 (a gate wired the first time it reads true, and reseed) to 1,152 B.
   // One window listener pair for every warn_unsaved root, to 1,268 B.
   "features/form": 1_268,
-  "features/devtools": 1_600,
+  // Issue #442 (the @trigger hint; a probe that never throws on a selector that does not parse) to 1,612 B.
+  "features/devtools": 1_612,
   // Issue #350: sortable lists, 3,094 B; its review fixes take it to 3,130 B; PR #352 review to 3,215 B.
   "features/sortable": 3_215,
   // Issue #416: draggable regions, 3,478 B; its review fixes take it to 3,572 B; its PR review fix to 3,576 B.
@@ -445,8 +446,8 @@ const FEATURE_GZIP_CEILINGS = {
 // its review fixes (+72 B bindings, +119 B compute) 191 B: 50,446 B.
 // Issue #442 (+290 B core, +46 B devtools) adds 336 B: 50,453 B; its validation fix (+27 B core) 50,480 B.
 // On top of #440 (50,446 B), #442 (+311 B core, +46 B devtools) adds 357 B: 50,803 B;
-// its review fix (+5 B core) 50,808 B.
-const SPLIT_TOTAL_GZIP_CEILING = 50_808
+// its review fix (+5 B core) 50,808 B; the guarded devtools probe (+12 B devtools) 50,820 B.
+const SPLIT_TOTAL_GZIP_CEILING = 50_820
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

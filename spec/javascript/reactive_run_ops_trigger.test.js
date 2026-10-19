@@ -333,6 +333,22 @@ test("a from: selector that does not parse skips that read; its siblings run", (
   expect(root.querySelector("#item-label").getAttribute("data-ran")).toBe("yes")
 })
 
+test("a from: selector that does not parse warns under verbose_errors; its siblings still run", () => {
+  const { root, controller } = mount(`<button id="go">Go</button>`, 'data-reactive-verbose="true"')
+  bind(root.querySelector("#go"), controller, {
+    on: "click",
+    ops: [
+      ["text", { to: "#item-label", from: "[[nope-442", attr: "data-label" }],
+      ["set_attr", { to: "#item-label", name: "data-ran", value: "yes" }],
+    ],
+  })
+
+  let warns
+  expect(() => (warns = captureWarns(() => click(root.querySelector("#go"))))).not.toThrow()
+  expect(warns.some((w) => w.includes("[[nope-442"))).toBe(true)
+  expect(root.querySelector("#item-label").getAttribute("data-ran")).toBe("yes")
+})
+
 test("detail_from fills event.detail with Strings off the trigger, over the literal detail", () => {
   const { root, controller } = mount(`<ul id="menu">${ROWS}</ul>`)
   let detail = null
