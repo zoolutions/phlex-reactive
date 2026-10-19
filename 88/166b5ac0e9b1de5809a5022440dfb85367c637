@@ -1,0 +1,19 @@
+spec/javascript/reactive_preview_file_multiple.test.js
+  s_039165cf117b7c::t_29433d13c27a13 694,700-701,705,708
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "88166b5ac0e9b1de5809a5022440dfb85367c637",
+  "prompts": {},
+  "sessions": {
+    "s_039165cf117b7c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c644b7ed-8e6b-44ea-aff6-e4b3d4cd1c83",
+        "model": "unknown"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
