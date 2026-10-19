@@ -776,6 +776,12 @@ class DemosController < ActionController::Base
     render_component JsFocusComponent.new(account: Account.find(params[:id]))
   end
 
+  # Issue #446: a reply's focus/focus_first/blur ops stick when the field
+  # focused before the render has an id (Turbo's stream focus preservation).
+  def reply_focus_ops
+    render_component ReplyFocusOpsComponent.new
+  end
+
   def partial_grid
     render_component PartialGridComponent.new(line_item: LineItem.find(params[:id]))
   end
