@@ -46,6 +46,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   asks for none of this is byte-identical. Client: the core gains 314 B
   gzipped, the default bundle 364 B, `phlex/reactive/early` 129 B.
 
+## [0.16.8] - 2026-10-19
+
 ### Changed
 
 - **A `reactive_shared_field` drives its host's client bindings too (#440).**
@@ -4404,7 +4406,8 @@ room for dogfood fixes.
   scaffolds a reactive component (and an RSpec spec when the app uses RSpec),
   state-backed by default or record-backed with `--record`.
 
-[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.7...HEAD
+[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.8...HEAD
+[0.16.8]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.7...v0.16.8
 [0.16.7]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.6...v0.16.7
 [0.16.6]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.5...v0.16.6
 [0.16.5]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.4...v0.16.5
