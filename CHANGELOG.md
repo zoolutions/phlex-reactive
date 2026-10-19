@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.16.9] - 2026-10-19
+
 ### Added
 
 - **One client binding for a whole list: `:trigger`, `from:`/`attr:` reads and
@@ -4406,7 +4408,8 @@ room for dogfood fixes.
   scaffolds a reactive component (and an RSpec spec when the app uses RSpec),
   state-backed by default or record-backed with `--record`.
 
-[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.8...HEAD
+[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.9...HEAD
+[0.16.9]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.8...v0.16.9
 [0.16.8]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.7...v0.16.8
 [0.16.7]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.6...v0.16.7
 [0.16.6]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.5...v0.16.6
