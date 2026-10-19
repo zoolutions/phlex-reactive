@@ -210,9 +210,10 @@ const SLACK = 250
 // bindings' field reads, compute's listener for a shared field in a nested root) adds 133 B: 41,218 B;
 // its review fixes (a nested root replaced, or restoring a draft, with a shared field the host reads
 // re-syncs it) 144 B: 41,362 B.
+// Issue #446 (a reply's focus ops wait past Turbo's stream focus restore, in the runtime) adds 69 B: 41,431 B.
 // Issue #445 (preview_file rejected: — a refused file's name listed from an app <template>, kept
-// across a morph, in the runtime) adds 261 B on top of #440: 41,623 B.
-const BUNDLE_GZIP_CEILING = 41_623
+// across a morph, in the runtime) adds 261 B on top of #446: 41,692 B.
+const BUNDLE_GZIP_CEILING = 41_692
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -287,8 +288,9 @@ const TARGET_BUNDLE_GZIP = 22_700
 // on top of #434 (18,404 B), 34 B: 18,438 B.
 // Issue #439 (preview_file per_file: on a multiple input) adds 197 B: 18,635 B; its review fix 11 B: 18,646 B.
 // Issue #440 (bindingOwns / bindingOwnership: what the client bindings read) adds 73 B: 18,719 B.
-// Issue #445 (preview_file rejected: lists each refused file) adds 287 B on top of #440: 19,006 B.
-const CORE_GZIP_CEILING = 19_006
+// Issue #446 (a reply's focus ops wait past Turbo's stream focus restore) adds 80 B: 18,799 B.
+// Issue #445 (preview_file rejected: lists each refused file) adds 295 B on top of #446: 19,094 B.
+const CORE_GZIP_CEILING = 19_094
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -434,8 +436,9 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #439 (preview_file per_file:, in the core) adds 197 B: 50,106 B; its review fix 11 B: 50,117 B.
 // Issue #440 (a shared field drives the host's bindings: +73 B core, +12 B bindings, +53 B compute) adds 138 B: 50,255 B;
 // its review fixes (+72 B bindings, +119 B compute) 191 B: 50,446 B.
-// Issue #445 (preview_file rejected:, in the core) adds 287 B on top of #440: 50,733 B.
-const SPLIT_TOTAL_GZIP_CEILING = 50_733
+// Issue #446 (a reply's focus ops wait past Turbo's stream focus restore, in the core) adds 80 B: 50,526 B.
+// Issue #445 (preview_file rejected:, in the core) adds 295 B on top of #446: 50,821 B.
+const SPLIT_TOTAL_GZIP_CEILING = 50_821
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

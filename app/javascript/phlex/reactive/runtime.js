@@ -136,6 +136,20 @@ export function registerReactiveToken() {
 // is emitted AFTER all render streams in the reply (the endpoint appends it
 // last), so focus("[name=next]") sees the freshly morphed DOM — Turbo applies
 // streams in document order.
+//
+// Focus ops wait one frame (issue #446). Turbo renders a stream message inside
+// its focus preservation: it reads document.activeElement, appends the
+// streams, waits one animation frame, reads it again and, when the element
+// focused before has an id and focus moved, focuses that element again. This
+// action runs behind a frame each stream queued before that compare, so a
+// focus, focus_first or blur applied here would be undone, and the old
+// field's focus binding would run again. The ops before the first focus op
+// still run now; that op and the rest of its chain (order kept) run in a frame
+// queued from here, the one after the compare, which then saw nothing move and
+// restored nothing. Plain requestAnimationFrame, never a timeout: in a hidden
+// tab Turbo's compare waits for the first frame too.
+const FOCUS_OPS = ["focus", "focus_first", "blur"]
+
 export function registerReactiveJs() {
   const actions = window.Turbo?.StreamActions
   if (!actions || actions["reactive:js"]) return
@@ -155,16 +169,21 @@ export function registerReactiveJs() {
       }
       return
     }
-    applyOps(
-      list,
-      (args) => streamOpTargets(args, root),
-      verbose
-        ? (name, args) =>
-            __SPLIT__
-              ? withFeature("devtools", (devtools) => devtools.diagnoseStream(name, args, root))
-              : devtoolsFeature.diagnoseStream(name, args, root)
-        : undefined,
-    )
+    const run = (ops) =>
+      applyOps(
+        ops,
+        (args) => streamOpTargets(args, root),
+        verbose
+          ? (name, args) =>
+              __SPLIT__
+                ? withFeature("devtools", (devtools) => devtools.diagnoseStream(name, args, root))
+                : devtoolsFeature.diagnoseStream(name, args, root)
+          : undefined,
+      )
+    const at = list.findIndex((entry) => FOCUS_OPS.includes(entry?.[0]))
+    if (at < 0 || typeof requestAnimationFrame !== "function") return run(list)
+    run(list.slice(0, at))
+    requestAnimationFrame(() => run(list.slice(at)))
   }
 }
 

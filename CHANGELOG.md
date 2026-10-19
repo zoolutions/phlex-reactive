@@ -56,6 +56,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   marker nothing changes. A root with no nested root keeps the constant-true
   fast path; a compute root reads one attribute per `input` event.
 
+### Fixed
+
+- **A reply's `focus`, `focus_first` and `blur` ops stick (#446).** Turbo
+  renders every stream message inside its focus preservation: one animation
+  frame after the streams render, it focuses the element that had focus
+  before again, when that element has an `id` and focus moved. The
+  `reactive:js` stream ran its ops inside that window, so a reply's blur or
+  focus was undone and the old field's `on_client(:focus, …)` binding ran
+  again (a listnav pick that hid its list and blurred the query showed the
+  list again). The first focus op in a reply's chain, and the ops after it,
+  now run on the next frame (in a hidden tab, once it is visible again), after
+  Turbo has found nothing to restore. The ops before it still run in the
+  render pass; a chain without a focus op, and a separate `.js` stream in the
+  same reply, are unchanged. After a `morph` or `update` that keeps the field,
+  its focus binding no longer runs again; a `replace` still hands focus to the
+  new field first (Turbo's own restore), so chain `js.blur(…).hide(…)` there.
+  `on_client` ops run in no stream render and stay synchronous.
+
 ## [0.16.7] - 2026-10-18
 
 ### Added

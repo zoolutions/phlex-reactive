@@ -3129,7 +3129,7 @@ def update(quantity:, price:) = (@item.update!(quantity:, price:); reply.streams
 | `reply.remove` | remove the element (backed by `Streamable#to_stream_remove`) |
 | `reply.redirect(url)` | client-side `Turbo.visit` (pass a `*_url`); rides a `reactive:visit` turbo-stream, not an HTTP 3xx |
 | `reply.streams(*streams)` | **partial update** — emit exactly these streams (no full-self replace) + a tiny token-only refresh, so live inputs survive; for per-field grid editing (issue #30) |
-| `.js(ops, target: …)` | also push **client DOM ops** (focus, dispatch, class/attr toggles) over a `reactive:js` stream, applied AFTER the render — `reply.morph.js(js.focus("[name=next]"))` focuses the morphed field (issue #97) |
+| `.js(ops, target: …)` | also push **client DOM ops** (focus, dispatch, class/attr toggles) over a `reactive:js` stream, applied AFTER the render — `reply.morph.js(js.focus("[name=next]"))` focuses the morphed field (issue #97); a `focus`/`focus_first`/`blur` op and the ops after it land one frame later (a hidden tab: once visible), past Turbo's stream focus restore (#446) |
 | `.defer(component, placeholder:, morph:)` | take an **expensive segment off the actor's critical path** (issue #165) — the reply returns immediately and the real render streams to the SAME actor when ready; see [Deferred segments](#deferred-segments-replydefer--reactive_lazy) |
 | `reply.pending(records, in:, job:, args:, peers:) { … }` | the action **enqueues** the work: mark the targets pending now and let **your own job** settle them when the work is actually done (issue #248); see [Async actions](#async-actions-replypending--reactive_settle) |
 | `reply.with(*streams)` / `#stream(*more)` | multi-stream (self re-render still injected for the token) |
@@ -3466,6 +3466,19 @@ def save(title:)
   reply.morph.js(js.focus("[name=next_field]").dispatch("app:saved", detail: { id: @todo.id }))
 end
 ```
+
+**Focus ops stick (#446).** Turbo renders every stream message inside its focus
+preservation: one animation frame after the render, it focuses the element that
+had focus before again when that element has an `id` and focus moved. So the
+first `focus`, `focus_first` or `blur` op in a reply's chain, and the ops after
+it, run on the next frame (in a hidden tab, once it is visible again), when
+Turbo has found nothing to restore. The ops before it still run in the render
+pass, and a separate `.js` stream in the same reply does not wait for them.
+After a `morph` or `update` that keeps the field, a field blurred by a reply
+stays blurred and its `on_client(:focus, …)` binding does not run again. A
+`replace` removes the focused field, so Turbo focuses the new one first (its own
+restore: that binding runs once); chain `js.blur(…).hide(…)` so the hide comes
+after it. `on_client` ops run in no stream render and stay synchronous.
 
 `target:` scopes op resolution on the client; it defaults to the bound
 component's id for `replace`/`morph`/`update` (so `@root` and component-relative
