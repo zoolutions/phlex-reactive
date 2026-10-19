@@ -7,15 +7,15 @@ require "system_helper"
 # awaits later; an img starts loading once imported, so one whose request ends
 # in that gap fires `error`/`load` on a DETACHED node, which the runtime's
 # document listener cannot hear. The runtime reads the result off the element
-# once Turbo has inserted the frame (turbo:frame-render). Untagged: both
-# entries share the runtime this lives in.
+# once Turbo has inserted the frame (turbo:frame-render) or the page
+# (turbo:render). Untagged: both entries share the runtime this lives in.
 RSpec.describe "Image fallback in a Turbo frame (issue #452)", type: :system do
   let(:missing_logos) { (1..ImageFallbackFrameComponent::MISSING).map { "/logos/missing-#{it}.svg" } }
 
   def img(testid, extra = "") = "[data-testid='#{testid}']#{extra}"
 
   def expect_every_missing_logo_hidden
-    expect(page).to have_css("turbo-frame#logos[complete] #{img("logos")}")
+    expect(page).to have_css("turbo-frame#logos #{img("logos")}")
     expect(page).to have_css(img("fine", "[data-reactive-image-state='loaded']:not([hidden])"))
     (1..ImageFallbackFrameComponent::MISSING).each do
       expect(page).to have_css(img("missing-#{it}", "[data-reactive-image-state='error'][hidden]"), visible: :all)
@@ -56,6 +56,25 @@ RSpec.describe "Image fallback in a Turbo frame (issue #452)", type: :system do
     expect(requests).to eq(missing_logos.to_h { [it, 1] })
   ensure
     page.driver.with_playwright_page { it.off("request", count) }
+  end
+
+  it "a page render marks every img whose request ended before the new body was inserted" do
+    # A custom page render (an app animating its swaps) inserts Turbo's
+    # adopted, still detached body only once its imgs have finished.
+    page.execute_script(<<~JS)
+      document.addEventListener("turbo:before-render", (event) => {
+        event.detail.render = async (currentBody, newBody) => {
+          const imgs = [...newBody.querySelectorAll("img")]
+          while (!imgs.every((img) => img.complete)) await new Promise((resolve) => setTimeout(resolve, 10))
+          window.__finishedDetached = imgs.length > 0 && imgs.every((img) => !img.isConnected)
+          currentBody.replaceWith(newBody)
+        }
+      }, { once: true })
+      Turbo.visit("/image_fallback_frame?open=1")
+    JS
+
+    expect_every_missing_logo_hidden
+    expect(page.evaluate_script("window.__finishedDetached")).to be(true)
   end
 
   it "the issue's reproduction: logo requests fail fast and the frame renders unheld" do

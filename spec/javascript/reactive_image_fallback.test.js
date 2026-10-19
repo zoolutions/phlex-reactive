@@ -459,7 +459,9 @@ function detached(html, { complete = true, naturalWidth = 0, decodes = false } =
   Object.defineProperty(img, "complete", { value: complete, configurable: true })
   Object.defineProperty(img, "naturalWidth", { value: naturalWidth, configurable: true })
   img.decode = () => (decodes ? Promise.resolve() : Promise.reject(new Error("EncodingError")))
-  if (complete) naturalWidth > 0 || decodes ? load(img) : fail(img)
+  if (!complete) return img
+  if (naturalWidth > 0 || decodes) load(img)
+  else fail(img)
   return img
 }
 
