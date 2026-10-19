@@ -1357,9 +1357,64 @@ vocabulary is a fixed whitelist mirrored by the client: `show`/`hide`/`toggle`
 flip the `hidden` attribute; `add_class`/`remove_class`/`toggle_class` take one
 or more classes. Targets are CSS selectors resolved **within the component's
 root** (nested reactive components are never touched — same ownership rule as
-field collection); `:root` targets the root element itself; `global: true` on
-an op escapes to the whole document. An op name the client doesn't recognize
-logs a warning and is skipped — the rest of the chain still applies.
+field collection); `:root` targets the root element itself; `:trigger` (#442)
+targets the element whose `on_client` binding fired (see "One binding for a
+list" below); `global: true` on an op escapes to the whole document. An op name
+the client doesn't recognize logs a warning and is skipped — the rest of the
+chain still applies.
+
+**One binding for a list (#442).** A list whose rows each write their own value
+binds **once**: `within:` delegates the record to the rows, `:trigger` is the
+row that was picked, and `from:` + `attr:` read the row's value off it instead
+of baking a literal into every row:
+
+```ruby
+ul(id: "menu", role: "listbox", **on_client(:click, js
+  .set_value("#item-value", from: :trigger, attr: "data-value")
+  .text("#item-label", from: :trigger, attr: "data-label")
+  .remove_attr("[role=option]", "aria-selected")
+  .set_attr(:trigger, "aria-selected", "true")
+  .dispatch("app:item-picked", detail_from: { id: "data-id", text: :text }),
+  within: "[role=option]")) do
+  @items.each do |item|
+    li { button(role: "option", data: { id: item.id, value: item.value, label: item.label }) { item.label } }
+  end
+end
+```
+
+- **`within: "[role=option]"`** runs the record only for an event from inside an
+  element matching the selector, under the bound element and owned by this root
+  (a row of a nested reactive root is that root's). That element is the ops'
+  `:trigger`. Anywhere else (the list's padding, a heading) is a complete no-op:
+  no `preventDefault`, no confirm, no ops. Keyboard picking needs
+  `reactive_listnav` on the search input (not on the rows): Enter on the row it
+  highlights clicks that row, which goes through the same binding, and so does a click before the
+  root connects (`phlex/reactive/early` queues a row's click and leaves a click
+  outside every row alone, so a link in the list still navigates; a row inside
+  a nested reactive root is held too, and its replay is a miss). A `within:`
+  selector that does not parse runs nothing, warned under `verbose_errors`. The
+  list is not forced to `type="button"`. It raises with
+  `window:`, `outside:`, `shortcut:` and `once:` (Stimulus drops a `:once`
+  listener on its first event, a miss included).
+- **`:trigger`** is accepted wherever an op takes a target, and by `expanded:`,
+  `submit(submitter:)` and `copy_media(from:)`. Without `within:` it is the
+  element the binding is on. `set_value`, `paste_into` and `preview_file` refuse
+  it as the field they write.
+- **`from:` + `attr:`** on `set_value`, `text` and `set_attr` replace the literal
+  value: `from:` is `:trigger`, `:root` or a selector (the op's own scoping,
+  `global:` included, first match); `attr:` is a `data-*` attribute or `:text`
+  (the element's `textContent`) — nothing else, at render and again in the
+  client. A missing attribute reads `""` (it clears); a `from:` that matches
+  nothing skips the op. The write side keeps its own rules (`set_attr`'s name
+  allowlist, `text`'s `textContent`, `set_value`'s `.value`).
+- **`dispatch(…, detail_from: { key => attr })`** builds the event's detail off
+  the trigger, every value a String, merged over `detail:` (a key in both
+  raises).
+- A server-pushed op has no trigger: `reply.js`, `broadcast_to(js:)` and
+  `reactive_on_complete` raise on `:trigger`, `from: :trigger` and
+  `detail_from:`. Nor does a window-bound `on_client` (`window:`, `outside:`,
+  `shortcut:`): its `:trigger` ops resolve to nothing, warned under
+  `verbose_errors`.
 
 In development and test (`verbose_errors`), an op whose selector resolves to
 **zero elements** also warns once per unique (op, selector, scope) — with a
@@ -1421,10 +1476,10 @@ button(**on_client(:click, js
   powerful than `set_attr`. With `global: true` it is the **cross-root text
   escape**: paint a value into a recap node outside the component's root
   (`js.text("#sum_total", total, global: true)`).
-- **`dispatch(name, to: nil, detail: {})`** emits a **bubbling `CustomEvent`** so
+- **`dispatch(name, to: nil, detail: {}, detail_from: {})`** emits a **bubbling `CustomEvent`** so
   another component or a plain Stimulus controller can react to a client-only
   interaction — `to:` picks the element (default: the component root), `detail:`
-  is the payload.
+  is the payload, and `detail_from:` (#442) adds values read off the trigger.
 - **`submit(to = :root)`** commits the **target's own form** via
   `requestSubmit()`: the target itself when it *is* a form, its form owner for a
   control (`input.form`, honoring a `form=` attribute), else the nearest ancestor
