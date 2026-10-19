@@ -1,0 +1,23 @@
+CHANGELOG.md
+  s_039165cf117b7c::t_28eb9aff6bf24d 29-30
+spec/phlex/reactive/js_trigger_spec.rb
+  s_039165cf117b7c::t_ee1b89228bbb0e 162-171
+lib/phlex/reactive/js.rb
+  s_039165cf117b7c::t_c792f9c6eecb48 761-762,769-771,773
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "fd80bf3ea27462b538c19ae5c5f25eb709e46a5d",
+  "prompts": {},
+  "sessions": {
+    "s_039165cf117b7c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c644b7ed-8e6b-44ea-aff6-e4b3d4cd1c83",
+        "model": "unknown"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
