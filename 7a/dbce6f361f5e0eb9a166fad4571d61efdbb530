@@ -1,0 +1,17 @@
+CHANGELOG.md
+  s_039165cf117b7c::t_28eb9aff6bf24d 31-32
+  s_d02db4353d49da::t_f964f7d8dceca6 9-10,1052-1053,1055-1056,4433
+  s_34ff65093af7d9::t_498dac97a1d716 1024-1025,1028-1037,1046-1050,4432
+  s_534a3260651c63::t_10e9c2cea03a8b 11-30,33-37,41-46,53
+lib/phlex/reactive/js.rb
+  s_039165cf117b7c::t_c792f9c6eecb48 761-762,769-771,773
+spec/phlex/reactive/js_trigger_spec.rb
+  s_534a3260651c63::t_1ce0a054fbe584 1-2,4-161,172-196,204-231,246-251
+  s_039165cf117b7c::t_ee1b89228bbb0e 162-171
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "7adbce6f361f5e0eb9a166fad4571d61efdbb530",
+  "prompts": {}
+}
