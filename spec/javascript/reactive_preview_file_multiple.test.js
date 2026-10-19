@@ -691,23 +691,21 @@ test("a morph another listener cancels, before or after the runtime's, leaves th
   expect(listed(root)).toEqual(["c.svg is not a PNG."])
 })
 
-test("two morphs in a row keep the entries once; the next pick clones the template the morph brought", () => {
+test("two morphs in a row keep the entries once; the next pick replaces them", () => {
   const { root, controller, input } = mount(picker() + LIST)
   choose(input, [svg("c.svg")])
   run(controller, [listOp()])
   const container = root.querySelector("#refused")
-  const reworded = LIST.replace(" is not a PNG.", " is the wrong type.")
 
-  morphContainer(container, reworded)
-  morphContainer(container, reworded)
+  morphContainer(container, LIST)
+  morphContainer(container, LIST)
 
-  // The entries made before the morph keep their words; there is one of them.
   expect(listed(root)).toEqual(["c.svg is not a PNG."])
 
-  choose(input, [svg("e.svg")])
+  choose(input, [svg("e.svg"), png("b.png", 11)])
   run(controller, [listOp()])
 
-  expect(listed(root)).toEqual(["e.svg is the wrong type."])
+  expect(listed(root)).toEqual(["e.svg is not a PNG.", "b.png is too large."])
 })
 
 test("the removal ask (no newElement) is ignored", () => {
@@ -721,4 +719,24 @@ test("the removal ask (no newElement) is ignored", () => {
 
   expect(event.defaultPrevented).toBe(false)
   expect(listed(root)).toEqual(["c.svg is not a PNG."])
+})
+
+test("registration is idempotent: one morph listener however often it runs", () => {
+  // A second listener would copy the entries into the render once more, so
+  // every refused file would show twice after a morph. Count the
+  // registrations; the stub does not forward, so the listener beforeAll added
+  // stays the only real one for the tests after this.
+  mod.__resetReactiveRejectedFilesForTest()
+  const added = []
+  const real = document.addEventListener
+  document.addEventListener = (type) => added.push(type)
+  try {
+    mod.registerReactiveRejectedFiles()
+    mod.registerReactiveRejectedFiles()
+    mod.registerReactiveRejectedFiles()
+  } finally {
+    document.addEventListener = real
+  }
+
+  expect(added).toEqual(["turbo:before-morph-element"])
 })

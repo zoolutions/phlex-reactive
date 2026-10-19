@@ -387,9 +387,9 @@ module Views
                 reads a `url` key, and `set_attr` of `src` (and `srcset`, #373) stays refused (#96). Only an
                 `<img>` ever gets a `src`: an `into:` that is anything else, or a `to` that
                 is not an `input[type=file]`, warns and is skipped.
-              - `to`, `into:` and `name:` resolve inside the component's root by default
-                (`global: false`). `global: true` resolves all three document-wide, for an
-                `img` outside the root.
+              - `to`, `into:`, `name:`, `wrap:` and `rejected:` resolve inside the
+                component's root by default (`global: false`). `global: true` resolves
+                them all document-wide, for an `img` or a list outside the root.
               - **Actor-only** like `paste_into`: `on_client` and `reply.js` may use it,
                 `broadcast_to(js:)` refuses it.
 
@@ -538,10 +538,14 @@ module Views
               - A morph that reaches the container keeps the entries, so the upload
                 action's `reply.morph` of the component, on the same `change`, does not
                 wipe them. A plain replace, or an update stream aimed at the container
-                itself, renders it afresh.
-              - It works for one file and with `per_file: true`. A container that is not on
-                the page, or has no `<template>` child, warns on a verbose root; the
-                rejections still fire.
+                itself, renders it afresh. The kept entries go after whatever the server
+                renders, so never render `data-reactive-file-rejected` children yourself:
+                they would show twice.
+              - It works for one file and with `per_file: true`, and `rejected:` follows
+                `global:` like the op's other selectors. A container that is not on the
+                page, or has no `<template>` child, warns on a verbose root; the
+                rejections still fire. A run the op skips (`into:` is not an `<img>`)
+                leaves the list as it was.
             MD
             DocsUI::Callout(:warning) do
               md <<~MD
