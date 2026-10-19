@@ -222,9 +222,10 @@ const SLACK = 250
 // On top of #440 and #446 (41,431 B), #442 adds 364 B: 41,795 B.
 // Issue #452 (an image fallback whose img finished before Turbo inserted it is read off the element
 // after a frame, page or stream render, in the runtime) adds 69 B: 41,500 B; on top of #442 (41,795 B), 78 B: 41,873 B.
+// #442's follow-up (detail_from over a hand-built detail that is no object; an empty detail_from) adds 47 B: 41,920 B.
 // Issue #445 (preview_file rejected: — a refused file's name listed from an app <template>, kept
-// across a morph, in the runtime) adds 277 B on top of #452: 42,150 B.
-const BUNDLE_GZIP_CEILING = 42_150
+// across a morph, in the runtime) adds 273 B on top of that: 42,193 B.
+const BUNDLE_GZIP_CEILING = 42_193
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -307,8 +308,9 @@ const TARGET_BUNDLE_GZIP = 22_700
 // On top of #440 and #446 (18,799 B), #442 adds 314 B: 19,113 B.
 // Issue #452 (an image fallback whose img finished before Turbo inserted it) adds 81 B: 18,880 B;
 // on top of #442 (19,113 B), 80 B: 19,193 B.
-// Issue #445 (preview_file rejected: lists each refused file) adds 291 B on top of #452: 19,484 B.
-const CORE_GZIP_CEILING = 19_484
+// #442's follow-up (detail_from's two hand-built edges) adds 39 B: 19,232 B.
+// Issue #445 (preview_file rejected: lists each refused file) adds 293 B on top of that: 19,525 B.
+const CORE_GZIP_CEILING = 19_525
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -462,8 +464,9 @@ const FEATURE_GZIP_CEILINGS = {
 // On top of #440 and #446 (50,526 B), #442 (+314 B core, +58 B devtools) adds 372 B: 50,898 B.
 // Issue #452 (an image fallback whose img finished before Turbo inserted it, in the core) adds 81 B: 50,607 B;
 // on top of #442 (50,898 B), 80 B: 50,978 B.
-// Issue #445 (preview_file rejected:, in the core) adds 291 B on top of #452: 51,269 B.
-const SPLIT_TOTAL_GZIP_CEILING = 51_269
+// #442's follow-up (+39 B core): 51,017 B.
+// Issue #445 (preview_file rejected:, in the core) adds 293 B on top of that: 51,310 B.
+const SPLIT_TOTAL_GZIP_CEILING = 51_310
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

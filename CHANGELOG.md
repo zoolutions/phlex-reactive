@@ -27,6 +27,27 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   so every existing op is byte-identical; `broadcast_to(js:)` still refuses
   `preview_file`.
 
+### Fixed
+
+- **`dispatch(…, detail_from:)` refuses a `detail:` that is no Hash (#442).** The
+  browser merges the reads over `detail:` as an object, so a String or an Array
+  `detail:` was spread into the event detail one character or element per key.
+  It now raises at render; a Hash or `nil` `detail:` is unchanged. The client
+  refuses the same in a hand-built record (warned, the dispatch skipped, its
+  siblings run), and reads nothing off an empty `detail_from`, so that dispatch
+  fires with its literal `detail:` (before, it waited for a trigger and a
+  server-pushed one was skipped; the server no longer refuses it either).
+- **`preview_file` refuses `@trigger` as its `into:`, `name:` and `wrap:`
+  (#442),** the sentinel string as `:trigger` already was, and `reply.js` refuses
+  it there in a raw list.
+- **`on_client(…, within:)` raises on an event that does not bubble (#442)**
+  (`focus`, `blur`, `mouseenter`, `mouseleave`, `pointerenter`, `pointerleave`,
+  `load`, `error`, `scroll`, `toggle`, `beforetoggle`, `invalid`, a dialog's
+  `close`/`cancel`, media `play`/`pause`/`ended`): the bound element never hears
+  it from a row, so the binding was dead. The message says to bind it on the
+  rows, or names the bubbling twin where there is one (`focusin`/`focusout`,
+  `mouseover`/`mouseout`, `pointerover`/`pointerout`).
+
 ## [0.16.10] - 2026-10-19
 
 ### Fixed

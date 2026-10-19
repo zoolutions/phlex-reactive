@@ -418,7 +418,7 @@ RSpec.describe Phlex::Reactive::JS do
     end
 
     it "rejects a rejected: that is not a CSS selector string" do
-      ["", " ", :root, "@root", :refused, 1].each { expect_preview_refused(rejected: it) }
+      ["", " ", :root, "@root", :trigger, "@trigger", :refused, 1].each { expect_preview_refused(rejected: it) }
     end
 
     it "passes the ops allowlist" do

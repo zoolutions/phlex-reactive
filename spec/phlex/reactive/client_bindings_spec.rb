@@ -222,6 +222,17 @@ RSpec.describe Phlex::Reactive::ClientBindings do
           .to raise_error(ArgumentError, /within: takes a non-empty CSS selector String/)
       end
     end
+
+    it "refuses an event that does not bubble (the bound element never hears it from a row)" do
+      %i[focus blur mouseenter mouseleave pointerenter pointerleave load error scroll toggle beforetoggle invalid
+         close cancel play pause ended].each do |name|
+        expect { on_client(name, pick, within: "li") }
+          .to raise_error(ArgumentError, /on_client\("#{name}"\) within: #{name} does not bubble.*on the rows.*focusin/)
+      end
+      %i[focusin focusout mouseover mouseout input change].each do |name|
+        expect { on_client(name, pick, within: "li") }.not_to raise_error
+      end
+    end
   end
 
   # Issue #442's byte budget: a pickable list binds ONCE. The rows carry only

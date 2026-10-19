@@ -1395,11 +1395,14 @@ end
   selector that does not parse runs nothing, warned under `verbose_errors`. The
   list is not forced to `type="button"`. It raises with
   `window:`, `outside:`, `shortcut:` and `once:` (Stimulus drops a `:once`
-  listener on its first event, a miss included).
+  listener on its first event, a miss included), and on an event that does not
+  bubble (`focus`, `blur`, `mouseenter`, `mouseleave`, …: the list never hears
+  it from a row; use `focusin`, `focusout`, `mouseover`, `mouseout`).
 - **`:trigger`** is accepted wherever an op takes a target, and by `expanded:`,
   `submit(submitter:)` and `copy_media(from:)`. Without `within:` it is the
   element the binding is on. `set_value`, `paste_into` and `preview_file` refuse
-  it as the field they write.
+  it as the field they write, and `preview_file` as its `into:`, `name:` and
+  `wrap:`.
 - **`from:` + `attr:`** on `set_value`, `text` and `set_attr` replace the literal
   value: `from:` is `:trigger`, `:root` or a selector (the op's own scoping,
   `global:` included, first match); `attr:` is a `data-*` attribute or `:text`
@@ -1409,7 +1412,7 @@ end
   allowlist, `text`'s `textContent`, `set_value`'s `.value`).
 - **`dispatch(…, detail_from: { key => attr })`** builds the event's detail off
   the trigger, every value a String, merged over `detail:` (a key in both
-  raises).
+  raises, and so does a `detail:` that is no Hash).
 - A server-pushed op has no trigger: `reply.js`, `broadcast_to(js:)` and
   `reactive_on_complete` raise on `:trigger`, `from: :trigger` and
   `detail_from:`. Nor does a window-bound `on_client` (`window:`, `outside:`,

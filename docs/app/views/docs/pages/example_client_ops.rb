@@ -815,8 +815,11 @@ module Views
                 button that was clicked.
               - **Refused at render**: `within:` with `window:`, `outside:`, `shortcut:` or
                 `once:` (Stimulus drops a `:once` listener on its first event, a miss
-                included); `:trigger` as the field of `set_value`, `paste_into` or
-                `preview_file`; and `:trigger`, `from: :trigger` or `detail_from:` in
+                included), and on an event that does not bubble (`focus`, `blur`,
+                `mouseenter`, … — use `focusin`, `focusout`, `mouseover`); `:trigger` as
+                the field of `set_value`, `paste_into` or `preview_file`, or as
+                `preview_file`'s `into:`, `name:` or `wrap:`; `detail_from:` over a
+                `detail:` that is no Hash; and `:trigger`, `from: :trigger` or `detail_from:` in
                 anything the server pushes — `reply.js`, `broadcast_to(js:)`,
                 `reactive_on_complete`: none of them has a trigger element. Neither has a
                 window-bound binding (`window:`, `outside:`, `shortcut:`); there a

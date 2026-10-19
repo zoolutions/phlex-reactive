@@ -1656,12 +1656,27 @@ module Phlex
               "#{label} within: delegates from the bound element's own subtree — it cannot be " \
               "window-bound; drop #{name}"
           end
+          if CLIENT_WITHIN_NON_BUBBLING.include?(event)
+            raise ArgumentError,
+              "#{label} within: #{event} does not bubble, so the bound element never hears it from a " \
+              "row — bind it on the rows, or use a bubbling twin where there is one (focusin/focusout, " \
+              "mouseover/mouseout, pointerover/pointerout)"
+          end
           return unless once
 
           raise ArgumentError,
             "#{label} within: cannot combine with once: — Stimulus removes a :once listener on its " \
             "first event, so a first event outside every match would leave the binding dead"
         end
+
+        # Issue #442: the common events that do not bubble — a within: binding
+        # on the container would never fire for them. Not exhaustive (media
+        # has more); the ones a list's rows plausibly fire.
+        CLIENT_WITHIN_NON_BUBBLING = %w[
+          focus blur mouseenter mouseleave pointerenter pointerleave load error scroll toggle beforetoggle
+          invalid close cancel play pause ended
+        ].freeze
+        private_constant :CLIENT_WITHIN_NON_BUBBLING
 
         # Issue #393: the one message on() and on_client() raise when given both
         # waits. Built only on that error path (on() is a hot path).
