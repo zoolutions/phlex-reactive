@@ -27,6 +27,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   so every existing op is byte-identical; `broadcast_to(js:)` still refuses
   `preview_file`.
 
+## [0.16.10] - 2026-10-19
+
+### Fixed
+
+- **`reactive_image_fallback` marks an `img` that failed before Turbo
+  inserted it (#452).** Turbo's frame render imports the fetched frame into
+  the document and inserts it a few awaits later; an `img` starts loading as
+  soon as it is imported, so one whose request failed in that gap fired
+  `error` on a detached node, where the client's document listener could not
+  hear it, and stayed on screen as a broken image. Once Turbo has inserted
+  new content (`turbo:frame-render` for the frame, `turbo:render` for the
+  page, and after a stream whose content holds a marked `img` has rendered),
+  the client now reads the result off every `img[data-reactive-image-fallback]`
+  that has no `data-reactive-image-state` yet and has finished: a
+  `naturalWidth` means `loaded`, otherwise `decode()` decides, as the scan at
+  registration already did. An `img` already marked is not touched, one still
+  loading is left to its own event, and nothing is fetched again.
+
 ## [0.16.9] - 2026-10-19
 
 ### Added
@@ -4429,7 +4447,8 @@ room for dogfood fixes.
   scaffolds a reactive component (and an RSpec spec when the app uses RSpec),
   state-backed by default or record-backed with `--record`.
 
-[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.9...HEAD
+[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.10...HEAD
+[0.16.10]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.9...v0.16.10
 [0.16.9]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.8...v0.16.9
 [0.16.8]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.7...v0.16.8
 [0.16.7]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.6...v0.16.7
