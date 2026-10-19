@@ -6,6 +6,66 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`reactive_image_fallback` marks an `img` that failed before Turbo
+  inserted it (#452).** Turbo's frame render imports the fetched frame into
+  the document and inserts it a few awaits later; an `img` starts loading as
+  soon as it is imported, so one whose request failed in that gap fired
+  `error` on a detached node, where the client's document listener could not
+  hear it, and stayed on screen as a broken image. Once Turbo has inserted
+  new content (`turbo:frame-render` for the frame, `turbo:render` for the
+  page, and after a stream whose content holds a marked `img` has rendered),
+  the client now reads the result off every `img[data-reactive-image-fallback]`
+  that has no `data-reactive-image-state` yet and has finished: a
+  `naturalWidth` means `loaded`, otherwise `decode()` decides, as the scan at
+  registration already did. An `img` already marked is not touched, one still
+  loading is left to its own event, and nothing is fetched again.
+
+## [0.16.9] - 2026-10-19
+
+### Added
+
+- **One client binding for a whole list: `:trigger`, `from:`/`attr:` reads and
+  `on_client(…, within:)` (#442).** Every client-op argument was a literal baked
+  at render, so a pickable list whose rows each write their own value and label
+  carried a full op chain on every row, differing in two or three literals.
+  Three parts now let the list bind once:
+  - **`:trigger`** (wire `"@trigger"`) targets the element whose `on_client`
+    binding fired, wherever an op takes a target (`to`, `expanded:`,
+    `submit(submitter:)`, `copy_media(from:)`). `set_value`, `paste_into` and
+    `preview_file` refuse it as their field. `JS.normalize_target` (pending
+    hints, `reactive_css_vars`) still refuses it.
+  - **`from:` + `attr:`** on `set_value`, `text` and `set_attr` read the value in
+    the browser off an element instead of a literal:
+    `js.set_value("#item-value", from: :trigger, attr: "data-value")`. `from:` is
+    `:trigger`, `:root` or a selector (the op's own scoping, `global:` included,
+    first match); `attr:` is a `data-*` attribute or `:text` (textContent),
+    enforced at render and again in the client. A missing attribute reads `""`;
+    a `from:` matching nothing skips the op. Exactly one of the value or `from:`.
+    **`dispatch(…, detail_from: { id: "data-id" })`** builds the event detail off
+    the trigger the same way, merged over `detail:` (a key in both raises).
+  - **`on_client(:click, ops, within: "[role=option]")`** runs the record only
+    for an event from inside an element matching the selector, under the bound
+    element and owned by this root; that element is the ops' `:trigger`.
+    Anywhere else is a complete no-op (no `preventDefault`, no confirm, no ops).
+    Keyboard picking through `reactive_listnav` and a click before the root
+    connects reach the same binding; before connect, `phlex/reactive/early`
+    leaves a click outside every row alone (a link in the list navigates). A
+    `within:` selector that does not parse runs nothing (verbose: warned). The bound element is not forced to
+    `type="button"`. `within:` raises with `window:`, `outside:`, `shortcut:` and
+    `once:` (Stimulus would drop a `:once` listener on its first event, a miss
+    included).
+
+  A server-pushed op has no trigger: `reply.js`, `broadcast_to(js:)` and
+  `reactive_on_complete` refuse `@trigger` and `detail_from:` (a chain or a raw
+  list). In the browser a stream op naming `@trigger`, or one in a window-bound
+  binding, resolves to nothing (verbose: warned). Every record that
+  asks for none of this is byte-identical. Client: the core gains 314 B
+  gzipped, the default bundle 364 B, `phlex/reactive/early` 129 B.
+
+## [0.16.8] - 2026-10-19
+
 ### Changed
 
 - **A `reactive_shared_field` drives its host's client bindings too (#440).**
@@ -52,19 +112,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   its focus binding no longer runs again; a `replace` still hands focus to the
   new field first (Turbo's own restore), so chain `js.blur(…).hide(…)` there.
   `on_client` ops run in no stream render and stay synchronous.
-- **`reactive_image_fallback` marks an `img` that failed before Turbo
-  inserted it (#452).** Turbo's frame render imports the fetched frame into
-  the document and inserts it a few awaits later; an `img` starts loading as
-  soon as it is imported, so one whose request failed in that gap fired
-  `error` on a detached node, where the client's document listener could not
-  hear it, and stayed on screen as a broken image. Once Turbo has inserted
-  new content (`turbo:frame-render` for the frame, `turbo:render` for the
-  page, and after a stream whose content holds a marked `img` has rendered),
-  the client now reads the result off every `img[data-reactive-image-fallback]`
-  that has no `data-reactive-image-state` yet and has finished: a
-  `naturalWidth` means `loaded`, otherwise `decode()` decides, as the scan at
-  registration already did. An `img` already marked is not touched, one still
-  loading is left to its own event, and nothing is fetched again.
 
 ## [0.16.7] - 2026-10-18
 
@@ -4377,7 +4424,9 @@ room for dogfood fixes.
   scaffolds a reactive component (and an RSpec spec when the app uses RSpec),
   state-backed by default or record-backed with `--record`.
 
-[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.7...HEAD
+[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.9...HEAD
+[0.16.9]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.8...v0.16.9
+[0.16.8]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.7...v0.16.8
 [0.16.7]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.6...v0.16.7
 [0.16.6]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.5...v0.16.6
 [0.16.5]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.4...v0.16.5

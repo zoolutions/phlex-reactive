@@ -297,3 +297,29 @@ test("the compute ops builder carries keep: true only when asked", () => {
   expect(JSON.stringify(ops.add_class("#a", "x"))).toBe('[["add_class",{"to":"#a","classes":["x"]}]]')
   expect(JSON.stringify(ops.hide("#a", { keep: false }))).toBe('[["hide",{"to":"#a"}]]')
 })
+
+// --- a delegated pick (issue #442) ---------------------------------------------
+
+test("a kept set_attr on @trigger survives a morph of the row the delegated binding picked", () => {
+  const { root, controller } = mount(`<ul id="menu">
+    <li id="row-1" role="option"><span id="l1">One</span></li>
+    <li id="row-2" role="option"><span id="l2">Two</span></li></ul>`)
+  const record = {
+    on: "click",
+    within: "[role=option]",
+    ops: [
+      ["remove_attr", { to: "[role=option]", name: "aria-selected", keep: true }],
+      ["set_attr", { to: "@trigger", name: "aria-selected", value: "true", keep: true }],
+    ],
+  }
+  root.querySelector("#menu").addEventListener("click", (event) => {
+    event.params = { ops: record }
+    controller.runOps(event)
+  })
+
+  root.querySelector("#l2").dispatchEvent(new window.MouseEvent("click", { bubbles: true, cancelable: true }))
+  morph(root.querySelector("#row-2"), `<li id="row-2" role="option"></li>`)
+
+  expect(root.querySelector("#row-2").getAttribute("aria-selected")).toBe("true")
+  expect(root.querySelector("#row-1").hasAttribute("aria-selected")).toBe(false)
+})

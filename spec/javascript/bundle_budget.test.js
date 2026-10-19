@@ -59,8 +59,11 @@ const FEATURES = ENTRIES.filter((name) => name.startsWith("features/"))
 // shortcut is recorded as a shortcut's, so a connected root's shortcut on it
 // still runs) adds 22 B: 1,643 B. Issue #433 (prevent: false: a trigger whose
 // every firing descriptor opts out keeps its native default before connect,
-// read off on()'s param and the on_client records) adds 103 B: 1,746 B.
-const EARLY_GZIP_BUDGET = 1746
+// read off on()'s param and the on_client records) adds 103 B: 1,746 B. Issue #442
+// (a within: miss is neither queued nor prevented before connect: the records
+// parsed off the attr) adds 109 B: 1,855 B; its review fix (a within: that does not parse is
+// a miss, as in runOps) 20 B: 1,875 B.
+const EARLY_GZIP_BUDGET = 1875
 // How far a ceiling may sit above the real size: the rounding it is set with.
 const SLACK = 250
 
@@ -211,9 +214,15 @@ const SLACK = 250
 // its review fixes (a nested root replaced, or restoring a draft, with a shared field the host reads
 // re-syncs it) 144 B: 41,362 B.
 // Issue #446 (a reply's focus ops wait past Turbo's stream focus restore, in the runtime) adds 69 B: 41,431 B.
+// Issue #442 (the @trigger target, from:/attr: reads, detail_from and on_client within:, in the
+// runtime; the @trigger hint in devtools) adds 317 B: 41,402 B; its validation fix (a within:
+// selector that does not parse warns under verbose) 25 B: 41,427 B.
+// On top of #440 (41,362 B), #442 adds 347 B: 41,709 B; its review fix (a from: that does not
+// parse is a miss) 4 B: 41,713 B; the devtools probe that guards a selector that does not parse 8 B: 41,721 B.
+// On top of #440 and #446 (41,431 B), #442 adds 364 B: 41,795 B.
 // Issue #452 (an image fallback whose img finished before Turbo inserted it is read off the element
-// after a frame, page or stream render, in the runtime) adds 69 B: 41,500 B.
-const BUNDLE_GZIP_CEILING = 41_500
+// after a frame, page or stream render, in the runtime) adds 69 B: 41,500 B; on top of #442 (41,795 B), 78 B: 41,873 B.
+const BUNDLE_GZIP_CEILING = 41_873
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -289,8 +298,14 @@ const TARGET_BUNDLE_GZIP = 22_700
 // Issue #439 (preview_file per_file: on a multiple input) adds 197 B: 18,635 B; its review fix 11 B: 18,646 B.
 // Issue #440 (bindingOwns / bindingOwnership: what the client bindings read) adds 73 B: 18,719 B.
 // Issue #446 (a reply's focus ops wait past Turbo's stream focus restore) adds 80 B: 18,799 B.
-// Issue #452 (an image fallback whose img finished before Turbo inserted it) adds 81 B: 18,880 B.
-const CORE_GZIP_CEILING = 18_880
+// Issue #442 (the @trigger target, from:/attr: reads, detail_from and on_client within:) adds 290 B: 18,936 B;
+// its validation fix (a within: selector that does not parse warns under verbose) 27 B: 18,963 B.
+// On top of #440 (18,719 B), #442 adds 311 B: 19,030 B; its review fix (a from: that does not
+// parse is a miss) 5 B: 19,035 B.
+// On top of #440 and #446 (18,799 B), #442 adds 314 B: 19,113 B.
+// Issue #452 (an image fallback whose img finished before Turbo inserted it) adds 81 B: 18,880 B;
+// on top of #442 (19,113 B), 80 B: 19,193 B.
+const CORE_GZIP_CEILING = 19_193
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -335,7 +350,8 @@ const FEATURE_GZIP_CEILINGS = {
   // Issue #356 (a gate wired the first time it reads true, and reseed) to 1,152 B.
   // One window listener pair for every warn_unsaved root, to 1,268 B.
   "features/form": 1_268,
-  "features/devtools": 1_600,
+  // Issue #442 (the @trigger hint; a probe that never throws on a selector that does not parse) to 1,612 B.
+  "features/devtools": 1_612,
   // Issue #350: sortable lists, 3,094 B; its review fixes take it to 3,130 B; PR #352 review to 3,215 B.
   "features/sortable": 3_215,
   // Issue #416: draggable regions, 3,478 B; its review fixes take it to 3,572 B; its PR review fix to 3,576 B.
@@ -437,8 +453,13 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #440 (a shared field drives the host's bindings: +73 B core, +12 B bindings, +53 B compute) adds 138 B: 50,255 B;
 // its review fixes (+72 B bindings, +119 B compute) 191 B: 50,446 B.
 // Issue #446 (a reply's focus ops wait past Turbo's stream focus restore, in the core) adds 80 B: 50,526 B.
-// Issue #452 (an image fallback whose img finished before Turbo inserted it, in the core) adds 81 B: 50,607 B.
-const SPLIT_TOTAL_GZIP_CEILING = 50_607
+// Issue #442 (+290 B core, +46 B devtools) adds 336 B: 50,453 B; its validation fix (+27 B core) 50,480 B.
+// On top of #440 (50,446 B), #442 (+311 B core, +46 B devtools) adds 357 B: 50,803 B;
+// its review fix (+5 B core) 50,808 B; the guarded devtools probe (+12 B devtools) 50,820 B.
+// On top of #440 and #446 (50,526 B), #442 (+314 B core, +58 B devtools) adds 372 B: 50,898 B.
+// Issue #452 (an image fallback whose img finished before Turbo inserted it, in the core) adds 81 B: 50,607 B;
+// on top of #442 (50,898 B), 80 B: 50,978 B.
+const SPLIT_TOTAL_GZIP_CEILING = 50_978
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

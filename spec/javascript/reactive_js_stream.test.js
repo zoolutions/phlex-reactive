@@ -245,6 +245,41 @@ test("a missing/garbage ops attr degrades to a no-op", () => {
   expect(() => invoke(actions, streamEl({ ops: "{}" }))).not.toThrow()
 })
 
+// Issue #442: a server-pushed op has no trigger. "@trigger" (refused by the
+// server; hand-built here) resolves to zero elements — never a selector the
+// document would throw on — and the verbose gate says why; the rest of the
+// chain still applies.
+test("an op targeting @trigger resolves to zero elements and warns; its siblings run", () => {
+  const actions = stubTurbo()
+  registerReactiveJs()
+  const bell = makeEl("bell")
+  const doc = stubDocument({ docMatches: { "#bell": [bell] } })
+  const docQuery = doc.querySelectorAll
+  doc.querySelectorAll = (sel) => {
+    if (sel === "@trigger") throw new Error("@trigger is not a selector")
+    return docQuery(sel)
+  }
+  const attrs = {
+    "data-reactive-ops": JSON.stringify([
+      ["add_class", { to: "@trigger", classes: ["picked"] }],
+      ["add_class", { to: "#bell", classes: ["rang"] }],
+    ]),
+    "data-reactive-verbose": "true",
+  }
+  const warns = []
+  const original = console.warn
+  console.warn = (...args) => warns.push(args.join(" "))
+
+  try {
+    invoke(actions, { getAttribute: (name) => attrs[name] ?? null })
+  } finally {
+    console.warn = original
+  }
+
+  expect([...bell.classes]).toEqual(["rang"])
+  expect(warns.some((w) => w.includes('"@trigger"') && w.includes("no trigger element"))).toBe(true)
+})
+
 // --- focus ops wait for Turbo's focus restore (issue #446) --------------------
 // Turbo renders a stream message inside withPreservedFocus: it reads
 // document.activeElement, appends the <turbo-stream>s, waits one animation

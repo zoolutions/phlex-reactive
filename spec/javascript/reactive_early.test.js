@@ -850,10 +850,11 @@ test("listens for trigger types of roots added after start (MutationObserver)", 
 // #274) added the second root selector and the wake; 1,621 B since the bare
 // delete/backspace chords (issue #366); 1,643 B since it records the chord it
 // prevents for a shortcut as a shortcut's (issue #429); 1,746 B since a
-// prevent: false trigger keeps its native default before connect (issue #433).
-test("early.min.js gzips to at most 1,746 bytes", () => {
+// prevent: false trigger keeps its native default before connect (issue #433);
+// 1,875 B since a within: miss is neither queued nor prevented (issue #442).
+test("early.min.js gzips to at most 1,875 bytes", () => {
   const built = readFileSync(join(import.meta.dir, "../../app/javascript/phlex/reactive/early.min.js"))
-  expect(gzipSync(built, { level: 9 }).length).toBeLessThanOrEqual(1746)
+  expect(gzipSync(built, { level: 9 }).length).toBeLessThanOrEqual(1875)
 })
 
 // --- reactive_controller.js: connect() marks, announces and drains ------------
@@ -905,6 +906,92 @@ test("connect() replays an on_client trigger through runOps, carrying the custom
 
   expect(calls.map((call) => call.method)).toEqual(["runOps"])
   expect(calls[0].event.detail).toEqual({ n: 1 })
+})
+
+// Issue #442: a delegated binding (within:) on a list is captured like any
+// container descriptor — record() walks up from the clicked span to the list —
+// and the replay keeps the original target, so it resolves the same row as
+// the ops' @trigger.
+test("a click on a row before connect replays onto that row through the list's delegated binding", async () => {
+  const record = JSON.stringify({
+    on: "click",
+    within: "[role=option]",
+    ops: [
+      ["set_value", { to: "#item-value", from: "@trigger", attr: "data-value" }],
+      ["set_attr", { to: "@trigger", name: "aria-selected", value: "true" }],
+    ],
+  })
+  const root = await mount(`
+    <div id="picker" data-controller="reactive">
+      <input id="item-value" type="hidden">
+      <ul data-action="click->reactive#runOps" data-reactive-ops-param='${record}'>
+        <li><button role="option" id="row-1" data-value="v1"><span>North</span></button></li>
+        <li><button role="option" id="row-2" data-value="v2"><span id="south">South</span></button></li>
+      </ul>
+    </div>`)
+  globalThis.Event = window.Event
+  click(root.querySelector("#south"))
+  expect(state().queue).toHaveLength(1)
+
+  realConnect(root)
+
+  expect(root.querySelector("#item-value").value).toBe("v2")
+  expect(root.querySelector("#row-2").getAttribute("aria-selected")).toBe("true")
+  expect(root.querySelector("#row-1").hasAttribute("aria-selected")).toBe(false)
+})
+
+// Issue #442: a click outside every row of a within: list is a miss — runOps
+// would neither prevent it nor run anything — so before connect it is neither
+// prevented nor queued: a link in the list's footer still navigates. A record
+// without within: on the same event keeps today's behaviour.
+test("a click outside every row of a within: list before connect is neither prevented nor queued", async () => {
+  const record = JSON.stringify({ on: "click", within: "[role=option]", ops: [["set_value", { to: "#v", from: "@trigger", attr: "data-value" }]] })
+  const root = await mount(`
+    <div id="picker" data-controller="reactive">
+      <input id="v" type="hidden">
+      <ul data-action="click->reactive#runOps" data-reactive-ops-param='${record}'>
+        <li><button role="option" data-value="v1"><span id="north">North</span></button></li>
+        <li><a id="more" href="#more">More</a></li>
+      </ul>
+    </div>`)
+
+  const miss = click(root.querySelector("#more"))
+  expect(miss.defaultPrevented).toBe(false)
+  expect(state().queue).toHaveLength(0)
+
+  const hit = click(root.querySelector("#north"))
+  expect(hit.defaultPrevented).toBe(true)
+  expect(state().queue).toHaveLength(1)
+})
+
+test("a within: selector that does not parse is a miss before connect too (neither prevented nor queued)", async () => {
+  const record = JSON.stringify({ on: "click", within: "[[nope", ops: [] })
+  const root = await mount(`
+    <div id="picker" data-controller="reactive">
+      <ul data-action="click->reactive#runOps" data-reactive-ops-param='${record}'>
+        <li><a id="more" href="#more">More</a></li>
+      </ul>
+    </div>`)
+
+  const event = click(root.querySelector("#more"))
+
+  expect(event.defaultPrevented).toBe(false)
+  expect(state().queue).toHaveLength(0)
+})
+
+test("a within: record beside a plain record on the same event still prevents and queues a miss", async () => {
+  const records = `${JSON.stringify({ on: "click", within: "[role=option]", ops: [] })} ${JSON.stringify({ on: "click", ops: [] })}`
+  const root = await mount(`
+    <div id="picker" data-controller="reactive">
+      <ul data-action="click->reactive#runOps" data-reactive-ops-param='${records}'>
+        <li><a id="more" href="#more">More</a></li>
+      </ul>
+    </div>`)
+
+  const event = click(root.querySelector("#more"))
+
+  expect(event.defaultPrevented).toBe(true)
+  expect(state().queue).toHaveLength(1)
 })
 
 test("a :once trigger fired three times replays once, leaving the markup alone", async () => {

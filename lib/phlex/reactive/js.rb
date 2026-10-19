@@ -23,8 +23,16 @@ module Phlex
     #
     # Targets: a CSS selector string is resolved WITHIN the component's root by
     # default (nested reactive roots excluded, issue #15 semantics); `:root`
-    # targets the root element itself; `global: true` opts a single op out of
-    # root scoping (document escape hatch, e.g. a page-level overlay).
+    # targets the root element itself; `:trigger` (issue #442) targets the
+    # element whose on_client binding fired (with on_client's within:, the
+    # matching element under it); `global: true` opts a single op out of root
+    # scoping (document escape hatch, e.g. a page-level overlay).
+    #
+    # Reads (issue #442): set_value, text and set_attr take `from:` + `attr:`
+    # in place of a literal value — the value is read in the browser off the
+    # `from` element (a data-* attribute or its text), so one chain bound once
+    # serves every row of a list:
+    #   js.set_value("#item-value", from: :trigger, attr: "data-value")
     #
     # The op vocabulary is a fixed whitelist mirrored by the client interpreter
     # — an op name the client doesn't know is warn-and-skipped there
@@ -34,6 +42,38 @@ module Phlex
     class JS
       # Serialized stand-in for "the component's own root element".
       ROOT_SENTINEL = "@root"
+
+      # Serialized stand-in for "the element whose on_client binding fired"
+      # (issue #442). Only an on_client binding has one: a server-pushed op
+      # (reply.js, broadcast_to(js:)) or a reactive_on_complete run refuses it.
+      TRIGGER_SENTINEL = "@trigger"
+
+      # attr: :text's wire value — read the element's textContent.
+      TEXT_READ = "@text"
+
+      # What a from: read may take off an element (issue #442): a data-*
+      # attribute — state the server declared on the element — or its text.
+      # Two-sided like the write allowlist below: the client refuses anything
+      # else in a hand-built record. Narrow on purpose (widening later breaks
+      # nothing; narrowing would).
+      READABLE_ATTR = /\Adata-[a-z][a-z0-9-]*\z/i
+
+      # The ops whose value from: + attr: can read, and the arg keys that name
+      # an element (where a server-pushed op has no @trigger to put).
+      READ_OPS = %w[set_value text set_attr].freeze
+      TARGET_KEYS = %w[to from expanded submitter].freeze
+
+      # The field-writing ops write a field the author names: never the root
+      # (a container) nor the trigger (the element clicked).
+      FIELD_REFUSED = {
+        :root => "the component root", ROOT_SENTINEL => "the component root",
+        :trigger => "the trigger", TRIGGER_SENTINEL => "the trigger"
+      }.freeze
+
+      # The positional value set_value/text/set_attr default to, so nil keeps
+      # meaning "clear" and only from: may replace it.
+      NO_VALUE = Object.new.freeze
+      private_constant :NO_VALUE
 
       # The attribute-name allowlist (issue #96) — the security-critical part of
       # the attr ops, enforced HERE at build time AND again in the client
@@ -75,14 +115,72 @@ module Phlex
           "target must be :root or a CSS selector string, got #{to.inspect}"
       end
 
-      def self.assert_ops_allowed!(list)
-        Array(list).each do |op, args|
-          next unless ATTR_NAME_OPS.include?(op.to_s) && args.is_a?(::Hash)
+      # The op builder's target: normalize_target plus :trigger (issue #442).
+      # Separate so a pending hint or a css-vars binding given :trigger keeps
+      # raising — neither has a trigger element.
+      def self.normalize_client_target(to)
+        return TRIGGER_SENTINEL if to == :trigger
+        return ROOT_SENTINEL if to == :root
+        return to if to.is_a?(String)
 
-          name = args["name"] || args[:name]
-          assert_allowed_attr(name.to_s) if name
+        raise ArgumentError,
+          "target must be :trigger, :root or a CSS selector string, got #{to.inspect}"
+      end
+
+      # Also refuses @trigger (a raw list is server-pushed or a
+      # reactive_on_complete run: no trigger) and a read attr outside the
+      # data-*/text rule (issue #442).
+      def self.assert_ops_allowed!(list)
+        refuse_trigger!(list)
+        Array(list).each do |op, args|
+          next unless args.is_a?(::Hash)
+
+          name = arg(args, "name")
+          assert_allowed_attr(name.to_s) if name && ATTR_NAME_OPS.include?(op.to_s)
+          # A read: the client takes args.attr only on a read op with a from.
+          read_attr(arg(args, "attr"), op) if READ_OPS.include?(op.to_s) && arg(args, "from")
         end
       end
+
+      # Raise when an op in `list` (a JS chain or a raw [[op, args]] list)
+      # names @trigger (a target, from:, or dispatch's detail_from:, which
+      # reads off it). Called for every op the server pushes
+      # (Response.js_ops_json: reply.js and broadcast_to(js:)) and for a
+      # reactive_on_complete run.
+      def self.refuse_trigger!(list, where = "a server-pushed op (reply.js, broadcast_to(js:)) " \
+                                             "or a reactive_on_complete run")
+        op = trigger_op(list.is_a?(JS) ? list.ops : list)
+        return if op.nil?
+
+        raise ArgumentError,
+          "#{self}: #{op} names @trigger, the element whose on_client binding fired (a :trigger " \
+          "target, from: :trigger or detail_from:) — #{where} has no trigger. Name the element " \
+          "with a CSS selector."
+      end
+
+      # The name of the first op that names @trigger, or nil. A raw list, or a
+      # hand-built JS.new([...]), may carry Symbol keys or no args Hash.
+      def self.trigger_op(list)
+        Array(list).each do |op, args|
+          next unless args.is_a?(::Hash)
+          return op.to_s if arg(args, "detail_from") || TARGET_KEYS.any? { arg(args, it) == TRIGGER_SENTINEL }
+        end
+        nil
+      end
+
+      # What attr: may read (issue #442): :text (or its "@text" wire form) or a
+      # data-* attribute name. Returns the wire value; raises otherwise.
+      def self.read_attr(attr, verb = "a read")
+        return TEXT_READ if [:text, TEXT_READ].include?(attr)
+        return attr if attr.is_a?(String) && attr.match?(READABLE_ATTR)
+
+        raise ArgumentError,
+          "#{self}: #{verb} attr: reads a data-* attribute or :text (textContent), got #{attr.inspect}"
+      end
+
+      # A raw list's args may carry String or Symbol keys.
+      def self.arg(args, key) = args.key?(key) ? args[key] : args[key.to_sym]
+      private_class_method :arg
 
       # The attribute-name allowlist (issue #96), case-insensitive. Refuses
       # event-handler (on*), URL-bearing, and style attributes. Enforced at build
@@ -172,9 +270,15 @@ module Phlex
       # instead of toggling presence — current == on ? off : on, so an absent
       # attribute becomes `on`. For aria-expanded/aria-pressed/data-state:
       #   js.toggle_attr("#trigger", "aria-expanded", "true", "false")
+      #
+      # set_attr(to, name, from:, attr:) (issue #442) reads the value off an
+      # element instead (see #set_value); the name allowlist above still
+      # decides what may be WRITTEN:
+      #   js.set_attr(:trigger, "aria-selected", "true")
+      #   js.set_attr("#preview", "data-state", from: :trigger, attr: "data-state")
 
-      def set_attr(to, name, value, global: false, keep: false)
-        append("set_attr", attr_args(to, name, global:, keep:, value:))
+      def set_attr(to, name, value = NO_VALUE, from: nil, attr: nil, global: false, keep: false)
+        append("set_attr", attr_args(to, name, global:, keep:) { value_args(it, "set_attr", value, from:, attr:) })
       end
 
       def remove_attr(to, name, global: false, keep: false)
@@ -251,12 +355,13 @@ module Phlex
         args = target_args(to, global:)
         return append("submit", args) if submitter.nil?
 
-        unless submitter.is_a?(String) && !submitter.empty?
+        unless submitter == :trigger || (submitter.is_a?(String) && !submitter.empty?)
           raise ArgumentError,
-            "js.submit submitter: must be a CSS selector string naming a submit control, got #{submitter.inspect}"
+            "js.submit submitter: must be a CSS selector string naming a submit control " \
+            "(or :trigger), got #{submitter.inspect}"
         end
 
-        append("submit", args.merge("submitter" => submitter).freeze)
+        append("submit", args.merge("submitter" => normalize_target(submitter)).freeze)
       end
 
       # --- Clipboard-source paste (issue #228) ---
@@ -279,12 +384,8 @@ module Phlex
       # element (the two passes would fight over the same attribute).
 
       def paste_into(to, global: false)
-        if [:root, ROOT_SENTINEL].include?(to)
-          raise ArgumentError,
-            "#{self.class}: paste_into targets a field, not the component root — " \
-            "pass the input's CSS selector (e.g. js.paste_into(\"[name=code]\"))"
-        end
-
+        refuse_field_target!(to, "paste_into targets a field, not %s — " \
+                                 "pass the input's CSS selector (e.g. js.paste_into(\"[name=code]\"))")
         append("paste_into", target_args(to, global:))
       end
 
@@ -344,12 +445,8 @@ module Phlex
 
       def preview_file(to, into:, name: nil, global: false, valid: false, wrap: nil, max_bytes: nil, accept: nil,
                        per_file: false)
-        if [:root, ROOT_SENTINEL].include?(to)
-          raise ArgumentError,
-            "#{self.class}: preview_file reads a file input, not the component root — " \
-            "pass the input's CSS selector (e.g. js.preview_file(\"#photo-file\", into: \"#photo\"))"
-        end
-
+        refuse_field_target!(to, "preview_file reads a file input, not %s — pass the input's CSS selector " \
+                                 "(e.g. js.preview_file(\"#photo-file\", into: \"#photo\"))")
         args = { "to" => normalize_target(to), "into" => preview_selector(:into, into) }
         args["name"] = preview_selector(:name, name) unless name.nil?
         args["global"] = true if global
@@ -368,9 +465,14 @@ module Phlex
       # less powerful than set_attr. Pair with `global: true` to paint a value
       # into a node OUTSIDE the component's root (the cross-root text escape,
       # e.g. a read-only recap in another tab pane).
+      #
+      # text(to, from:, attr:) (issue #442) reads the text off an element
+      # instead (see #set_value) — the label of the row that was clicked:
+      #   js.text("#item-label", from: :trigger, attr: "data-label")
 
-      def text(to, value, global: false)
-        args = { "to" => normalize_target(to), "value" => value.to_s }
+      def text(to, value = NO_VALUE, from: nil, attr: nil, global: false)
+        args = { "to" => normalize_target(to) }
+        value_args(args, "text", value, from:, attr:)
         args["global"] = true if global
         append("text", args.freeze)
       end
@@ -413,15 +515,21 @@ module Phlex
       # ACTOR-ONLY like paste_into: a broadcast that overwrote every
       # subscriber's field would be hostile (BROADCAST_REFUSED_OPS).
       #   button(**on_client(:click, js.set_value("#notes", "Thanks"))) { "Thanks" }
+      #
+      # Reads (issue #442): `from:` + `attr:` in place of the value read it in
+      # the browser off an element — `from:` is :trigger, :root or a selector,
+      # resolved with the op's own scoping (global: included), first match;
+      # `attr:` is a data-* attribute or :text (textContent). A missing
+      # attribute reads "", so it clears; a `from:` matching nothing skips the
+      # op. Exactly one of the value or `from:`. The same on text and set_attr:
+      #   ul(**on_client(:click, js.set_value("#item-value", from: :trigger, attr: "data-value"),
+      #                  within: "[role=option]"))
 
-      def set_value(to, value, global: false)
-        if [:root, ROOT_SENTINEL].include?(to)
-          raise ArgumentError,
-            "#{self.class}: set_value targets a field, not the component root — " \
-            "pass the field's CSS selector (e.g. js.set_value(\"#notes\", \"Thanks\"))"
-        end
-
-        args = { "to" => normalize_target(to), "value" => value.to_s }
+      def set_value(to, value = NO_VALUE, from: nil, attr: nil, global: false)
+        refuse_field_target!(to, "set_value targets a field, not %s — " \
+                                 "pass the field's CSS selector (e.g. js.set_value(\"#notes\", \"Thanks\"))")
+        args = { "to" => normalize_target(to) }
+        value_args(args, "set_value", value, from:, attr:)
         args["global"] = true if global
         append("set_value", args.freeze)
       end
@@ -465,8 +573,15 @@ module Phlex
       # uniformly); `detail:` is the event's `detail` payload. The client uses raw
       # element.dispatchEvent — the shared controller SHADOWS Stimulus's
       # this.dispatch helper, so the interpreter must not use it.
-      def dispatch(name, to: nil, detail: {}, global: false)
+      #
+      # detail_from: (issue #442) maps detail keys to what to read off the
+      # TRIGGER (a data-* attribute or :text), merged over `detail:` in the
+      # browser — every value a String. Only an on_client binding has a
+      # trigger: a server-pushed dispatch refuses it.
+      #   js.dispatch("app:item-picked", detail_from: { id: "data-id", text: :text })
+      def dispatch(name, to: nil, detail: {}, detail_from: {}, global: false)
         args = { "name" => name.to_s, "to" => normalize_target(to.nil? ? :root : to), "detail" => detail }
+        args["detail_from"] = detail_reads(detail, detail_from) unless detail_from.nil? || detail_from == {}
         args["global"] = true if global
         append("dispatch", args.freeze)
       end
@@ -609,15 +724,70 @@ module Phlex
         [on, off].freeze
       end
 
-      # An attr op's args: the target, the allowlisted name, an optional
-      # (stringified) value. The name is validated LOUDLY at build time.
-      def attr_args(to, name, global:, keep: false, value: :__none)
+      # An attr op's args: the target, the allowlisted name, then whatever the
+      # block adds (set_attr's value or read). The name is validated LOUDLY at
+      # build time.
+      def attr_args(to, name, global:, keep: false)
         name = name.to_s
         assert_allowed_attr(name)
         args = { "to" => normalize_target(to), "name" => name }
-        args["value"] = value.to_s unless value == :__none
+        yield args if block_given?
         args["global"] = true if global
         with_keep(args, keep)
+      end
+
+      # The value of set_value/text/set_attr (issue #442): the literal
+      # (stringified; nil clears) as "value", or a read as "from" + "attr".
+      # Exactly one — loud at render.
+      def value_args(args, verb, value, from:, attr:)
+        literal = !value.equal?(NO_VALUE)
+        raise ArgumentError, "#{self.class}: #{verb} takes a value or from:, not both" if literal && !from.nil?
+        if from.nil? && !attr.nil?
+          raise ArgumentError,
+            "#{self.class}: #{verb} attr: needs from: (the element to read it off)"
+        end
+        return args["value"] = value.to_s if literal
+        raise ArgumentError, "#{self.class}: #{verb} needs a value or from: + attr:" if from.nil?
+        raise ArgumentError, "#{self.class}: #{verb} from: needs attr: (a data-* attribute or :text)" if attr.nil?
+
+        source = normalize_target(from)
+        raise ArgumentError, "#{self.class}: #{verb} from: needs a CSS selector, got an empty string" if source.empty?
+
+        args["from"] = source
+        args["attr"] = self.class.read_attr(attr, verb)
+      end
+
+      # dispatch's detail_from: — detail key → read attr, the keys Strings.
+      # A key also in detail: would silently override it, so it raises.
+      def detail_reads(detail, reads)
+        unless reads.is_a?(Hash)
+          raise ArgumentError,
+            "#{self.class}: dispatch detail_from: takes a Hash of detail keys to data-* attributes " \
+            "(or :text), got #{reads.inspect}"
+        end
+
+        literal = detail.is_a?(Hash) ? detail.keys.map(&:to_s) : []
+        normalized = reads.to_h do |key, attr|
+          key = key.to_s
+          if literal.include?(key)
+            raise ArgumentError,
+              "#{self.class}: dispatch detail_from: key #{key.inspect} is also in detail: — one would override the other"
+          end
+
+          [key, self.class.read_attr(attr, "dispatch detail_from: #{key.inspect}")]
+        end
+        if normalized.size < reads.size
+          raise ArgumentError, "#{self.class}: dispatch detail_from: keys must be unique as strings"
+        end
+
+        normalized.freeze
+      end
+
+      # set_value/paste_into/preview_file write a field the author names:
+      # `message` has a %s for what was named instead (the root, the trigger).
+      def refuse_field_target!(to, message)
+        where = FIELD_REFUSED[to]
+        raise ArgumentError, "#{self.class}: #{format(message, where)}" if where
       end
 
       # Build-time attr-name allowlist for the instance builder — delegates to the
@@ -655,9 +825,9 @@ module Phlex
         with_keep(args, keep)
       end
 
-      # Instance-side alias for the class method (used by the op builder). See
-      # JS.normalize_target — the shared :root/selector translation.
-      def normalize_target(to) = self.class.normalize_target(to)
+      # The op builder's target translation: :trigger, :root or a selector
+      # (JS.normalize_client_target; issue #442).
+      def normalize_target(to) = self.class.normalize_client_target(to)
     end
   end
 end

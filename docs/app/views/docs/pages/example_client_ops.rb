@@ -27,6 +27,7 @@ module Views
           image_fallback
           countdown
           kept_ops
+          one_binding_for_a_list
           ops
           value_conditional
           bulk_selection
@@ -706,6 +707,73 @@ module Views
               know the selection — to filter, to show other viewers — keep it on the
               server (an action or [presence](/docs/presence)) instead.
             MD
+          end
+        end
+
+        def one_binding_for_a_list
+          DocsUI::Section('One binding for a list (within:, :trigger, from:)') do
+            md <<~MD
+              A list whose rows each write their own value — a picker, a menu of
+              templates, a column of chips — used to carry a whole `on_client` chain on
+              **every row**, the same ops with two or three literals changed. A few hundred
+              rows meant a few hundred copies of the chain in the HTML. Three pieces (#442)
+              let the list bind **once**:
+
+              - **`within: "[role=option]"`** on `on_client` runs the record only for an
+                event from inside an element matching the selector, under the bound element.
+                That element — the row — is the ops' `:trigger`.
+              - **`:trigger`** is a target like `:root`: the element whose binding fired.
+              - **`from:` + `attr:`** on `set_value`, `text` and `set_attr` read the value off
+                an element in the browser instead of baking it in, and `dispatch`'s
+                `detail_from:` builds the event's detail the same way.
+
+              ```ruby
+              ul(role: "listbox", **on_client(:click, pick, within: "[role=option]")) do
+                @items.each do |item|
+                  li { button(role: "option", data: { id: item.id, value: item.value, label: item.label }) { item.label } }
+                end
+              end
+
+              def pick
+                js.set_value("#item-value", from: :trigger, attr: "data-value")
+                  .text("#item-label", from: :trigger, attr: "data-label")
+                  .remove_attr("[role=option]", "aria-selected")
+                  .set_attr(:trigger, "aria-selected", "true")
+                  .dispatch("app:item-picked", detail_from: { id: "data-id", value: "data-value" })
+              end
+              ```
+
+              - **A click outside every row** (the list's padding, a heading) is a complete
+                no-op: no `preventDefault`, no confirm, no ops. A row inside a **nested**
+                reactive root belongs to that root, so it is a miss too.
+              - **Keyboard picking** needs nothing extra: Enter on the row `reactive_listnav`
+                highlights clicks it, and the click bubbles to the list. A click on a row
+                before the root connects is replayed onto that row; any other click in the
+                list is left alone (a link there still navigates).
+              - **What a read may take**: `attr:` is a `data-*` attribute or `:text` (the
+                element's `textContent`) — checked at render and again in the browser. A
+                missing attribute reads `""`, so it clears; a `from:` that matches nothing
+                skips the op. `from:` is `:trigger`, `:root` or a selector, resolved like the
+                op's own target (first match, `global:` included). The write side keeps its
+                rules: `set_attr`'s name allowlist still refuses `href`, `on*` and `style`.
+              - **Without `within:`**, `:trigger` is the element the binding is on — the
+                button that was clicked.
+              - **Refused at render**: `within:` with `window:`, `outside:`, `shortcut:` or
+                `once:` (Stimulus drops a `:once` listener on its first event, a miss
+                included); `:trigger` as the field of `set_value`, `paste_into` or
+                `preview_file`; and `:trigger`, `from: :trigger` or `detail_from:` in
+                anything the server pushes — `reply.js`, `broadcast_to(js:)`,
+                `reactive_on_complete`: none of them has a trigger element. Neither has a
+                window-bound binding (`window:`, `outside:`, `shortcut:`); there a
+                `:trigger` op resolves to nothing, warned under `verbose_errors`.
+
+              Click a row, or focus the search box and use the arrow keys and Enter. The
+              list's markup carries one ops record; each row carries only its `data-*`.
+            MD
+            render Views::Examples::LiveExample.new(
+              component: PickListComponent.new,
+              filename: 'app/components/pick_list_component.rb'
+            )
           end
         end
 
