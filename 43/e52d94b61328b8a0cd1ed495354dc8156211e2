@@ -1,0 +1,33 @@
+spec/phlex/reactive/js_trigger_spec.rb
+  s_534a3260651c63::t_1ce0a054fbe584 1-2,4-220
+spec/phlex/reactive/component_spec.rb
+  s_534a3260651c63::t_d1bd68152ce612 2104-2117
+lib/phlex/reactive/response.rb
+  s_534a3260651c63::t_68ce9fa091fe6e 305-307,312
+lib/phlex/reactive/component/dsl.rb
+  s_534a3260651c63::t_87746de7d4adbf 660-661
+app/javascript/phlex/reactive/runtime.js
+  s_534a3260651c63::t_c478d720fa448b 3542
+CHANGELOG.md
+  s_534a3260651c63::t_10e9c2cea03a8b 9-46
+spec/javascript/reactive_run_ops_trigger.test.js
+  s_534a3260651c63::t_5fe6576656adbf 1-353,356-369,372-399,401-402
+spec/system/delegated_pick_spec.rb
+  s_534a3260651c63::t_9c4e7d9a813af6 1-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "43e52d94b61328b8a0cd1ed495354dc8156211e2",
+  "prompts": {},
+  "sessions": {
+    "s_534a3260651c63": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f60f0d72-de8d-48ad-b334-bd5af1099aba",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
