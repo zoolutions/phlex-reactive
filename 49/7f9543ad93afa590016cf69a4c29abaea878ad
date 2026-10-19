@@ -1,0 +1,25 @@
+spec/javascript/reactive_image_fallback.test.js
+  s_534a3260651c63::t_4b9d6a86f5c8b1 445-590
+spec/system/image_fallback_frame_spec.rb
+  s_534a3260651c63::t_e5cb71cfaacde5 1-12,14-19,22-32,35-55,57-70
+app/javascript/phlex/reactive/runtime.js
+  s_534a3260651c63::t_8b855243e1494a 585-601,604-614
+CHANGELOG.md
+  s_534a3260651c63::t_de8c1f8fc563af 55-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "497f9543ad93afa590016cf69a4c29abaea878ad",
+  "prompts": {},
+  "sessions": {
+    "s_534a3260651c63": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f60f0d72-de8d-48ad-b334-bd5af1099aba",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
