@@ -219,8 +219,10 @@ const SLACK = 250
 // selector that does not parse warns under verbose) 25 B: 41,427 B.
 // On top of #440 (41,362 B), #442 adds 347 B: 41,709 B; its review fix (a from: that does not
 // parse is a miss) 4 B: 41,713 B; the devtools probe that guards a selector that does not parse 8 B: 41,721 B.
-// On top of #440 and #446 (41,431 B), #442 adds 364 B: 41,795 B.
-const BUNDLE_GZIP_CEILING = 41_795
+// On top of #440 and #446 (41,431 B), #442 adds 364 B: 41,795 B. Its follow-up
+// (a hand-built detail_from over a detail that is no object, an empty
+// detail_from) adds 51 B: 41,846 B.
+const BUNDLE_GZIP_CEILING = 41_846
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -300,8 +302,9 @@ const TARGET_BUNDLE_GZIP = 22_700
 // its validation fix (a within: selector that does not parse warns under verbose) 27 B: 18,963 B.
 // On top of #440 (18,719 B), #442 adds 311 B: 19,030 B; its review fix (a from: that does not
 // parse is a miss) 5 B: 19,035 B.
-// On top of #440 and #446 (18,799 B), #442 adds 314 B: 19,113 B.
-const CORE_GZIP_CEILING = 19_113
+// On top of #440 and #446 (18,799 B), #442 adds 314 B: 19,113 B. Its follow-up
+// (detail_from's two hand-built edges) adds 40 B: 19,153 B.
+const CORE_GZIP_CEILING = 19_153
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -453,7 +456,8 @@ const FEATURE_GZIP_CEILINGS = {
 // On top of #440 (50,446 B), #442 (+311 B core, +46 B devtools) adds 357 B: 50,803 B;
 // its review fix (+5 B core) 50,808 B; the guarded devtools probe (+12 B devtools) 50,820 B.
 // On top of #440 and #446 (50,526 B), #442 (+314 B core, +58 B devtools) adds 372 B: 50,898 B.
-const SPLIT_TOTAL_GZIP_CEILING = 50_898
+// Its follow-up adds 40 B (core): 50,938 B.
+const SPLIT_TOTAL_GZIP_CEILING = 50_938
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

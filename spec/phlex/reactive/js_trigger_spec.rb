@@ -57,6 +57,15 @@ RSpec.describe Phlex::Reactive::JS do
         .to raise_error(ArgumentError, /preview_file reads a file input, not the trigger/)
     end
 
+    it "is refused, as a Symbol or its sentinel string, as preview_file's into:, name: and wrap:" do
+      triggers = [:trigger, "@trigger"]
+      %i[into name wrap].product(triggers).each do |key, value|
+        others = key == :into ? {} : { into: "#img" }
+        expect { js.preview_file("#f", **others, key => value) }
+          .to raise_error(ArgumentError, /preview_file #{key}: must be a CSS selector string/)
+      end
+    end
+
     it "still raises for any other Symbol, naming the accepted forms" do
       expect { js.show(:menu) }.to raise_error(ArgumentError, /:trigger, :root or a CSS selector/)
     end
@@ -187,6 +196,23 @@ RSpec.describe Phlex::Reactive::JS do
     it "refuses detail_from (it reads off the trigger)" do
       raw = [["dispatch", { "name" => "x", "to" => "@root", "detail" => {}, "detail_from" => { "id" => "data-id" } }]]
       expect { described_class.assert_ops_allowed!(raw) }.to raise_error(ArgumentError, /dispatch names @trigger/)
+    end
+
+    it "refuses @trigger as preview_file's into, name or wrap" do
+      %w[into name wrap].each do
+        raw = [["preview_file", { "to" => "#f", "into" => "#img", it => "@trigger" }]]
+        expect { described_class.assert_ops_allowed!(raw) }.to raise_error(ArgumentError, /preview_file names @trigger/)
+      end
+    end
+
+    it "reads nothing off an empty detail_from, so it names no trigger" do
+      raw = [["dispatch", { "name" => "x", "to" => "@root", "detail" => {}, "detail_from" => {} }]]
+      expect { described_class.assert_ops_allowed!(raw) }.not_to raise_error
+    end
+
+    it "keeps a name that spells the sentinel on ops whose name is not an element" do
+      raw = [["dispatch", { "name" => "@trigger", "to" => "@root", "detail" => {} }]]
+      expect { described_class.assert_ops_allowed!(raw) }.not_to raise_error
     end
 
     it "refuses a non-data-* read attr" do

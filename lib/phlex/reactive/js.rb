@@ -62,6 +62,9 @@ module Phlex
       # an element (where a server-pushed op has no @trigger to put).
       READ_OPS = %w[set_value text set_attr].freeze
       TARGET_KEYS = %w[to from expanded submitter].freeze
+      # preview_file's into:/name:/wrap: name elements too (its name is no
+      # attribute or event name there).
+      PREVIEW_TARGET_KEYS = (TARGET_KEYS + %w[into name wrap]).freeze
 
       # The field-writing ops write a field the author names: never the root
       # (a container) nor the trigger (the element clicked).
@@ -159,11 +162,17 @@ module Phlex
       end
 
       # The name of the first op that names @trigger, or nil. A raw list, or a
-      # hand-built JS.new([...]), may carry Symbol keys or no args Hash.
+      # hand-built JS.new([...]), may carry Symbol keys or no args Hash. An
+      # empty detail_from reads nothing (the client skips it too).
       def self.trigger_op(list)
         Array(list).each do |op, args|
           next unless args.is_a?(::Hash)
-          return op.to_s if arg(args, "detail_from") || TARGET_KEYS.any? { arg(args, it) == TRIGGER_SENTINEL }
+
+          reads = arg(args, "detail_from")
+          return op.to_s if reads.respond_to?(:empty?) ? !reads.empty? : reads
+
+          keys = op.to_s == "preview_file" ? PREVIEW_TARGET_KEYS : TARGET_KEYS
+          return op.to_s if keys.any? { arg(args, it) == TRIGGER_SENTINEL }
         end
         nil
       end
@@ -672,11 +681,15 @@ module Phlex
         args.freeze
       end
 
-      # preview_file's into:/name: — a non-empty CSS selector String, never
-      # :root or its "@root" sentinel (the root is a container, not the img —
-      # and a name: on it would replace the whole component with a file name).
+      # preview_file's into:/name:/wrap: — a non-empty CSS selector String,
+      # never :root or its "@root" sentinel (the root is a container, not the
+      # img — and a name: on it would replace the whole component with a file
+      # name), nor "@trigger" (issue #442; the Symbol :trigger is no String):
+      # the preview goes into elements the author names.
       def preview_selector(key, selector)
-        return selector if selector.is_a?(String) && !selector.strip.empty? && selector != ROOT_SENTINEL
+        if selector.is_a?(String) && !selector.strip.empty? && ![ROOT_SENTINEL, TRIGGER_SENTINEL].include?(selector)
+          return selector
+        end
 
         raise ArgumentError,
           "#{self.class}: preview_file #{key}: must be a CSS selector string, got #{selector.inspect}"

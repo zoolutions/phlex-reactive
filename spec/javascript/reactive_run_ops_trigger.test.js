@@ -390,6 +390,46 @@ test("detail_from with a refused attr warns and skips the dispatch", () => {
   expect(warns.some((w) => w.includes("refused client read"))).toBe(true)
 })
 
+test("detail_from over a hand-built detail that is no object warns and skips the dispatch; its siblings run", () => {
+  const { root, controller } = mount(`<ul id="menu">${ROWS}</ul>`)
+  const details = []
+  root.addEventListener("app:spread", (event) => details.push(event.detail))
+  bind(root.querySelector("#menu"), controller, {
+    on: "click",
+    within: "[role=option]",
+    ops: [
+      ["dispatch", { name: "app:spread", to: "@root", detail: "picked", detail_from: { id: "data-id" } }],
+      ["dispatch", { name: "app:spread", to: "@root", detail: [1, 2], detail_from: { id: "data-id" } }],
+      ["set_attr", { to: "#item-label", name: "data-ran", value: "yes" }],
+    ],
+  })
+
+  const warns = captureWarns(() => click(root.querySelector("#row-1")))
+
+  expect(details).toEqual([])
+  expect(warns.filter((w) => w.includes("refused client read over detail")).length).toBe(2)
+  expect(root.querySelector("#item-label").getAttribute("data-ran")).toBe("yes")
+})
+
+test("an empty detail_from reads nothing: the dispatch fires with its literal detail, trigger or not", () => {
+  mount(`<button id="go">Go</button>`)
+  const details = []
+  document.addEventListener("app:empty", (event) => details.push(event.detail))
+  window.Turbo = { StreamActions: {} }
+  registerReactiveJs()
+  const stream = document.createElement("turbo-stream")
+  stream.setAttribute("target", "picker")
+  stream.setAttribute(
+    "data-reactive-ops",
+    JSON.stringify([["dispatch", { name: "app:empty", to: "@root", detail: { a: "1" }, detail_from: {} }]]),
+  )
+
+  window.Turbo.StreamActions["reactive:js"].call(stream)
+
+  expect(details).toEqual([{ a: "1" }])
+  delete window.Turbo
+})
+
 // --- no trigger -----------------------------------------------------------------
 
 test("a window-bound record has no trigger element: @trigger resolves to nothing (verbose: warned) and its siblings run", () => {
