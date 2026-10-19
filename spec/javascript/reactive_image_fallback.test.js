@@ -442,6 +442,152 @@ test("a sweep decode() that settles after the src changed is ignored (it decoded
   expect(img.hidden).toBe(false)
 })
 
+// --- an image whose request ended before Turbo inserted it (issue #452) ----------
+// Turbo's frame render imports the fetched frame into the document and inserts
+// it a few awaits later; an img starts loading as soon as it is imported, so
+// one that fails (or loads) in that gap fires its event on a DETACHED node,
+// where the document listener cannot hear it. Once Turbo has inserted the
+// content (turbo:frame-render, turbo:render, a stream's render) the runtime
+// reads the result off every marked img that has no state yet.
+
+// An img whose request already ended while it was detached: `complete`, its
+// naturalWidth, and what decode() says — and its event fired unheard.
+function detached(html, { complete = true, naturalWidth = 0, decodes = false } = {}) {
+  const holder = document.createElement("div")
+  holder.innerHTML = html
+  const img = holder.querySelector("img")
+  Object.defineProperty(img, "complete", { value: complete, configurable: true })
+  Object.defineProperty(img, "naturalWidth", { value: naturalWidth, configurable: true })
+  img.decode = () => (decodes ? Promise.resolve() : Promise.reject(new Error("EncodingError")))
+  if (complete) naturalWidth > 0 || decodes ? load(img) : fail(img)
+  return img
+}
+
+// Turbo's FrameRenderer: the content goes into the frame, then the frame
+// dispatches turbo:frame-render (it bubbles).
+function renderFrame(frame, ...imgs) {
+  quietly(() => frame.append(...imgs))
+  frame.dispatchEvent(new window.CustomEvent("turbo:frame-render", { bubbles: true, detail: {} }))
+}
+
+test("an img that failed before its frame was inserted is marked error on turbo:frame-render", async () => {
+  document.body.innerHTML = `<turbo-frame id="logos"></turbo-frame>`
+  const img = detached(`<img src="/logos/missing.svg" alt="Broken" data-reactive-image-fallback="${HIDE}">`)
+  expect(state(img)).toBeNull() // the detached error was not heard
+
+  renderFrame(document.getElementById("logos"), img)
+  await flush()
+
+  expect(state(img)).toBe("error")
+  expect(img.hidden).toBe(true)
+})
+
+test("an img that loaded before its frame was inserted is marked loaded on turbo:frame-render", async () => {
+  document.body.innerHTML = `<turbo-frame id="logos"></turbo-frame>`
+  const fine = detached(`<img src="/logos/007.svg" alt="" data-reactive-image-fallback="${HIDE}">`, { naturalWidth: 64 })
+  const svg = detached(`<img src="/logos/viewbox.svg" alt="" data-reactive-image-fallback="${HIDE}">`, { decodes: true })
+
+  renderFrame(document.getElementById("logos"), fine, svg)
+  await flush()
+
+  expect(state(fine)).toBe("loaded")
+  expect(state(svg)).toBe("loaded")
+  expect(svg.hidden).toBe(false)
+})
+
+test("a page render (turbo:render) marks an img in the new body that failed before it was inserted", async () => {
+  const img = detached(`<img src="/logos/missing.svg" alt="" data-reactive-image-fallback="${HIDE}">`)
+
+  quietly(() => document.body.append(img))
+  document.documentElement.dispatchEvent(new window.CustomEvent("turbo:render", { bubbles: true, detail: { renderMethod: "replace" } }))
+  await flush()
+
+  expect(state(img)).toBe("error")
+  expect(img.hidden).toBe(true)
+})
+
+test("a stream render marks an img it inserted that failed before it was connected", async () => {
+  document.body.innerHTML = `<ul id="list"></ul>`
+  const html = `<li><img src="/logos/missing.svg" alt="" data-reactive-image-fallback="${HIDE}"></li>`
+  const el = document.createElement("turbo-stream")
+  el.setAttribute("action", "append")
+  el.setAttribute("target", "list")
+  el.innerHTML = `<template>${html}</template>`
+  let img = null
+  const detail = {
+    newStream: el,
+    render: async () => {
+      img = detached(`<img src="/logos/missing.svg" alt="" data-reactive-image-fallback="${HIDE}">`)
+      quietly(() => document.getElementById("list").append(img))
+    },
+  }
+
+  document.dispatchEvent(new window.CustomEvent("turbo:before-stream-render", { detail }))
+  await detail.render(el)
+  await flush()
+
+  expect(state(img)).toBe("error")
+  expect(img.hidden).toBe(true)
+})
+
+test("a stream whose content has no marked img leaves Turbo's render alone", () => {
+  const el = document.createElement("turbo-stream")
+  el.setAttribute("action", "append")
+  el.setAttribute("target", "list")
+  el.innerHTML = `<template><li><img src="/logos/007.svg" alt=""></li></template>`
+  const render = async () => {}
+  const detail = { newStream: el, render }
+
+  mod.__resetReactiveImageFallbackForTest()
+  mod.registerReactiveImageFallback() // its listener alone: nothing else wraps the render
+  document.dispatchEvent(new window.CustomEvent("turbo:before-stream-render", { detail }))
+
+  expect(detail.render).toBe(render)
+})
+
+test("the scan never touches an img that already has a state", async () => {
+  document.body.innerHTML = `<turbo-frame id="logos"></turbo-frame>`
+  const img = detached(`<img src="/logos/missing.svg" alt="" data-reactive-image-fallback="${HIDE}" data-reactive-image-state="loaded">`)
+  let decoded = 0
+  img.decode = () => {
+    decoded++
+    return Promise.reject(new Error("EncodingError"))
+  }
+
+  renderFrame(document.getElementById("logos"), img)
+  await flush()
+
+  expect(decoded).toBe(0)
+  expect(state(img)).toBe("loaded")
+  expect(img.hidden).toBe(false)
+})
+
+test("the scan skips an img still loading: its own event marks it, connected", async () => {
+  document.body.innerHTML = `<turbo-frame id="logos"></turbo-frame>`
+  const img = detached(`<img src="/logos/slow.svg" alt="" data-reactive-image-fallback="${HIDE}">`, { complete: false })
+
+  renderFrame(document.getElementById("logos"), img)
+  await flush()
+  expect(img.hasAttribute("data-reactive-image-state")).toBe(false)
+
+  fail(img)
+  expect(state(img)).toBe("error")
+})
+
+test("after a reset, a Turbo render scans nothing", async () => {
+  document.body.innerHTML = `<turbo-frame id="logos"></turbo-frame>`
+  const img = detached(`<img src="/logos/missing.svg" alt="" data-reactive-image-fallback="${HIDE}">`)
+
+  mod.__resetReactiveImageFallbackForTest()
+  try {
+    renderFrame(document.getElementById("logos"), img)
+    await flush()
+    expect(img.hasAttribute("data-reactive-image-state")).toBe(false)
+  } finally {
+    mod.registerReactiveImageFallback()
+  }
+})
+
 test("an img restored from a snapshot (hidden + error already in the DOM) is shown again by a new src", () => {
   // A Turbo restoration visit hands back a NEW element carrying what the
   // fallback wrote — its hidden must still be undoable.

@@ -211,7 +211,9 @@ const SLACK = 250
 // its review fixes (a nested root replaced, or restoring a draft, with a shared field the host reads
 // re-syncs it) 144 B: 41,362 B.
 // Issue #446 (a reply's focus ops wait past Turbo's stream focus restore, in the runtime) adds 69 B: 41,431 B.
-const BUNDLE_GZIP_CEILING = 41_431
+// Issue #452 (an image fallback whose img finished before Turbo inserted it is read off the element
+// after a frame, page or stream render, in the runtime) adds 69 B: 41,500 B.
+const BUNDLE_GZIP_CEILING = 41_500
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -287,7 +289,8 @@ const TARGET_BUNDLE_GZIP = 22_700
 // Issue #439 (preview_file per_file: on a multiple input) adds 197 B: 18,635 B; its review fix 11 B: 18,646 B.
 // Issue #440 (bindingOwns / bindingOwnership: what the client bindings read) adds 73 B: 18,719 B.
 // Issue #446 (a reply's focus ops wait past Turbo's stream focus restore) adds 80 B: 18,799 B.
-const CORE_GZIP_CEILING = 18_799
+// Issue #452 (an image fallback whose img finished before Turbo inserted it) adds 81 B: 18,880 B.
+const CORE_GZIP_CEILING = 18_880
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -434,7 +437,8 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #440 (a shared field drives the host's bindings: +73 B core, +12 B bindings, +53 B compute) adds 138 B: 50,255 B;
 // its review fixes (+72 B bindings, +119 B compute) 191 B: 50,446 B.
 // Issue #446 (a reply's focus ops wait past Turbo's stream focus restore, in the core) adds 80 B: 50,526 B.
-const SPLIT_TOTAL_GZIP_CEILING = 50_526
+// Issue #452 (an image fallback whose img finished before Turbo inserted it, in the core) adds 81 B: 50,607 B.
+const SPLIT_TOTAL_GZIP_CEILING = 50_607
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 
