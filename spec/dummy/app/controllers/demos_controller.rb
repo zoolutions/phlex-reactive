@@ -380,6 +380,10 @@ class DemosController < ActionController::Base
     render_component ImageFallbackComponent.new
   end
 
+  def image_fallback_frame
+    render_component ImageFallbackFrameComponent.new(open: params[:open] == "1")
+  end
+
   def countdown
     render_component OtpCountdownComponent.new(seconds: params.fetch(:seconds, 90).to_i)
   end

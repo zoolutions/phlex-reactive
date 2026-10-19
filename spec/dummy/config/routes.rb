@@ -74,6 +74,7 @@ Rails.application.routes.draw do
   get "modal_dialog" => "demos#modal_dialog" # issue #365: show_modal / close_dialog / data-reactive-modal
   get "photo_preview" => "demos#photo_preview" # issue #375: js.preview_file
   get "image_fallback" => "demos#image_fallback" # issue #383: reactive_image_fallback
+  get "image_fallback_frame" => "demos#image_fallback_frame" # issue #452: a fallback img in a Turbo frame
   get "countdown" => "demos#countdown" # issue #400: reactive_countdown
   get "css_vars" => "demos#css_vars" # issue #417: reactive_css_vars
   get "validated_photo_preview" => "demos#validated_photo_preview" # issue #382: preview_file valid:

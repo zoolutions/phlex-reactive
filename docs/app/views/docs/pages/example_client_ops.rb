@@ -551,6 +551,13 @@ module Views
               - The client listens once on the document (`error` and `load` do not
                 bubble, so it listens in the capture phase): nothing runs per root at
                 connect.
+              - **However the `img` reached the page (#452).** Turbo imports a frame's or
+                a page's new content into the document a moment before it inserts it, and
+                an `img` starts loading then: one that fails in between fires `error`
+                where no document listener hears it. Once Turbo has inserted the content
+                (`turbo:frame-render`, `turbo:render`, a stream's render), the client
+                reads the result off every marked `img` that has no state yet and has
+                finished loading, without a second request.
 
               **The box around it (#392).** A padded, coloured wrapper stays on screen
               when only the `img` is hidden. `wrap:` hides that wrapper too:

@@ -6,6 +6,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`reactive_image_fallback` marks an `img` that failed before Turbo
+  inserted it (#452).** Turbo's frame render imports the fetched frame into
+  the document and inserts it a few awaits later; an `img` starts loading as
+  soon as it is imported, so one whose request failed in that gap fired
+  `error` on a detached node, where the client's document listener could not
+  hear it, and stayed on screen as a broken image. Once Turbo has inserted
+  new content (`turbo:frame-render` for the frame, `turbo:render` for the
+  page, and after a stream whose content holds a marked `img` has rendered),
+  the client now reads the result off every `img[data-reactive-image-fallback]`
+  that has no `data-reactive-image-state` yet and has finished: a
+  `naturalWidth` means `loaded`, otherwise `decode()` decides, as the scan at
+  registration already did. An `img` already marked is not touched, one still
+  loading is left to its own event, and nothing is fetched again.
+
 ## [0.16.9] - 2026-10-19
 
 ### Added

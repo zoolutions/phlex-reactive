@@ -220,7 +220,9 @@ const SLACK = 250
 // On top of #440 (41,362 B), #442 adds 347 B: 41,709 B; its review fix (a from: that does not
 // parse is a miss) 4 B: 41,713 B; the devtools probe that guards a selector that does not parse 8 B: 41,721 B.
 // On top of #440 and #446 (41,431 B), #442 adds 364 B: 41,795 B.
-const BUNDLE_GZIP_CEILING = 41_795
+// Issue #452 (an image fallback whose img finished before Turbo inserted it is read off the element
+// after a frame, page or stream render, in the runtime) adds 69 B: 41,500 B; on top of #442 (41,795 B), 78 B: 41,873 B.
+const BUNDLE_GZIP_CEILING = 41_873
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -301,7 +303,9 @@ const TARGET_BUNDLE_GZIP = 22_700
 // On top of #440 (18,719 B), #442 adds 311 B: 19,030 B; its review fix (a from: that does not
 // parse is a miss) 5 B: 19,035 B.
 // On top of #440 and #446 (18,799 B), #442 adds 314 B: 19,113 B.
-const CORE_GZIP_CEILING = 19_113
+// Issue #452 (an image fallback whose img finished before Turbo inserted it) adds 81 B: 18,880 B;
+// on top of #442 (19,113 B), 80 B: 19,193 B.
+const CORE_GZIP_CEILING = 19_193
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -453,7 +457,9 @@ const FEATURE_GZIP_CEILINGS = {
 // On top of #440 (50,446 B), #442 (+311 B core, +46 B devtools) adds 357 B: 50,803 B;
 // its review fix (+5 B core) 50,808 B; the guarded devtools probe (+12 B devtools) 50,820 B.
 // On top of #440 and #446 (50,526 B), #442 (+314 B core, +58 B devtools) adds 372 B: 50,898 B.
-const SPLIT_TOTAL_GZIP_CEILING = 50_898
+// Issue #452 (an image fallback whose img finished before Turbo inserted it, in the core) adds 81 B: 50,607 B;
+// on top of #442 (50,898 B), 80 B: 50,978 B.
+const SPLIT_TOTAL_GZIP_CEILING = 50_978
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 
