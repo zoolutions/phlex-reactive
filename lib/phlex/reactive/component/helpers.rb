@@ -1659,7 +1659,8 @@ module Phlex
           if CLIENT_WITHIN_NON_BUBBLING.include?(event)
             raise ArgumentError,
               "#{label} within: #{event} does not bubble, so the bound element never hears it from a " \
-              "row — use its bubbling twin (focusin/focusout, mouseover/mouseout, pointerover/pointerout)"
+              "row — bind it on the rows, or use a bubbling twin where there is one (focusin/focusout, " \
+              "mouseover/mouseout, pointerover/pointerout)"
           end
           return unless once
 
@@ -1669,9 +1670,11 @@ module Phlex
         end
 
         # Issue #442: the common events that do not bubble — a within: binding
-        # on the container would never fire for them.
+        # on the container would never fire for them. Not exhaustive (media
+        # has more); the ones a list's rows plausibly fire.
         CLIENT_WITHIN_NON_BUBBLING = %w[
-          focus blur mouseenter mouseleave pointerenter pointerleave load error scroll toggle invalid
+          focus blur mouseenter mouseleave pointerenter pointerleave load error scroll toggle beforetoggle
+          invalid close cancel play pause ended
         ].freeze
         private_constant :CLIENT_WITHIN_NON_BUBBLING
 

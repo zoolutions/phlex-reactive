@@ -449,7 +449,9 @@ export function __resetReactiveKeepForTest() {
 // a morph that changes the src lets the browser try again. A morph that keeps
 // the src puts the state back. An error with no src is not an error (a
 // removed or emptied src). One document listener, capture phase (neither
-// event bubbles); nothing per root at connect.
+// event bubbles); nothing per root at connect. An img that finished before it
+// was in the document (before registration, or while Turbo held it imported
+// but not yet inserted, issue #452) is read off the element instead.
 const IMAGE_FALLBACK = "data-reactive-image-fallback"
 const IMAGE_STATE = "data-reactive-image-state"
 // Marks the `hidden` the fallback set, so a reset removes only that one. On
@@ -580,13 +582,36 @@ export function registerReactiveImageFallback() {
         if (wire) setImageState(img, wire, value)
       })
     },
+    // Content Turbo inserts was imported into the document first, a few awaits
+    // earlier (issue #452): an img loads from then on, so one whose request
+    // ended in between fired its event detached, unheard. Read it off the
+    // element once the content is in: the frame, the page, a stream's render.
+    "turbo:frame-render": (event) => scanImageFallbacks(event.target),
+    "turbo:render": () => scanImageFallbacks(document),
+    "turbo:before-stream-render": (event) => {
+      const detail = event.detail
+      const render = detail?.render
+      const stream = detail?.newStream ?? event.target
+      if (typeof render !== "function" || !stream?.querySelector?.("template")?.content?.querySelector?.(`img[${IMAGE_FALLBACK}]`)) return
+      // The whole document: a replace's target is gone by then.
+      detail.render = async (el) => {
+        await render(el)
+        scanImageFallbacks(document)
+      }
+    },
   }
   for (const [name, fn] of Object.entries(imageFallbackListeners)) document.addEventListener(name, fn, true)
-  // An image that finished before this ran (a cached 404) fired its event
-  // unheard: read it off the element once. naturalWidth 0 is also a loaded
-  // SVG with only a viewBox, so decode() decides (it rejects a broken image).
-  for (const img of document.querySelectorAll?.(`img[${IMAGE_FALLBACK}]`) ?? []) {
-    if (!img.complete || !hasImageSrc(img)) continue
+  // An image that finished before this ran (a cached 404) fired its event unheard.
+  scanImageFallbacks(document)
+}
+
+// Read the result of every marked img in `root` that has no state yet and has
+// finished; one still loading fires its own event, connected. naturalWidth 0
+// is also a loaded SVG with only a viewBox, so decode() decides (it rejects a
+// broken image, and fetches nothing).
+function scanImageFallbacks(root) {
+  for (const img of root?.querySelectorAll?.(`img[${IMAGE_FALLBACK}]`) ?? []) {
+    if (img.getAttribute(IMAGE_STATE) != null || !img.complete || !hasImageSrc(img)) continue
     // A decode() that settles after the src changed decoded the OLD one: ignore it.
     const was = `${img.getAttribute("src")} ${img.getAttribute("srcset")}`
     const mark = (value) => `${img.getAttribute("src")} ${img.getAttribute("srcset")}` === was && setImageState(img, imageFallback(img) ?? {}, value)
@@ -2006,7 +2031,7 @@ function readArgs(name, args, resolveTargets, onZeroTargets) {
   if (!reads || (detail && !Object.keys(reads).length)) return args
   // The reads merge over detail as an object: a String or an Array would be
   // spread key by key (the builder refuses one; a hand-built one is warned).
-  const base = (detail && args.detail) || {}
+  const base = detail ? (args.detail ?? {}) : {}
   if (typeof base != "object" || Array.isArray(base))
     return console.warn(`[phlex-reactive] refused client read over detail ${JSON.stringify(base)} — skipped`), null
   const from = detail ? "@trigger" : args.from

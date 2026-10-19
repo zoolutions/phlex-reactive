@@ -551,6 +551,13 @@ module Views
               - The client listens once on the document (`error` and `load` do not
                 bubble, so it listens in the capture phase): nothing runs per root at
                 connect.
+              - **However the `img` reached the page (#452).** Turbo imports a frame's or
+                a page's new content into the document a moment before it inserts it, and
+                an `img` starts loading then: one that fails in between fires `error`
+                where no document listener hears it. Once Turbo has inserted the content
+                (`turbo:frame-render`, `turbo:render`, a stream's render), the client
+                reads the result off every marked `img` that has no state yet and has
+                finished loading, without a second request.
 
               **The box around it (#392).** A padded, coloured wrapper stays on screen
               when only the `img` is hidden. `wrap:` hides that wrapper too:
@@ -753,8 +760,11 @@ module Views
                 button that was clicked.
               - **Refused at render**: `within:` with `window:`, `outside:`, `shortcut:` or
                 `once:` (Stimulus drops a `:once` listener on its first event, a miss
-                included); `:trigger` as the field of `set_value`, `paste_into` or
-                `preview_file`; and `:trigger`, `from: :trigger` or `detail_from:` in
+                included), and on an event that does not bubble (`focus`, `blur`,
+                `mouseenter`, … — use `focusin`, `focusout`, `mouseover`); `:trigger` as
+                the field of `set_value`, `paste_into` or `preview_file`, or as
+                `preview_file`'s `into:`, `name:` or `wrap:`; `detail_from:` over a
+                `detail:` that is no Hash; and `:trigger`, `from: :trigger` or `detail_from:` in
                 anything the server pushes — `reply.js`, `broadcast_to(js:)`,
                 `reactive_on_complete`: none of them has a trigger element. Neither has a
                 window-bound binding (`window:`, `outside:`, `shortcut:`); there a

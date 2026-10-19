@@ -400,6 +400,8 @@ test("detail_from over a hand-built detail that is no object warns and skips the
     ops: [
       ["dispatch", { name: "app:spread", to: "@root", detail: "picked", detail_from: { id: "data-id" } }],
       ["dispatch", { name: "app:spread", to: "@root", detail: [1, 2], detail_from: { id: "data-id" } }],
+      ["dispatch", { name: "app:spread", to: "@root", detail: "", detail_from: { id: "data-id" } }],
+      ["dispatch", { name: "app:spread", to: "@root", detail: 0, detail_from: { id: "data-id" } }],
       ["set_attr", { to: "#item-label", name: "data-ran", value: "yes" }],
     ],
   })
@@ -407,7 +409,7 @@ test("detail_from over a hand-built detail that is no object warns and skips the
   const warns = captureWarns(() => click(root.querySelector("#row-1")))
 
   expect(details).toEqual([])
-  expect(warns.filter((w) => w.includes("refused client read over detail")).length).toBe(2)
+  expect(warns.filter((w) => w.includes("refused client read over detail")).length).toBe(4)
   expect(root.querySelector("#item-label").getAttribute("data-ran")).toBe("yes")
 })
 
