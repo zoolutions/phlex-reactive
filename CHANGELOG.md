@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.16.11] - 2026-10-19
+
 ### Added
 
 - **`js.preview_file(…, rejected: "#refused")` names each refused file in the
@@ -4468,7 +4470,8 @@ room for dogfood fixes.
   scaffolds a reactive component (and an RSpec spec when the app uses RSpec),
   state-backed by default or record-backed with `--record`.
 
-[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.10...HEAD
+[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.11...HEAD
+[0.16.11]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.10...v0.16.11
 [0.16.10]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.9...v0.16.10
 [0.16.9]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.8...v0.16.9
 [0.16.8]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.7...v0.16.8
