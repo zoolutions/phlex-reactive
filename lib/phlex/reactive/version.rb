@@ -2,6 +2,6 @@
 
 module Phlex
   module Reactive
-    VERSION = "0.16.11"
+    VERSION = "0.16.12"
   end
 end
