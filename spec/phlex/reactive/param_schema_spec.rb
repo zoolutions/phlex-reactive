@@ -387,6 +387,31 @@ RSpec.describe Phlex::Reactive::ParamSchema do
       expect(coerce({ n: :strict_float }, { "n" => "1d3" })).to eq({})
     end
 
+    # An app may turn these on per request; a client value must still drop, not
+    # raise FloatDomainError into a 500.
+    context "when BigDecimal raises on special values" do
+      around do |example|
+        BigDecimal.save_exception_mode do
+          BigDecimal.mode(BigDecimal::EXCEPTION_ALL, true)
+          example.run
+        end
+      end
+
+      it "DROPs what would raise" do
+        ["1e400", "1e-400", "Infinity", "NaN"].each do
+          expect(coerce({ n: :strict_float }, { "n" => it })).to eq({})
+        end
+      end
+
+      it "still coerces an ordinary value" do
+        expect(coerce({ n: :strict_float }, { "n" => "1.5" })).to eq(n: 1.5)
+      end
+
+      it ":decimal DROPs what would raise" do
+        expect(coerce({ n: :decimal }, { "n" => "Infinity" })).to eq({})
+      end
+    end
+
     context "when Ruby warnings are on" do
       around do
         verbose = $VERBOSE

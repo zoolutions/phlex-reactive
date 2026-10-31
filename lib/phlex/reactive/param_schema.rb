@@ -108,7 +108,8 @@ module Phlex
         # applies rather than a fabricated value. ::ArgumentError covers
         # BigDecimal("abc") and a blank/garbage string; ::Date::Error (an
         # ArgumentError subclass) covers the iso8601 parsers; ::TypeError covers a
-        # nil slipping through.
+        # nil slipping through; ::FloatDomainError covers BigDecimal under an
+        # app's BigDecimal.mode exception flags ("Infinity", "1e400").
         #
         # MUST be top-level-qualified (::): the phlex gem defines Phlex::Argument
         # Error (a subclass of the stdlib one), and this file is nested under
@@ -117,7 +118,7 @@ module Phlex
         # parse failure would escape as a 500.
         def parse_or_drop
           yield
-        rescue ::ArgumentError, ::TypeError
+        rescue ::ArgumentError, ::TypeError, ::FloatDomainError
           DROP
         end
 
