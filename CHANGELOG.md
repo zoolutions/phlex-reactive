@@ -6,6 +6,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`:strict_integer` and `:strict_float` param types (#460).** `:integer` and
+  `:float` cast with `to_i`/`to_f`, so a cleared number field reaches the action
+  as `0` and `"12abc"` as `12`, and an action cannot tell a blank field from a
+  typed `0`. The two new built-ins follow the drop contract instead: a blank or
+  unparsable value is dropped, so the keyword default applies. `:strict_integer`
+  is `Integer(value, 10)`, so `"1.5"`, a JSON `1.0` and `"0x10"` drop and `"010"`
+  is `10`; `:strict_float` is `Float(value)`, and also drops hex and a value that
+  overflows to infinity (`"1e400"`). Both take a JSON number as well as a string,
+  and work in nested and array schemas, where a dropped element follows the
+  existing array rule. `:integer` and `:float` are unchanged.
+
+### Fixed
+
+- **The docs now say what `:integer` and `:float` do (#460).** The Actions &
+  events guide and the counter example said a non-numeric value is dropped; it
+  never was. Both pages, and the README, now describe `to_i`/`to_f` and point at
+  the strict types.
+
 ## [0.16.11] - 2026-10-19
 
 ### Added

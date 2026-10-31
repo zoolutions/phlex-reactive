@@ -25,7 +25,8 @@ module Phlex
     #
     # A type is one of:
     #   * a scalar symbol           (:string/:integer/:float/:boolean/:file/:date/
-    #                                :datetime/:decimal, or an app-registered type)
+    #                                :datetime/:decimal/:strict_integer/:strict_float,
+    #                                or an app-registered type)
     #   * a Hash schema             ({ id: :integer, ... })   — nested object
     #   * a one-element Array       ([:integer] / [{ ... }])  — array of that
     class ParamSchema
@@ -53,7 +54,7 @@ module Phlex
         # dups it so app registration doesn't mutate this template). Each entry
         # is a callable(value) -> coerced | DROP. The scalar casts here are the
         # EXACT ones the controller ran, so the existing request-spec matrix is
-        # unchanged.
+        # unchanged (the strict pair came later and has no controller history).
         # rubocop:disable Style/ItBlockParameter, Style/SymbolProc
         # Explicit `(value)` params, NOT `it` or `&:to_s`: the date/datetime/decimal
         # casters wrap an INNER `parse_or_drop { ... }` block, and `it` there would
@@ -73,18 +74,36 @@ module Phlex
             file: nil,
             date: ->(value) { parse_or_drop { Date.iso8601(value.to_s) } },
             datetime: ->(value) { parse_or_drop { DateTime.iso8601(value.to_s) } },
-            decimal: ->(value) { parse_or_drop { BigDecimal(value.to_s) } }
+            decimal: ->(value) { parse_or_drop { BigDecimal(value.to_s) } },
+            # Issue #460: :integer and :float above read a blank field as 0 and
+            # keep that meaning; these two drop it, so a typed 0 stays
+            # distinguishable. to_s first: a JSON body sends 12, not "12". Base 10
+            # so "0x10" isn't another number and "010" isn't octal.
+            strict_integer: ->(value) { parse_or_drop { Integer(value.to_s, 10) } },
+            strict_float: ->(value) { parse_or_drop { strict_float(value.to_s) } }
           }
         end
         # rubocop:enable Style/ItBlockParameter, Style/SymbolProc
 
         private
 
-        # Run a parse that raises on bad input (Date/DateTime iso8601, BigDecimal)
-        # and turn the failure into DROP — the keyword default then applies rather
-        # than a fabricated value. ::ArgumentError covers BigDecimal("abc") and a
-        # blank/garbage string; ::Date::Error (an ArgumentError subclass) covers
-        # the iso8601 parsers; ::TypeError covers a nil slipping through.
+        # Float() has no base argument: it reads "0x10" as 16.0 (:strict_integer's
+        # base 10 refuses the same string), and it lets "1e400" overflow to
+        # Infinity without raising. The only String Float() accepts holding an "x"
+        # is a hex one, so that is what the check matches.
+        def strict_float(text)
+          return DROP if text.match?(/x/i)
+
+          float = Float(text)
+          float.finite? ? float : DROP
+        end
+
+        # Run a parse that raises on bad input (Date/DateTime iso8601, BigDecimal,
+        # Integer, Float) and turn the failure into DROP — the keyword default then
+        # applies rather than a fabricated value. ::ArgumentError covers
+        # BigDecimal("abc") and a blank/garbage string; ::Date::Error (an
+        # ArgumentError subclass) covers the iso8601 parsers; ::TypeError covers a
+        # nil slipping through.
         #
         # MUST be top-level-qualified (::): the phlex gem defines Phlex::Argument
         # Error (a subclass of the stdlib one), and this file is nested under

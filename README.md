@@ -722,14 +722,31 @@ Use in controllers: `render turbo_stream: Counter.replace(counter)`.
 | `reply.pending(records, in:, job:) { … }` + `include Phlex::Reactive::Settles` / `reactive_settle` | For an action that **enqueues** work: mark targets pending, let your job settle them (row + count + empty-state) when it finishes. See [Async actions](#async-actions-replypending--reactive_settle). |
 | `Container.broadcast_collection_to(*keys, container:, in:, append:/prepend:/remove:)` | The broadcast-side `reply.append`/`reply.remove`: the row **plus** the count companion **plus** the empty-state toggle, to peers. |
 
-Param types: `:string` (default), `:integer`, `:float`, `:boolean`, `:file`,
-`:date`, `:datetime`, `:decimal`. Anything not in the schema is dropped before
-reaching your method. `:date`/`:datetime` parse ISO8601 (a value that won't
-parse is dropped — the keyword default applies); `:decimal` parses through
-`BigDecimal` (dropped on a non-numeric value). The schema is **compiled once at
-declaration**: a typo'd type symbol (`params: { count: :interger }`) raises
-`Phlex::Reactive::UnknownParamType` at class load, not silently coercing to a
-string at click time.
+Param types: `:string` (default), `:integer`, `:float`, `:strict_integer`,
+`:strict_float`, `:boolean`, `:file`, `:date`, `:datetime`, `:decimal`. Anything
+not in the schema is dropped before reaching your method. `:date`/`:datetime`
+parse ISO8601 (a value that won't parse is dropped — the keyword default
+applies); `:decimal` parses through `BigDecimal` (dropped on a non-numeric
+value). The schema is **compiled once at declaration**: a typo'd type symbol
+(`params: { count: :interger }`) raises `Phlex::Reactive::UnknownParamType` at
+class load, not silently coercing to a string at click time.
+
+`:integer` and `:float` cast with `to_i`/`to_f` and never drop, so a cleared
+number field arrives as `0` and `"12abc"` as `12`. When `0` means something,
+declare `:strict_integer` (`Integer(value, 10)`) or `:strict_float`
+(`Float(value)`): a blank or unparsable value is dropped, so the keyword default
+applies and a typed `0` stays `0`. `:strict_integer` also drops a fraction, even
+a JSON `1.0`; `:strict_float` also drops hex and a value that overflows to
+infinity (`"1e400"`).
+
+```ruby
+action :save, params: { quantity: :strict_integer, weight: :strict_float }
+
+def save(quantity: nil, weight: nil) # nil when blank or unparsable; a typed 0 stays 0
+  authorize! @widget, :update?
+  @widget.update!(quantity:, weight:)
+end
+```
 
 **Custom param types (`Phlex::Reactive.param_type`).** Register your own type in
 an initializer — the block receives the raw client value and returns the coerced
