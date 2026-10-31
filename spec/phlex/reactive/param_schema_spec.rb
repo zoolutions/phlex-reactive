@@ -398,7 +398,7 @@ RSpec.describe Phlex::Reactive::ParamSchema do
       end
 
       it "DROPs what would raise" do
-        ["1e400", "1e-400", "Infinity", "NaN"].each do
+        %w[1e400 1e-400 Infinity NaN].each do
           expect(coerce({ n: :strict_float }, { "n" => it })).to eq({})
         end
       end
