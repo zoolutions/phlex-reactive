@@ -734,7 +734,7 @@ class load, not silently coercing to a string at click time.
 `:integer` and `:float` cast with `to_i`/`to_f` and never drop, so a cleared
 number field arrives as `0` and `"12abc"` as `12`. When `0` means something,
 declare `:strict_integer` (`Integer(value, 10)`) or `:strict_float`
-(`Float(value)`): a blank or unparsable value is dropped, so the keyword default
+(decimal notation only): a blank or unparsable value is dropped, so the keyword default
 applies and a typed `0` stays `0`. `:strict_integer` also drops a fraction, even
 a JSON `1.0`; `:strict_float` also drops hex and a string too large or too small
 for a Float (`"1e400"`, `"1e-400"`). A bare `1e-400` in a JSON body is already

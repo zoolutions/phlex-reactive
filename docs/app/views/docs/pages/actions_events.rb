@@ -110,7 +110,7 @@ module Views
               | `:integer` | `to_i`: blank and `"abc"` are `0`, `"12abc"` is `12` | never |
               | `:float` | `to_f`: blank and `"abc"` are `0.0`, `"12abc"` is `12.0` | never |
               | `:strict_integer` | `Integer(value, 10)` | blank, non-numeric, a fraction |
-              | `:strict_float` | `Float(value)` | blank, non-numeric, hex, out of range |
+              | `:strict_float` | decimal notation → `Float` | blank, non-numeric, hex, out of range |
               | `:boolean` | truthy string → `true`/`false` | — |
               | `:date` | ISO8601 → `Date` | won't parse |
               | `:datetime` | ISO8601 → `Time` | won't parse |
