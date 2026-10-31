@@ -107,8 +107,8 @@ module Views
               | Type | Coercion | Dropped when |
               |---|---|---|
               | `:string` | the default; used raw | — |
-              | `:integer` | `to_i`, so blank and garbage are `0` | never |
-              | `:float` | `to_f`, so blank and garbage are `0.0` | never |
+              | `:integer` | `to_i`: blank and `"abc"` are `0`, `"12abc"` is `12` | never |
+              | `:float` | `to_f`: blank and `"abc"` are `0.0`, `"12abc"` is `12.0` | never |
               | `:strict_integer` | `Integer(value, 10)` | blank, non-numeric, a fraction |
               | `:strict_float` | `Float(value)` | blank, non-numeric, hex, overflow |
               | `:boolean` | truthy string → `true`/`false` | — |
