@@ -1,0 +1,38 @@
+README.md
+  s_67fbc9fbbab410::t_7b18f79331502d 725-749
+lib/phlex/reactive/param_schema.rb
+  s_67fbc9fbbab410::t_4075084067444a 28-29
+  s_67fbc9fbbab410::t_bd605957faaefb 57
+  s_67fbc9fbbab410::t_a959ae65a6a025 77-83,90-106
+spec/phlex/reactive/param_schema_spec.rb
+  s_67fbc9fbbab410::t_79ef5a58513412 295-312,314-338,340-391,393-397
+  s_67fbc9fbbab410::t_13bb9132c55320 98-108
+  s_67fbc9fbbab410::t_4540177504fac1 313
+  s_67fbc9fbbab410::t_3d4705b2b0a72f 392
+  s_67fbc9fbbab410::t_e5f2744a4288bf 339
+  s_67fbc9fbbab410::t_5cc4c8110b70b0 43-47,53-55
+docs/app/views/docs/pages/actions_events.rb
+  s_67fbc9fbbab410::t_4a4d56ee20a410 110-113
+  s_67fbc9fbbab410::t_5d75daf6e5ccfb 199-200
+  s_67fbc9fbbab410::t_457a80418832bb 121-142
+docs/app/views/docs/pages/example_counter.rb
+  s_67fbc9fbbab410::t_541b2f17ac86c7 67-69
+CHANGELOG.md
+  s_67fbc9fbbab410::t_7ed2c16687f1e0 9-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "068f44eb0e24667ff1e53000926a36484c9a3c81",
+  "prompts": {},
+  "sessions": {
+    "s_67fbc9fbbab410": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5fc5f317-37c1-40d5-9ee1-f8bf81c85f46",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
