@@ -107,8 +107,10 @@ module Views
               | Type | Coercion | Dropped when |
               |---|---|---|
               | `:string` | the default; used raw | — |
-              | `:integer` | `Integer(value)` | non-numeric |
-              | `:float` | `Float(value)` | non-numeric |
+              | `:integer` | `to_i`: blank and `"abc"` are `0`, `"12abc"` is `12` | never |
+              | `:float` | `to_f`: blank and `"abc"` are `0.0`, `"12abc"` is `12.0` | never |
+              | `:strict_integer` | `Integer(value, 10)` | blank, non-numeric, a fraction |
+              | `:strict_float` | decimal notation → `Float` | blank, non-numeric, hex, out of range |
               | `:boolean` | truthy string → `true`/`false` | — |
               | `:date` | ISO8601 → `Date` | won't parse |
               | `:datetime` | ISO8601 → `Time` | won't parse |
@@ -116,9 +118,31 @@ module Views
               | `:file` | `ActionDispatch::Http::UploadedFile`, untouched | a non-file value |
 
               **Drop, don't fabricate.** A value that won't coerce is dropped, so the
-              method receives its keyword default — never a fabricated zero or a
-              coerced-to-string surprise. Give every declared param a default
-              (`def rename(title: nil)`) so a dropped value has somewhere to land.
+              method receives its keyword default. Give every declared param a
+              default (`def rename(title: nil)`) so a dropped value has somewhere
+              to land.
+
+              **`:integer` and `:float` are the exception: they never drop.** `to_i`
+              and `to_f` read a cleared number field as `0` and `"12abc"` as `12`,
+              so an action can't tell a blank field from a typed `0`. When `0` means
+              something (a quantity, a cap, a price), declare the strict type:
+
+              ```ruby
+              action :save, params: { quantity: :strict_integer, weight: :strict_float }
+              def save(quantity: nil, weight: nil)   # nil when blank or unparsable; a typed 0 stays 0
+                authorize! @widget, :update?
+                @widget.update!(quantity:, weight:)
+              end
+              ```
+
+              `:strict_integer` reads base 10 only, so `"0x10"` drops and `"010"` is
+              `10`. A fraction drops even when it is whole, so a JSON `1.0` is
+              dropped too. `:strict_float` drops hex and a string too large or too
+              small for a Float (`"1e400"`, `"1e-400"`). Both accept a JSON number
+              as well as a string, and both ignore surrounding whitespace. The one
+              limit: a bare `1e-400` in a JSON body is already `0.0` when the parser
+              hands it over, so it arrives as zero. A form field's value is a
+              string, so it drops as usual.
 
               Nested and array params compose. A `params: { invoice: { date: :string } }`
               matches bracketed field names (`invoice[date]`) after the endpoint
@@ -175,7 +199,8 @@ module Views
               Register your own type in an initializer. The block receives the raw
               client value and returns the coerced value, or
               `Phlex::Reactive::ParamSchema::DROP` to reject it (the keyword default
-              then applies — the same drop-don't-fabricate contract as the built-ins).
+              then applies — the same drop-don't-fabricate contract as `:date` or
+              `:strict_integer`).
 
               ```ruby
               # config/initializers/phlex_reactive.rb

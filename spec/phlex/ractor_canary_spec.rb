@@ -6,7 +6,8 @@ require "rails_helper"
 # capture-free, so everything it touches is a constant or an input.
 module RactorCanary
   SCHEMA = Ractor.make_shareable(
-    { count: :integer, title: :string, done: :boolean, on: :date, tags: [:string], address: { street: :string } }
+    { count: :integer, title: :string, done: :boolean, on: :date, tags: [:string], address: { street: :string },
+      quantity: :strict_integer, weight: :strict_float }
   )
 
   STREAM = (%(<turbo-stream action="replace" target="todo_7"><template>) +
@@ -88,9 +89,12 @@ RSpec.describe "phlex-reactive inside a non-main Ractor" do # rubocop:disable RS
 
     it_behaves_like "runs inside a non-main Ractor", inputs: [{
       "count" => "3", "title" => 4, "done" => "1", "on" => "2026-10-15",
-      "tags" => ["a", 1], "address" => { "street" => 5 }, "junk" => "dropped"
+      "tags" => ["a", 1], "address" => { "street" => 5 }, "junk" => "dropped",
+      "quantity" => "15", "weight" => "1.5"
     }]
-    it_behaves_like "runs inside a non-main Ractor", inputs: [{ "count" => "x", "on" => "not a date", "tags" => "nope" }]
+    it_behaves_like "runs inside a non-main Ractor", inputs: [{
+      "count" => "x", "on" => "not a date", "tags" => "nope", "quantity" => "", "weight" => "0x10"
+    }]
   end
 
   context "when wrapping a Turbo Stream" do

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "spec_helper"
+require "action_controller"
 
 # Issue #109: the coerce family extracted out of ActionsController into a
 # standalone, compiled-once ParamSchema. Two contracts this spec pins:
@@ -40,9 +41,19 @@ RSpec.describe Phlex::Reactive::ParamSchema do
         .not_to raise_error
     end
 
+    it "accepts the strict numeric built-ins, scalar, nested and in an array" do
+      schema = { a: :strict_integer, b: :strict_float, c: [:strict_integer], d: { e: :strict_float } }
+      expect { described_class.compile(schema) }.not_to raise_error
+    end
+
     it "raises UnknownParamType for a typo'd type symbol" do
       expect { described_class.compile({ count: :interger }) }
         .to raise_error(Phlex::Reactive::UnknownParamType, /interger/)
+    end
+
+    it "raises UnknownParamType for a typo'd strict type symbol" do
+      expect { described_class.compile({ count: :strict_interger }) }
+        .to raise_error(Phlex::Reactive::UnknownParamType, /strict_interger/)
     end
 
     it "raises UnknownParamType as an ArgumentError subclass (not a NameError)" do
@@ -83,6 +94,17 @@ RSpec.describe Phlex::Reactive::ParamSchema do
     it ":float casts via to_f" do
       expect(coerce({ n: :float }, { "n" => "2.5" })).to eq(n: 2.5)
       expect(coerce({ n: :float }, { "n" => "x" })).to eq(n: 0.0)
+    end
+
+    # Issue #460: a blank field is a fabricated zero under these two, on purpose.
+    # :strict_integer and :strict_float are the types that drop it.
+    it ":integer and :float read a blank field as zero, NOT dropped" do
+      expect(coerce({ n: :integer }, { "n" => "" })).to eq(n: 0)
+      expect(coerce({ n: :float }, { "n" => "" })).to eq(n: 0.0)
+    end
+
+    it ":integer keeps the leading digits of a mixed string" do
+      expect(coerce({ n: :integer }, { "n" => "12abc" })).to eq(n: 12)
     end
 
     it ":boolean casts via ActiveModel and KEEPS an unrecognized value as nil (not DROP)" do
@@ -268,6 +290,180 @@ RSpec.describe Phlex::Reactive::ParamSchema do
 
     it "DROPs a non-numeric string (BigDecimal ArgumentError)" do
       expect(coerce({ amount: :decimal }, { "amount" => "abc" })).to eq({})
+    end
+  end
+
+  # Issue #460: the numeric types that follow the drop contract, so an action can
+  # tell a cleared field (its keyword default) from a typed 0.
+  describe "built-in: :strict_integer" do
+    it "coerces a numeric string, a typed zero and a JSON integer" do
+      expect(coerce({ n: :strict_integer }, { "n" => "15" })).to eq(n: 15)
+      expect(coerce({ n: :strict_integer }, { "n" => "0" })).to eq(n: 0)
+      expect(coerce({ n: :strict_integer }, { "n" => 15 })).to eq(n: 15)
+      expect(coerce({ n: :strict_integer }, { "n" => "-3" })).to eq(n: -3)
+    end
+
+    it "reads a leading zero as decimal, not octal" do
+      expect(coerce({ n: :strict_integer }, { "n" => "010" })).to eq(n: 10)
+    end
+
+    it "tolerates the whitespace an untrimmed field carries" do
+      expect(coerce({ n: :strict_integer }, { "n" => " 15 " })).to eq(n: 15)
+    end
+
+    ["", "   ", "12abc", "abc", "1.5", "0x10", "0b11", "1e3", nil, true, [1], "1\u0000", "\xFF"].each do |value|
+      it "DROPs #{value.inspect}" do
+        expect(coerce({ n: :strict_integer }, { "n" => value })).to eq({})
+      end
+    end
+
+    it "DROPs a JSON float, a fraction even when it is whole" do
+      expect(coerce({ n: :strict_integer }, { "n" => 1.5 })).to eq({})
+      expect(coerce({ n: :strict_integer }, { "n" => 1.0 })).to eq({})
+    end
+  end
+
+  describe "built-in: :strict_float" do
+    it "coerces a numeric string, a typed zero and a JSON number" do
+      expect(coerce({ n: :strict_float }, { "n" => "1.5" })).to eq(n: 1.5)
+      expect(coerce({ n: :strict_float }, { "n" => "0" })).to eq(n: 0.0)
+      expect(coerce({ n: :strict_float }, { "n" => 1.5 })).to eq(n: 1.5)
+      expect(coerce({ n: :strict_float }, { "n" => 15 })).to eq(n: 15.0)
+    end
+
+    it "reads the forms a number input sends" do
+      expect(coerce({ n: :strict_float }, { "n" => ".5" })).to eq(n: 0.5)
+      expect(coerce({ n: :strict_float }, { "n" => "1e3" })).to eq(n: 1000.0)
+      expect(coerce({ n: :strict_float }, { "n" => "-1.5E2" })).to eq(n: -150.0)
+    end
+
+    ["", "   ", "abc", "1.5abc", nil, true, [1], "1\u0000", "\xFF", "Infinity", "NaN"].each do |value|
+      it "DROPs #{value.inspect}" do
+        expect(coerce({ n: :strict_float }, { "n" => value })).to eq({})
+      end
+    end
+
+    # Float() reads C hex, the shape :strict_integer's base 10 keeps out.
+    it "DROPs a hex string instead of reading it as another number" do
+      expect(coerce({ n: :strict_float }, { "n" => "0x10" })).to eq({})
+      expect(coerce({ n: :strict_float }, { "n" => "0X1A" })).to eq({})
+      expect(coerce({ n: :strict_float }, { "n" => "0x1p3" })).to eq({})
+    end
+
+    # Float("1e400") overflows to Infinity without raising; JSON.parse does the
+    # same to a bare 1e400, so both bodies have to land on the drop.
+    it "DROPs a value that overflows to Infinity" do
+      expect(coerce({ n: :strict_float }, { "n" => "1e400" })).to eq({})
+      expect(coerce({ n: :strict_float }, { "n" => "-1e400" })).to eq({})
+      expect(coerce({ n: :strict_float }, { "n" => Float::INFINITY })).to eq({})
+    end
+
+    # A nonzero value too small for a Float is not the typed 0 the action would
+    # read it as. The last one is past what BigDecimal itself can hold.
+    it "DROPs a value that would underflow to a fabricated zero" do
+      ["1e-400", "-1e-400", "2e-324", "1e-999999999999999999999"].each do
+        expect(coerce({ n: :strict_float }, { "n" => it })).to eq({})
+      end
+    end
+
+    it "keeps a typed zero in any notation" do
+      ["0", "0.0", "-0", "0e5", "0.0e-400"].each do
+        expect(coerce({ n: :strict_float }, { "n" => it })).to eq(n: 0.0)
+      end
+    end
+
+    it "keeps the smallest values a Float can hold" do
+      expect(coerce({ n: :strict_float }, { "n" => "5e-324" })).to eq(n: 5e-324)
+      expect(coerce({ n: :strict_float }, { "n" => "1e-320" })).to eq(n: 1e-320)
+    end
+
+    it "keeps the largest value a Float can hold" do
+      expect(coerce({ n: :strict_float }, { "n" => "1.7976931348623157e308" })).to eq(n: Float::MAX)
+    end
+
+    # What BigDecimal accepts and Float refuses: neither is a number.
+    it "DROPs a trailing underscore and a d exponent" do
+      expect(coerce({ n: :strict_float }, { "n" => "1_" })).to eq({})
+      expect(coerce({ n: :strict_float }, { "n" => "1d3" })).to eq({})
+    end
+
+    # An app may turn these on per request; a client value must still drop, not
+    # raise FloatDomainError into a 500.
+    context "when BigDecimal raises on special values" do
+      around do |example|
+        BigDecimal.save_exception_mode do
+          BigDecimal.mode(BigDecimal::EXCEPTION_ALL, true)
+          example.run
+        end
+      end
+
+      it "DROPs what would raise" do
+        %w[1e400 1e-400 Infinity NaN].each do
+          expect(coerce({ n: :strict_float }, { "n" => it })).to eq({})
+        end
+      end
+
+      it "still coerces an ordinary value" do
+        expect(coerce({ n: :strict_float }, { "n" => "1.5" })).to eq(n: 1.5)
+      end
+
+      it ":decimal DROPs what would raise" do
+        expect(coerce({ n: :decimal }, { "n" => "Infinity" })).to eq({})
+      end
+    end
+
+    context "when Ruby warnings are on" do
+      around do
+        verbose = $VERBOSE
+        $VERBOSE = true
+        it.run
+      ensure
+        $VERBOSE = verbose
+      end
+
+      # Float() warns "out of range" per call, so a client could write to stderr.
+      it "writes nothing to stderr for a value out of range" do
+        ["1e400", "-1e400", "1e-400", "1e-999999999999999999999"].each do |value|
+          expect { coerce({ n: :strict_float }, { "n" => value }) }.not_to output.to_stderr
+        end
+      end
+    end
+  end
+
+  describe "strict numeric types in composite schemas" do
+    it "a NESTED scalar drops on its own and keeps its siblings" do
+      schema = { invoice: { qty: :strict_integer, weight: :strict_float, note: :string } }
+      params = { "invoice" => { "qty" => "", "weight" => "2.5", "note" => "x" } }
+
+      expect(coerce(schema, params)).to eq(invoice: { weight: 2.5, note: "x" })
+    end
+
+    it "an array keeps the elements that coerce" do
+      expect(coerce({ ids: [:strict_integer] }, { "ids" => ["1", "", "x", "2"] })).to eq(ids: [1, 2])
+      expect(coerce({ ws: [:strict_float] }, { "ws" => ["1.5", "", "abc"] })).to eq(ws: [1.5])
+    end
+
+    it "an array whose every element drops is itself dropped, the existing array rule" do
+      expect(coerce({ ids: [:strict_integer] }, { "ids" => ["", "x"] })).to eq({})
+      expect(coerce({ ws: [:strict_float] }, { "ws" => ["", "abc"] })).to eq({})
+    end
+
+    it "a genuinely empty array stays empty" do
+      expect(coerce({ ids: [:strict_integer] }, { "ids" => [] })).to eq(ids: [])
+    end
+
+    it "an array of hashes drops the field, not the row" do
+      schema = { items: [{ id: :strict_integer, qty: :strict_float }] }
+      params = { "items" => { "0" => { "id" => "7", "qty" => "" } } }
+
+      expect(coerce(schema, params)).to eq(items: [{ id: 7 }])
+    end
+
+    it "records a dropped value on the verbose collector as uncoercible" do
+      dropped = []
+      coerce({ n: :strict_integer, ids: [:strict_float] }, { "n" => "", "ids" => %w[1 x] }, dropped)
+
+      expect(dropped).to contain_exactly(["n", :uncoercible], ["ids[1]", :uncoercible])
     end
   end
 
