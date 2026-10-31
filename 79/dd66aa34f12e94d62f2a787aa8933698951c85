@@ -1,0 +1,19 @@
+docs/app/views/docs/pages/actions_events.rb
+  s_67fbc9fbbab410::t_641589fb7595bd 110-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "79dd66aa34f12e94d62f2a787aa8933698951c85",
+  "prompts": {},
+  "sessions": {
+    "s_67fbc9fbbab410": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5fc5f317-37c1-40d5-9ee1-f8bf81c85f46",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
