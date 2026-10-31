@@ -137,9 +137,12 @@ module Views
 
               `:strict_integer` reads base 10 only, so `"0x10"` drops and `"010"` is
               `10`. A fraction drops even when it is whole, so a JSON `1.0` is
-              dropped too. `:strict_float` drops hex and a value too large or too
+              dropped too. `:strict_float` drops hex and a string too large or too
               small for a Float (`"1e400"`, `"1e-400"`). Both accept a JSON number
-              as well as a string, and both ignore surrounding whitespace.
+              as well as a string, and both ignore surrounding whitespace. The one
+              limit: a bare `1e-400` in a JSON body is already `0.0` when the parser
+              hands it over, so it arrives as zero. A form field's value is a
+              string, so it drops as usual.
 
               Nested and array params compose. A `params: { invoice: { date: :string } }`
               matches bracketed field names (`invoice[date]`) after the endpoint
