@@ -1,0 +1,19 @@
+spec/phlex/reactive/param_schema_spec.rb
+  s_67fbc9fbbab410::t_372334cce497ec 401
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "86d40e554c0b8a42c1153ffd04d596a7840fa1e0",
+  "prompts": {},
+  "sessions": {
+    "s_67fbc9fbbab410": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5fc5f317-37c1-40d5-9ee1-f8bf81c85f46",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
