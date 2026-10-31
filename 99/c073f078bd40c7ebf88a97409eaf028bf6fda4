@@ -1,0 +1,26 @@
+spec/phlex/ractor_canary_spec.rb
+  s_67fbc9fbbab410::t_d85298cfe6ccdc 9-10
+  s_67fbc9fbbab410::t_58db0044c114f1 92-96
+spec/requests/strict_params_spec.rb
+  s_67fbc9fbbab410::t_f62bfe346eeff4 1-45
+lib/phlex/reactive/param_schema.rb
+  s_67fbc9fbbab410::t_0a7586e4dd333e 93-94,97
+spec/dummy/app/components/strict_params_component.rb
+  s_67fbc9fbbab410::t_c00b83c38f932e 1-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "99c073f078bd40c7ebf88a97409eaf028bf6fda4",
+  "prompts": {},
+  "sessions": {
+    "s_67fbc9fbbab410": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5fc5f317-37c1-40d5-9ee1-f8bf81c85f46",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
