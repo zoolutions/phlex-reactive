@@ -110,7 +110,7 @@ module Views
               | `:integer` | `to_i`: blank and `"abc"` are `0`, `"12abc"` is `12` | never |
               | `:float` | `to_f`: blank and `"abc"` are `0.0`, `"12abc"` is `12.0` | never |
               | `:strict_integer` | `Integer(value, 10)` | blank, non-numeric, a fraction |
-              | `:strict_float` | `Float(value)` | blank, non-numeric, hex, overflow |
+              | `:strict_float` | `Float(value)` | blank, non-numeric, hex, out of range |
               | `:boolean` | truthy string → `true`/`false` | — |
               | `:date` | ISO8601 → `Date` | won't parse |
               | `:datetime` | ISO8601 → `Time` | won't parse |
@@ -137,9 +137,10 @@ module Views
 
               `:strict_integer` reads base 10 only, so `"0x10"` drops and `"010"` is
               `10`. A fraction drops even when it is whole, so a JSON `1.0` is
-              dropped too. `:strict_float` drops hex and a value that overflows to
-              infinity (`"1e400"`). Both accept a JSON number as well as a string,
-              and both ignore surrounding whitespace.
+              dropped too. `:strict_float` drops hex and a value too large or too
+              small for a Float (`"1e400"`, `"1e-400"`), so `0` only ever means a
+              typed zero. Both accept a JSON number as well as a string, and both
+              ignore surrounding whitespace.
 
               Nested and array params compose. A `params: { invoice: { date: :string } }`
               matches bracketed field names (`invoice[date]`) after the endpoint

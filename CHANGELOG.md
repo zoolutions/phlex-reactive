@@ -14,8 +14,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   typed `0`. The two new built-ins follow the drop contract instead: a blank or
   unparsable value is dropped, so the keyword default applies. `:strict_integer`
   is `Integer(value, 10)`, so `"1.5"`, a JSON `1.0` and `"0x10"` drop and `"010"`
-  is `10`; `:strict_float` is `Float(value)`, and also drops hex and a value that
-  overflows to infinity (`"1e400"`). Both take a JSON number as well as a string,
+  is `10`; `:strict_float` is `Float(value)`, and also drops hex and a value too
+  large or too small for a Float (`"1e400"`, `"1e-400"`), so a `0` is always a
+  typed zero. Both take a JSON number as well as a string,
   and work in nested and array schemas, where a dropped element follows the
   existing array rule. `:integer` and `:float` are unchanged.
 

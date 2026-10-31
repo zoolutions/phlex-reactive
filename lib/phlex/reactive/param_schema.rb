@@ -87,14 +87,20 @@ module Phlex
 
         private
 
-        # Float() has no base argument: it reads "0x10" as 16.0 (:strict_integer's
-        # base 10 refuses the same string), and it lets "1e400" overflow to
-        # Infinity without raising. The only String Float() accepts holding an "x"
-        # is a hex one, so that is what the check matches. Parse first: the match
-        # then only ever sees a String Float() accepted, never a broken encoding.
+        # Float() alone is not strict: it reads "0x10" as 16.0 (:strict_integer's
+        # base 10 refuses the same string), takes "1e400" to Infinity and "1e-400"
+        # to a fabricated 0.0 without raising, and warns on stderr for both under
+        # -w, once per client value. So BigDecimal screens first: it refuses hex
+        # and never warns, and nothing out of range reaches Float(). Float() then
+        # stays the grammar, refusing the "1_" and "1d3" BigDecimal accepts.
+        #
+        # The zero check reads the mantissa, not BigDecimal#zero?: BigDecimal
+        # itself rounds "1e-999999999999999999999" to an exact zero.
         def strict_float(text)
-          float = Float(text)
-          float.finite? && !text.match?(/x/i) ? float : DROP
+          float = BigDecimal(text).to_f
+          return DROP unless float.finite? && (float.nonzero? || !text.match?(/\A[^e]*[1-9]/i))
+
+          Float(text)
         end
 
         # Run a parse that raises on bad input (Date/DateTime iso8601, BigDecimal,

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "spec_helper"
+require "action_controller"
 
 # Issue #109: the coerce family extracted out of ActionsController into a
 # standalone, compiled-once ParamSchema. Two contracts this spec pins:
@@ -355,6 +356,52 @@ RSpec.describe Phlex::Reactive::ParamSchema do
       expect(coerce({ n: :strict_float }, { "n" => "1e400" })).to eq({})
       expect(coerce({ n: :strict_float }, { "n" => "-1e400" })).to eq({})
       expect(coerce({ n: :strict_float }, { "n" => Float::INFINITY })).to eq({})
+    end
+
+    # A nonzero value too small for a Float is not the typed 0 the action would
+    # read it as. The last one is past what BigDecimal itself can hold.
+    it "DROPs a value that would underflow to a fabricated zero" do
+      ["1e-400", "-1e-400", "2e-324", "1e-999999999999999999999"].each do
+        expect(coerce({ n: :strict_float }, { "n" => it })).to eq({})
+      end
+    end
+
+    it "keeps a typed zero in any notation" do
+      ["0", "0.0", "-0", "0e5", "0.0e-400"].each do
+        expect(coerce({ n: :strict_float }, { "n" => it })).to eq(n: 0.0)
+      end
+    end
+
+    it "keeps the smallest values a Float can hold" do
+      expect(coerce({ n: :strict_float }, { "n" => "5e-324" })).to eq(n: 5e-324)
+      expect(coerce({ n: :strict_float }, { "n" => "1e-320" })).to eq(n: 1e-320)
+    end
+
+    it "keeps the largest value a Float can hold" do
+      expect(coerce({ n: :strict_float }, { "n" => "1.7976931348623157e308" })).to eq(n: Float::MAX)
+    end
+
+    # What BigDecimal accepts and Float refuses: neither is a number.
+    it "DROPs a trailing underscore and a d exponent" do
+      expect(coerce({ n: :strict_float }, { "n" => "1_" })).to eq({})
+      expect(coerce({ n: :strict_float }, { "n" => "1d3" })).to eq({})
+    end
+
+    context "when Ruby warnings are on" do
+      around do
+        verbose = $VERBOSE
+        $VERBOSE = true
+        it.run
+      ensure
+        $VERBOSE = verbose
+      end
+
+      # Float() warns "out of range" per call, so a client could write to stderr.
+      it "writes nothing to stderr for a value out of range" do
+        ["1e400", "-1e400", "1e-400", "1e-999999999999999999999"].each do |value|
+          expect { coerce({ n: :strict_float }, { "n" => value }) }.not_to output.to_stderr
+        end
+      end
     end
   end
 

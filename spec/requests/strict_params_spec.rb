@@ -42,4 +42,30 @@ RSpec.describe "Strict numeric param types (issue #460)", type: :request do
   it "keeps the array elements that coerce" do
     expect(save("sizes" => ["1", "", "x", "2"])).to include("sizes" => [1, 2])
   end
+
+  # A root holding a file posts a form body instead of JSON: every value arrives
+  # as a string, and a cleared field as "".
+  context "when the action arrives as a form body" do
+    def save_form(params)
+      post_reactive_multipart(StrictParamsComponent, "save", payload:, params:)
+      expect(response).to have_http_status(:ok)
+      received(response)
+    end
+
+    it "gives a cleared number field the keyword default" do
+      expect(save_form("quantity" => "", "weight" => "")).to include("quantity" => default, "weight" => default)
+    end
+
+    it "tells a typed 0 from a cleared field" do
+      expect(save_form("quantity" => "0", "weight" => "0")).to include("quantity" => 0, "weight" => 0.0)
+    end
+
+    it "coerces numbers and drops what will not parse" do
+      expect(save_form("quantity" => "15", "weight" => "abc")).to include("quantity" => 15, "weight" => default)
+    end
+
+    it "keeps the array elements that coerce" do
+      expect(save_form("sizes" => ["1", "", "2"])).to include("sizes" => [1, 2])
+    end
+  end
 end

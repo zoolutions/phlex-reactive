@@ -288,7 +288,9 @@ module Phlex
           #
           # Param types are coerced server-side; anything not in the schema is
           # dropped before reaching your method (no mass assignment):
-          #   * Scalars — :string (default), :integer, :float, :boolean
+          #   * Scalars — :string (default), :integer, :float, :boolean,
+          #     :strict_integer, :strict_float (drop a blank or unparsable value;
+          #     :integer and :float read it as 0)
           #   * Array of scalar — wrap the type in an array: [:integer]
           #   * Array of hash (Rails nested attributes) — wrap a hash schema:
           #       action :save, params: {

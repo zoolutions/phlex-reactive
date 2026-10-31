@@ -76,3 +76,20 @@ end
 BenchSupport.header("coerce_params: reactive_scope allocations (per call)")
 BenchSupport.allocations("scoped JSON \"todo[title]\"") { scoped.call(scoped_json) }
 BenchSupport.allocations("scoped nested todo: {...}") { scoped.call(scoped_nested) }
+
+# Issue #460: the strict numeric types against the casts they stand beside.
+# :strict_float parses twice (BigDecimal screens the range, Float keeps the
+# grammar), so it is the one to watch; it only runs where an action declares it.
+loose = Phlex::Reactive::ParamSchema.compile(n: :integer, x: :float)
+strict = Phlex::Reactive::ParamSchema.compile(n: :strict_integer, x: :strict_float)
+numbers = { "n" => "15", "x" => "9.99" }
+
+BenchSupport.header("coerce_params: :integer/:float vs :strict_integer/:strict_float")
+BenchSupport.ips do
+  it.report(":integer + :float") { loose.coerce(numbers, nil) }
+  it.report(":strict_integer + :strict_float") { strict.coerce(numbers, nil) }
+end
+
+BenchSupport.header("coerce_params: strict numeric allocations (per call)")
+BenchSupport.allocations(":integer + :float") { loose.coerce(numbers, nil) }
+BenchSupport.allocations(":strict_integer + :strict_float") { strict.coerce(numbers, nil) }

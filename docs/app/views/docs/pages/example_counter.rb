@@ -64,9 +64,9 @@ module Views
                 param. The schema is compiled once, at class load — so a typo'd type
                 symbol (`{ count: :interger }`) raises
                 `Phlex::Reactive::UnknownParamType` immediately, not silently at
-                click time. `:integer` casts with `to_i`, so a blank or non-numeric
-                value arrives as `0`. Declare `:strict_integer` to drop it instead,
-                so the keyword default applies.
+                click time. `:integer` casts with `to_i`, so a blank value arrives
+                as `0` and `"12abc"` as `12`. Declare `:strict_integer` to drop both
+                instead, so the keyword default applies.
               - Actions are **default-deny** — only methods declared with `action`
                 are invokable. In development and test (`verbose_errors`), an
                 undeclared or typo'd action (`on(:increement)`) fails loudly at

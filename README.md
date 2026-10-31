@@ -736,8 +736,8 @@ number field arrives as `0` and `"12abc"` as `12`. When `0` means something,
 declare `:strict_integer` (`Integer(value, 10)`) or `:strict_float`
 (`Float(value)`): a blank or unparsable value is dropped, so the keyword default
 applies and a typed `0` stays `0`. `:strict_integer` also drops a fraction, even
-a JSON `1.0`; `:strict_float` also drops hex and a value that overflows to
-infinity (`"1e400"`).
+a JSON `1.0`; `:strict_float` also drops hex and a value too large or too small
+for a Float (`"1e400"`, `"1e-400"`).
 
 ```ruby
 action :save, params: { quantity: :strict_integer, weight: :strict_float }
