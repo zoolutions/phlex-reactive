@@ -90,12 +90,11 @@ module Phlex
         # Float() has no base argument: it reads "0x10" as 16.0 (:strict_integer's
         # base 10 refuses the same string), and it lets "1e400" overflow to
         # Infinity without raising. The only String Float() accepts holding an "x"
-        # is a hex one, so that is what the check matches.
+        # is a hex one, so that is what the check matches. Parse first: the match
+        # then only ever sees a String Float() accepted, never a broken encoding.
         def strict_float(text)
-          return DROP if text.match?(/x/i)
-
           float = Float(text)
-          float.finite? ? float : DROP
+          float.finite? && !text.match?(/x/i) ? float : DROP
         end
 
         # Run a parse that raises on bad input (Date/DateTime iso8601, BigDecimal,
