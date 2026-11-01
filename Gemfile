@@ -16,7 +16,7 @@ group :development do
 end
 
 group :test do
-  gem "conformance-kit", "~> 0.4", require: false # concurrency conformance gates (zoolutions/phlex-reactive#363)
+  gem "conformance-kit", "~> 0.5", require: false # concurrency conformance gates (zoolutions/phlex-reactive#363)
   gem "rspec", "~> 3.0"
   gem "rspec-rails", ">= 7.0", "< 9"
 
