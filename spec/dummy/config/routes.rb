@@ -77,6 +77,7 @@ Rails.application.routes.draw do
   get "image_fallback_frame" => "demos#image_fallback_frame" # issue #452: a fallback img in a Turbo frame
   get "countdown" => "demos#countdown" # issue #400: reactive_countdown
   get "css_vars" => "demos#css_vars" # issue #417: reactive_css_vars
+  get "detail_params" => "demos#detail_params" # issue #462: on(detail_params:) — a list hears a sibling's event
   get "validated_photo_preview" => "demos#validated_photo_preview" # issue #382: preview_file valid:
   get "framed_photo_preview" => "demos#framed_photo_preview" # issue #391: preview_file wrap:/max_bytes:/accept:
   get "multi_photo_preview" => "demos#multi_photo_preview" # issue #439: preview_file per_file: on a multiple input

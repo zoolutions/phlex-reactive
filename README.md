@@ -681,6 +681,7 @@ Use in controllers: `render turbo_stream: Counter.replace(counter)`.
 | `on(:action, confirm: "Sure?")` | Gate a destructive trigger behind a confirmation. Defaults to `window.confirm`; override the dialog with [`setConfirmResolver`](#custom-confirmation-dialogs-setconfirmresolver). |
 | `on(:search, listnav: "[role=option]")` | Add combobox keyboard navigation — Arrow keys move a client-side highlight, Enter picks (clicks the option's own trigger), Escape clears. See [Combobox keyboard navigation](#combobox-keyboard-navigation-listnav). |
 | `on(:close_menu, outside: true)` | Fire only for events **outside** this component's root (close-a-dropdown-on-outside-click). Window-bound; never `preventDefault`s, so links elsewhere keep navigating. |
+| `on(:show_new_item, event: "app:item-created", window: true, detail_params: { id: :id })` | Post named `event.detail` values of a custom event as params (`param => detail key`), typed by the action's schema — a list reacts to another component's `js.dispatch`. See [A list reacts to another component's event](#a-list-reacts-to-another-components-event--detail_params). |
 | `on(:track, event: "scroll", window: true, throttle: 250)` | `window:` binds the trigger to the window (page-level scroll/resize); `throttle:` rate-limits leading-edge — first event fires, the rest drop until the window elapses. Mutually exclusive with `debounce:`. |
 | `on(:toggle, optimistic: { checked: :keep })` | Apply a reversible **visual hint** the instant the trigger fires (before the round trip); revert it if the action fails. Cosmetic only. See [Optimistic hints](#optimistic-visual-hints-optimistic). |
 | `on(:save, disable_with: "Saving…")` | Disable the trigger + swap its text while the action is pending (a disabled button also swallows a rapid double-click). Shorthand for `loading: { disable: true, text: "Saving…" }`. See [Loading states](#declarative-loading-states-loading--disable_with). |
@@ -1034,8 +1035,64 @@ end
 div(**mix(reactive_root, on(:track, event: "scroll", window: true, throttle: 500)))
 ```
 
-These four (like `debounce:`/`confirm:`/`listnav:`) are **reserved keyword
+These four (like `debounce:`/`confirm:`/`listnav:`/`detail_params:`) are **reserved keyword
 names** on `on(...)` — no longer usable as free action params.
+
+#### A list reacts to another component's event — `detail_params:`
+
+One component creates an item and says so with `js.dispatch("app:item-created",
+detail: { id: item.id })` in its reply. A list elsewhere on the page should show
+the new item, but only when it fits the list's own state — an active filter, a
+search, a page — and only the list knows that state. `detail_params:` on an
+event-bound `on(...)` names the top-level `event.detail` keys the client posts
+as params (`param name => detail key`), so the list's action gets the id, typed
+and refused by its `params:` schema like any other param, and decides itself:
+
+```ruby
+class CreateForm < ApplicationComponent
+  include Phlex::Reactive::Component
+  action :create, params: { title: :string }
+
+  def create(title:)
+    item = Item.create!(title:)
+    reply.replace.js(js.dispatch("app:item-created", detail: { id: item.id }))
+  end
+end
+
+class ItemList < ApplicationComponent
+  include Phlex::Reactive::Component
+  reactive_state :filter
+  reactive_collection :items, item: ItemRow, container: "items"
+  action :show_new_item, params: { id: :integer }
+
+  def show_new_item(id:)
+    item = Item.find(id)
+    return reply.streams unless item.matches?(@filter)   # the list's rule, in the list
+    reply.prepend(item, to: :items)
+  end
+
+  def view_template
+    div(**mix(reactive_attrs, on(:show_new_item, event: "app:item-created", window: true,
+                                 detail_params: { id: :id }))) do
+      ul(id: "items") { @items.each { render ItemRow.new(item: it) } }
+    end
+  end
+end
+```
+
+The client copies only a flat scalar — a String, a finite Number, a Boolean —
+so the wire shape is a field value's. A missing `event.detail`, a missing key,
+`null` or `undefined` sends **nothing** for that param (the schema then refuses
+or defaults it; the client never invents a value); an Object or Array is
+skipped, warned under `verbose_errors`. The mapping is an allowlist: a detail
+key it does not name is never sent. Static `**params` win over the detail, so a
+param name in both raises at render — as do a non-Hash, a blank name or key, and
+`outside: true` (an outside click carries no detail). `once: true` composes. An
+event that fires before the root connects is replayed with its detail
+(`phlex/reactive/early`), and a chosen file in the root sends the values as
+multipart fields. `detail_params:` adds no trust: a detail is client data, like
+a field — the action's schema stays the only gate, and authorization stays in
+the action.
 
 **Page-level shortcuts — `shortcut:`.** Undo, redo, save and a command palette
 bind with one keyword on `on(...)` or `on_client(:keydown, …)`:
@@ -1500,7 +1557,10 @@ button(**on_client(:click, js
 - **`dispatch(name, to: nil, detail: {}, detail_from: {})`** emits a **bubbling `CustomEvent`** so
   another component or a plain Stimulus controller can react to a client-only
   interaction — `to:` picks the element (default: the component root), `detail:`
-  is the payload, and `detail_from:` (#442) adds values read off the trigger.
+  is the payload, and `detail_from:` (#442) adds values read off the trigger. A
+  server action elsewhere on the page reads that detail with
+  `on(:action, event: name, window: true, detail_params: { param => key })`
+  (#462; see [A list reacts to another component's event](#a-list-reacts-to-another-components-event--detail_params)).
 - **`submit(to = :root)`** commits the **target's own form** via
   `requestSubmit()`: the target itself when it *is* a form, its form owner for a
   control (`input.form`, honoring a `form=` attribute), else the nearest ancestor

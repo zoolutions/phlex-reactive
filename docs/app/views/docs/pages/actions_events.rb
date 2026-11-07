@@ -26,6 +26,7 @@ module Views
           keyboard
           timing
           modifiers
+          detail_params
           shortcuts
           keep_default
           reserved
@@ -322,6 +323,79 @@ module Views
           end
         end
 
+        def detail_params
+          DocsUI::Section('A list reacts to another component\'s event — detail_params:') do
+            md <<~MD
+              One component creates an item and says so with
+              `js.dispatch("app:item-created", detail: { id: item.id })` in its reply
+              ([client-only ops](/docs/example-client-ops)). A list elsewhere on the
+              page should show the new item, but only when it fits the list's own
+              state — an active filter, a search, a page — and only the list knows
+              that state. `on(:action, event: "app:item-created", window: true)` runs
+              the list's action when the event fires, but an action never saw
+              `event.detail`: the posted params were the root's fields and the
+              trigger's static params, so the list could not tell which item was
+              created.
+
+              `detail_params:` (#462) names the top-level `event.detail` keys the
+              client posts as params — a Hash of `param name => detail key`. The
+              action's `params:` schema types and refuses them like any other param,
+              so the rule stays in the list:
+
+              ```ruby
+              class CreateForm < ApplicationComponent
+                include Phlex::Reactive::Component
+                action :create, params: { title: :string }
+
+                def create(title:)
+                  item = Item.create!(title:)
+                  reply.replace.js(js.dispatch("app:item-created", detail: { id: item.id }))
+                end
+              end
+
+              class ItemList < ApplicationComponent
+                include Phlex::Reactive::Component
+                reactive_state :filter
+                reactive_collection :items, item: ItemRow, container: "items"
+                action :show_new_item, params: { id: :integer }
+
+                def show_new_item(id:)
+                  item = Item.find(id)
+                  return reply.streams unless item.matches?(@filter)   # the list's rule, in the list
+                  reply.prepend(item, to: :items)
+                end
+
+                def view_template
+                  div(**mix(reactive_attrs, on(:show_new_item, event: "app:item-created", window: true,
+                                               detail_params: { id: :id }))) do
+                    ul(id: "items") { @items.each { render ItemRow.new(item: it) } }
+                  end
+                end
+              end
+              ```
+
+              - Only a **flat scalar** is copied — a String, a finite Number, a
+                Boolean — so the wire shape is a field value's. A missing
+                `event.detail`, a missing key, `null` or `undefined` sends **nothing**
+                for that param: the schema then refuses or defaults it, the client
+                never invents a value. An Object or Array is skipped, warned under
+                `verbose_errors`.
+              - The mapping is an **allowlist**: a detail key it does not name is
+                never sent. Static `**params` win over the detail, so a param name in
+                both raises at render — as do a non-Hash, a blank name or key, and
+                `outside: true` (an outside click carries no detail). `once: true`
+                composes.
+              - An event that fires before the root connects is replayed with its
+                detail (`phlex/reactive/early`), a chosen file in the root sends the
+                values as multipart fields, and `reactive:before-dispatch`'s
+                `detail.params` includes them.
+              - It adds **no trust**: a detail is client data, like a field. The
+                action's schema stays the only gate, and authorization stays in the
+                action.
+            MD
+          end
+        end
+
         def shortcuts
           DocsUI::Section('Page-level shortcuts — shortcut:') do
             md <<~MD
@@ -450,6 +524,7 @@ module Views
               | `window:` | bind to the window |
               | `outside:` | fire only outside the root (implies `window:`) |
               | `once:` | fire at most once |
+              | `detail_params:` | post named `event.detail` keys of a custom event as params, `param => detail key` (#462) |
               | `prevent:` | `false` keeps an element-bound trigger's native default (#433) |
               | `shortcut:` | a page-level keyboard chord (`"mod+z"`): platform `mod`, skips typing and a key already handled, prevented |
               | `confirm:` | gate behind a confirmation dialog — a String (always), or a Hash (conditional, #179) |

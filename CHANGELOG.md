@@ -19,6 +19,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   as well as a string,
   and work in nested and array schemas, where a dropped element follows the
   existing array rule. `:integer` and `:float` are unchanged.
+- **`on(…, detail_params: { param => detail_key })` posts named `event.detail`
+  values as action params (#462).** A server action bound to a custom event
+  (`on(:show_new_item, event: "app:item-created", window: true)`) never saw the
+  event's detail: the posted params were the root's fields and the trigger's
+  static params, so a list elsewhere on the page could not learn which item
+  another component had just created, and the creating component's reply had
+  to push a hand-targeted stream into it instead. `detail_params:` names the
+  top-level `event.detail` keys the client copies into the params, under the
+  static params; the action's `params:` schema types and refuses them like any
+  other param, so the list decides itself whether the item fits its filter.
+  Only a String, a finite Number or a Boolean is copied: a missing detail or
+  key sends nothing for that param, an Object or Array is skipped (warned under
+  `verbose_errors`). It raises at render for a non-Hash, a blank name or key, a
+  name also in the static params, and `outside: true`; `once: true` composes.
+  The early replay and the multipart body carry the values too, and
+  `reactive:before-dispatch`'s `detail.params` now includes them.
 
 ### Fixed
 

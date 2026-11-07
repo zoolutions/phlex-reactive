@@ -1207,6 +1207,71 @@ RSpec.describe Phlex::Reactive::Component do
     end
   end
 
+  # Issue #462: detail_params: names the top-level event.detail keys a
+  # custom-event-bound trigger posts as params (param name => detail key).
+  describe "#on detail_params: (issue #462)" do
+    subject(:instance) { state_klass.new }
+
+    it "emits the mapping as JSON with string keys and values" do
+      attrs = instance.send(:on, :set, event: "a:b@window", detail_params: { count: :id })
+
+      expect(attrs[:data][:action]).to eq("a:b@window->reactive#dispatch")
+      expect(attrs[:data][:reactive_detail_params_param]).to eq('{"count":"id"}')
+      expect(attrs[:data][:reactive_params_param]).to eq("{}")
+    end
+
+    it "accepts String keys and values, and composes with window: and once:" do
+      attrs = instance.send(:on, :set, event: "a:b", window: true, once: true, detail_params: { "count" => "id" })
+
+      expect(attrs[:data][:action]).to eq("a:b@window->reactive#dispatch:once")
+      expect(attrs[:data][:reactive_detail_params_param]).to eq('{"count":"id"}')
+      expect(attrs[:data][:reactive_window_param]).to eq("true")
+    end
+
+    it "keeps static params beside the mapping (they stay the posted params payload)" do
+      attrs = instance.send(:on, :set, event: "a:b", window: true, detail_params: { count: :id }, source: "list")
+
+      expect(JSON.parse(attrs[:data][:reactive_params_param])).to eq({ "source" => "list" })
+      expect(JSON.parse(attrs[:data][:reactive_detail_params_param])).to eq({ "count" => "id" })
+    end
+
+    it "emits nothing by default (the common trigger is byte-identical)" do
+      expect(instance.send(:on, :increment)[:data]).not_to have_key(:reactive_detail_params_param)
+      expect(instance.send(:on, :increment, detail_params: nil)).to eq(instance.send(:on, :increment))
+    end
+
+    [[], "id", 1, {}].each do |bad|
+      it "raises on #{bad.inspect} (a non-empty Hash only)" do
+        expect { instance.send(:on, :set, event: "a:b", window: true, detail_params: bad) }
+          .to raise_error(ArgumentError, /on\(:set\) detail_params: takes a non-empty Hash/)
+      end
+    end
+
+    it "raises on a blank param name or detail key" do
+      expect { instance.send(:on, :set, event: "a:b", window: true, detail_params: { "" => :id }) }
+        .to raise_error(ArgumentError, /on\(:set\) detail_params: .*blank/)
+      expect { instance.send(:on, :set, event: "a:b", window: true, detail_params: { count: " " }) }
+        .to raise_error(ArgumentError, /on\(:set\) detail_params: .*blank/)
+      expect { instance.send(:on, :set, event: "a:b", window: true, detail_params: { count: nil }) }
+        .to raise_error(ArgumentError, /on\(:set\) detail_params: .*got nil for :count/)
+    end
+
+    it "raises when a param name is also a static param (one would override the other)" do
+      expect { instance.send(:on, :set, event: "a:b", window: true, detail_params: { count: :id }, count: 1) }
+        .to raise_error(ArgumentError, /on\(:set\) detail_params: key :count is also a static param/)
+    end
+
+    it "raises on :count and \"count\" together (they collapse into one key)" do
+      expect { instance.send(:on, :set, event: "a:b", window: true, detail_params: { count: :id, "count" => :n }) }
+        .to raise_error(ArgumentError, /on\(:set\) detail_params: keys must be unique as strings/)
+    end
+
+    it "raises with outside: true (an outside click carries no detail)" do
+      expect { instance.send(:on, :close_menu, outside: true, detail_params: { count: :id }) }
+        .to raise_error(ArgumentError, /on\(:close_menu\) detail_params: cannot combine with outside:/)
+    end
+  end
+
   describe "#on optimistic hints (issue #98 — declared, reversible visual hints)" do
     subject(:instance) { state_klass.new }
 
