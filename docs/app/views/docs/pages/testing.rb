@@ -385,8 +385,22 @@ module Views
               ul do
                 li do
                   code { 'wait_for_reactive' }
-                  plain ' — block until the whole layer is idle (every round trip AND deferred render settled). The system twin of '
+                  plain ' — block until the whole layer is idle (every round trip AND deferred render settled, each reply ' \
+                        'drawn). The system twin of '
                   code { 'wait_for_turbo' }
+                  plain '. It '
+                  strong { 'raises' }
+                  plain ' '
+                  code { 'ReactiveReplyError' }
+                  plain ' when that window had a failure (HTTP error, timeout, redirect, apply error, a failed feature ' \
+                        'or deferred render), naming each failed action, kind and status. '
+                  code { 'wait_for_reactive(allow_error: true)' }
+                  plain ' only waits, for a test that expects the failure. It reads '
+                  code { '<html data-reactive-errors>' }
+                  plain ', the JSON list the client writes on the idle edge and clears on the next busy edge; '
+                  code { 'reactive:idle' }
+                  plain "'s detail carries the same "
+                  code { 'errors' }
                   plain '.'
                 end
                 li do
@@ -444,7 +458,7 @@ module Views
                 visit "/order"
                 find("[data-testid='bump']").click
 
-                wait_for_reactive                          # round trip + defer settled
+                wait_for_reactive                          # round trip + defer settled; raises if one failed
                 expect(page).to have_reactive_value("total", "6")   # re-resolves by id
                 expect(page).to have_reactive_text("recap", "6 items")
               end

@@ -854,8 +854,18 @@ function refusedHeader(response) {
 // (streamOwnReply wraps its render, innermost); a reply none of whose streams
 // rendered releases now. An error reply (keep true) never marks either, but
 // releases nothing: the server refused those values rather than answering them.
-function renderOwnReply(root, html, keep = null) {
-  const own = { root, streams: 0, keep }
+//
+// Returns a promise that settles once the reply is drawn (issue #464), so the
+// dispatch lane leaves the activity counter after the morph, not a repaint
+// before it. Every listener has had its say by the time renderStreamMessage
+// returns (dispatch is synchronous), so a stream whose event was not cancelled
+// is one Turbo will render: the promise waits for each such render to finish
+// (the innermost wrapper below — after an exit effect, after the opt-in
+// client's hold). With none left to wait for — no stream, or every render
+// prevented — it settles after one repaint. Never later than `cap` ms: a render
+// chain that never finishes must not wedge the request queue.
+function renderOwnReply(root, html, keep = null, cap = 30000) {
+  const own = { root, streams: 0, keep, events: [] }
   const previous = replyRoot
   replyRoot = own
   try {
@@ -864,6 +874,20 @@ function renderOwnReply(root, html, keep = null) {
     replyRoot = previous
   }
   if (own.streams === 0) releaseHeld(root, keep)
+  const renders = own.events.filter((entry) => !entry.event.defaultPrevented).map((entry) => entry.done)
+  const drawn = renders.length > 0 ? Promise.all(renders) : nextRepaint()
+  let timer
+  const bound = new Promise((resolve) => (timer = setTimeout(resolve, cap)))
+  return Promise.race([drawn, bound]).finally(() => clearTimeout(timer))
+}
+
+// Turbo's own nextRepaint: a frame, or a task in a hidden tab (where frames
+// stop) and wherever there is no requestAnimationFrame.
+function nextRepaint() {
+  return new Promise((resolve) => {
+    if (document.visibilityState === "hidden" || typeof requestAnimationFrame !== "function") setTimeout(resolve, 0)
+    else requestAnimationFrame(() => resolve())
+  })
 }
 
 function streamOwnReply(event) {
@@ -872,6 +896,8 @@ function streamOwnReply(event) {
   const render = detail?.render
   if (!own || typeof render !== "function") return
   own.streams++
+  let finished
+  own.events.push({ event, done: new Promise((resolve) => (finished = resolve)) })
   detail.render = async (el) => {
     replying.set(own.root, (replying.get(own.root) || 0) + 1)
     try {
@@ -881,6 +907,7 @@ function streamOwnReply(event) {
       if (left) replying.set(own.root, left)
       else replying.delete(own.root)
       releaseHeld(own.root, own.keep)
+      finished()
     }
   }
 }
@@ -988,9 +1015,20 @@ export function registerReactiveDev() {
 // is fully applied by the time the call returns — there is no async window to await
 // (the "value settles a beat after a morph/seed" case the issue describes is
 // covered by the System test helpers' re-resolve-by-id polling, not this counter).
+//
+// Each busy window (busy edge to idle edge) also collects the failures raised
+// inside it (issue #464): a dispatch that failed (every reactive:error kind,
+// apply included), a feature that could not load, a deferred render that
+// failed. reactive:idle's detail carries them as `errors`, and <html> carries
+// data-reactive-errors (the same list, as JSON) from that idle edge until the
+// next busy edge — so a system test can tell a failed round trip from one that
+// rendered. A failure raised while nothing is in flight belongs to no window
+// and is not kept.
 export const ACTIVE_ATTR = "data-reactive-active"
+export const ERRORS_ATTR = "data-reactive-errors"
 
 let activityCount = 0
+let activityErrors = []
 
 // Increment the global in-flight count; on the 0 -> 1 edge, mark <html> and fire
 // reactive:busy. Fully defensive — a non-browser/test document with no
@@ -998,7 +1036,17 @@ let activityCount = 0
 // side effects (a global signal must never throw during bootstrap or a round trip).
 export function enterReactiveActivity() {
   activityCount++
-  if (activityCount === 1) syncReactiveActivity("reactive:busy")
+  if (activityCount === 1) {
+    activityErrors = []
+    syncReactiveActivity("reactive:busy")
+  }
+}
+
+// Note a failure in the open busy window: { action, kind, status, root }, each
+// null when it does not apply. Called BEFORE the failing operation exits.
+export function recordReactiveError({ action = null, kind, status = null, root = null }) {
+  if (activityCount === 0) return
+  activityErrors.push({ action: action ?? null, kind, status: status ?? null, root: root || null })
 }
 
 // Decrement the global in-flight count, clamped at 0 so an unbalanced exit can
@@ -1020,8 +1068,10 @@ export function reactiveActivityCount() {
 // since the module is imported once per bun run.
 export function resetReactiveActivity() {
   activityCount = 0
+  activityErrors = []
   const root = typeof document !== "undefined" ? document.documentElement : null
   root?.removeAttribute?.(ACTIVE_ATTR)
+  root?.removeAttribute?.(ERRORS_ATTR)
 }
 
 // Write the <html> marker from the current count and fire the edge event on
@@ -1031,11 +1081,15 @@ export function resetReactiveActivity() {
 function syncReactiveActivity(eventName) {
   if (typeof document === "undefined") return
   const root = document.documentElement
+  const idle = eventName === "reactive:idle"
   if (typeof root?.toggleAttribute === "function") {
     root.toggleAttribute(ACTIVE_ATTR, activityCount > 0)
+    if (idle && activityErrors.length > 0) root.setAttribute(ERRORS_ATTR, JSON.stringify(activityErrors))
+    else root.removeAttribute(ERRORS_ATTR)
   }
   if (typeof document.dispatchEvent === "function" && typeof CustomEvent === "function") {
-    document.dispatchEvent(new CustomEvent(eventName, { detail: { count: activityCount } }))
+    const detail = idle ? { count: activityCount, errors: activityErrors.slice() } : { count: activityCount }
+    document.dispatchEvent(new CustomEvent(eventName, { detail }))
   }
 }
 
@@ -2596,6 +2650,7 @@ function forgetWaiting(root, name, pending) {
 const FEATURE_SHARED = {
   enter: enterReactiveActivity,
   exit: exitReactiveActivity,
+  fail: recordReactiveError,
   count: countReactiveRequest,
   // The editable collector and server text (issue #351), for the draft.
   text: editableValue,
@@ -3219,6 +3274,7 @@ export default class extends Controller {
   #featureFailed(name, phase, error) {
     logFeatureFailure(name, phase, error)
     this.#markError("feature")
+    recordReactiveError({ kind: "feature", root: this.element.id })
     // A lazy shell whose module will never come (a failed import stays failed
     // until the page is reloaded) must not go on shimmering as if it loaded.
     if (phase === "load" && this.element.getAttribute?.("data-reactive-defer-pending")) {
@@ -4145,6 +4201,7 @@ export default class extends Controller {
       }
       return this.#enqueue(action, rawParams)
     }
+    recordReactiveError({ action, kind: extra.kind, status: extra.status, root: this.element.id })
     this.#emit("reactive:error", { action, params: sentParams, ...extra, retry })
   }
 
@@ -4390,7 +4447,7 @@ export default class extends Controller {
             if (__SPLIT__) this.#devtools((devtools) => devtools.recordBody(debug, errorBody, fresh))
             else devtoolsFeature.recordBody(debug, errorBody, fresh)
           }
-          renderOwnReply(this.element, errorBody, true)
+          await renderOwnReply(this.element, errorBody, true, this.#timeoutMs())
         }
         this.#markError("http")
         this.#emitError(action, params, allParams, { kind: "http", status: response.status, body: errorBody })
@@ -4424,7 +4481,7 @@ export default class extends Controller {
       // focused input + caret on unchanged nodes — see issue #28. As the root's
       // own reply, it clears what the root held (issue #370), but what it
       // refused (issue #413).
-      renderOwnReply(this.element, html, refusedHeader(response))
+      const drawn = renderOwnReply(this.element, html, refusedHeader(response), this.#timeoutMs())
       // Debug-only (issue #181): the morph may apply a microtask later, so check
       // the resurrected-hide case AFTER it lands. Off the debug path, resurrect is
       // null — zero cost.
@@ -4437,6 +4494,10 @@ export default class extends Controller {
       // complete a tick later. Apps needing post-morph timing listen to Turbo's
       // own events; this one is for "the action round trip succeeded".
       this.#emit("reactive:applied", { action, params: allParams, html })
+      // The round trip ends once the reply is drawn (issue #464): the finally's
+      // settle (and with it the activity counter's idle edge) runs after the
+      // morph, and the next queued action starts after it too.
+      await drawn
       // What core.proceed resolves with: a feature can tell a reply that
       // applied from a failure (every other exit returns nothing).
       return html
@@ -4449,6 +4510,8 @@ export default class extends Controller {
       // action the server already completed.
       console.error("[phlex-reactive] action error", error)
       this.#revertOptimistic(pending.inverse)
+      this.#markError("apply")
+      recordReactiveError({ action, kind: "apply", root: this.element.id })
       this.#emit("reactive:error", { action, params: allParams, kind: "apply" })
     } finally {
       // Settle the loading state (issue #99): decrement the pending counter,

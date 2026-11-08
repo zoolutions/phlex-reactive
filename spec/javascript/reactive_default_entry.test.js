@@ -51,6 +51,8 @@ beforeEach(() => {
   // Every timer the client arms is recorded (and never fired).
   timers = []
   globalThis.setTimeout = (fn, ms) => timers.push({ fn, ms })
+  // The reply's repaint (issue #464) on the real clock: the fake one never fires.
+  globalThis.requestAnimationFrame = (fn) => REAL.setTimeout(fn, 0)
   posts = []
   window.Turbo = { StreamActions: {}, renderStreamMessage: () => {} }
   globalThis.fetch = (url, options) => {
@@ -72,6 +74,7 @@ const built = []
 afterEach(() => {
   for (const controller of built.splice(0)) controller.disconnect()
   globalThis.setTimeout = REAL.setTimeout
+  delete globalThis.requestAnimationFrame
   globalThis.localStorage = REAL.localStorage
 })
 

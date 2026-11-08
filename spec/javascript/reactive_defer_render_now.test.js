@@ -13,7 +13,7 @@
 // requestAnimationFrame that only runs when a test says so.
 //
 // Run with: bun test spec/javascript
-import { test, expect, mock, beforeAll, beforeEach } from "bun:test"
+import { test, expect, mock, beforeAll, beforeEach, afterAll } from "bun:test"
 import { Window } from "happy-dom"
 
 const window = new Window()
@@ -129,6 +129,11 @@ beforeEach(() => {
   document.body.innerHTML = '<div id="menu">loading</div><ul id="list"></ul>'
   resetReactiveDefers()
   registerReactiveDefer()
+})
+
+// A frame queue left behind would hold every later file's repaint (issue #464).
+afterAll(() => {
+  delete globalThis.requestAnimationFrame
 })
 
 function listen(name, fn) {

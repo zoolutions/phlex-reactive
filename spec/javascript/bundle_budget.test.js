@@ -225,7 +225,9 @@ const SLACK = 250
 // #442's follow-up (detail_from over a hand-built detail that is no object; an empty detail_from) adds 47 B: 41,920 B.
 // Issue #445 (preview_file rejected: — a refused file's name listed from an app <template>, kept
 // across a morph, in the runtime) adds 273 B on top of that: 42,193 B.
-const BUNDLE_GZIP_CEILING = 42_193
+// Issue #464 (reactive:idle waits for the reply to be drawn and lists what failed: the render-aware
+// renderOwnReply, the error ledger, the defer hook) adds 368 B: 42,561 B.
+const BUNDLE_GZIP_CEILING = 42_561
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -310,7 +312,8 @@ const TARGET_BUNDLE_GZIP = 22_700
 // on top of #442 (19,113 B), 80 B: 19,193 B.
 // #442's follow-up (detail_from's two hand-built edges) adds 39 B: 19,232 B.
 // Issue #445 (preview_file rejected: lists each refused file) adds 293 B on top of that: 19,525 B.
-const CORE_GZIP_CEILING = 19_525
+// Issue #464 (the render-aware renderOwnReply and the error ledger) adds 356 B: 19,881 B.
+const CORE_GZIP_CEILING = 19_881
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -339,7 +342,8 @@ const FEATURE_GZIP_CEILINGS = {
   // restores a draft) to 8,480 B.
   "features/bindings": 8_480,
   // Issue #336 (render a defer reply now) takes it from 2,845 B to 2,974 B.
-  "features/defer": 2_974,
+  // Issue #464 (a failed defer noted in the busy window) to 2,995 B.
+  "features/defer": 2_995,
   // Issue #440 (the input listener for a shared field in a nested root, which Stimulus
   // never routes to this root's recompute) takes it from 2,050 B to 2,103 B; its review
   // fixes (the marker read first, a re-seed when such a nested root connects or restores a
@@ -466,7 +470,8 @@ const FEATURE_GZIP_CEILINGS = {
 // on top of #442 (50,898 B), 80 B: 50,978 B.
 // #442's follow-up (+39 B core): 51,017 B.
 // Issue #445 (preview_file rejected:, in the core) adds 293 B on top of that: 51,310 B.
-const SPLIT_TOTAL_GZIP_CEILING = 51_310
+// Issue #464 (+356 B core, +21 B defer) adds 377 B: 51,687 B.
+const SPLIT_TOTAL_GZIP_CEILING = 51_687
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

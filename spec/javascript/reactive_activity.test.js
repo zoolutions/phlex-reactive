@@ -397,7 +397,7 @@ test("a superseded defer stays net busy (delete+set is zero), settles once", asy
 
 test("a defer that ERRORS exits activity (failDefer path)", async () => {
   const el = makeDeferTarget("slow-totals")
-  const { rootAttrs } = stubDocument({ byId: { "slow-totals": el }, metas: { "csrf-token": "c" } })
+  const { rootAttrs, events } = stubDocument({ byId: { "slow-totals": el }, metas: { "csrf-token": "c" } })
   const { actions } = stubTurbo()
   const calls = stubDeferFetch()
   mod.registerReactiveDefer()
@@ -413,6 +413,10 @@ test("a defer that ERRORS exits activity (failDefer path)", async () => {
   }
   expect(mod.reactiveActivityCount()).toBe(0)
   expect("data-reactive-active" in rootAttrs).toBe(false)
+  // The failure is listed in the window it ended (issue #464).
+  const idle = events.find((e) => e.type === "reactive:idle")
+  expect(idle.detail.errors).toEqual([{ action: null, kind: "defer", status: null, root: "slow-totals" }])
+  expect(JSON.parse(rootAttrs["data-reactive-errors"])).toEqual(idle.detail.errors)
 })
 
 test("a dispatch AND a defer sum in the global counter, independently balanced", async () => {

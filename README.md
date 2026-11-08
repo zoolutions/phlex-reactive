@@ -4787,6 +4787,27 @@ find("#open-panel").click
 expect(page).to have_reactive_requests(1)
 ```
 
+`wait_for_reactive` returns once every reply is drawn, not when its fetch
+resolves, so a one-shot read right after it sees the morph. It also **raises**
+`Phlex::Reactive::TestHelpers::System::ReactiveReplyError` when the busy window
+it waited on had a failure (an HTTP error, a timeout, a redirect, a
+non-turbo-stream reply, a client-side apply error, a feature or deferred render
+that failed). The message names each one, e.g.
+`reactive action "increment" failed (http 500) on #flaky-counter`, and `#errors`
+returns the list. Pass `allow_error: true` to a test that expects the failure:
+
+```ruby
+click_on "Add"
+wait_for_reactive                    # raises if the round trip failed
+click_on "Break it"
+wait_for_reactive(allow_error: true) # waits only, as in 0.16
+```
+
+It reads what the client records: `reactive:idle`'s detail carries `errors`
+(`[{ action, kind, status, root }]`, `[]` after a clean window), and
+`<html data-reactive-errors>` holds the same list as JSON from that idle edge
+until the next `reactive:busy` edge.
+
 > `verbose_errors` defaults ON in test (it changes only an error BODY, never a
 > status). Asserting an empty failure body? Set
 > `Phlex::Reactive.verbose_errors = false` in your setup.
