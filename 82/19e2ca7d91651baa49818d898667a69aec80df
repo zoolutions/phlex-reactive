@@ -1,0 +1,19 @@
+spec/system/dormant_root_spec.rb
+  s_53c2b001f65bb8::t_1badd18fdd5bac 35-36,227
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "8219e2ca7d91651baa49818d898667a69aec80df",
+  "prompts": {},
+  "sessions": {
+    "s_53c2b001f65bb8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e5ae67ba-2a11-4e72-bb51-1a08d2649669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
