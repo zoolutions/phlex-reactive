@@ -351,3 +351,31 @@ test("a stream render that throws inside Turbo is listed as an apply failure", a
   expect(idles[0].detail.errors).toEqual([{ action: "save", kind: "apply", status: null, root: "r" }])
   expect(document.getElementById("r").getAttribute("data-reactive-error")).toBe("apply")
 })
+
+test("a stream that throws after the reply was drawn keeps the drawn DOM: no optimistic revert, the reply still counts", async () => {
+  mount("r", '<button id="btn">Done?</button>')
+  const controller = controllers.at(-1)
+  const btn = document.getElementById("btn")
+  // The morph renders the server's state (done), then a later stream throws.
+  replies.r = {
+    apply: () => {
+      btn.classList.add("done")
+      throw new Error("a later stream blew up")
+    },
+  }
+  globalThis.fetch = () => Promise.resolve(ok('<turbo-stream target="r"></turbo-stream>'))
+  const applied = []
+  document.getElementById("r").addEventListener("reactive:applied", () => applied.push(true))
+
+  await controller.dispatch({
+    params: { action: "save", params: "{}", optimistic: { add_class: ["done"] } },
+    target: btn,
+    currentTarget: btn,
+    preventDefault() {},
+  })
+
+  expect(btn.classList.contains("done")).toBe(true)
+  expect(applied).toHaveLength(1)
+  expect(idles[0].detail.errors).toEqual([{ action: "save", kind: "apply", status: null, root: "r" }])
+  expect(document.getElementById("r").getAttribute("data-reactive-error")).toBe("apply")
+})

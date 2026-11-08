@@ -228,8 +228,9 @@ const SLACK = 250
 // Issue #464 (reactive:idle waits for the reply to be drawn and lists what failed: the render-aware
 // renderOwnReply, the error ledger, the defer hook) adds 368 B: 42,561 B; its validation fix (the busy
 // state reverts at hand-off, only the activity exit waits for the draw) 38 B: 42,599 B; its review fix
-// (a stream that throws while rendering is an apply failure) 37 B: 42,636 B.
-const BUNDLE_GZIP_CEILING = 42_636
+// (a stream that throws while rendering is an apply failure) 37 B: 42,636 B; recorded inline after the
+// draw, with no revert, 5 B: 42,641 B.
+const BUNDLE_GZIP_CEILING = 42_641
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors

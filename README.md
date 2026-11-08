@@ -3681,8 +3681,11 @@ is cleared, so it does not shimmer forever) while a `reactive_lazy(on:)` shell
 still loads through the plain action. The 10 s is
 `<meta name="phlex-reactive-feature-timeout" content="ms">` in `<head>`.
 
-`apply` covers a throw in the controller's own post-fetch code — not a
-throwing listener on `reactive:applied` itself. Per the DOM spec,
+`apply` covers a throw in the controller's own post-fetch code, and a stream of
+the root's own reply that throws while Turbo renders it — not a throwing
+listener on `reactive:applied` itself. The stream case comes a repaint after
+`reactive:applied`, so one round trip can fire both; the rest of the reply is
+already drawn, so nothing reverts. Per the DOM spec,
 `EventTarget#dispatchEvent` never propagates a listener's exception back to
 its caller (it's reported to the console instead), so a listener that throws
 can't surface as `reactive:error` at all — it just logs and the round trip is

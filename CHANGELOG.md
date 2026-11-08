@@ -29,7 +29,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   when that list is not empty `<html data-reactive-errors>` holds it as JSON from
   that idle edge until the next busy edge (a clean window leaves the attribute
   absent). A stream of the reply that throws while Turbo renders it is listed as
-  `apply` too.
+  `apply` too (after `reactive:applied`; the drawn rest of the reply is not
+  reverted). A render still running when the action timeout cuts the wait off
+  is not recorded.
 
 ### Changed
 

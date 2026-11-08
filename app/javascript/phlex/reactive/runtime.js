@@ -4506,11 +4506,19 @@ export default class extends Controller {
       // morph, and the next queued action starts after it too. The busy state
       // reverts first, still a repaint before the streams render.
       settle?.handoff?.()
-      // A stream that threw while rendering is a client-side apply failure.
+      // A stream that threw while Turbo rendered it is a client-side apply
+      // failure. Recorded here, not in the catch below: the rest of the reply
+      // is already drawn, so nothing reverts (the optimistic inverse would undo
+      // over the server's state) and the reply still counts as applied.
       const failure = await drawn
-      if (failure) throw failure
+      if (failure) {
+        this.#markError("apply")
+        recordReactiveError({ action, kind: "apply", root: this.element.id })
+        this.#emit("reactive:error", { action, params: allParams, kind: "apply" })
+      }
       // What core.proceed resolves with: a feature can tell a reply that
-      // applied from a failure (every other exit returns nothing).
+      // applied from a failure (every other exit returns nothing). A reply
+      // with a stream that threw still applied the rest.
       return html
     } catch (error) {
       // The server already processed this action successfully (we're past the
