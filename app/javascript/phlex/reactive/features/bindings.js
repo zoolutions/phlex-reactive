@@ -1341,9 +1341,9 @@ function warnNestedOnce(c, assoc) {
 // two features can't drift). Sources resolve root-scoped and owned (#15); an
 // unresolved source or an unmatched key is silently skipped (the row still
 // adds — a half-mapped binding must never throw on click). Returns the FIRST
-// source control read (for focus), or null. With `clear`, resets every source
-// it read via the set-value + dispatch contract (#183) so dirty/show/compute
-// observe the reset.
+// source control read (for focus), or null. With a `clear` mode ("true" or
+// "reset", #466), resets every source it read via the set-value + dispatch
+// contract (#183) so dirty/show/compute observe the reset.
 function seedNestedRow(c, row, fromJson, clear) {
   if (!fromJson) return null
   let map
@@ -1365,7 +1365,7 @@ function seedNestedRow(c, row, fromJson, clear) {
     seedNestedField(target, source)
     sources.push(source)
   }
-  if (clear) for (const source of sources) clearNestedSource(source)
+  if (clear) for (const source of sources) clearNestedSource(source, clear)
   return sources[0] ?? null
 }
 
@@ -1385,9 +1385,25 @@ function seedNestedField(target, source) {
 
 // Reset a source control after a fill-then-add (issue #208), dispatching a
 // bubbling `input` so dirty tracking / reactive_show / compute see the reset.
-function clearNestedSource(source) {
-  if (source.type === "checkbox") source.checked = false
-  else source.value = ""
+// "true" empties it; "reset" (issue #466) puts it back to its server-rendered
+// default, the way a form reset would: a checkbox/radio to defaultChecked, a
+// select to its reset option(s), anything else to defaultValue. A one-row
+// single select resets to its last defaultSelected option or, with none, its
+// first enabled one; a multiple (or size > 1) select to exactly its
+// defaultSelected options — the rule dirty tracking diffs against (form.js
+// fieldDirty, issue #297), so a reset source reads clean.
+function clearNestedSource(source, mode) {
+  const reset = mode === "reset"
+  if (source.type === "checkbox" || (reset && source.type === "radio")) {
+    source.checked = reset && !!source.defaultChecked
+  } else if (reset && source.options) {
+    const options = Array.from(source.options)
+    const single = !source.multiple && !(source.size > 1)
+    const pick = options.filter((o) => o.defaultSelected).pop() ?? options.find((o) => !o.closest?.("optgroup")?.disabled && !o.disabled)
+    for (const o of options) o.selected = single ? o === pick : !!o.defaultSelected
+  } else {
+    source.value = reset ? (source.defaultValue ?? "") : ""
+  }
   fireInput(source)
 }
 
@@ -1623,7 +1639,8 @@ export function nestedAdd(controller, core, event) {
   // reads. `seeded` is the FIRST source we cleared/read, so fill-then-add can
   // return focus to the sources instead of stealing it into the new row.
   const fromJson = trigger?.getAttribute?.("data-reactive-nested-from-param")
-  const clear = trigger?.getAttribute?.("data-reactive-nested-clear-param") === "true"
+  const clearParam = trigger?.getAttribute?.("data-reactive-nested-clear-param")
+  const clear = clearParam === "true" || clearParam === "reset" ? clearParam : null
   const firstSource = seedNestedRow(c, row, fromJson, clear)
 
   // Focus: inline-edit (no from:) focuses the new row's first field so you

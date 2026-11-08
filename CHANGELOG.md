@@ -19,6 +19,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   as well as a string,
   and work in nested and array schemas, where a dropped element follows the
   existing array rule. `:integer` and `:float` are unchanged.
+- **`reactive_nested_add(clear: :reset)` (#466).** `clear: true` empties every
+  fill-then-add source after an add, so a checkbox that renders ticked was
+  unticked for every row after the first. `clear: :reset` puts each source back
+  to what the server rendered, the way a form reset would: a checkbox or radio to
+  its `checked` attribute, a text input to its `value`, a select to its
+  `selected` option (else its first enabled one; a multiple select to exactly its
+  `selected` options). Each reset source dispatches one bubbling `input`, as
+  `clear: true` does. `clear: true` is unchanged; any `clear:` value other than
+  `true`, `false`, `nil` or `:reset` now raises `ArgumentError` at render.
 
 ### Fixed
 

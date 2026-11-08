@@ -3394,6 +3394,30 @@ RSpec.describe Phlex::Reactive::Component do
         expect(attrs[:data][:reactive_nested_clear_param]).to eq("true")
       end
 
+      it "emits clear: :reset as the STRING \"reset\" (issue #466)" do
+        attrs = instance.send(:reactive_nested_add, :line_items, from: { quantity: "#q" }, clear: :reset)
+        expect(attrs[:data][:reactive_nested_clear_param]).to eq("reset")
+      end
+
+      it "omits the clear param for clear: false and clear: nil" do
+        [false, nil].each do
+          attrs = instance.send(:reactive_nested_add, :line_items, from: { quantity: "#q" }, clear: it)
+          expect(attrs[:data]).not_to have_key(:reactive_nested_clear_param)
+        end
+      end
+
+      it "raises on an unknown clear: value at render (issue #466)" do
+        [:defaults, "reset", "true", 1].each do |bad|
+          expect { instance.send(:reactive_nested_add, :line_items, from: { quantity: "#q" }, clear: bad) }
+            .to raise_error(ArgumentError, /clear:/)
+        end
+      end
+
+      it "raises on an unknown clear: value even without from:" do
+        expect { instance.send(:reactive_nested_add, :line_items, clear: :bogus) }
+          .to raise_error(ArgumentError, /clear:/)
+      end
+
       it "omits both params by default (byte-identical to the inline-edit add)" do
         attrs = instance.send(:reactive_nested_add, :line_items)
         expect(attrs[:data]).not_to have_key(:reactive_nested_from_param)

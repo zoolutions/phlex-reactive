@@ -225,7 +225,8 @@ const SLACK = 250
 // #442's follow-up (detail_from over a hand-built detail that is no object; an empty detail_from) adds 47 B: 41,920 B.
 // Issue #445 (preview_file rejected: — a refused file's name listed from an app <template>, kept
 // across a morph, in the runtime) adds 273 B on top of that: 42,193 B.
-const BUNDLE_GZIP_CEILING = 42_193
+// Issue #466 (reactive_nested_add clear: :reset, in bindings) adds 100 B: 42,293 B.
+const BUNDLE_GZIP_CEILING = 42_293
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -337,7 +338,8 @@ const FEATURE_GZIP_CEILINGS = {
   // Issue #440 (field reads through bindingOwnership: a shared field just below) to 8,408 B;
   // its review fixes (re-sync when a nested root holding a shared field it reads connects or
   // restores a draft) to 8,480 B.
-  "features/bindings": 8_480,
+  // Issue #466 (reactive_nested_add clear: :reset — sources back to their rendered defaults) to 8,616 B.
+  "features/bindings": 8_616,
   // Issue #336 (render a defer reply now) takes it from 2,845 B to 2,974 B.
   "features/defer": 2_974,
   // Issue #440 (the input listener for a shared field in a nested root, which Stimulus
@@ -466,7 +468,8 @@ const FEATURE_GZIP_CEILINGS = {
 // on top of #442 (50,898 B), 80 B: 50,978 B.
 // #442's follow-up (+39 B core): 51,017 B.
 // Issue #445 (preview_file rejected:, in the core) adds 293 B on top of that: 51,310 B.
-const SPLIT_TOTAL_GZIP_CEILING = 51_310
+// Issue #466 (clear: :reset, +136 B bindings): 51,446 B.
+const SPLIT_TOTAL_GZIP_CEILING = 51_446
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

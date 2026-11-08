@@ -245,6 +245,24 @@ module Views
               renumbered `_attributes` names on submit (`:attributes`), and the
               end-of-add JSON sync serializes them (`as: :json`) — no extra
               wiring either way.
+
+              `clear: true` empties every source. When a source renders a
+              default the next entry should start from — a box ticked by
+              default, a quantity of `1`, a preselected option — pass `clear:
+              :reset` instead: each source goes back to what the server rendered,
+              the way a form reset would (a checkbox or radio to its `checked`
+              attribute, a text input to its `value`, a select to its `selected`
+              option or, with none, its first enabled one), with the same
+              dispatched `input`. Any other `clear:` value raises at render.
+
+              ```ruby
+              input(id: 'item-qty',  type: 'number', value: '1')
+              input(id: 'item-gift', type: 'checkbox', checked: true)
+
+              button(**reactive_nested_add(:line_items,
+                from: { quantity: '#item-qty', gift: '#item-gift' },
+                clear: :reset)) { 'Add item' }
+              ```
             MD
 
             DocsUI::Callout(:note) do
