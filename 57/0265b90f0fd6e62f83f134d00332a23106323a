@@ -1,0 +1,31 @@
+app/javascript/phlex/reactive/features/bindings.min.js.map
+  ai_agent 7
+app/javascript/phlex/reactive/features/compute.min.js.map
+  ai_agent 7
+app/javascript/phlex/reactive/features/hints.min.js.map
+  ai_agent 7
+app/javascript/phlex/reactive/features/form.min.js.map
+  ai_agent 7
+app/javascript/phlex/reactive/core.min.js.map
+  ai_agent 8
+app/javascript/phlex/reactive/features/defer.min.js.map
+  ai_agent 7
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 20
+app/javascript/phlex/reactive/features/sortable.min.js.map
+  ai_agent 7
+app/javascript/phlex/reactive/features/devtools.min.js.map
+  ai_agent 7
+app/javascript/phlex/reactive/features/persist.min.js.map
+  ai_agent 7
+app/javascript/phlex/reactive/features/drag.min.js.map
+  ai_agent 7
+app/javascript/phlex/reactive/features/effects.min.js.map
+  ai_agent 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "570265b90f0fd6e62f83f134d00332a23106323a",
+  "prompts": {}
+}
