@@ -103,6 +103,88 @@ RSpec.describe Phlex::Reactive::TestHelpers::System do
     end
   end
 
+  describe "wait_for_reactive and the reply errors (issue #464)" do
+    subject(:helper) do
+      fake = page_stub
+      Class.new do
+        include Phlex::Reactive::TestHelpers::System
+
+        define_method(:page) { fake }
+      end.new
+    end
+
+    # What the client left on <html data-reactive-errors> when the layer went
+    # idle; nil when the window was clean (the attribute is absent).
+    let(:errors_attr) { nil }
+    let(:waits) { [] }
+
+    def page_stub
+      raw = errors_attr
+      log = waits
+      Object.new.tap do
+        it.define_singleton_method(:assert_no_selector) { |*args, **opts| log << [args, opts] }
+        it.define_singleton_method(:evaluate_script) do
+          it.include?(Phlex::Reactive::TestHelpers::System::ERRORS_ATTR) ? raw : nil
+        end
+      end
+    end
+
+    it "keeps ERRORS_ATTR in lockstep with the client" do
+      expect(described_class::ERRORS_ATTR).to eq("data-reactive-errors")
+      client = Rails.root.join("public/vendor/reactive_controller.js").read
+      expect(client).to include("data-reactive-errors")
+    end
+
+    it "waits for the idle marker, then returns nil after a clean window" do
+      expect(helper.wait_for_reactive).to be_nil
+      expect(waits).to eq([[[:xpath, "/html[@data-reactive-active]"], {}]])
+    end
+
+    it "passes timeout: through as Capybara's wait:" do
+      helper.wait_for_reactive(timeout: 7)
+      expect(waits.last.last).to eq(wait: 7)
+    end
+
+    context "when the settled window had failures" do
+      let(:errors_attr) do
+        [
+          { action: "increment", kind: "http", status: 500, root: "flaky-counter" },
+          { action: nil, kind: "defer", status: nil, root: "slow-totals" }
+        ].to_json
+      end
+
+      it "raises ReactiveReplyError naming each failed action, kind and status" do
+        expect { helper.wait_for_reactive }.to raise_error(described_class::ReactiveReplyError) {
+          expect(it.message).to eq(
+            'reactive action "increment" failed (http 500) on #flaky-counter; reactive defer failed (defer) on #slow-totals'
+          )
+          expect(it.errors).to eq(
+            [
+              { action: "increment", kind: "http", status: 500, root: "flaky-counter" },
+              { action: nil, kind: "defer", status: nil, root: "slow-totals" }
+            ]
+          )
+        }
+      end
+
+      it "returns nil with allow_error: true (the 0.16 behaviour)" do
+        expect(helper.wait_for_reactive(allow_error: true)).to be_nil
+      end
+    end
+
+    it "is a StandardError" do
+      expect(described_class::ReactiveReplyError.ancestors).to include(StandardError)
+    end
+
+    it "reads a garbled or non-list attribute as no errors" do
+      expect(described_class.parse_reactive_errors("{nope")).to eq([])
+      expect(described_class.parse_reactive_errors(%({"kind":"http"}))).to eq([])
+      expect(described_class.parse_reactive_errors({})).to eq([]) # Playwright's JS null
+      expect(described_class.parse_reactive_errors(nil)).to eq([])
+      expect(described_class.parse_reactive_errors(%([1, {"kind":"http"}]))).to eq([{ kind: "http" }])
+    end
+  end
+
   describe "request totals (issue #279)" do
     subject(:helper) do
       fake = page_stub

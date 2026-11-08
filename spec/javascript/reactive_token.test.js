@@ -10,10 +10,11 @@
 // reactive:visit test — bun runs all spec/javascript files in one process).
 //
 // Run with: bun test spec/javascript
-import { test, expect, mock, beforeEach } from "bun:test"
+import { test, expect, mock, beforeAll, beforeEach, afterAll } from "bun:test"
 
 let registerReactiveToken
 let elements
+const SAVED = {}
 
 function fakeElement() {
   const attrs = {}
@@ -26,12 +27,29 @@ function fakeElement() {
   }
 }
 
+beforeAll(() => {
+  SAVED.window = globalThis.window
+  SAVED.document = globalThis.document
+})
+
+// The first import of the runtime with a window and a document schedules its registration
+// check (setTimeout 0). Run it here, against this file's stub, before putting the globals
+// back: left pending, it fires in the next file against whatever document is current then.
+afterAll(async () => {
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  for (const key of ["window", "document"]) {
+    if (SAVED[key] === undefined) delete globalThis[key]
+    else globalThis[key] = SAVED[key]
+  }
+})
+
 beforeEach(async () => {
   mock.module("@hotwired/stimulus", () => ({ Controller: class {} }))
   elements = {}
   globalThis.window = { Turbo: { StreamActions: {} } }
   globalThis.document = {
     getElementById: (id) => elements[id] ?? null,
+    querySelectorAll: () => [],
   }
   ;({ registerReactiveToken } = await import("../../app/javascript/phlex/reactive/reactive_controller.js"))
   registerReactiveToken()

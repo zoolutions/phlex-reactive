@@ -1165,18 +1165,38 @@ module Phlex
         # `from:` values are RAW CSS selectors (the escape-hatch posture of
         # reactive_filter/reactive_tags) — the sources are author-owned markup,
         # not reactive_field bindings — resolved root-scoped (#15 ownership).
+        #
+        # `clear: :reset` (issue #466) puts each source back to its RENDERED
+        # default instead of emptying it, the way a form reset would: a
+        # default-on checkbox stays ticked for the next entry, a text input
+        # returns to its `value`, a select to its `selected` option.
         def reactive_nested_add(association, from: nil, clear: false)
           data = {
             action: "click->reactive#nestedAdd",
             reactive_association_param: nested_identifier!(:reactive_nested_add, :association, association)
           }
+          clear_param = nested_clear_param!(clear)
           unless from.nil?
             data[:reactive_nested_from_param] = nested_from_param!(from)
-            # STRING "true", not boolean: a valueless boolean attr reads "" (falsy)
-            # client-side — the on()/tags precedent.
-            data[:reactive_nested_clear_param] = "true" if clear
+            data[:reactive_nested_clear_param] = clear_param if clear_param
           end
           { type: "button", data: }
+        end
+
+        # The clear: wire value: "true" (empty the sources), "reset" (back to
+        # their rendered defaults, issue #466), or nil (leave them). STRINGS,
+        # not booleans: a valueless boolean attr reads "" (falsy) client-side —
+        # the on()/tags precedent. Anything else is a typo: fail at render.
+        def nested_clear_param!(clear)
+          case clear
+          when false, nil then nil
+          when true then "true"
+          when :reset then "reset"
+          else
+            raise ArgumentError,
+              "reactive_nested_add(clear:) takes true (empty the sources), :reset (put them back to " \
+              "their rendered defaults) or false, got #{clear.inspect}"
+          end
         end
 
         # Validate + compile a fill-then-add `from:` map into its JSON wire

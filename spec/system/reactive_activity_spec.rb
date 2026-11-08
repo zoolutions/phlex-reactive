@@ -36,6 +36,43 @@ RSpec.describe "Global reactive-activity signal (issue #201)", type: :system do
     expect(page).to have_reactive_text("counter-value", "1")
   end
 
+  # Issue #464: the idle edge comes after the reply is drawn, and it records
+  # what failed in the window it ends.
+  describe "a failed round trip (issue #464)" do
+    it "makes wait_for_reactive raise ReactiveReplyError naming the action, kind and status" do
+      visit "/counter"
+      find("[data-testid='boom']").click # a 403: the authorizer denies inside the action
+
+      expect { wait_for_reactive }.to raise_error(
+        Phlex::Reactive::TestHelpers::System::ReactiveReplyError,
+        'reactive action "boom" failed (http 403) on #counter'
+      )
+      expect(page).to have_css("html[data-reactive-errors]")
+    end
+
+    it "only waits with allow_error: true, and the next busy edge clears the record" do
+      visit "/counter"
+      find("[data-testid='boom']").click
+
+      expect(wait_for_reactive(allow_error: true)).to be_nil
+      expect(page).to have_css("html[data-reactive-errors]")
+
+      find("[data-testid='inc']").click
+      expect(wait_for_reactive).to be_nil
+      expect(page).to have_no_css("html[data-reactive-errors]")
+    end
+  end
+
+  it "returns nil after a clean round trip, with the reply already drawn for a one-shot read" do
+    visit "/counter"
+
+    find("[data-testid='inc']").click
+
+    expect(wait_for_reactive).to be_nil
+    # No waiting matcher: a single read right after the barrier sees the morph.
+    expect(page.evaluate_script("document.getElementById('counter-value').textContent")).to eq("1")
+  end
+
   it "wait_for_reactive spans a DEFERRED render (round trip + async segment), then reads the settled value" do
     SlowTotalsComponent.render_delay_ms = 300
     visit "/defer"

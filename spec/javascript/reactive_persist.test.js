@@ -104,6 +104,8 @@ beforeEach(() => {
   globalThis.clearTimeout = (id) => {
     timers = timers.filter((t) => t.id !== id)
   }
+  // The reply's repaint (issue #464) on the real clock: the fake one never fires.
+  globalThis.requestAnimationFrame = (fn) => REAL.setTimeout(fn, 0)
   now = 1_000_000
   Date.now = () => now
   infos = []
@@ -119,6 +121,7 @@ afterEach(() => {
   globalThis.sessionStorage = REAL.sessionStorage
   globalThis.setTimeout = REAL.setTimeout
   globalThis.clearTimeout = REAL.clearTimeout
+  delete globalThis.requestAnimationFrame
   globalThis.CustomEvent = REAL.CustomEvent
   globalThis.HTMLFormElement = REAL.HTMLFormElement
   Date.now = REAL.now

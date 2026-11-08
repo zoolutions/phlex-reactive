@@ -625,9 +625,11 @@ test("a morph re-arm and the early once-swallow do not interfere: one request fo
 test("after an early replay, a morph-back on the same element still gives exactly one request", async () => {
   const el = makeRoot(renderedEventShell())
   queueEarly(el)
-  connect(el)
+  const controller = connect(el)
   await settle()
   expect(posts.length).toBe(1)
+  // The load's round trip ends once its reply is drawn (issue #464).
+  await controller.queue
 
   // The load landed as an in-place morph to real content, then a page-refresh
   // morph turns the root back into the shell.

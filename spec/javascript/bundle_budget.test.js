@@ -225,9 +225,16 @@ const SLACK = 250
 // #442's follow-up (detail_from over a hand-built detail that is no object; an empty detail_from) adds 47 B: 41,920 B.
 // Issue #445 (preview_file rejected: — a refused file's name listed from an app <template>, kept
 // across a morph, in the runtime) adds 273 B on top of that: 42,193 B.
+// Issue #466 (reactive_nested_add clear: :reset, in bindings) adds 100 B: 42,293 B; its review fix 7 B: 42,300 B.
+// Issue #464 (reactive:idle waits for the reply to be drawn and lists what failed: the render-aware
+// renderOwnReply, the error ledger, the defer hook) adds 368 B: 42,561 B; its validation fix (the busy
+// state reverts at hand-off, only the activity exit waits for the draw) 38 B: 42,599 B; its review fix
+// (a stream that throws while rendering is an apply failure) 37 B: 42,636 B; recorded inline after the
+// draw, with no revert, 5 B: 42,641 B (those sizes before #466); on top of #466: 42,745 B.
 // Issue #462 (detail_params: — a trigger bound to a CustomEvent posts the named event.detail keys as
-// params, merged under the static params in dispatch, in the runtime) adds 186 B: 42,379 B.
-const BUNDLE_GZIP_CEILING = 42_379
+// params, merged under the static params in dispatch, in the runtime) adds 186 B: 42,379 B (before #464 and
+// #466); on top of them: 42,924 B.
+const BUNDLE_GZIP_CEILING = 42_924
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -312,8 +319,11 @@ const TARGET_BUNDLE_GZIP = 22_700
 // on top of #442 (19,113 B), 80 B: 19,193 B.
 // #442's follow-up (detail_from's two hand-built edges) adds 39 B: 19,232 B.
 // Issue #445 (preview_file rejected: lists each refused file) adds 293 B on top of that: 19,525 B.
-// Issue #462 (detail_params: — the named event.detail keys posted as params) adds 185 B: 19,710 B.
-const CORE_GZIP_CEILING = 19_710
+// Issue #464 (the render-aware renderOwnReply and the error ledger) adds 356 B: 19,881 B;
+// its validation fix (the busy state reverts at hand-off) 29 B: 19,910 B; its review fix (a stream
+// that throws while rendering is an apply failure) 47 B: 19,957 B.
+// Issue #462 (detail_params: — the named event.detail keys posted as params) adds 185 B: 19,710 B (before #464); on top of it: 20,238 B.
+const CORE_GZIP_CEILING = 20_238
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -340,9 +350,12 @@ const FEATURE_GZIP_CEILINGS = {
   // Issue #440 (field reads through bindingOwnership: a shared field just below) to 8,408 B;
   // its review fixes (re-sync when a nested root holding a shared field it reads connects or
   // restores a draft) to 8,480 B.
-  "features/bindings": 8_480,
+  // Issue #466 (reactive_nested_add clear: :reset — sources back to their rendered defaults) to 8,616 B;
+  // its review fix (a source two from: keys name is cleared once) to 8,621 B.
+  "features/bindings": 8_621,
   // Issue #336 (render a defer reply now) takes it from 2,845 B to 2,974 B.
-  "features/defer": 2_974,
+  // Issue #464 (a failed defer noted in the busy window) to 2,995 B.
+  "features/defer": 2_995,
   // Issue #440 (the input listener for a shared field in a nested root, which Stimulus
   // never routes to this root's recompute) takes it from 2,050 B to 2,103 B; its review
   // fixes (the marker read first, a re-seed when such a nested root connects or restores a
@@ -469,8 +482,11 @@ const FEATURE_GZIP_CEILINGS = {
 // on top of #442 (50,898 B), 80 B: 50,978 B.
 // #442's follow-up (+39 B core): 51,017 B.
 // Issue #445 (preview_file rejected:, in the core) adds 293 B on top of that: 51,310 B.
-// Issue #462 (detail_params:, in the core) adds 185 B: 51,495 B.
-const SPLIT_TOTAL_GZIP_CEILING = 51_495
+// Issue #466 (clear: :reset, +141 B bindings): 51,451 B.
+// Issue #464 (+356 B core, +21 B defer) adds 377 B: 51,687 B; its validation fix (+29 B core) 51,716 B;
+// its review fix (+47 B core) 51,763 B (those sizes before #466); with #466's +141 B: 51,904 B.
+// Issue #462 (detail_params:, in the core) adds 185 B: 51,495 B (before #464 and #466); on top of them: 52,185 B.
+const SPLIT_TOTAL_GZIP_CEILING = 52_185
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

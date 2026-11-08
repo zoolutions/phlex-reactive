@@ -40,6 +40,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   param does; the static params win over the detail. The early replay and the
   multipart body carry the values too, and `reactive:before-dispatch`'s
   `detail.params` now includes them.
+- **`reactive_nested_add(clear: :reset)` (#466).** `clear: true` empties every
+  fill-then-add source after an add, so a checkbox that renders ticked was
+  unticked for every row after the first. `clear: :reset` puts each source back
+  to what the server rendered, the way a form reset would: a checkbox to its
+  `checked` attribute, a text input or textarea to its `value`, a select to its
+  `selected` option (else a single select to its first enabled one; a multiple
+  select to exactly its `selected` options). Each reset source dispatches one
+  bubbling `input`, as `clear: true` does, and a source that several `from:`
+  keys name is cleared once. `clear: true` is otherwise unchanged.
 
 ### Changed
 
@@ -47,9 +56,54 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   pass through as an action param; it now takes a Hash of param names to
   `event.detail` keys only (anything else raises `ArgumentError`). Rename an
   action param called `detail_params`.
+- **`reactive_nested_add(clear:)` raises on an unknown value (#466).** It takes
+  `true`, `false`, `nil` or `:reset`; anything else (a truthy string such as
+  `clear: "yes"`, which used to act as `true`) now raises `ArgumentError` at
+  render. Pass `clear: true`.
+
+- **`reactive:idle` reports what failed (#464).** Each busy window (from the
+  `reactive:busy` edge to the `reactive:idle` edge) collects every failure raised
+  inside it: a dispatch that failed (`http`, `timeout`, `network`, `offline`,
+  `redirected`, `content-type`, `apply`), a feature that could not load, a
+  deferred render that failed. `reactive:idle`'s detail gains
+  `errors: [{ action, kind, status, root }]` (`[]` after a clean window), and
+  when that list is not empty `<html data-reactive-errors>` holds it as JSON from
+  that idle edge until the next busy edge (a clean window leaves the attribute
+  absent). A stream of the reply that throws while Turbo renders it is listed as
+  `apply` too (after `reactive:applied`; the drawn rest of the reply is not
+  reverted). A render still running when the action timeout cuts the wait off
+  is not recorded.
+- **BREAKING (minor release): `wait_for_reactive` raises when the round trip
+  failed (#464).** It used to return after a 500, a timeout or a redirect just as
+  after a rendered reply, and the next assertion failed a full Capybara wait
+  later with no word of the failure. It now raises
+  `Phlex::Reactive::TestHelpers::System::ReactiveReplyError`, naming each failed
+  action, kind and status (`reactive action "increment" failed (http 500) on
+  #flaky-counter`); `#errors` returns the list. A test that expects the failure
+  passes `wait_for_reactive(allow_error: true)`, which only waits, as in 0.16.
+  A failure a `reactive:error` listener retries stays in the window the retry
+  extends, so it is still listed even when the retry succeeds.
+- **The next queued action starts after the previous reply is drawn (#464).** A
+  root's request queue used to move on as soon as Turbo had been handed the
+  reply's streams, a repaint before they rendered. It now waits for them, so a
+  queued action reads the DOM (and the token) the previous reply left. A non-OK
+  turbo-stream reply (an error flash) is drawn before its `data-reactive-error`
+  and `reactive:error`, so a listener sees the rendered error. The busy markers
+  and a busy hint's undo still revert when the reply is handed to Turbo, so an
+  in-place morph's server state (a trigger it renders disabled) still wins.
 
 ### Fixed
 
+- **`reactive:idle` fired before the reply rendered (#464).** The dispatch lane
+  left the activity counter when the fetch settled, at least one animation frame
+  before Turbo applied the reply's streams, so a one-shot read after
+  `wait_for_reactive` could see the old DOM. It now leaves once every stream of
+  the root's own reply has rendered; a reply with no stream, or one whose render
+  a listener prevented, settles after one repaint, and a render that never
+  finishes is cut off at the action timeout so it cannot wedge the queue.
+- **A client-side apply failure now marks the root (#464).** The `kind: "apply"`
+  error emitted `reactive:error` but never set `data-reactive-error`; it now sets
+  `data-reactive-error="apply"` like every other failure kind.
 - **The docs now say what `:integer` and `:float` do (#460).** The Actions &
   events guide and the counter example said a non-numeric value is dropped; it
   never was. Both pages, and the README, now describe `to_i`/`to_f` and point at

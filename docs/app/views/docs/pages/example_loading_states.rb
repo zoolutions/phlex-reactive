@@ -94,6 +94,14 @@ module Views
                 document.addEventListener("reactive:idle", () => hideGlobalSpinner())
                 ```
 
+              - **What failed:** a round trip leaves the count once its reply is
+                drawn, and `reactive:idle`'s detail also carries `errors`, every
+                failure raised since the busy edge
+                (`[{ action, kind, status, root }]`, `[]` when clean). When the
+                list is not empty, `<html>` carries `data-reactive-errors` (the
+                same list, as JSON) from that idle edge until the next busy edge;
+                a clean window leaves it absent.
+
               It's purely additive — the per-root markers are unchanged. The
               document marker uses a **distinct** name (`data-reactive-active`, not
               the per-root `data-reactive-busy`) so a `[data-reactive-busy]`

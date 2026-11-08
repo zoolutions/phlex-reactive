@@ -225,6 +225,8 @@ function fallbackFragmentSource(src) {
 // that load was for the shell this morph replaced, and its late arrival must
 // neither paint over this one nor clear its error marker.
 function failRefusedFragment(el) {
+  // Noted in the open busy window (issue #464) before supersede leaves it.
+  shared.fail({ kind: "defer", root: el.id })
   supersedeDefer(el.id)
   clearDeferPending(el)
   el.setAttribute("data-reactive-error", "defer")
@@ -463,6 +465,8 @@ function settleDefer(targetId) {
 // (a token is still valid inside the TTL; an expired one 400s into this same
 // path. A fragment URL never expires).
 function failDefer(targetId, source, status) {
+  // Noted in the open busy window (issue #464) before this defer leaves it.
+  shared.fail({ kind: "defer", status, root: targetId })
   deletePendingDefer(targetId)
   const el = document.getElementById(targetId)
   if (!el) return

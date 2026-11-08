@@ -32,8 +32,8 @@ RSpec.describe "Dormant roots (issue #274 — mount the controller on first use)
   end
 
   # Settled, and nothing more in flight.
-  def expect_action_posts(count)
-    wait_for_reactive
+  def expect_action_posts(count, allow_error: false)
+    wait_for_reactive(allow_error:)
     sleep 0.3
     expect(action_posts).to eq(count)
   end
@@ -224,7 +224,7 @@ RSpec.describe "Dormant roots (issue #274 — mount the controller on first use)
 
       page.execute_script(%(document.getElementById("dormant-lazy-panel").dispatchEvent(new CustomEvent("panel:opened"))))
       expect(page).to have_css("#dormant-lazy-panel[data-reactive-error]")
-      expect_action_posts(1)
+      expect_action_posts(1, allow_error: true) # the forbidden first load is the point
 
       morph_with("window.__freshShell")
       expect(page).to have_css("#dormant-lazy-panel[data-reactive-dormant='reactive']")

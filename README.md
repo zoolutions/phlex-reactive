@@ -715,7 +715,7 @@ Use in controllers: `render turbo_stream: Counter.replace(counter)`.
 | `reactive_dirty` / `reactive_dirty warn_unsaved: true` / `reactive_dirty only: %i[...]` | **Dirty tracking**, declared once at the class level, against the DOM's own `defaultValue`/`defaultChecked`/`defaultSelected` — no client state. Marks changed fields + the root `data-reactive-dirty`; `warn_unsaved:` arms a `beforeunload`/`turbo:before-visit` guard; `only:` scopes tracking to named fields. Style with `[data-reactive-dirty]`. See [Dirty-field tracking](#dirty-field-tracking-reactive_dirty). |
 | `nested_update!(:assoc, attrs)` | Map a nested param onto `<assoc>_attributes` with id preservation; update the record. |
 | `reactive_nested_list(:assoc, as: :attributes \| :json)` / `reactive_nested_template(:assoc)` / `reactive_nested_row` | **Draft nested-attribute rows** (the "new parent + child rows" form): the container rows land in, the `<template>` holding ONE row's markup, and the row wrapper marker — all **client-only** form state, keyed by association (several collections per root). `as: :json` (default `:attributes`) serializes the rows into ONE hidden JSON field instead of posting `accepts_nested_attributes_for` names — for an app whose controller `JSON.parse`s a serialized param; `name:` names that hidden field **verbatim** (`name: "order[todos]"`, never re-scoped — the form-builder escape hatch, JSON mode only). See [Draft rows for a new parent](#draft-rows-for-a-new-parent-reactive_nested_). |
-| `reactive_nested_add(:assoc, from:, clear:)` / `reactive_nested_remove(confirm:)` | The row triggers, client-only (zero round trips): add clones the template and renumbers its placeholder index; remove deletes a draft row from the DOM, or `_destroy`-marks + hides a persisted row (a hidden `[_destroy]` input present). **Fill-then-add**: `from: { row_field => "#source-selector" }` seeds the new row from add controls that live OUTSIDE it (a preset select, a typeahead), and `clear: true` resets them — composes with `as: :attributes` AND `as: :json`. **Confirm on remove**: `reactive_nested_remove(confirm: "Really delete this row?")` gates the remove behind the same overridable `confirmResolver` as `on`/`on_client` (a per-row string, or the conditional `{ when:, message: }` Hash). See [Draft rows for a new parent](#draft-rows-for-a-new-parent-reactive_nested_). |
+| `reactive_nested_add(:assoc, from:, clear:)` / `reactive_nested_remove(confirm:)` | The row triggers, client-only (zero round trips): add clones the template and renumbers its placeholder index; remove deletes a draft row from the DOM, or `_destroy`-marks + hides a persisted row (a hidden `[_destroy]` input present). **Fill-then-add**: `from: { row_field => "#source-selector" }` seeds the new row from add controls that live OUTSIDE it (a preset select, a typeahead), and `clear: true` empties them (`clear: :reset` puts them back to their rendered defaults) — composes with `as: :attributes` AND `as: :json`. **Confirm on remove**: `reactive_nested_remove(confirm: "Really delete this row?")` gates the remove behind the same overridable `confirmResolver` as `on`/`on_client` (a per-row string, or the conditional `{ when:, message: }` Hash). See [Draft rows for a new parent](#draft-rows-for-a-new-parent-reactive_nested_). |
 | `nested_field_name(:assoc, :field, index: nil)` | The Rails `accepts_nested_attributes_for` wire name for one row field — `order[line_items_attributes][NEW_ROW][quantity]` (the template placeholder) by default, a real index when given. Scope-aware under `reactive_scope`; `scope:` overrides it **per call** (`scope: "order"`, verbatim — the form-builder escape hatch). |
 | `reactive_collection :name, item:, container:, count:, empty:, size:` | Declare an add/remove-row list once; actions call `reply.append`/`prepend`/`remove`. See [Reactive collections](#reactive-collections-addremove-rows--count--empty-state). |
 | `reply.replace` / `.morph` / `.update` / `.remove` / `.redirect(url)` / `.with(*)` / `.js(ops)` | Return from an action to control the reply (flash, remove, redirect, multi-stream, server-pushed client ops). See [Controlling the action's reply](#reply--controlling-the-actions-reply). |
@@ -3129,6 +3129,25 @@ still adds — never a throw). It composes with **both** wire modes: the seeded
 values ride the renumbered `_attributes` names on submit (`:attributes`) and the
 end-of-add JSON sync serializes them (`as: :json`), with no extra wiring.
 
+`clear: true` empties every source: a checkbox unticks, a text input or select
+goes to `""`. When a source renders a default the next entry should start from —
+a "gift wrap" box that is ticked by default, a quantity of `1`, a preselected
+option — pass `clear: :reset` instead: each source goes back to what the server
+rendered, the way a form reset would (a checkbox to its `checked`
+attribute, a text input or textarea to its `value`, a select to its `selected`
+option or, with none, a single select its first enabled one and a multiple
+select none), with the same dispatched `input`. Any other
+`clear:` value raises at render.
+
+```ruby
+input(id: "item-qty",  type: "number", value: "1")
+input(id: "item-gift", type: "checkbox", checked: true)
+
+button(**reactive_nested_add(:line_items,
+  from: { quantity: "#item-qty", gift: "#item-gift" },
+  clear: :reset)) { "Add item" }   # after each add: quantity 1, gift ticked again
+```
+
 Relatedly, a **draft parent can now run real server actions too** (issue #208):
 an unsaved record signs a gid-less `{c, state}` token, and the endpoint rebuilds
 the component through the record kwarg's **initialize default** —
@@ -3771,8 +3790,11 @@ is cleared, so it does not shimmer forever) while a `reactive_lazy(on:)` shell
 still loads through the plain action. The 10 s is
 `<meta name="phlex-reactive-feature-timeout" content="ms">` in `<head>`.
 
-`apply` covers a throw in the controller's own post-fetch code — not a
-throwing listener on `reactive:applied` itself. Per the DOM spec,
+`apply` covers a throw in the controller's own post-fetch code, and a stream of
+the root's own reply that throws while Turbo renders it — not a throwing
+listener on `reactive:applied` itself. The stream case comes a repaint after
+`reactive:applied`, so one round trip can fire both; the rest of the reply is
+already drawn, so nothing reverts. Per the DOM spec,
 `EventTarget#dispatchEvent` never propagates a listener's exception back to
 its caller (it's reported to the console instead), so a listener that throws
 can't surface as `reactive:error` at all — it just logs and the round trip is
@@ -4876,6 +4898,30 @@ reset_reactive_requests!
 find("#open-panel").click
 expect(page).to have_reactive_requests(1)
 ```
+
+`wait_for_reactive` returns once every reply is drawn, not when its fetch
+resolves, so a one-shot read right after it sees the morph. It also **raises**
+`Phlex::Reactive::TestHelpers::System::ReactiveReplyError` when the busy window
+it waited on had a failure (an HTTP error, a timeout, a redirect, a
+non-turbo-stream reply, a client-side apply error, a feature or deferred render
+that failed). The message names each one, e.g.
+`reactive action "increment" failed (http 500) on #flaky-counter`, and `#errors`
+returns the list. A failure that a `reactive:error` listener retries is still
+listed, even when the retry succeeds. Pass `allow_error: true` to a test that
+expects the failure:
+
+```ruby
+click_on "Add"
+wait_for_reactive                    # raises if the round trip failed
+click_on "Break it"
+wait_for_reactive(allow_error: true) # waits only, as in 0.16
+```
+
+It reads what the client records: `reactive:idle`'s detail carries `errors`
+(`[{ action, kind, status, root }]`, `[]` after a clean window), and
+when that list is not empty `<html data-reactive-errors>` holds it as JSON from
+that idle edge until the next `reactive:busy` edge. A clean window leaves the
+attribute absent.
 
 > `verbose_errors` defaults ON in test (it changes only an error BODY, never a
 > status). Asserting an empty failure body? Set
