@@ -1,0 +1,95 @@
+spec/javascript/reactive_lazy_on.test.js
+  s_53c2b001f65bb8::t_53866653700f2d 628,631-632
+app/javascript/phlex/reactive/core.min.js.map
+  ai_agent 5,8-9
+spec/phlex/reactive/test_helpers_system_spec.rb
+  s_53c2b001f65bb8::t_4a7ea2e742eadc 106-125,128-151,153-156,159-160,162-163,165-187
+  s_53c2b001f65bb8::t_3771769c6e01c8 126-127,152,157-158,161,164
+docs/app/views/docs/pages/testing.rb
+  s_53c2b001f65bb8::t_07ddb2d27dd395 388-389,391-403,461
+app/javascript/phlex/reactive/features/hints.min.js.map
+  ai_agent 7
+spec/javascript/reactive_idle_errors.test.js
+  s_53c2b001f65bb8::t_174eee92161da5 1-290
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 1,3-6,8
+app/javascript/phlex/reactive/features/defer.js
+  s_53c2b001f65bb8::t_410dc2dbf398f3 228-229,468-469
+app/javascript/phlex/reactive/features/drag.min.js.map
+  ai_agent 7
+app/javascript/phlex/reactive/features/defer.min.js.map
+  ai_agent 5,7-8
+app/javascript/phlex/reactive/features/bindings.min.js.map
+  ai_agent 7
+spec/dummy/public/vendor/features/defer.js
+  ai_agent 1,3
+spec/javascript/reactive_defer_render_now.test.js
+  s_53c2b001f65bb8::t_d560a09ff242ce 16,134-136
+spec/javascript/reactive_persist.test.js
+  s_53c2b001f65bb8::t_53866653700f2d 107-108,124
+docs/app/views/docs/pages/example_loading_states.rb
+  s_53c2b001f65bb8::t_07ddb2d27dd395 97-103
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 1,3-6,8
+app/javascript/phlex/reactive/runtime.js
+  s_53c2b001f65bb8::t_f65a6198686af3 857-868,877-890,899-900,910,2653,3277,4204,4450,4484,4497-4500,4513-4514
+  s_53c2b001f65bb8::t_f3a841770349e4 1018-1026,1028,1031,1039-1049,1071,1074,1084,1087-1088,1091-1092
+lib/phlex/reactive/test_helpers/system.rb
+  s_53c2b001f65bb8::t_19974a352d22ec 45-60,93-99,108-114,284
+README.md
+  s_53c2b001f65bb8::t_07ddb2d27dd395 4790-4810
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 5,13,20-21
+spec/javascript/reactive_effects.test.js
+  s_53c2b001f65bb8::t_d560a09ff242ce 89-90
+CHANGELOG.md
+  s_53c2b001f65bb8::t_c387a67e7c0dd6 23-46,49-58
+spec/dummy/public/vendor/core.js
+  ai_agent 1,3-6,8
+app/javascript/phlex/reactive/features/persist.min.js.map
+  ai_agent 7
+spec/javascript/reactive_split_features.test.js
+  s_53c2b001f65bb8::t_53866653700f2d 83-84,117
+spec/system/reactive_activity_spec.rb
+  s_53c2b001f65bb8::t_0fce47445b001e 39-75
+spec/javascript/bundle_budget.test.js
+  s_53c2b001f65bb8::t_fab2521e9e8367 228-230,315-316,345-346,473-474
+spec/javascript/reactive_activity.test.js
+  s_53c2b001f65bb8::t_410dc2dbf398f3 400,416-419
+spec/system/split_final_spec.rb
+  s_53c2b001f65bb8::t_0fce47445b001e 88
+app/javascript/phlex/reactive/core.min.js
+  ai_agent 1,3-6,8
+spec/javascript/reactive_default_entry.test.js
+  s_53c2b001f65bb8::t_53866653700f2d 54-55,77
+app/javascript/phlex/reactive/features/defer.min.js
+  ai_agent 1,3
+app/javascript/phlex/reactive/features/devtools.min.js.map
+  ai_agent 7
+app/javascript/phlex/reactive/features/effects.min.js.map
+  ai_agent 7
+app/javascript/phlex/reactive/features/compute.min.js.map
+  ai_agent 7
+app/javascript/phlex/reactive/features/form.min.js.map
+  ai_agent 7
+app/javascript/phlex/reactive/features/sortable.min.js.map
+  ai_agent 7
+lib/phlex/reactive/test_helpers/system/reactive_reply_error.rb
+  s_53c2b001f65bb8::t_19974a352d22ec 1-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "a14512fa93aa0d03ff279b40318edfe343e34475",
+  "prompts": {},
+  "sessions": {
+    "s_53c2b001f65bb8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e5ae67ba-2a11-4e72-bb51-1a08d2649669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
