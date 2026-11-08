@@ -1,0 +1,33 @@
+app/javascript/phlex/reactive/runtime.js
+  s_53c2b001f65bb8::t_f060ad057d9812 4501-4503
+spec/dummy/public/vendor/reactive_controller.js
+  ai_agent 6,8
+app/javascript/phlex/reactive/core.min.js.map
+  ai_agent 5,8-9
+app/javascript/phlex/reactive/reactive_controller.min.js.map
+  ai_agent 5,20-21
+spec/dummy/public/vendor/core.js
+  ai_agent 6,8
+spec/javascript/reactive_idle_errors.test.js
+  s_53c2b001f65bb8::t_cc920f1f7db330 325-337
+app/javascript/phlex/reactive/reactive_controller.min.js
+  ai_agent 6,8
+app/javascript/phlex/reactive/core.min.js
+  ai_agent 6,8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "b7d65818e50069f665ac6d2798c8cf6255168157",
+  "prompts": {},
+  "sessions": {
+    "s_53c2b001f65bb8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e5ae67ba-2a11-4e72-bb51-1a08d2649669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
