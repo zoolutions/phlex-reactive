@@ -1,0 +1,25 @@
+spec/dummy/config/initializers/viewer.rb
+  s_fcf6a89610c7dc::t_44be155cc015c0 107-109
+.conformance.yml
+  s_fcf6a89610c7dc::t_44be155cc015c0 33-35
+CHANGELOG.md
+  s_fcf6a89610c7dc::t_b09139f32e16bf 31-39
+AGENTS.md
+  s_fcf6a89610c7dc::t_44be155cc015c0 131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "6fcbd18d8cc18c2da28bdf7a9c26b1c88bb6c209",
+  "prompts": {},
+  "sessions": {
+    "s_fcf6a89610c7dc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c7ce2372-5a31-4beb-8c6a-54e34c797819",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
