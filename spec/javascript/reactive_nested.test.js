@@ -647,6 +647,19 @@ test("a source two from: keys point at is reset (and dispatches) once", () => {
   expect(w.name.dispatched.filter((e) => e.type === "input").length).toBe(1)
 })
 
+test("clear: :reset puts a radio source back to its own defaultChecked", () => {
+  const w = resetWidget()
+  const off = Object.assign(new FakeNode({ tag: "input", attrs: { "data-src": "pick" } }), { type: "radio", checked: true, defaultChecked: false })
+  const on = Object.assign(new FakeNode({ tag: "input", attrs: { "data-src": "pick_on" } }), { type: "radio", checked: false, defaultChecked: true })
+  w.root.append(off, on)
+  w.add.attrs["data-reactive-nested-from-param"] = JSON.stringify({ name: '[data-src="pick"]', kind: '[data-src="pick_on"]' })
+  clickAdd(buildController(w.root), w.add)
+
+  expect(off.checked).toBe(false)
+  expect(on.checked).toBe(true)
+  expect(off.dispatched.filter((e) => e.type === "input").length).toBe(1)
+})
+
 test("clear: true still empties every source (unchanged by :reset)", () => {
   const w = resetWidget({ clear: "true" })
   clickAdd(buildController(w.root), w.add)
