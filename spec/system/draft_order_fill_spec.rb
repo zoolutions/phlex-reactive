@@ -62,6 +62,38 @@ RSpec.describe "Draft order form — fill-then-add", type: :system do
     expect(order.line_items.map { [it.quantity, it.price] }).to contain_exactly([3, 42], [1, 9])
   end
 
+  it "clear: :reset puts every source back to its RENDERED default after each add (issue #466)" do
+    visit "/draft_order_fill_reset"
+    expect(page).to have_css("[data-testid='add-item']")
+
+    # Change every source away from its default, then Add.
+    find("[data-testid='src-qty']").set(5)
+    find("[data-testid='src-price']").select("30")
+    find("[data-testid='src-gift']").set(false)
+    find("[data-testid='add-item']").click
+
+    # The row got what was entered…
+    expect(page).to have_css("[data-testid='item-row']", count: 1)
+    row = page.first("[data-testid='item-row']")
+    expect(row.find("[data-testid='qty']").value).to eq("5")
+    expect(row.find("[data-testid='price']").value).to eq("30")
+    expect(row.find("[data-testid='gift']")).not_to be_checked
+
+    # …and the sources went back to their defaults, not to blank/unticked.
+    expect(page).to have_field("src-qty", with: "1")
+    expect(page).to have_select("src-price", selected: "20")
+    expect(page).to have_checked_field("src-gift")
+
+    # A second add straight away seeds the defaults (the default-on tick included).
+    find("[data-testid='add-item']").click
+    expect(page).to have_css("[data-testid='item-row']", count: 2)
+    second = page.all("[data-testid='item-row']")[1]
+    expect(second.find("[data-testid='qty']").value).to eq("1")
+    expect(second.find("[data-testid='price']").value).to eq("20")
+    expect(second.find("[data-testid='gift']")).to be_checked
+    expect(page).to have_checked_field("src-gift")
+  end
+
   it "fill-then-add composes with JSON mode — seeded rows serialize into the hidden field" do
     visit "/draft_order_fill_json"
     expect(page).to have_css("[data-testid='add-item']")

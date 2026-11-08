@@ -559,6 +559,126 @@ test("a checkbox source copies its checked state to a checkbox row field", () =>
   expect(fieldByKey(list.children[0], "gift").checked).toBe(true)
 })
 
+// clear: :reset (issue #466) — each source goes back to its RENDERED default
+// (the way a form reset would) instead of being emptied. A widget with one
+// source of every kind, each with a matching row field.
+function option({ selected = false, defaultSelected = false, disabled = false } = {}) {
+  return { selected, defaultSelected, disabled, closest: () => null }
+}
+
+function resetWidget({ clear = "reset" } = {}) {
+  const { root, list, add } = nestedWidget()
+  const src = (key, props) => Object.assign(new FakeNode({ tag: props.tag ?? "input", attrs: { "data-src": key } }), props)
+  const flagOn = src("flag_on", { type: "checkbox", checked: false, defaultChecked: true })
+  const flagOff = src("flag_off", { type: "checkbox", checked: true, defaultChecked: false })
+  const name = src("name", { type: "text", value: "typed", defaultValue: "Default" })
+  const kindOptions = [option(), option({ defaultSelected: true }), option({ selected: true })]
+  const kind = src("kind", { tag: "select", type: "select-one", value: "c", options: kindOptions })
+  const sizeOptions = [option({ disabled: true }), option(), option({ selected: true })]
+  const size = src("size", { tag: "select", type: "select-one", value: "c", options: sizeOptions })
+  const tagOptions = [option({ selected: true }), option({ defaultSelected: true }), option({ defaultSelected: true })]
+  const tags = src("tags", { tag: "select", type: "select-multiple", multiple: true, value: "a", options: tagOptions })
+  root.append(flagOn, flagOff, name, kind, size, tags)
+
+  const keys = ["flag_on", "flag_off", "name", "kind", "size", "tags"]
+  const proto = new FakeNode({ tag: "div", attrs: { "data-reactive-nested-row": "" } })
+  for (const key of keys) {
+    const type = key.startsWith("flag") ? "checkbox" : null
+    proto.append(new FakeNode({ tag: "input", type, name: `order[line_items_attributes][NEW_ROW][${key}]` }))
+  }
+  root.children.find((c) => c.tag === "template").content = { firstElementChild: proto }
+  add.attrs["data-reactive-nested-from-param"] = JSON.stringify(Object.fromEntries(keys.map((k) => [k, `[data-src="${k}"]`])))
+  if (clear !== null) add.attrs["data-reactive-nested-clear-param"] = clear
+  return { root, list, add, flagOn, flagOff, name, kind, size, tags }
+}
+
+test("clear: :reset puts a checkbox source back to its defaultChecked (on stays on, off stays off)", () => {
+  const w = resetWidget()
+  clickAdd(buildController(w.root), w.add)
+
+  expect(w.flagOn.checked).toBe(true)
+  expect(w.flagOff.checked).toBe(false)
+  // The row was seeded from the state BEFORE the reset.
+  expect(fieldByKey(w.list.children[0], "flag_on").checked).toBe(false)
+  expect(fieldByKey(w.list.children[0], "flag_off").checked).toBe(true)
+})
+
+test("clear: :reset puts a text source back to its defaultValue, not \"\"", () => {
+  const w = resetWidget()
+  clickAdd(buildController(w.root), w.add)
+
+  expect(w.name.value).toBe("Default")
+  expect(fieldByKey(w.list.children[0], "name").value).toBe("typed")
+})
+
+test("clear: :reset selects a single select's defaultSelected option, else its first enabled one", () => {
+  const w = resetWidget()
+  clickAdd(buildController(w.root), w.add)
+
+  expect(w.kind.options.map((o) => o.selected)).toEqual([false, true, false])
+  // No defaultSelected option: the first enabled one (the #297 reset rule).
+  expect(w.size.options.map((o) => o.selected)).toEqual([false, true, false])
+})
+
+test("clear: :reset gives a multiple select exactly its defaultSelected options", () => {
+  const w = resetWidget()
+  clickAdd(buildController(w.root), w.add)
+
+  expect(w.tags.options.map((o) => o.selected)).toEqual([false, true, true])
+})
+
+test("clear: :reset dispatches exactly one bubbling input per source", () => {
+  const w = resetWidget()
+  clickAdd(buildController(w.root), w.add)
+
+  for (const source of [w.flagOn, w.flagOff, w.name, w.kind, w.size, w.tags]) {
+    const inputs = source.dispatched.filter((e) => e.type === "input")
+    expect(inputs.length).toBe(1)
+    expect(inputs[0].bubbles).toBe(true)
+  }
+})
+
+test("a source two from: keys point at is reset (and dispatches) once", () => {
+  const w = resetWidget()
+  w.add.attrs["data-reactive-nested-from-param"] = JSON.stringify({ name: '[data-src="name"]', kind: '[data-src="name"]' })
+  clickAdd(buildController(w.root), w.add)
+
+  expect(w.name.value).toBe("Default")
+  expect(w.name.dispatched.filter((e) => e.type === "input").length).toBe(1)
+})
+
+test("clear: :reset puts a radio source back to its own defaultChecked", () => {
+  const w = resetWidget()
+  const off = Object.assign(new FakeNode({ tag: "input", attrs: { "data-src": "pick" } }), { type: "radio", checked: true, defaultChecked: false })
+  const on = Object.assign(new FakeNode({ tag: "input", attrs: { "data-src": "pick_on" } }), { type: "radio", checked: false, defaultChecked: true })
+  w.root.append(off, on)
+  w.add.attrs["data-reactive-nested-from-param"] = JSON.stringify({ name: '[data-src="pick"]', kind: '[data-src="pick_on"]' })
+  clickAdd(buildController(w.root), w.add)
+
+  expect(off.checked).toBe(false)
+  expect(on.checked).toBe(true)
+  expect(off.dispatched.filter((e) => e.type === "input").length).toBe(1)
+})
+
+test("clear: true still empties every source (unchanged by :reset)", () => {
+  const w = resetWidget({ clear: "true" })
+  clickAdd(buildController(w.root), w.add)
+
+  expect(w.flagOn.checked).toBe(false)
+  expect(w.flagOff.checked).toBe(false)
+  expect(w.name.value).toBe("")
+  expect(w.kind.value).toBe("")
+})
+
+test("an unknown clear param leaves the sources alone", () => {
+  const w = resetWidget({ clear: "bogus" })
+  clickAdd(buildController(w.root), w.add)
+
+  expect(w.flagOff.checked).toBe(true)
+  expect(w.name.value).toBe("typed")
+  expect(w.name.dispatched.length).toBe(0)
+})
+
 // Confirm on remove (issue #218): reactive_nested_remove(confirm:) gates the
 // remove behind the SAME overridable confirmResolver on(:action, confirm:) uses
 // — declining leaves the row; accepting removes it (draft leaves the DOM /

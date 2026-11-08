@@ -250,6 +250,9 @@ test("a second copy of the core says, loudly, that the client was loaded twice",
     await tick()
   } finally {
     console.error = consoleError
+    // The copy installed its own counters into the shared feature modules:
+    // later files would count their defers on it (issue #464's CI order).
+    entry.__resetReactiveFeaturesForTest()
   }
 
   expect(logged.filter((line) => line.includes("the client was loaded twice"))).toHaveLength(1)

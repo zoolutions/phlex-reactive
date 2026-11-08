@@ -23,6 +23,18 @@ RSpec.describe "Draft order form — fill-then-add", type: :request do
     end
   end
 
+  describe "GET /draft_order_fill_reset (clear: :reset, issue #466)" do
+    it "renders the reset clear mode and the sources' rendered defaults" do
+      get "/draft_order_fill_reset"
+
+      expect(response).to have_http_status(:ok)
+      body = response.body
+      expect(body).to include('data-reactive-nested-clear-param="reset"')
+      expect(body).to include("#src-gift")
+      expect(body).not_to include("data-reactive-token-value")
+    end
+  end
+
   describe "GET /draft_order_fill_json (JSON mode)" do
     it "renders fill-then-add wiring + the json-mode markers together" do
       get "/draft_order_fill_json"
