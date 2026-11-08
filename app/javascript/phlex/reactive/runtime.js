@@ -2627,8 +2627,14 @@ export function __loadReactiveFeatureForTest(name) {
 // modules the default bundle handed over still loaded — or, `cold`, with none
 // loaded at all: the state of a page that imported phlex/reactive/core.
 export function __resetReactiveFeaturesForTest(cold) {
-  // (The default entry has no table to reset: its features are static.)
-  if (!__SPLIT__) return
+  // The default entry has no table to reset: its features are static. A second
+  // copy of the runtime installs its own counters into them, though, so put
+  // this instance's back.
+  if (!__SPLIT__) {
+    persistFeature.install(FEATURE_SHARED)
+    deferFeature.install(FEATURE_SHARED)
+    return
+  }
   FEATURES.clear()
   for (const [name, entry] of PRODUCTION_FEATURES) FEATURES.set(name, entry)
   // (Only the opt-in entry registers any; with the default entry alone the
