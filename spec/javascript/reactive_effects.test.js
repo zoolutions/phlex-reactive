@@ -86,6 +86,8 @@ afterEach(() => {
   globalThis.setTimeout = realSetTimeout
   globalThis.clearTimeout = realClearTimeout
   delete globalThis.cancelAnimationFrame
+  // A frame stub left behind would hold every later file's repaint (issue #464).
+  delete globalThis.requestAnimationFrame
   console.warn = realWarn
 })
 

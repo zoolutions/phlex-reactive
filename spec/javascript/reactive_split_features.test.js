@@ -80,6 +80,8 @@ function installFakeTimers() {
     timers.push({ fn, ms })
     return timers.length
   }
+  // The reply's repaint (issue #464) on the real clock: the fake one never fires.
+  globalThis.requestAnimationFrame = (fn) => realSetTimeout(fn, 0)
 }
 function runTimers(uptoMs) {
   const due = timers.filter((timer) => timer.ms <= uptoMs)
@@ -112,6 +114,7 @@ beforeEach(() => {
 
 afterEach(() => {
   globalThis.setTimeout = realSetTimeout
+  delete globalThis.requestAnimationFrame
   globalThis.console = realConsole
   for (const [name, value] of Object.entries(ORIGINALS)) {
     if (value === undefined) delete globalThis[name]

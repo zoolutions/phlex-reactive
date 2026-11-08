@@ -42,6 +42,22 @@ module Phlex
         # gate (dev/test by default).
         REQUESTS_ATTR = "data-reactive-requests"
 
+        # The <html> attribute the client writes when a busy window ends with
+        # failures (issue #464): a JSON list of { action, kind, status, root },
+        # present from that idle edge until the next busy edge. Lockstep with
+        # runtime.js ERRORS_ATTR.
+        ERRORS_ATTR = "data-reactive-errors"
+
+        # The list in the attribute, each entry a Hash with Symbol keys. Anything
+        # but a JSON list (absent, garbled, Playwright's {} for a JS null) reads
+        # as no errors, and so does an entry that is not an object.
+        def self.parse_reactive_errors(raw)
+          parsed = raw.is_a?(::String) ? ::JSON.parse(raw, symbolize_names: true) : []
+          parsed.is_a?(::Array) ? parsed.grep(::Hash) : []
+        rescue ::JSON::ParserError
+          []
+        end
+
         # Parse the attribute value into { action:, defer: } Integers — zeros for
         # an absent or garbled value. Shared by the helpers and
         # ReactiveRequestsMatcher.
@@ -74,7 +90,13 @@ module Phlex
         # (a deferred render behind a real job). Returns nil; call it as a barrier
         # BEFORE asserting a settled value if you are not already using one of the
         # waiting matchers below.
-        def wait_for_reactive(timeout: nil)
+        #
+        # The idle edge comes after the replies are drawn, and it records what
+        # failed in the window that just ended (issue #464). If anything did, this
+        # raises ReactiveReplyError naming each failed action, kind and status, so
+        # a 500 or a timeout fails here rather than one assertion later.
+        # `allow_error: true` only waits, for a test that expects the failure.
+        def wait_for_reactive(timeout: nil, allow_error: false)
           # Scope the check to <html> via the :xpath "/html" so the marker is read
           # on the document element the client writes it to — not a descendant.
           # assert_no_selector WAITS (retries) until the marker clears or the wait
@@ -83,6 +105,13 @@ module Phlex
           # session) so it works regardless of whether the example group mixed in
           # Capybara::DSL.
           page.assert_no_selector(:xpath, "/html[@#{ACTIVE_MARKER}]", **wait_option(timeout))
+          return if allow_error
+
+          errors = System.parse_reactive_errors(
+            page.evaluate_script("document.documentElement.getAttribute(#{ERRORS_ATTR.to_json})")
+          )
+          raise ReactiveReplyError, errors if errors.any?
+
           nil
         end
 
@@ -252,3 +281,4 @@ module Phlex
 end
 
 require "phlex/reactive/test_helpers/system/reactive_requests_matcher"
+require "phlex/reactive/test_helpers/system/reactive_reply_error"

@@ -85,7 +85,7 @@ RSpec.describe "The split client: the bindings, compute, hints and devtools feat
       expect(page).to have_css("[data-testid='boom'].pressed") # applied once the module arrived
       expect(page).to have_no_css("[data-testid='boom'].pressed") # the 403 reverted it
       expect(page).to have_css("#hinted-panel[data-reactive-error='http']")
-      wait_for_reactive
+      wait_for_reactive(allow_error: true) # the 403 is the point of this example
       expect(action_posts).to eq(1)
     end
 
