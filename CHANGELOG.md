@@ -28,7 +28,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   select to exactly its `selected` options). Each reset source dispatches one
   bubbling `input`, as `clear: true` does, and a source that several `from:`
   keys name is cleared once. `clear: true` is otherwise unchanged.
-- **conformance-kit 0.5, with its report-only Ractorize job (#470).** CI's
+- **conformance-kit 0.5, with its report-only Ractorize job (#363).** CI's
   conformance workflow and the Gemfiles move to 0.5. `.conformance.yml` sets
   `ractorize:`: the dummy boots in production on Rails main,
   `Rails.application.ractorize!` runs, `/up` and `/counter` are each served
