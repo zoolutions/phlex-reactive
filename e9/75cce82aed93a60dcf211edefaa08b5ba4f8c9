@@ -1,0 +1,19 @@
+spec/javascript/reactive_token.test.js
+  s_53c2b001f65bb8::t_59999ad587a7f6 13,17,30-45,52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e975cce82aed93a60dcf211edefaa08b5ba4f8c9",
+  "prompts": {},
+  "sessions": {
+    "s_53c2b001f65bb8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e5ae67ba-2a11-4e72-bb51-1a08d2649669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
