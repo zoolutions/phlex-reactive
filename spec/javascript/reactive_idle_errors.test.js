@@ -322,3 +322,16 @@ test("the busy markers clear at hand-off, while the document stays active until 
   expect(seen).toEqual([{ busy: null, active: true }])
   expect(document.documentElement.hasAttribute("data-reactive-active")).toBe(false)
 })
+
+test("a reactive:applied listener still sees the root busy, as before the change", async () => {
+  const controller = mount()
+  const root = document.getElementById("r")
+  let busy
+  root.addEventListener("reactive:applied", () => (busy = root.getAttribute("aria-busy")))
+  globalThis.fetch = () => Promise.resolve(ok())
+
+  await act(controller)
+
+  expect(busy).toBe("true")
+  expect(root.getAttribute("aria-busy")).toBeNull()
+})

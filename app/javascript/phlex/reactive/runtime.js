@@ -4484,7 +4484,6 @@ export default class extends Controller {
       // own reply, it clears what the root held (issue #370), but what it
       // refused (issue #413).
       const drawn = renderOwnReply(this.element, html, refusedHeader(response), this.#timeoutMs())
-      settle?.handoff?.()
       // Debug-only (issue #181): the morph may apply a microtask later, so check
       // the resurrected-hide case AFTER it lands. Off the debug path, resurrect is
       // null — zero cost.
@@ -4499,7 +4498,9 @@ export default class extends Controller {
       this.#emit("reactive:applied", { action, params: allParams, html })
       // The round trip ends once the reply is drawn (issue #464): the finally's
       // settle (and with it the activity counter's idle edge) runs after the
-      // morph, and the next queued action starts after it too.
+      // morph, and the next queued action starts after it too. The busy state
+      // reverts first, still a repaint before the streams render.
+      settle?.handoff?.()
       await drawn
       // What core.proceed resolves with: a feature can tell a reply that
       // applied from a failure (every other exit returns nothing).
