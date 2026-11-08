@@ -1,0 +1,9 @@
+spec/javascript/reactive_idle_errors.test.js
+  ai_agent 355,359
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c66565f4d5aa4ab8e82f59bfb7fd048477eb930e",
+  "prompts": {}
+}
