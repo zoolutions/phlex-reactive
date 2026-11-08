@@ -332,6 +332,24 @@ module Phlex
         # trigger does not cancel the default; the dialog gates only its action.
         #   div(**on(:track, event: "drop", prevent: false))
         #
+        # `detail_params:` (issue #462, also RESERVED) lets a trigger bound to a
+        # CustomEvent post named values from `event.detail` as params — a Hash
+        # of param name => top-level detail key. A list elsewhere on the page
+        # hears another component's `js.dispatch("app:item-created", detail:
+        # { id: })` and decides itself whether the new item fits its state:
+        #   div(**mix(reactive_root, on(:show_new_item, event: "app:item-created", window: true,
+        #                               detail_params: { id: :id })))
+        # The client copies only flat scalars (a String, a finite Number, a
+        # Boolean); a missing detail or key sends nothing for that param, and
+        # anything else there (an Object, an Array, NaN) is skipped, warned
+        # under verbose_errors. The action's `params:` schema stays the only
+        # gate — a detail is client data, like a field. Static `**params` win
+        # over the detail, so a key in both raises at render; so do a non-Hash
+        # or empty Hash, a blank name or key, a name a JavaScript object cannot
+        # hold (`__proto__`), and a trigger that can never carry an object
+        # detail: no `event:` of its own (the default click), `shortcut:` (a
+        # keydown) or `outside: true` (a click). `once: true` composes.
+        #
         # `optimistic:` (issue #98) — a small, ALWAYS-REVERSIBLE vocabulary of
         # COSMETIC hints the client applies the instant the trigger fires and
         # REVERTS if the round trip fails, so a click/toggle gives instant feedback
@@ -378,7 +396,7 @@ module Phlex
         #   button(**on(:destroy, confirm: "Sure?", busy: { add_class: "opacity-50" })) { "Delete" }
         def on(action_name, event: nil, debounce: nil, throttle: nil, confirm: nil,
                window: false, once: false, outside: false, optimistic: nil, busy: nil,
-               shortcut: nil, prevent: true, **params)
+               shortcut: nil, prevent: true, detail_params: nil, **params)
           reject_removed_on_kwargs!(action_name, params)
           # A typo'd or forgotten action renders fine and only surfaces as an
           # opaque 403 at CLICK time (the endpoint's default-deny). Under
@@ -413,6 +431,13 @@ module Phlex
           # Guarded here, not inside: building the caller label allocates (on() is a hot path).
           shortcut = shortcut_for!("on(#{action_name.inspect})", shortcut, event:, window:, outside:) unless shortcut.nil?
           keeps_default!("on(#{action_name.inspect})", prevent, shortcut) unless prevent == true
+          # Issue #462: the event.detail keys the client posts as params. Only
+          # when given (every non-nil value is validated, `false` included), so
+          # the common trigger stays byte-identical. Before the click default
+          # below: a mapping on a trigger with no event: of its own refuses.
+          unless detail_params.nil?
+            detail_params_json = detail_params_attr!(action_name, detail_params, params, event:, outside:, shortcut:)
+          end
           event ||= "click"
           window_bound = window || outside || !shortcut.nil?
           action = trigger_descriptors(event, shortcut, window_bound, "dispatch", once)
@@ -425,6 +450,7 @@ module Phlex
           }
           attrs[:data][:reactive_debounce_param] = debounce if debounce
           attrs[:data][:reactive_throttle_param] = throttle if throttle
+          attrs[:data][:reactive_detail_params_param] = detail_params_json if detail_params_json
           apply_confirm!(attrs[:data], confirm) if confirm
           attrs[:data][:reactive_optimistic_param] = pending_hint_json(optimistic, action_name, :optimistic) if optimistic
           attrs[:data][:reactive_busy_param] = pending_hint_json(busy, action_name, :busy) if busy
@@ -1755,6 +1781,78 @@ module Phlex
           when Float then value.finite?
           else false
           end
+        end
+
+        # Issue #462: validate on()'s detail_params: and return its JSON wire
+        # form — param name => top-level event.detail key, both Strings. Loud at
+        # render, like the other on() validations: a mapping that can never post
+        # anything fails here, never silently in the browser. `event` is the
+        # caller's own (nil when none was given), `shortcut` the parsed chord.
+        def detail_params_attr!(action_name, detail_params, params, event:, outside:, shortcut:)
+          label = "on(#{action_name.inspect}) detail_params:"
+          unless detail_params.is_a?(Hash) && !detail_params.empty?
+            raise ArgumentError,
+              "#{label} takes a non-empty Hash of param names to event.detail keys " \
+              "(e.g. detail_params: { id: :id }), got #{detail_params.inspect}"
+          end
+          detail_params_trigger!(label, event:, outside:, shortcut:)
+
+          normalized = detail_params.to_h do |name, key|
+            unless detail_params_name?(name) && detail_params_name?(key)
+              raise ArgumentError,
+                "#{label} names a param and a detail key as non-blank Symbols or Strings, " \
+                "got #{name.inspect} => #{key.inspect}"
+            end
+            if DETAIL_PARAMS_RESERVED_NAMES.include?(name.to_s)
+              raise ArgumentError,
+                "#{label} cannot name a param #{name.to_s.inspect} — the client builds the posted params as a " \
+                "JavaScript object, where that name is a prototype slot or of that family, not a plain key; " \
+                "pick another param name"
+            end
+            if params.key?(name.to_sym) || params.key?(name.to_s)
+              raise ArgumentError, "#{label} key #{name.inspect} is also a static param — one would override the other"
+            end
+
+            [name.to_s, key.to_s]
+          end
+          # :id and "id" would collapse into one key, dropping a param.
+          raise ArgumentError, "#{label} keys must be unique as strings" if normalized.size < detail_params.size
+
+          normalized.to_json
+        end
+
+        # The param names a JavaScript object cannot carry as plain keys: writing
+        # `values["__proto__"] = 7` sets nothing, so the param would be lost in
+        # silence; `constructor` and `prototype` are the same family. Refused at
+        # render instead.
+        DETAIL_PARAMS_RESERVED_NAMES = %w[__proto__ constructor prototype].freeze
+        private_constant :DETAIL_PARAMS_RESERVED_NAMES
+
+        # Only a trigger bound to a CustomEvent can carry an object detail. The
+        # default click (no `event:`) and a shortcut (a window keydown) are
+        # native events whose `detail` is a number (a click count, 0), so a
+        # mapping on them could never post anything: loud at render, in the
+        # family of the shortcut: and outside: refusals. An explicit `event:` is
+        # taken at its word, element- or window-bound; the client copies only
+        # from an object detail, so a native event named there posts nothing.
+        def detail_params_trigger!(label, event:, outside:, shortcut:)
+          if outside
+            raise ArgumentError,
+              "#{label} cannot combine with outside: — an outside trigger reads a click, which carries no detail"
+          end
+          unless shortcut.nil?
+            raise ArgumentError,
+              "#{label} cannot combine with shortcut: — a shortcut is a window keydown, which carries no detail"
+          end
+          return unless event.nil?
+
+          raise ArgumentError,
+            "#{label} needs an explicit event: — the default click carries no detail (MouseEvent.detail " \
+            "is a click count); bind the trigger to the CustomEvent it reads (event: \"app:item-created\")"
+        end
+
+        def detail_params_name?(value)
+          (value.is_a?(Symbol) || value.is_a?(String)) && !value.to_s.strip.empty?
         end
 
         def apply_confirm!(data, confirm)

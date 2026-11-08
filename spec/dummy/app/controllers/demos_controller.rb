@@ -427,6 +427,16 @@ class DemosController < ActionController::Base
     render html: "#{html}<span data-testid=\"connects\">0</span>".html_safe, layout: "lazy_controller"
   end
 
+  # Issue #462: one component creates an item, a sibling list hears the event
+  # and decides whether to show it (?filter=<text> narrows the list).
+  def detail_params
+    html = [
+      render_to_string(ItemCreatorComponent.new, layout: false),
+      render_to_string(FilteredItemsComponent.new(filter: params[:filter].presence), layout: false)
+    ].join
+    render html: html.html_safe, layout: true
+  end
+
   # Issue #369: ?renamed=N renders item N renamed (a server-side change).
   def kept_selection
     render_component KeptSelectionComponent.new(renamed: params[:renamed]&.to_i)

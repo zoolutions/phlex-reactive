@@ -1207,6 +1207,126 @@ RSpec.describe Phlex::Reactive::Component do
     end
   end
 
+  # Issue #462: detail_params: names the top-level event.detail keys a
+  # custom-event-bound trigger posts as params (param name => detail key).
+  describe "#on detail_params: (issue #462)" do
+    subject(:instance) { state_klass.new }
+
+    it "emits the mapping as JSON with string keys and values" do
+      attrs = instance.send(:on, :set, event: "a:b", window: true, detail_params: { count: :id })
+
+      expect(attrs[:data][:action]).to eq("a:b@window->reactive#dispatch")
+      expect(attrs[:data][:reactive_detail_params_param]).to eq('{"count":"id"}')
+      expect(attrs[:data][:reactive_params_param]).to eq("{}")
+      expect(attrs[:data][:reactive_window_param]).to eq("true")
+    end
+
+    it "binds to an element-bound custom event too (a root hears its own children)" do
+      attrs = instance.send(:on, :set, event: "panel:opened", detail_params: { count: :id })
+
+      expect(attrs[:data][:action]).to eq("panel:opened->reactive#dispatch")
+      expect(attrs[:data][:reactive_detail_params_param]).to eq('{"count":"id"}')
+      expect(attrs[:data]).not_to have_key(:reactive_window_param)
+    end
+
+    it "accepts String keys and values, and composes with window: and once:" do
+      attrs = instance.send(:on, :set, event: "a:b", window: true, once: true, detail_params: { "count" => "id" })
+
+      expect(attrs[:data][:action]).to eq("a:b@window->reactive#dispatch:once")
+      expect(attrs[:data][:reactive_detail_params_param]).to eq('{"count":"id"}')
+      expect(attrs[:data][:reactive_window_param]).to eq("true")
+    end
+
+    it "keeps static params beside the mapping (they stay the posted params payload)" do
+      attrs = instance.send(:on, :set, event: "a:b", window: true, detail_params: { count: :id }, source: "list")
+
+      expect(JSON.parse(attrs[:data][:reactive_params_param])).to eq({ "source" => "list" })
+      expect(JSON.parse(attrs[:data][:reactive_detail_params_param])).to eq({ "count" => "id" })
+    end
+
+    it "emits nothing by default (the common trigger is byte-identical)" do
+      expect(instance.send(:on, :increment)[:data]).not_to have_key(:reactive_detail_params_param)
+      expect(instance.send(:on, :increment, detail_params: nil)).to eq(instance.send(:on, :increment))
+    end
+
+    [[], "id", 1, {}, false, true].each do |bad|
+      it "raises on #{bad.inspect} (a non-empty Hash only; every non-nil value is checked)" do
+        expect { instance.send(:on, :set, event: "a:b", window: true, detail_params: bad) }
+          .to raise_error(ArgumentError, /on\(:set\) detail_params: takes a non-empty Hash/)
+      end
+    end
+
+    it "raises on a blank param name or detail key" do
+      expect { instance.send(:on, :set, event: "a:b", window: true, detail_params: { "" => :id }) }
+        .to raise_error(ArgumentError, /on\(:set\) detail_params: .*blank.*got "" => :id/)
+      expect { instance.send(:on, :set, event: "a:b", window: true, detail_params: { count: " " }) }
+        .to raise_error(ArgumentError, /on\(:set\) detail_params: .*blank.*got :count => " "/)
+      expect { instance.send(:on, :set, event: "a:b", window: true, detail_params: { count: nil }) }
+        .to raise_error(ArgumentError, /on\(:set\) detail_params: .*got :count => nil/)
+    end
+
+    # The client builds the posted params as a JavaScript object: a param named
+    # __proto__ would be written into the prototype slot and lost in silence.
+    %w[__proto__ constructor prototype].each do |name|
+      it "raises on a param named #{name} (a JavaScript object cannot hold it as a key)" do
+        expect { instance.send(:on, :set, event: "a:b", window: true, detail_params: { name => :id }) }
+          .to raise_error(ArgumentError, /on\(:set\) detail_params: cannot name a param "#{name}"/)
+      end
+    end
+
+    it "lets a detail KEY be __proto__ (the client reads it off the detail and finds no scalar)" do
+      attrs = instance.send(:on, :set, event: "a:b", window: true, detail_params: { count: "__proto__" })
+
+      expect(attrs[:data][:reactive_detail_params_param]).to eq('{"count":"__proto__"}')
+    end
+
+    it "raises when a param name is also a static param (one would override the other)" do
+      expect { instance.send(:on, :set, event: "a:b", window: true, detail_params: { count: :id }, count: 1) }
+        .to raise_error(ArgumentError, /on\(:set\) detail_params: key :count is also a static param/)
+    end
+
+    it "raises on :count and \"count\" together (they collapse into one key)" do
+      expect { instance.send(:on, :set, event: "a:b", window: true, detail_params: { count: :id, "count" => :n }) }
+        .to raise_error(ArgumentError, /on\(:set\) detail_params: keys must be unique as strings/)
+    end
+
+    it "raises with outside: true (an outside click carries no detail)" do
+      expect { instance.send(:on, :close_menu, outside: true, detail_params: { count: :id }) }
+        .to raise_error(ArgumentError, /on\(:close_menu\) detail_params: cannot combine with outside:/)
+    end
+
+    # A trigger that can never carry an object detail refuses the mapping at
+    # render, like outside: — the default click and a shortcut are native
+    # events whose detail is a number.
+    it "raises without an explicit event: (the default click carries no detail)" do
+      expect { instance.send(:on, :set, detail_params: { count: :id }) }
+        .to raise_error(ArgumentError, /on\(:set\) detail_params: needs an explicit event: — the default click/)
+      expect { instance.send(:on, :set, window: true, detail_params: { count: :id }) }
+        .to raise_error(ArgumentError, /on\(:set\) detail_params: needs an explicit event:/)
+    end
+
+    it "raises with shortcut: (a shortcut is a window keydown, which carries no detail)" do
+      expect { instance.send(:on, :set, shortcut: "mod+k", detail_params: { count: :id }) }
+        .to raise_error(ArgumentError, /on\(:set\) detail_params: cannot combine with shortcut:/)
+    end
+
+    it "takes an explicit native event: at its word (the client copies only from an object detail)" do
+      attrs = instance.send(:on, :set, event: "click", detail_params: { count: :id })
+
+      expect(attrs[:data][:action]).to eq("click->reactive#dispatch")
+      expect(attrs[:data][:reactive_detail_params_param]).to eq('{"count":"id"}')
+    end
+
+    it "checks the trigger before the mapping's entries (outside: and shortcut: first, then event:)" do
+      expect { instance.send(:on, :set, outside: true, detail_params: { "" => :id }) }
+        .to raise_error(ArgumentError, /cannot combine with outside:/)
+      expect { instance.send(:on, :set, shortcut: "mod+k", detail_params: { "" => :id }) }
+        .to raise_error(ArgumentError, /cannot combine with shortcut:/)
+      expect { instance.send(:on, :set, detail_params: { "" => :id }) }
+        .to raise_error(ArgumentError, /needs an explicit event:/)
+    end
+  end
+
   describe "#on optimistic hints (issue #98 — declared, reversible visual hints)" do
     subject(:instance) { state_klass.new }
 

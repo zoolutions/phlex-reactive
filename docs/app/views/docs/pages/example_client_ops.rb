@@ -780,7 +780,9 @@ module Views
               - **`:trigger`** is a target like `:root`: the element whose binding fired.
               - **`from:` + `attr:`** on `set_value`, `text` and `set_attr` read the value off
                 an element in the browser instead of baking it in, and `dispatch`'s
-                `detail_from:` builds the event's detail the same way.
+                `detail_from:` builds the event's detail the same way. A server action
+                elsewhere on the page reads that detail with `on(…, detail_params:)`
+                ([Actions & events](/docs/actions-events#a-list-reacts-to-another-component-s-event-detail_params), #462).
 
               ```ruby
               ul(role: "listbox", **on_client(:click, pick, within: "[role=option]")) do

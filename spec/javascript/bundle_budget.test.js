@@ -231,7 +231,10 @@ const SLACK = 250
 // state reverts at hand-off, only the activity exit waits for the draw) 38 B: 42,599 B; its review fix
 // (a stream that throws while rendering is an apply failure) 37 B: 42,636 B; recorded inline after the
 // draw, with no revert, 5 B: 42,641 B (those sizes before #466); on top of #466: 42,745 B.
-const BUNDLE_GZIP_CEILING = 42_745
+// Issue #462 (detail_params: — a trigger bound to a CustomEvent posts the named event.detail keys as
+// params, merged under the static params in dispatch, in the runtime) adds 186 B: 42,379 B (before #464 and
+// #466); on top of them: 42,924 B.
+const BUNDLE_GZIP_CEILING = 42_924
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -319,7 +322,8 @@ const TARGET_BUNDLE_GZIP = 22_700
 // Issue #464 (the render-aware renderOwnReply and the error ledger) adds 356 B: 19,881 B;
 // its validation fix (the busy state reverts at hand-off) 29 B: 19,910 B; its review fix (a stream
 // that throws while rendering is an apply failure) 47 B: 19,957 B.
-const CORE_GZIP_CEILING = 19_957
+// Issue #462 (detail_params: — the named event.detail keys posted as params) adds 185 B: 19,710 B (before #464); on top of it: 20,238 B.
+const CORE_GZIP_CEILING = 20_238
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -481,7 +485,8 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #466 (clear: :reset, +141 B bindings): 51,451 B.
 // Issue #464 (+356 B core, +21 B defer) adds 377 B: 51,687 B; its validation fix (+29 B core) 51,716 B;
 // its review fix (+47 B core) 51,763 B (those sizes before #466); with #466's +141 B: 51,904 B.
-const SPLIT_TOTAL_GZIP_CEILING = 51_904
+// Issue #462 (detail_params:, in the core) adds 185 B: 51,495 B (before #464 and #466); on top of them: 52,185 B.
+const SPLIT_TOTAL_GZIP_CEILING = 52_185
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

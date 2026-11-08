@@ -3496,9 +3496,18 @@ export default class extends Controller {
     // modifier params (issue #80). The client decides preventDefault behavior
     // from event.params — set by the Ruby on() — never by sniffing the
     // Stimulus descriptor.
-    const { action, params, debounce, throttle, confirm, confirmWhen, outside, window: windowBound, optimistic, prevent } =
+    const { action, debounce, throttle, confirm, confirmWhen, outside, window: windowBound, optimistic, prevent } =
       event.params
     if (!action) return
+    // Issue #462: a trigger bound to a CustomEvent posts the named top-level
+    // keys of event.detail as params (data-reactive-detail-params-param, an
+    // allowlist of param name => detail key). Merged UNDER the static params
+    // HERE — dispatch is the one place that sees the event — so every path
+    // below (debounce, throttle, the JSON and the multipart body) carries them.
+    const params =
+      event.params.detailParams == null
+        ? event.params.params
+        : this.#withDetailParams(event.params.params, event.params.detailParams, event.detail)
 
     // The pending-state hint (issue #181): data-reactive-busy-param. During a
     // deploy overlap a page rendered by the PREVIOUS gem still emits the old
@@ -4994,6 +5003,31 @@ export default class extends Controller {
     } catch {
       return {}
     }
+  }
+
+  // Issue #462: the static params over the values detail_params: names off
+  // event.detail. Only a flat scalar is copied (a String, a finite Number, a
+  // Boolean) — the wire shape of a field value. A missing or non-object detail,
+  // a missing key, null or undefined sends nothing for that param: the server's
+  // schema refuses or defaults it, the client never invents a value. A value
+  // that is there but no flat scalar (an Object, an Array, NaN, a BigInt) is
+  // skipped, told under verbose_errors. A mapping that is no plain object
+  // (hand-built, malformed, the JSON `null`) reads as empty. The Ruby side
+  // refuses a param named __proto__ (a prototype slot, not a key); a
+  // hand-built one writes nothing into `values` and pollutes nothing.
+  #withDetailParams(raw, mapping, detail) {
+    const statics = this.#parseParams(raw)
+    const map = this.#parseParams(mapping)
+    if (!map || Array.isArray(map) || typeof map !== "object" || !detail || typeof detail !== "object") return statics
+    const values = {}
+    for (const [name, key] of Object.entries(map)) {
+      const value = detail[key]
+      const type = typeof value
+      if (type === "string" || type === "boolean" || (type === "number" && Number.isFinite(value))) values[name] = value
+      else if (value != null && this.#verboseEnabled())
+        console.warn(`[phlex-reactive] detail_params ${name}: event.detail.${key} is no flat scalar — skipped`)
+    }
+    return { ...values, ...statics }
   }
 
   // Stimulus typecasts a JSON param to the parsed array already; a raw string

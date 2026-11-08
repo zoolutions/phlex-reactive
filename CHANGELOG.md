@@ -19,6 +19,27 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   as well as a string,
   and work in nested and array schemas, where a dropped element follows the
   existing array rule. `:integer` and `:float` are unchanged.
+- **`on(…, detail_params: { param => detail_key })` posts named `event.detail`
+  values as action params (#462).** A server action bound to a custom event
+  (`on(:show_new_item, event: "app:item-created", window: true)`) never saw the
+  event's detail: the posted params were the root's fields and the trigger's
+  static params, so a list elsewhere on the page could not learn which item
+  another component had just created, and the creating component's reply had
+  to push a hand-targeted stream into it instead. `detail_params:` names the
+  top-level `event.detail` keys the client copies into the params, under the
+  static params; the action's `params:` schema types and refuses them like any
+  other param, so the list decides itself whether the item fits its filter.
+  Only a String, a finite Number or a Boolean is copied: a missing detail or
+  key sends nothing for that param, a value that is there but no flat scalar
+  (an Object, an Array, `NaN`) is skipped, warned under `verbose_errors`. It
+  raises at render for a non-Hash or empty Hash, a blank name or key, a name
+  also in the static params, a param named `__proto__` (`constructor`,
+  `prototype`), and a trigger that can never carry an object detail: no
+  `event:` of its own, `shortcut:`, or `outside: true`; `once: true` composes.
+  A detail value wins over a collected field of the same name, as a static
+  param does; the static params win over the detail. The early replay and the
+  multipart body carry the values too, and `reactive:before-dispatch`'s
+  `detail.params` now includes them.
 - **`reactive_nested_add(clear: :reset)` (#466).** `clear: true` empties every
   fill-then-add source after an add, so a checkbox that renders ticked was
   unticked for every row after the first. `clear: :reset` puts each source back
@@ -31,6 +52,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **`detail_params:` is a reserved keyword on `on(...)` (#462).** It used to
+  pass through as an action param; it now takes a Hash of param names to
+  `event.detail` keys only (anything else raises `ArgumentError`). Rename an
+  action param called `detail_params`.
 - **`reactive_nested_add(clear:)` raises on an unknown value (#466).** It takes
   `true`, `false`, `nil` or `:reset`; anything else (a truthy string such as
   `clear: "yes"`, which used to act as `true`) now raises `ArgumentError` at
@@ -48,9 +73,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `apply` too (after `reactive:applied`; the drawn rest of the reply is not
   reverted). A render still running when the action timeout cuts the wait off
   is not recorded.
-
-### Changed
-
 - **BREAKING (minor release): `wait_for_reactive` raises when the round trip
   failed (#464).** It used to return after a 500, a timeout or a redirect just as
   after a rendered reply, and the next assertion failed a full Capybara wait
