@@ -250,7 +250,7 @@ module Views
               default the next entry should start from — a box ticked by
               default, a quantity of `1`, a preselected option — pass `clear:
               :reset` instead: each source goes back to what the server rendered,
-              the way a form reset would (a checkbox or radio to its `checked`
+              the way a form reset would (a checkbox to its `checked`
               attribute, a text input to its `value`, a select to its `selected`
               option or, with none, its first enabled one), with the same
               dispatched `input`. Any other `clear:` value raises at render.

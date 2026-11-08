@@ -176,6 +176,8 @@ function fieldDirty(field) {
     // false, so a pristine form must not read as dirty (issue #297). A multiple
     // (or size > 1) select resets to exactly its defaultSelected options. An
     // option inside a disabled <optgroup> is disabled too (the browser skips it).
+    // bindings.js clearNestedSource (reactive_nested_add clear: :reset, #466)
+    // resets a select by this same rule: change one, change the other.
     const options = Array.from(field.options ?? [])
     const single = !field.multiple && !(field.size > 1)
     const reset = options.filter((o) => o.defaultSelected).pop() ?? options.find((o) => !o.closest?.("optgroup")?.disabled && !o.disabled)

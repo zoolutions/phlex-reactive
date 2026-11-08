@@ -1363,7 +1363,8 @@ function seedNestedRow(c, row, fromJson, clear) {
     const target = rowFields.find((field) => nestedJsonKey(field.getAttribute?.("name")) === key)
     if (!target) continue
     seedNestedField(target, source)
-    sources.push(source)
+    // One source can feed several row fields: clear it (and dispatch) once.
+    if (!sources.includes(source)) sources.push(source)
   }
   if (clear) for (const source of sources) clearNestedSource(source, clear)
   return sources[0] ?? null
@@ -1386,8 +1387,8 @@ function seedNestedField(target, source) {
 // Reset a source control after a fill-then-add (issue #208), dispatching a
 // bubbling `input` so dirty tracking / reactive_show / compute see the reset.
 // "true" empties it; "reset" (issue #466) puts it back to its server-rendered
-// default, the way a form reset would: a checkbox/radio to defaultChecked, a
-// select to its reset option(s), anything else to defaultValue. A one-row
+// default, the way a form reset would: a checkbox (or that one radio — the
+// selector names an element, not its group) to defaultChecked, a select to its reset option(s), anything else to defaultValue. A one-row
 // single select resets to its last defaultSelected option or, with none, its
 // first enabled one; a multiple (or size > 1) select to exactly its
 // defaultSelected options — the rule dirty tracking diffs against (form.js

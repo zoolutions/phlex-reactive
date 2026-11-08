@@ -3043,7 +3043,7 @@ end-of-add JSON sync serializes them (`as: :json`), with no extra wiring.
 goes to `""`. When a source renders a default the next entry should start from —
 a "gift wrap" box that is ticked by default, a quantity of `1`, a preselected
 option — pass `clear: :reset` instead: each source goes back to what the server
-rendered, the way a form reset would (a checkbox or radio to its `checked`
+rendered, the way a form reset would (a checkbox to its `checked`
 attribute, a text input to its `value`, a select to its `selected` option or,
 with none, its first enabled one), with the same dispatched `input`. Any other
 `clear:` value raises at render.

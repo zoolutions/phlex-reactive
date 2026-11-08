@@ -638,6 +638,15 @@ test("clear: :reset dispatches exactly one bubbling input per source", () => {
   }
 })
 
+test("a source two from: keys point at is reset (and dispatches) once", () => {
+  const w = resetWidget()
+  w.add.attrs["data-reactive-nested-from-param"] = JSON.stringify({ name: '[data-src="name"]', kind: '[data-src="name"]' })
+  clickAdd(buildController(w.root), w.add)
+
+  expect(w.name.value).toBe("Default")
+  expect(w.name.dispatched.filter((e) => e.type === "input").length).toBe(1)
+})
+
 test("clear: true still empties every source (unchanged by :reset)", () => {
   const w = resetWidget({ clear: "true" })
   clickAdd(buildController(w.root), w.add)
