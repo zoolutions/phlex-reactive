@@ -352,11 +352,11 @@ test("a stream render that throws inside Turbo is listed as an apply failure", a
   expect(document.getElementById("r").getAttribute("data-reactive-error")).toBe("apply")
 })
 
-test("a stream that throws after the reply was drawn keeps the drawn DOM: no optimistic revert, the reply still counts", async () => {
+test("a stream render that throws after it drew keeps the drawn DOM: no optimistic revert, the reply still counts", async () => {
   mount("r", '<button id="btn">Done?</button>')
   const controller = controllers.at(-1)
   const btn = document.getElementById("btn")
-  // The morph renders the server's state (done), then a later stream throws.
+  // The stream's render sets the server's state (done), then throws within the same render.
   replies.r = {
     apply: () => {
       btn.classList.add("done")
