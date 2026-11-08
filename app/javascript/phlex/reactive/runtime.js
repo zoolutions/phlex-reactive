@@ -875,7 +875,8 @@ function renderOwnReply(root, html, keep = null, cap = 30000) {
   }
   if (own.streams === 0) releaseHeld(root, keep)
   const renders = own.events.filter((entry) => !entry.event.defaultPrevented).map((entry) => entry.done)
-  const drawn = renders.length > 0 ? Promise.all(renders) : nextRepaint()
+  // Resolves with the first render's error, if one threw (Turbo logs it).
+  const drawn = renders.length > 0 ? Promise.all(renders).then((errors) => errors.find(Boolean)) : nextRepaint()
   let timer
   const bound = new Promise((resolve) => (timer = setTimeout(resolve, cap)))
   return Promise.race([drawn, bound]).finally(() => clearTimeout(timer))
@@ -900,14 +901,18 @@ function streamOwnReply(event) {
   own.events.push({ event, done: new Promise((resolve) => (finished = resolve)) })
   detail.render = async (el) => {
     replying.set(own.root, (replying.get(own.root) || 0) + 1)
+    let failure
     try {
       return await render(el)
+    } catch (error) {
+      failure = error
+      throw error
     } finally {
       const left = replying.get(own.root) - 1
       if (left) replying.set(own.root, left)
       else replying.delete(own.root)
       releaseHeld(own.root, own.keep)
-      finished()
+      finished(failure)
     }
   }
 }
@@ -4501,7 +4506,9 @@ export default class extends Controller {
       // morph, and the next queued action starts after it too. The busy state
       // reverts first, still a repaint before the streams render.
       settle?.handoff?.()
-      await drawn
+      // A stream that threw while rendering is a client-side apply failure.
+      const failure = await drawn
+      if (failure) throw failure
       // What core.proceed resolves with: a feature can tell a reply that
       // applied from a failure (every other exit returns nothing).
       return html

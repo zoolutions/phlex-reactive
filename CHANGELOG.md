@@ -26,8 +26,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `redirected`, `content-type`, `apply`), a feature that could not load, a
   deferred render that failed. `reactive:idle`'s detail gains
   `errors: [{ action, kind, status, root }]` (`[]` after a clean window), and
-  `<html data-reactive-errors>` holds the same list as JSON from that idle edge
-  until the next busy edge.
+  when that list is not empty `<html data-reactive-errors>` holds it as JSON from
+  that idle edge until the next busy edge (a clean window leaves the attribute
+  absent). A stream of the reply that throws while Turbo renders it is listed as
+  `apply` too.
 
 ### Changed
 

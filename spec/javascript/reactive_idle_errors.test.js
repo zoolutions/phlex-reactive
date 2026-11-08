@@ -70,7 +70,8 @@ beforeEach(() => {
         detail: { newStream: stream, render: async () => reply.apply() },
       })
       document.dispatchEvent(event)
-      if (!event.defaultPrevented) setTimeout(() => event.detail.render(stream), reply.delay ?? 0)
+      // Turbo's connectedCallback catches (and logs) a render that throws.
+      if (!event.defaultPrevented) setTimeout(() => event.detail.render(stream).catch(() => {}), reply.delay ?? 0)
     },
   }
   globalThis.fetch = () => Promise.resolve(ok())
@@ -334,4 +335,19 @@ test("a reactive:applied listener still sees the root busy, as before the change
 
   expect(busy).toBe("true")
   expect(root.getAttribute("aria-busy")).toBeNull()
+})
+
+test("a stream render that throws inside Turbo is listed as an apply failure", async () => {
+  const controller = mount()
+  replies.r = {
+    apply: () => {
+      throw new Error("render blew up")
+    },
+  }
+  globalThis.fetch = () => Promise.resolve(ok('<turbo-stream target="r"></turbo-stream>'))
+
+  await act(controller)
+
+  expect(idles[0].detail.errors).toEqual([{ action: "save", kind: "apply", status: null, root: "r" }])
+  expect(document.getElementById("r").getAttribute("data-reactive-error")).toBe("apply")
 })

@@ -397,7 +397,8 @@ module Views
                   code { 'wait_for_reactive(allow_error: true)' }
                   plain ' only waits, for a test that expects the failure. It reads '
                   code { '<html data-reactive-errors>' }
-                  plain ', the JSON list the client writes on the idle edge and clears on the next busy edge; '
+                  plain ', the JSON list the client writes on an idle edge that ended a window with failures and ' \
+                        'clears on the next busy edge (a clean window leaves it absent); '
                   code { 'reactive:idle' }
                   plain "'s detail carries the same "
                   code { 'errors' }

@@ -4807,8 +4807,9 @@ wait_for_reactive(allow_error: true) # waits only, as in 0.16
 
 It reads what the client records: `reactive:idle`'s detail carries `errors`
 (`[{ action, kind, status, root }]`, `[]` after a clean window), and
-`<html data-reactive-errors>` holds the same list as JSON from that idle edge
-until the next `reactive:busy` edge.
+when that list is not empty `<html data-reactive-errors>` holds it as JSON from
+that idle edge until the next `reactive:busy` edge. A clean window leaves the
+attribute absent.
 
 > `verbose_errors` defaults ON in test (it changes only an error BODY, never a
 > status). Asserting an empty failure body? Set
