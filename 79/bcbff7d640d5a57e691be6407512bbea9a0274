@@ -1,0 +1,21 @@
+app/javascript/phlex/reactive/runtime.js
+  s_53c2b001f65bb8::t_976a2773c0d5ac 2630-2637
+spec/javascript/reactive_default_entry.test.js
+  s_53c2b001f65bb8::t_976a2773c0d5ac 256-258
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "79bcbff7d640d5a57e691be6407512bbea9a0274",
+  "prompts": {},
+  "sessions": {
+    "s_53c2b001f65bb8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e5ae67ba-2a11-4e72-bb51-1a08d2649669",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
