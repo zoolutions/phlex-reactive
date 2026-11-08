@@ -30,7 +30,9 @@ ractorize:
   # Runs in spec/dummy. Its own CI job (a fresh postgres:18, and ractor.setup
   # does not run first), so it prepares the same database. No schema cache:
   # with one, Rails main defines every model's attributes at boot and
-  # ActiveStorage::Blob's `serialize :metadata` Proc stops ractorize!.
+  # ActiveStorage::Blob's `serialize :metadata` Proc stops ractorize!. So the
+  # requests above must stay query-free (a model's first query inside a Ractor
+  # needs that cache) until Rails main can make that Proc shareable.
   setup: cd ../.. && bin/conformance-db
 main_only:
   # Framework class state on the gem's own subclasses, narrowed to the

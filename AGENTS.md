@@ -128,7 +128,7 @@ re-sync command.
 
 - **Verify:** `bundle exec rubocop` · `bundle exec rbs -I sig validate` · `bundle exec rspec spec/phlex spec/requests spec/generators` · client edit: `rake build:js`, re-sync vendored copies, `bun test spec/javascript` (also `--define __SPLIT__=false`), `rake build:js_check` · `docs/**`: `cd docs && bundle exec rake lint && bundle exec rspec`
 - **Specs:** fast loop `bundle exec rspec <file>`; full suite `bundle exec rake`, browser `bundle exec rspec spec/system` (`rake spec:system_servers`, `rake spec:system_split`); two worktrees at once: yes, pgbus-transport system cells need their own Postgres (`DATABASE_URL`)
-- **CI:** required `Lint`, `Ruby 3.4`, `Ruby 4.0`, four `System (puma|falcon / cable|pgbus)`, both `conformance / …`, `cubic · AI code reviewer`; `Benchmarks`, `kino smoke`, `Demo site`, `conformance / Ractorize (report-only)` not required; full suite on the PR; failure report: artifact `capybara-screenshots-<server>-<transport>`
+- **CI:** required `Lint`, `Ruby 3.4`, `Ruby 4.0`, four `System (puma|falcon / cable|pgbus)`, `conformance / Conformance settings`, `conformance / Conformance (Ruby 4.0)`, `cubic · AI code reviewer`; `Benchmarks`, `kino smoke`, `Demo site`, `conformance / Ractorize (report-only)` not required; full suite on the PR; failure report: artifact `capybara-screenshots-<server>-<transport>`
 - **Review bot:** cubic
 - **Merge:** squash — `gh pr merge <PR> --squash --delete-branch`
 - **PR contract:** `## Summary` (`Closes #N`), `## Test plan`; labels per `## Labels`; scopes `streamable` `component` `controller` `client` `engine` `docs` `ci`; docs site or demo change: before/after screenshots; hot-path change: the before/after bench
