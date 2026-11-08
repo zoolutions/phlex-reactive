@@ -4447,7 +4447,9 @@ export default class extends Controller {
             if (__SPLIT__) this.#devtools((devtools) => devtools.recordBody(debug, errorBody, fresh))
             else devtoolsFeature.recordBody(debug, errorBody, fresh)
           }
-          await renderOwnReply(this.element, errorBody, true, this.#timeoutMs())
+          const drawn = renderOwnReply(this.element, errorBody, true, this.#timeoutMs())
+          settle?.handoff?.()
+          await drawn
         }
         this.#markError("http")
         this.#emitError(action, params, allParams, { kind: "http", status: response.status, body: errorBody })
@@ -4482,6 +4484,7 @@ export default class extends Controller {
       // own reply, it clears what the root held (issue #370), but what it
       // refused (issue #413).
       const drawn = renderOwnReply(this.element, html, refusedHeader(response), this.#timeoutMs())
+      settle?.handoff?.()
       // Debug-only (issue #181): the morph may apply a microtask later, so check
       // the resurrected-hide case AFTER it lands. Off the debug path, resurrect is
       // null — zero cost.
@@ -5082,15 +5085,28 @@ export default class extends Controller {
     // #perform runs in its finally on EVERY exit path (success or any failure).
     enterReactiveActivity()
 
+    // Two steps (issue #464). `handoff` reverts this enqueue's busy state when
+    // the reply is handed to Turbo, a repaint before it renders, so an in-place
+    // morph's server state (a trigger it renders disabled) wins over the undo.
+    // The settle itself leaves the activity count only once the reply is drawn,
+    // running the hand-off first if no reply got that far.
+    let unbusied = false
     let settled = false
-    return () => {
-      if (settled) return // one settle per enqueue, even if called twice
-      settled = true
+    const handoff = () => {
+      if (unbusied) return
+      unbusied = true
       this.#unmarkBusy(action, trigger)
-      exitReactiveActivity()
-      // Busy reverts on SETTLE regardless of outcome, guarded per element.
+      // Busy reverts regardless of outcome, guarded per element.
       for (const op of pending.undo) op()
     }
+    const settle = () => {
+      if (settled) return // one settle per enqueue, even if called twice
+      settled = true
+      handoff()
+      exitReactiveActivity()
+    }
+    settle.handoff = handoff
+    return settle
   }
 
   // Layer 1 — the always-on busy markers. Trigger + root carry the action token;

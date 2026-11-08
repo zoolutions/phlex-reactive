@@ -4794,7 +4794,9 @@ it waited on had a failure (an HTTP error, a timeout, a redirect, a
 non-turbo-stream reply, a client-side apply error, a feature or deferred render
 that failed). The message names each one, e.g.
 `reactive action "increment" failed (http 500) on #flaky-counter`, and `#errors`
-returns the list. Pass `allow_error: true` to a test that expects the failure:
+returns the list. A failure that a `reactive:error` listener retries is still
+listed, even when the retry succeeds. Pass `allow_error: true` to a test that
+expects the failure:
 
 ```ruby
 click_on "Add"

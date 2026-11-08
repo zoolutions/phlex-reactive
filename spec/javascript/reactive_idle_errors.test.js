@@ -288,3 +288,37 @@ test("resetReactiveActivity clears the ledger and the attribute", async () => {
   runtime.exitReactiveActivity()
   expect(idles.at(-1).detail.errors).toEqual([])
 })
+
+// --- the busy state reverts at hand-off, not after the draw ------------------
+// Only the activity exit waits for the reply to be drawn. The busy markers and
+// a busy hint's undo still run when the reply is handed to Turbo, a repaint
+// before it renders, so an in-place morph's server state wins over the undo.
+
+test("a busy { disable: true } hint does not re-enable a trigger the morph reply rendered disabled", async () => {
+  mount("r", '<button id="btn">Add</button>')
+  const controller = controllers.at(-1)
+  const btn = document.getElementById("btn")
+  replies.r = { apply: () => (btn.disabled = true), delay: 10 }
+  globalThis.fetch = () => Promise.resolve(ok('<turbo-stream target="r"></turbo-stream>'))
+
+  await controller.dispatch({ params: { action: "add", busy: { disable: true } }, currentTarget: btn, target: btn, preventDefault() {} })
+
+  expect(btn.disabled).toBe(true)
+  expect(idles).toHaveLength(1)
+})
+
+test("the busy markers clear at hand-off, while the document stays active until the draw", async () => {
+  const controller = mount()
+  const root = document.getElementById("r")
+  const seen = []
+  replies.r = {
+    apply: () => seen.push({ busy: root.getAttribute("aria-busy"), active: document.documentElement.hasAttribute("data-reactive-active") }),
+    delay: 10,
+  }
+  globalThis.fetch = () => Promise.resolve(ok('<turbo-stream target="r"></turbo-stream>'))
+
+  await act(controller)
+
+  expect(seen).toEqual([{ busy: null, active: true }])
+  expect(document.documentElement.hasAttribute("data-reactive-active")).toBe(false)
+})

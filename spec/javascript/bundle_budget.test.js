@@ -226,8 +226,9 @@ const SLACK = 250
 // Issue #445 (preview_file rejected: — a refused file's name listed from an app <template>, kept
 // across a morph, in the runtime) adds 273 B on top of that: 42,193 B.
 // Issue #464 (reactive:idle waits for the reply to be drawn and lists what failed: the render-aware
-// renderOwnReply, the error ledger, the defer hook) adds 368 B: 42,561 B.
-const BUNDLE_GZIP_CEILING = 42_561
+// renderOwnReply, the error ledger, the defer hook) adds 368 B: 42,561 B; its validation fix (the busy
+// state reverts at hand-off, only the activity exit waits for the draw) 38 B: 42,599 B.
+const BUNDLE_GZIP_CEILING = 42_599
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -312,8 +313,9 @@ const TARGET_BUNDLE_GZIP = 22_700
 // on top of #442 (19,113 B), 80 B: 19,193 B.
 // #442's follow-up (detail_from's two hand-built edges) adds 39 B: 19,232 B.
 // Issue #445 (preview_file rejected: lists each refused file) adds 293 B on top of that: 19,525 B.
-// Issue #464 (the render-aware renderOwnReply and the error ledger) adds 356 B: 19,881 B.
-const CORE_GZIP_CEILING = 19_881
+// Issue #464 (the render-aware renderOwnReply and the error ledger) adds 356 B: 19,881 B;
+// its validation fix (the busy state reverts at hand-off) 29 B: 19,910 B.
+const CORE_GZIP_CEILING = 19_910
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -470,8 +472,8 @@ const FEATURE_GZIP_CEILINGS = {
 // on top of #442 (50,898 B), 80 B: 50,978 B.
 // #442's follow-up (+39 B core): 51,017 B.
 // Issue #445 (preview_file rejected:, in the core) adds 293 B on top of that: 51,310 B.
-// Issue #464 (+356 B core, +21 B defer) adds 377 B: 51,687 B.
-const SPLIT_TOTAL_GZIP_CEILING = 51_687
+// Issue #464 (+356 B core, +21 B defer) adds 377 B: 51,687 B; its validation fix (+29 B core) 51,716 B.
+const SPLIT_TOTAL_GZIP_CEILING = 51_716
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

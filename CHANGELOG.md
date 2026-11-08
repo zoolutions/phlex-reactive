@@ -39,10 +39,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   action, kind and status (`reactive action "increment" failed (http 500) on
   #flaky-counter`); `#errors` returns the list. A test that expects the failure
   passes `wait_for_reactive(allow_error: true)`, which only waits, as in 0.16.
+  A failure a `reactive:error` listener retries stays in the window the retry
+  extends, so it is still listed even when the retry succeeds.
 - **The next queued action starts after the previous reply is drawn (#464).** A
   root's request queue used to move on as soon as Turbo had been handed the
   reply's streams, a repaint before they rendered. It now waits for them, so a
-  queued action reads the DOM (and the token) the previous reply left.
+  queued action reads the DOM (and the token) the previous reply left. A non-OK
+  turbo-stream reply (an error flash) is drawn before its `data-reactive-error`
+  and `reactive:error`, so a listener sees the rendered error. The busy markers
+  and a busy hint's undo still revert when the reply is handed to Turbo, so an
+  in-place morph's server state (a trigger it renders disabled) still wins.
 
 ### Fixed
 
