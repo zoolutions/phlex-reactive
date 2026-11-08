@@ -10,8 +10,12 @@
 //   * a missing event.detail, a non-object one, a missing key, null or
 //     undefined sends NOTHING for that param (the server's schema refuses or
 //     defaults it; the client never invents a value);
-//   * an Object or Array is skipped, warned under verbose_errors
-//     (data-reactive-verbose="true" on the root);
+//   * a value that is there but no flat scalar (an Object, an Array, NaN, a
+//     BigInt) is skipped, warned under verbose_errors (data-reactive-verbose="true"
+//     on the root);
+//   * a mapping that is no plain object — malformed, an Array, the JSON `null` —
+//     reads as empty; a hand-built param named __proto__ writes nothing and
+//     pollutes nothing (the Ruby side refuses the name at render);
 //   * the mapping is an allowlist: a detail key it does not name is never sent;
 //   * the multipart body (a chosen file in the root) carries the same values
 //     as scalar fields, params[<name>];
@@ -185,6 +189,19 @@ test("an Array, NaN and Infinity are skipped too; nothing is warned without verb
   expect(warns).toEqual([])
 })
 
+test("under verbose_errors a present NaN, Infinity, BigInt or function is warned like an Object (a missing key is not)", async () => {
+  const root = await mount(list({ detailParams: '{"id":"id","n":"n","m":"m","b":"b","f":"f","gone":"gone"}', verbose: true }))
+  connect(root)
+
+  await live(root, { id: 7, n: Number.NaN, m: Number.NEGATIVE_INFINITY, b: 10n, f: () => 1 }, {
+    detailParams: { id: "id", n: "n", m: "m", b: "b", f: "f", gone: "gone" },
+  })
+
+  expect(json(posts[0]).params).toEqual({ id: 7 })
+  expect(warns).toHaveLength(4)
+  expect(warns.map((w) => w.match(/detail_params (\w+):/)[1])).toEqual(["n", "m", "b", "f"])
+})
+
 test("a static param wins over the detail value of the same name", async () => {
   const root = await mount(list({ params: '{"id":1}' }))
   connect(root)
@@ -225,6 +242,39 @@ test("a malformed mapping posts the static params only", async () => {
   for (const body of posts) expect(json(body).params).toEqual({})
 })
 
+test("a mapping that parses to the JSON null reads as empty, like a malformed one", async () => {
+  const root = await mount(list({ detailParams: "null", params: '{"source":"list"}' }))
+  connect(root)
+
+  // Stimulus typecasts the attribute to null; a non-typecasting harness hands over the raw string.
+  await live(root, { id: 7 }, { detailParams: "null", params: { source: "list" } })
+  await live(root, { id: 7 }, { detailParams: null, params: { source: "list" } })
+
+  expect(posts).toHaveLength(2)
+  for (const body of posts) expect(json(body).params).toEqual({ source: "list" })
+  expect(warns).toEqual([])
+})
+
+test("a hand-built param named __proto__ writes nothing and pollutes no prototype", async () => {
+  const root = await mount(list({ detailParams: '{"__proto__":"id"}', verbose: true }))
+  connect(root)
+
+  // The JSON string, not an object literal: a literal `{ __proto__: … }` sets the
+  // prototype and is not the attribute's shape. JSON.parse keeps it as an own key.
+  await live(root, { id: 7 }, { detailParams: '{"__proto__":"id"}' })
+  await live(root, { id: { polluted: true } }, { detailParams: '{"__proto__":"id"}' })
+
+  expect(posts).toHaveLength(2)
+  for (const body of posts) expect(json(body).params).toEqual({})
+  expect({}.polluted).toBeUndefined()
+  expect({}.id).toBeUndefined()
+  expect(Object.getPrototypeOf({})).toBe(Object.prototype)
+  expect(Object.keys(Object.prototype)).toEqual([])
+  // The object value is skipped as no flat scalar, and said so; the scalar one is written into the
+  // prototype slot of a plain object, which ignores a non-object — nothing to warn about.
+  expect(warns).toHaveLength(1)
+})
+
 test("announces the detail values in reactive:before-dispatch, as the trigger's params", async () => {
   const root = await mount(list())
   connect(root)
@@ -262,11 +312,12 @@ test("a chosen file in the root switches to FormData and the detail value rides 
 test("an event queued before connect is replayed with the same params as a live one", async () => {
   const root = await mount(list())
   // The entry early.js queues for a window-bound custom event, in its wire
-  // shape (reactive_early.test.js proves the recording, detail included). It
-  // is written by hand here because early.js binds the shared queue once per
-  // process and two suites delete that global, so the recorder and the
-  // controller stop sharing one queue in a combined run; the replay is the
-  // controller's own path either way.
+  // shape. It is written by hand here because early.js binds the shared queue
+  // once per process and two suites delete that global, so the recorder and
+  // the controller stop sharing one queue in a combined run; the replay is the
+  // controller's own path either way. The recorder-to-action run with the real
+  // early.js is in reactive_early.test.js ("replays a window-bound custom
+  // event with its detail").
   const event = new window.CustomEvent("app:item-created", { bubbles: true, detail: { id: 7, junk: {} } })
   document.body.dispatchEvent(event)
   const token = "app:item-created@window->reactive#dispatch"

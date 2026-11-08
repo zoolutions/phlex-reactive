@@ -340,16 +340,32 @@ module Views
               `detail_params:` (#462) names the top-level `event.detail` keys the
               client posts as params — a Hash of `param name => detail key`. The
               action's `params:` schema types and refuses them like any other param,
-              so the rule stays in the list:
+              so the rule stays in the list. Both actions authorize
+              (`verify_authorized` is on by default, so an action that authorizes
+              nothing raises), and both roots own a stable `#id`:
 
               ```ruby
               class CreateForm < ApplicationComponent
                 include Phlex::Reactive::Component
+                reactive_state :created
                 action :create, params: { title: :string }
 
+                def initialize(created: 0) = @created = created
+                def id = "create-form"
+
                 def create(title:)
+                  authorize! Item, :create?                 # the token proves identity, not permission
                   item = Item.create!(title:)
+                  @created += 1
                   reply.replace.js(js.dispatch("app:item-created", detail: { id: item.id }))
+                end
+
+                def view_template
+                  div(**reactive_root) do
+                    input(name: "title", placeholder: "New item")
+                    button(**on(:create)) { "Add" }
+                    span { "#{@created} added" }
+                  end
                 end
               end
 
@@ -359,16 +375,21 @@ module Views
                 reactive_collection :items, item: ItemRow, container: "items"
                 action :show_new_item, params: { id: :integer }
 
+                def initialize(filter: nil) = @filter = filter
+                def id = "item-list"                        # stable: the reply re-renders into it
+
                 def show_new_item(id:)
                   item = Item.find(id)
+                  authorize! item, :show?                   # a detail is client data — any id can arrive here
                   return reply.streams unless item.matches?(@filter)   # the list's rule, in the list
+
                   reply.prepend(item, to: :items)
                 end
 
                 def view_template
-                  div(**mix(reactive_attrs, on(:show_new_item, event: "app:item-created", window: true,
-                                               detail_params: { id: :id }))) do
-                    ul(id: "items") { @items.each { render ItemRow.new(item: it) } }
+                  div(**mix(reactive_root, on(:show_new_item, event: "app:item-created", window: true,
+                                              detail_params: { id: :id }))) do
+                    ul(id: "items") { Item.matching(@filter).each { render ItemRow.new(item: it) } }
                   end
                 end
               end
@@ -378,13 +399,22 @@ module Views
                 Boolean — so the wire shape is a field value's. A missing
                 `event.detail`, a missing key, `null` or `undefined` sends **nothing**
                 for that param: the schema then refuses or defaults it, the client
-                never invents a value. An Object or Array is skipped, warned under
-                `verbose_errors`.
+                never invents a value. A value that is there but no flat scalar (an
+                Object, an Array, `NaN`) is skipped, warned under `verbose_errors`.
               - The mapping is an **allowlist**: a detail key it does not name is
-                never sent. Static `**params` win over the detail, so a param name in
-                both raises at render — as do a non-Hash, a blank name or key, and
-                `outside: true` (an outside click carries no detail). `once: true`
-                composes.
+                never sent. A detail value is an explicit trigger param, so it wins
+                over a collected field of the same name in the root, as a static
+                param does; static `**params` win over the detail, so a param name in
+                both raises at render — as do a non-Hash or empty Hash, a blank name
+                or key, a param named `__proto__` (`constructor`, `prototype`: a
+                JavaScript object cannot hold it as a key), and a trigger that can
+                never carry an object detail: no `event:` of its own (the default
+                click), `shortcut:` (a keydown) or `outside: true` (a click). An
+                explicit `event:` is taken at its word, element- or window-bound.
+                `once: true` composes.
+              - A `debounce:` or `throttle:` coalesces events, so one event's detail
+                reaches the server: the last one's for debounce, the first one's for
+                throttle.
               - An event that fires before the root connects is replayed with its
                 detail (`phlex/reactive/early`), a chosen file in the root sends the
                 values as multipart fields, and `reactive:before-dispatch`'s

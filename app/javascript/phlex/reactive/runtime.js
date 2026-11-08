@@ -4921,19 +4921,22 @@ export default class extends Controller {
   // event.detail. Only a flat scalar is copied (a String, a finite Number, a
   // Boolean) — the wire shape of a field value. A missing or non-object detail,
   // a missing key, null or undefined sends nothing for that param: the server's
-  // schema refuses or defaults it, the client never invents a value. An Object
-  // or Array is skipped, told under verbose_errors. A mapping that is no plain
-  // object (hand-built, malformed) reads as empty.
+  // schema refuses or defaults it, the client never invents a value. A value
+  // that is there but no flat scalar (an Object, an Array, NaN, a BigInt) is
+  // skipped, told under verbose_errors. A mapping that is no plain object
+  // (hand-built, malformed, the JSON `null`) reads as empty. The Ruby side
+  // refuses a param named __proto__ (a prototype slot, not a key); a
+  // hand-built one writes nothing into `values` and pollutes nothing.
   #withDetailParams(raw, mapping, detail) {
     const statics = this.#parseParams(raw)
     const map = this.#parseParams(mapping)
-    if (Array.isArray(map) || typeof map !== "object" || detail === null || typeof detail !== "object") return statics
+    if (!map || Array.isArray(map) || typeof map !== "object" || !detail || typeof detail !== "object") return statics
     const values = {}
     for (const [name, key] of Object.entries(map)) {
       const value = detail[key]
       const type = typeof value
       if (type === "string" || type === "boolean" || (type === "number" && Number.isFinite(value))) values[name] = value
-      else if (type === "object" && value !== null && this.#verboseEnabled())
+      else if (value != null && this.#verboseEnabled())
         console.warn(`[phlex-reactive] detail_params ${name}: event.detail.${key} is no flat scalar — skipped`)
     }
     return { ...values, ...statics }

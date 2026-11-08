@@ -1046,16 +1046,32 @@ the new item, but only when it fits the list's own state — an active filter, a
 search, a page — and only the list knows that state. `detail_params:` on an
 event-bound `on(...)` names the top-level `event.detail` keys the client posts
 as params (`param name => detail key`), so the list's action gets the id, typed
-and refused by its `params:` schema like any other param, and decides itself:
+and refused by its `params:` schema like any other param, and decides itself.
+Both actions authorize (`verify_authorized` is on by default, so an action that
+authorizes nothing raises), and both roots own a stable `#id`:
 
 ```ruby
 class CreateForm < ApplicationComponent
   include Phlex::Reactive::Component
+  reactive_state :created
   action :create, params: { title: :string }
 
+  def initialize(created: 0) = @created = created
+  def id = "create-form"
+
   def create(title:)
+    authorize! Item, :create?                 # the token proves identity, not permission
     item = Item.create!(title:)
+    @created += 1
     reply.replace.js(js.dispatch("app:item-created", detail: { id: item.id }))
+  end
+
+  def view_template
+    div(**reactive_root) do
+      input(name: "title", placeholder: "New item")
+      button(**on(:create)) { "Add" }
+      span { "#{@created} added" }
+    end
   end
 end
 
@@ -1065,16 +1081,21 @@ class ItemList < ApplicationComponent
   reactive_collection :items, item: ItemRow, container: "items"
   action :show_new_item, params: { id: :integer }
 
+  def initialize(filter: nil) = @filter = filter
+  def id = "item-list"                        # stable: the reply re-renders into it
+
   def show_new_item(id:)
     item = Item.find(id)
+    authorize! item, :show?                   # a detail is client data — any id can arrive here
     return reply.streams unless item.matches?(@filter)   # the list's rule, in the list
+
     reply.prepend(item, to: :items)
   end
 
   def view_template
-    div(**mix(reactive_attrs, on(:show_new_item, event: "app:item-created", window: true,
-                                 detail_params: { id: :id }))) do
-      ul(id: "items") { @items.each { render ItemRow.new(item: it) } }
+    div(**mix(reactive_root, on(:show_new_item, event: "app:item-created", window: true,
+                                detail_params: { id: :id }))) do
+      ul(id: "items") { Item.matching(@filter).each { render ItemRow.new(item: it) } }
     end
   end
 end
@@ -1083,12 +1104,20 @@ end
 The client copies only a flat scalar — a String, a finite Number, a Boolean —
 so the wire shape is a field value's. A missing `event.detail`, a missing key,
 `null` or `undefined` sends **nothing** for that param (the schema then refuses
-or defaults it; the client never invents a value); an Object or Array is
-skipped, warned under `verbose_errors`. The mapping is an allowlist: a detail
-key it does not name is never sent. Static `**params` win over the detail, so a
-param name in both raises at render — as do a non-Hash, a blank name or key, and
-`outside: true` (an outside click carries no detail). `once: true` composes. An
-event that fires before the root connects is replayed with its detail
+or defaults it; the client never invents a value); a value that is there but no
+flat scalar (an Object, an Array, `NaN`) is skipped, warned under
+`verbose_errors`. The mapping is an allowlist: a detail key it does not name is
+never sent. A detail value is an explicit trigger param, so it wins over a
+collected field of the same name in the root, as a static param does; static
+`**params` win over the detail, so a param name in both raises at render — as
+do a non-Hash or empty Hash, a blank name or key, a param named `__proto__`
+(`constructor`, `prototype`: a JavaScript object cannot hold it as a key), and a
+trigger that can never carry an object detail: no `event:` of its own (the
+default click), `shortcut:` (a keydown) or `outside: true` (a click). An
+explicit `event:` is taken at its word, element- or window-bound. `once: true`
+composes. A `debounce:` or `throttle:` coalesces events, so one event's detail
+reaches the server: the last one's for debounce, the first one's for throttle.
+An event that fires before the root connects is replayed with its detail
 (`phlex/reactive/early`), and a chosen file in the root sends the values as
 multipart fields. `detail_params:` adds no trust: a detail is client data, like
 a field — the action's schema stays the only gate, and authorization stays in

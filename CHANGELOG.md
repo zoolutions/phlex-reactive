@@ -30,11 +30,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   static params; the action's `params:` schema types and refuses them like any
   other param, so the list decides itself whether the item fits its filter.
   Only a String, a finite Number or a Boolean is copied: a missing detail or
-  key sends nothing for that param, an Object or Array is skipped (warned under
-  `verbose_errors`). It raises at render for a non-Hash, a blank name or key, a
-  name also in the static params, and `outside: true`; `once: true` composes.
-  The early replay and the multipart body carry the values too, and
-  `reactive:before-dispatch`'s `detail.params` now includes them.
+  key sends nothing for that param, a value that is there but no flat scalar
+  (an Object, an Array, `NaN`) is skipped, warned under `verbose_errors`. It
+  raises at render for a non-Hash or empty Hash, a blank name or key, a name
+  also in the static params, a param named `__proto__` (`constructor`,
+  `prototype`), and a trigger that can never carry an object detail: no
+  `event:` of its own, `shortcut:`, or `outside: true`; `once: true` composes.
+  A detail value wins over a collected field of the same name, as a static
+  param does; the static params win over the detail. The early replay and the
+  multipart body carry the values too, and `reactive:before-dispatch`'s
+  `detail.params` now includes them.
+
+### Changed
+
+- **`detail_params:` is a reserved keyword on `on(...)` (#462).** It used to
+  pass through as an action param; it now takes a Hash of param names to
+  `event.detail` keys only (anything else raises `ArgumentError`). Rename an
+  action param called `detail_params`.
 
 ### Fixed
 

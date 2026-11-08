@@ -132,6 +132,52 @@ test("records a custom event fired on the root itself", async () => {
   expect(state().queue[0].event.detail).toEqual({ from: "menu" })
 })
 
+// Issue #462: recorder to action. A window-bound custom event fired before the
+// list's root connects is recorded with its detail; the replay runs the
+// controller's own dispatch (not mocked here), which posts the detail_params:
+// values under the trigger's static params, as a live event would.
+test("replays a window-bound custom event with its detail: the detail_params: values post as params", async () => {
+  const root = await mount(`
+    <div id="list" data-controller="reactive" data-reactive-token-value="list-token"
+      data-action="app:item-created@window->reactive#dispatch"
+      data-reactive-action-param="show_new_item" data-reactive-window-param="true"
+      data-reactive-params-param='{"source":"early"}' data-reactive-detail-params-param='{"id":"id"}'></div>`)
+  document.body.dispatchEvent(new window.CustomEvent("app:item-created", { bubbles: true, detail: { id: 7, junk: {} } }))
+
+  expect(state().queue).toHaveLength(1)
+  expect(state().queue[0]).toMatchObject({ el: root, root, win: true })
+  expect(state().queue[0].event.detail).toEqual({ id: 7, junk: {} })
+
+  const saved = { window: globalThis.window, Event: globalThis.Event, fetch: globalThis.fetch }
+  const posts = []
+  globalThis.window = window
+  globalThis.Event = window.Event
+  globalThis.fetch = (_path, opts) => {
+    posts.push(JSON.parse(opts.body))
+    return Promise.resolve({
+      redirected: false,
+      ok: true,
+      headers: { get: () => "text/vnd.turbo-stream.html" },
+      text: () => Promise.resolve(""),
+    })
+  }
+  window.Turbo = { renderStreamMessage: () => {} }
+  const controller = new ReactiveController()
+  try {
+    controller.element = root
+    controller.tokenValue = "list-token"
+    controller.connect()
+    await flush()
+    await flush()
+
+    expect(posts).toEqual([{ token: "list-token", act: "show_new_item", params: { id: 7, source: "early" } }])
+    expect(state().queue).toHaveLength(0)
+  } finally {
+    controller.disconnect()
+    Object.assign(globalThis, saved)
+  }
+})
+
 test("preventDefaults a submit trigger and a link click, like dispatch() would", async () => {
   const root = await mount(`
     <div id="f" data-controller="reactive">
