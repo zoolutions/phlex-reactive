@@ -8,6 +8,9 @@ test:
   url: <%= ENV["DATABASE_URL"] %>
 development:
   url: <%= ENV["DATABASE_URL"] %>
+# Only conformance-kit's ractorize job boots production (.conformance.yml).
+production:
+  url: <%= ENV["DATABASE_URL"] %>
 <% else %>
 test:
   adapter: postgresql

@@ -49,6 +49,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   reverted). A render still running when the action timeout cuts the wait off
   is not recorded.
 
+- **conformance-kit 0.5, with its report-only Ractorize job.** CI's conformance
+  workflow and the Gemfiles move to 0.5. `.conformance.yml` sets `ractorize:`:
+  the dummy boots in production on Rails main, `Rails.application.ractorize!`
+  runs, `/up` and `/counter` are each served inside a non-main Ractor, and the
+  audit runs again. The job never fails the build. Today `/counter` stops in
+  phlex-rails 2.4.0's `render_in`, which does not take Rails main's `locals:`
+  yet (fixed on phlex-rails main, yippee-fun/phlex-rails#332, unreleased). The
+  dummy gains a production environment for it and skips its test-only `Viewer`
+  gate there.
+
 ### Changed
 
 - **BREAKING (minor release): `wait_for_reactive` raises when the round trip

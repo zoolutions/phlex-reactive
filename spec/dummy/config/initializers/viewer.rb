@@ -101,4 +101,8 @@ module DummyViewerGate
   end
 end
 
-ActiveSupport.on_load(:action_controller_base) { include DummyViewerGate }
+# Not in production, which only conformance-kit's ractorize job boots: the gate
+# exists for the cache specs, and Rails main's CurrentAttributes keeps class
+# state a request Ractor cannot touch (its key and defaults), so with the gate
+# every ractorized request would fail before reaching phlex-reactive.
+ActiveSupport.on_load(:action_controller_base) { include DummyViewerGate } unless Rails.env.production?
