@@ -1786,7 +1786,8 @@ module Phlex
             if DETAIL_PARAMS_RESERVED_NAMES.include?(name.to_s)
               raise ArgumentError,
                 "#{label} cannot name a param #{name.to_s.inspect} — the client builds the posted params as a " \
-                "JavaScript object, where that name is a prototype slot, not a key; pick another param name"
+                "JavaScript object, where that name is a prototype slot or of that family, not a plain key; " \
+                "pick another param name"
             end
             if params.key?(name.to_sym) || params.key?(name.to_s)
               raise ArgumentError, "#{label} key #{name.inspect} is also a static param — one would override the other"

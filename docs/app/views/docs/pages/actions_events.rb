@@ -364,7 +364,7 @@ module Views
                   div(**reactive_root) do
                     input(name: "title", placeholder: "New item")
                     button(**on(:create)) { "Add" }
-                    span { "#{@created} added" }
+                    span { @created.to_s }
                   end
                 end
               end
@@ -406,8 +406,8 @@ module Views
                 over a collected field of the same name in the root, as a static
                 param does; static `**params` win over the detail, so a param name in
                 both raises at render — as do a non-Hash or empty Hash, a blank name
-                or key, a param named `__proto__` (`constructor`, `prototype`: a
-                JavaScript object cannot hold it as a key), and a trigger that can
+                or key, a param named `__proto__` (`constructor` and `prototype` with it: a
+                prototype slot or a name of that family, not a plain key), and a trigger that can
                 never carry an object detail: no `event:` of its own (the default
                 click), `shortcut:` (a keydown) or `outside: true` (a click). An
                 explicit `event:` is taken at its word, element- or window-bound.
