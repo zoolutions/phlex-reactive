@@ -689,9 +689,10 @@ class DemosController < ActionController::Base
   end
 
   # Issue #471: js.click — Space follows a link, a button clicks a form's
-  # submit button. ?arrived= names which one landed. No actions.
+  # submit button or a link under a prevent: false click binding. ?arrived=
+  # names which one landed. No actions.
   def click_op
-    arrived = params[:arrived].presence_in(%w[link form])
+    arrived = params[:arrived].presence_in(%w[link form wrapped])
     render html: render_to_string(ClickOpComponent.new(arrived:), layout: false).html_safe, layout: true
   end
 

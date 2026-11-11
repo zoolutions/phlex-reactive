@@ -480,8 +480,8 @@ module Views
               code { 'reply.js' }
               plain '), except '
               code { 'click' }
-              plain " (#471), which follows a link or submits a form and so runs only inside the user's own " \
-                    'gesture: reply.js refuses it too. So is '
+              plain ' (#471), which follows a link or submits a form, so the server never pushes it: ' \
+                    'reply.js refuses it too; bind it with on_client. So is '
               code { 'keep: true' }
               plain ' (#369), on the visibility, class and attribute ops that take it: ' \
                     'kept state belongs to the tab that ran the op.'

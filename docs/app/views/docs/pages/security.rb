@@ -145,10 +145,10 @@ module Views
               `show_modal` / `close_dialog` verbs — the raw pairs still interpret) but **refused in
               broadcasts**: a broadcast op must never steal focus in, force-submit a form
               from, read the clipboard of, or overwrite a field in, every subscriber's tab. `click` (#471)
-              is a **gesture-only** tier above it: it follows a link or submits a form, so every
-              server-pushed op — `reply.js`, a settle's `js` and broadcasts — refuses it, and only
-              `on_client` (or a reducer's `$ops` / `reactive_on_complete`, inside the user's typing)
-              can carry it. The `keep: true`
+              is a **never-server-pushed** tier above it: it follows a link or submits a form, so
+              every server-pushed op — `reply.js`, a settle's `js` and broadcasts — refuses it;
+              `on_client`, a reducer's `$ops` and `reactive_on_complete` (both run on an `input`
+              event, as `submit` does) can carry it. The `keep: true`
               flag (#369) is refused in broadcasts on any op for the same reason: what
               it records is one tab's client state.
 

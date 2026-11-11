@@ -127,6 +127,14 @@ RSpec.describe Phlex::Reactive::Component::Editable do
       expect { view.reactive_editable(:title, on_enter: js) }.to raise_error(ArgumentError, /no ops/)
     end
 
+    # Issue #471: the Enter runs root-scoped with no trigger, so js.click's
+    # default target would resolve to nothing.
+    it "refuses an on_enter: op that names the trigger" do
+      expect { view.reactive_editable(:title, on_enter: js.click) }
+        .to raise_error(ArgumentError, /reactive_editable on_enter: chain has no trigger/)
+      expect { view.reactive_editable(:title, on_enter: js.click("#save")) }.not_to raise_error
+    end
+
     it "refuses an on_escape: other than :revert or nil" do
       expect { view.reactive_editable(:title, on_escape: :blur) }
         .to raise_error(ArgumentError, /on_escape: takes :revert or nil/)

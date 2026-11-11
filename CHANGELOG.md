@@ -14,10 +14,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   attributes), a submit button submits its form and a checkbox toggles.
   `js.dispatch("click")` sends a `CustomEvent`, which carries no activation. A
   list row drawn as one link now answers Space with
-  `on_client("keydown.space", js.click)`. Gesture-only: `reply.js`, a settle's
-  `js` and `broadcast_to(js:)` refuse it, and `on_client(:click, js.click)` on
-  its own trigger raises at render (the synthetic click re-enters the binding,
-  which prevents its default).
+  `on_client("keydown.space", js.click)`. The server never pushes it:
+  `reply.js`, a settle's `js` and `broadcast_to(js:)` refuse it.
+  `on_client(:click, js.click)` on its own trigger and a `:trigger` op in
+  `reactive_editable(on_enter:)` raise at render (the first re-enters its own
+  binding, which prevents its default; the second has no trigger).
 - **`:strict_integer` and `:strict_float` param types (#460).** `:integer` and
   `:float` cast with `to_i`/`to_f`, so a cleared number field reaches the action
   as `0` and `"12abc"` as `12`, and an action cannot tell a blank field from a

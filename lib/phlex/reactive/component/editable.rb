@@ -64,6 +64,9 @@ module Phlex
           end
           raise ArgumentError, "reactive_editable on_enter: got a JS chain with no ops — a dead Enter" if on_enter.empty?
 
+          # Issue #471: the Enter runs root-scoped, with no trigger element —
+          # js.click's default (:trigger) would resolve to nothing.
+          Phlex::Reactive::JS.refuse_trigger!(on_enter, "a reactive_editable on_enter: chain")
           on_enter.ops.to_json
         end
 

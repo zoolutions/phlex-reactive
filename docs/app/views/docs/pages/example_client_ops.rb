@@ -939,9 +939,10 @@ module Views
               the target or an ancestor prevents its default — and the activation
               with it — unless that binding has `prevent: false`. For the same
               reason `on_client(:click, js.click)` on its own trigger raises at
-              render. `click` runs only inside the user's gesture: `reply.js`,
-              a settle's `js` and `broadcast_to(js:)` refuse it (answer with
-              `reply.redirect` for a visit).
+              render. The server never pushes `click`: `reply.js`, a settle's `js`
+              and `broadcast_to(js:)` refuse it (answer with `reply.redirect` for
+              a visit). A held key repeats its `keydown`, and each repeat clicks
+              again.
 
               `paste_into(to)` (#228) reads the clipboard into a field on a
               **user gesture** — built for fields whose real `<input>` is

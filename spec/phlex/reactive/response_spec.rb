@@ -431,7 +431,7 @@ RSpec.describe Phlex::Reactive::Response do
     # gesture, never from a reply that lands later.
     it "refuses a click op in reply.js, as a chain or a raw pair" do
       expect { counter.reply.with.js(CounterComponent.new(count: 0).js.click("#next")) }
-        .to raise_error(ArgumentError, /click.*user's own gesture/m)
+        .to raise_error(ArgumentError, /click.*the server never pushes it/m)
       expect { counter.reply.with.js([["click", { "to" => "#next" }]]) }
         .to raise_error(ArgumentError, /click/)
     end

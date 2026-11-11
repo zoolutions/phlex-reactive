@@ -145,10 +145,10 @@ module Phlex
         end
       end
 
-      # Ops that run only inside the user's own gesture (issue #471): click
-      # activates an element (follows a link, submits a form), so a reply or
-      # a broadcast that lands later must not carry it. Stricter than the
-      # broadcast-only refusal of focus/submit (Streamable::BROADCAST_REFUSED_OPS).
+      # Ops the server never pushes (issue #471): click activates an element
+      # (follows a link, submits a form), so a reply or a broadcast that lands
+      # later must not carry it. Stricter than the broadcast-only refusal of
+      # focus/submit (Streamable::BROADCAST_REFUSED_OPS).
       GESTURE_OPS = %w[click].freeze
 
       # Raise when `list` (a JS chain or a raw [[op, args]] list) carries a
@@ -161,9 +161,8 @@ module Phlex
 
         raise ArgumentError,
           "#{self}: a server-pushed op (reply.js, broadcast_to(js:)) refuses #{refused.join(", ")} — " \
-          "click activates an element (follows a link, submits a form) and runs only inside the " \
-          "user's own gesture (on_client). Answer with reply.redirect for a visit, or bind " \
-          "js.click with on_client."
+          "click activates an element (follows a link, submits a form), so the server never pushes " \
+          "it. Answer with reply.redirect for a visit, or bind js.click with on_client."
       end
 
       # Raise when an op in `list` (a JS chain or a raw [[op, args]] list)
@@ -358,10 +357,12 @@ module Phlex
       # unless it was bound with prevent: false. on_client(:click, js.click) on
       # its own trigger is refused at render for that reason.
       #
-      # GESTURE-ONLY, stricter than focus: refused in every server-pushed op
-      # (reply.js, a settle's js, broadcast_to(js:)) — navigation the user did
-      # not ask for. A reducer's $ops and reactive_on_complete run inside the
-      # user's typing, so they may carry it.
+      # NEVER SERVER-PUSHED, stricter than focus: refused in every server-pushed
+      # op (reply.js, a settle's js, broadcast_to(js:)) — a reply that lands
+      # later would navigate without a gesture. on_client, a reducer's $ops and
+      # reactive_on_complete may carry it (the last two run on an input event,
+      # as submit does). A held key repeats its keydown, and each repeat clicks
+      # again.
 
       def click(to = :trigger, global: false)
         append("click", target_args(to, global:))
