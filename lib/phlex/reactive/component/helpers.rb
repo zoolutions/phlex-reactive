@@ -1669,8 +1669,6 @@ module Phlex
           record
         end
 
-        # Issue #442: validate on_client's within: — a non-empty CSS selector,
-        # on an element-bound binding that can survive a miss.
         # Issue #471: a click op aimed at the trigger. A hand-built chain may
         # carry Symbol names and keys, or no args Hash.
         def self_click?(ops)
@@ -1680,6 +1678,8 @@ module Phlex
           end
         end
 
+        # Issue #442: validate on_client's within: — a non-empty CSS selector,
+        # on an element-bound binding that can survive a miss.
         def client_within!(event, within, window:, outside:, shortcut:, once:)
           label = "on_client(#{event.inspect})"
           unless within.is_a?(String) && !within.strip.empty?
