@@ -15,7 +15,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `js.dispatch("click")` sends a `CustomEvent`, which carries no activation. A
   list row drawn as one link now answers Space with
   `on_client("keydown.space", js.click)`. The server never pushes it:
-  `reply.js`, a settle's `js` and `broadcast_to(js:)` refuse it.
+  `reply.js`, a settle's `js` and `broadcast_to(js:)` refuse it, and a pushed
+  `dispatch("click")` too.
   `on_client(:click, js.click)` on its own trigger raises at render (the
   synthetic click re-enters its own binding, which prevents its default).
 - **`:strict_integer` and `:strict_float` param types (#460).** `:integer` and
@@ -41,8 +42,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **`reactive_editable(on_enter:)` raises on an op that names `:trigger`
-  (#471).** The Enter runs its ops with no trigger element, so an op such as
+- **BREAKING (minor release): `reactive_editable(on_enter:)` raises on an op
+  that names `:trigger` (#471).** The Enter runs its ops with no trigger element, so an op such as
   `js.blur(:trigger)`, `js.add_class(:trigger, …)` or a bare `js.click` did
   nothing; it now raises `ArgumentError` at render. Name the element with a
   CSS selector.

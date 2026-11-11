@@ -260,6 +260,15 @@ RSpec.describe Phlex::Reactive::JS do
         .to raise_error(ArgumentError, /click/)
       expect { described_class.refuse_gesture_ops!(js.focus("#a")) }.not_to raise_error
     end
+
+    # A pushed dispatch named click runs any :click binding, which may hold js.click.
+    it "refuses a server-pushed dispatch of a click event, as a chain or a raw pair" do
+      expect { described_class.refuse_gesture_ops!(js.dispatch("click", to: "#row")) }
+        .to raise_error(ArgumentError, /dispatch\("click"\)/)
+      expect { described_class.refuse_gesture_ops!([[:dispatch, { name: "click", to: "#row" }]]) }
+        .to raise_error(ArgumentError, /dispatch\("click"\)/)
+      expect { described_class.refuse_gesture_ops!(js.dispatch("app:clicked")) }.not_to raise_error
+    end
   end
 
   # --- Issue #226: submit — commit the target's own form ---

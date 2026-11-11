@@ -922,8 +922,9 @@ module Views
               conditional forms below and the compute reducer's `$ops` output on
               the [payment-split example](/docs/example-payment-split).
 
-              `click(to = :trigger)` (#471) calls `HTMLElement#click()` on the
-              **first** match — the browser's own activation, as a user click runs
+              `click(to = :trigger, global: false)` (#471) calls `HTMLElement#click()`
+              on the **first** match (`global: true` resolves the selector
+              document-wide) — the browser's own activation, as a user click runs
               it. A link follows its `href` (through Turbo Drive, with its own
               `data-turbo-frame` and prefetch attributes), a submit button submits
               its form, a checkbox toggles. `js.dispatch("click")` cannot do this: a
@@ -940,8 +941,8 @@ module Views
               with it — unless that binding has `prevent: false`. For the same
               reason `on_client(:click, js.click)` on its own trigger raises at
               render. The server never pushes `click`: `reply.js`, a settle's `js`
-              and `broadcast_to(js:)` refuse it (answer with `reply.redirect` for
-              a visit). A held key repeats its `keydown`, and each repeat clicks
+              and `broadcast_to(js:)` refuse it, and a pushed `dispatch("click")`
+              too (answer with `reply.redirect` for a visit). A held key repeats its `keydown`, and each repeat clicks
               again.
 
               `paste_into(to)` (#228) reads the clipboard into a field on a

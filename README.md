@@ -1483,16 +1483,16 @@ button(**on_client(:click, js
   inside it, so Escape ends a menu's `:focus-within`
   (`on_client("keydown.esc", js.blur("#menu"))`); focus elsewhere on the page is
   left alone. Actor-only like focus: refused in broadcasts.
-- **`click(to = :trigger)`** (#471) calls `HTMLElement#click()` on the first
-  match: the browser's own activation, so a link follows its `href` (through
+- **`click(to = :trigger, global: false)`** (#471) calls `HTMLElement#click()`
+  on the first match (`global: true` resolves the selector document-wide): the browser's own activation, so a link follows its `href` (through
   Turbo Drive, with its own `data-turbo-*` attributes), a submit button submits,
   a checkbox toggles — what `dispatch("click")`'s `CustomEvent` cannot do. A row
   link that answers Space: `on_client("keydown.space", js.click)`. The synthetic
   click bubbles, so a `:click` binding on the target or an ancestor prevents its
   default unless bound with `prevent: false`, and `on_client(:click, js.click)` on
   its own trigger raises at render. **Never server-pushed**: `reply.js`, a
-  settle's `js` and `broadcast_to(js:)` all refuse it (use `reply.redirect` for a
-  visit). A held key repeats its `keydown`, and each repeat clicks again.
+  settle's `js` and `broadcast_to(js:)` all refuse it, and a pushed
+  `dispatch("click")` too (use `reply.redirect` for a visit). A held key repeats its `keydown`, and each repeat clicks again.
 - **`show_modal(to)`** / **`close_dialog(to)`** (#365) call
   `HTMLDialogElement#showModal()` / `#close()`: the top layer, a focus trap,
   `::backdrop`, Escape to close and focus back on the opener — all the
