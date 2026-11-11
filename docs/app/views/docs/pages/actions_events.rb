@@ -260,7 +260,8 @@ module Views
               `js.click` client op (#471): `HTMLElement#click()` on the link, the
               browser's own activation, so Turbo Drive makes the visit with the
               link's own `data-turbo-*` attributes. The binding prevents the
-              keydown's default, so the page does not scroll.
+              keydown's default, so the page does not scroll. A held Space repeats
+              its `keydown`, and each repeat clicks again.
 
               ```ruby
               a(**mix(on_client("keydown.space", js.click), href: item_path(item))) { item.name }

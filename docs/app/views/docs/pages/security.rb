@@ -146,9 +146,10 @@ module Views
               broadcasts**: a broadcast op must never steal focus in, force-submit a form
               from, read the clipboard of, or overwrite a field in, every subscriber's tab. `click` (#471)
               is a **never-server-pushed** tier above it: it follows a link or submits a form, so
-              every server-pushed op — `reply.js`, a settle's `js` and broadcasts — refuses it;
-              `on_client`, a reducer's `$ops` and `reactive_on_complete` (both run on an `input`
-              event, as `submit` does) can carry it. The `keep: true`
+              every server-pushed op — `reply.js`, a settle's `js` and broadcasts — refuses it.
+              `on_client` carries it (never on its own trigger's `:click`, which raises at render), and
+              so can `reactive_on_complete` and a raw `["click", …]` pair in a reducer's `$ops` (both
+              run on an `input` event, as `submit` does; the `$ops` builder has no `click` verb). The `keep: true`
               flag (#369) is refused in broadcasts on any op for the same reason: what
               it records is one tab's client state.
 

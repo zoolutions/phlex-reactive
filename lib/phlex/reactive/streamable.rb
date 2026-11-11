@@ -48,7 +48,8 @@ module Phlex
       # submit a form on every subscriber's page. They
       # belong to the actor's own reply (reply.js) or gesture (on_client / a
       # reducer's $ops), never a broadcast — except click, which reply.js
-      # refuses too (Phlex::Reactive::JS::GESTURE_OPS): bind it with on_client.
+      # refuses too (Phlex::Reactive::JS::GESTURE_OPS): bind it with on_client
+      # (or a raw ["click", …] pair in a reducer's $ops).
       # Names mirror Phlex::Reactive::JS's verbs.
       BROADCAST_REFUSED_OPS = %w[
         focus focus_first blur submit paste_into persist_state persist_clear check_group presence
@@ -246,8 +247,8 @@ module Phlex
               "every screen — render the dialog open or closed, with data: { reactive_modal: true }, instead. " \
               "Broadcasting preview_file reads every subscriber's chosen file onto their page. " \
               "Broadcasting click follows a link or submits a form on every subscriber's page. " \
-              "These are actor concerns (reply.js / on_client / $ops); click is on_client only — " \
-              "reply.js refuses it too."
+              "These are actor concerns (reply.js / on_client / $ops); click is never server-pushed — " \
+              "reply.js refuses it too: bind it with on_client (or a raw [\"click\", …] pair in a reducer's $ops)."
           end
           refuse_kept_broadcast_ops!(pairs)
 

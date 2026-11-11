@@ -1744,6 +1744,11 @@ RSpec.describe Phlex::Reactive::Component do
         .to raise_error(ArgumentError, /on_client\(:click, js\.click\)/)
     end
 
+    it "rejects the self-click in a hand-built chain with Symbol names and keys" do
+      chain = Phlex::Reactive::JS.new([[:click, { to: "@trigger" }]])
+      expect { instance.send(:on_client, :click, chain) }.to raise_error(ArgumentError, /on_client\(:click, js\.click\)/)
+    end
+
     it "allows a click op on its own trigger from any other event, and on another element from click" do
       attrs = instance.send(:on_client, "keydown.space", instance.js.click)
       expect(binding_record(attrs)["ops"]).to eq([["click", { "to" => "@trigger" }]])

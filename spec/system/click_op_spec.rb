@@ -9,7 +9,7 @@ require "system_helper"
 RSpec.describe "js.click (issue #471)", type: :system do
   before do
     visit "/click_op"
-    page.find("#click-op[data-controller='reactive']")
+    page.find("#click-op[data-reactive-connected]")
     page.execute_script("window.__marker = 'kept'")
   end
 
