@@ -208,6 +208,17 @@ RSpec.describe "broadcast_js_to (issue #97)", type: :request do
       .to raise_error(ArgumentError, /show_modal/)
   end
 
+  # Issue #471: click activates an element (follows a link, submits a form) —
+  # broadcasting it would navigate or submit on every subscriber's page.
+  it "rejects a click op, as a chain or a raw pair" do
+    js = TodoItemComponent.new(todo: Todo.new).js
+
+    expect { TodoItemComponent.broadcast_to("alerts", js: js.click("#next")) }
+      .to raise_error(ArgumentError, /refuses actor-only op\(s\) click/)
+    expect { Phlex::Reactive.broadcast_to("alerts", js: [["click", { "to" => "#next" }]]) }
+      .to raise_error(ArgumentError, /refuses actor-only op\(s\) click/)
+  end
+
   # Issue #373: copy_media only reads elements already in each subscriber's
   # document, so a broadcast may carry it — and it carries no URL.
   it "broadcasts a copy_media op (selectors only, no URL)" do

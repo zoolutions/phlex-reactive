@@ -1416,6 +1416,12 @@ const CLIENT_OPS = Object.freeze({
   show_modal: (el) => showModal(el),
   close_dialog: (el) => closeDialog(el),
 
+  // Click op (issue #471): HTMLElement#click(), the browser's own activation
+  // (a link visit through Turbo Drive, a form submit, a checkbox toggle).
+  // FIRST match only (FIRST_MATCH_OPS). Gesture-only: the server refuses it in
+  // every pushed op (JS::GESTURE_OPS).
+  click: (el) => el.click?.(),
+
   // Text op (issue #159): set textContent — XSS-safe by construction (never
   // innerHTML), strictly less powerful than set_attr. Change-guarded like
   // #mirrorText. With global: true it is the cross-root text escape: paint a
@@ -2114,6 +2120,10 @@ function bindingsAlreadyRan(event, controller) {
   return false
 }
 
+// Ops that act on the first match only (issue #471): clicking every match
+// would follow several links or submit several forms.
+const FIRST_MATCH_OPS = new Set(["click"])
+
 // Interpret a [[name, args], ...] op list against the frozen CLIENT_OPS
 // whitelist (issues #95/#96/#97). `resolveTargets(args)` returns the element(s)
 // an op applies to — the controller scopes to its root (excluding nested
@@ -2130,8 +2140,9 @@ function applyOps(list, resolveTargets, onZeroTargets) {
       console.warn(`[phlex-reactive] unknown client op ${JSON.stringify(name)} — skipped`)
       continue
     }
-    const targets = resolveTargets(args)
+    let targets = resolveTargets(args)
     if (targets.length === 0 && onZeroTargets) onZeroTargets(name, args)
+    if (targets.length > 1 && FIRST_MATCH_OPS.has(name)) targets = targets.slice(0, 1)
     if (targets.length > 0) args = readArgs(name, args, resolveTargets, onZeroTargets)
     if (!args) continue
     for (const el of targets) {

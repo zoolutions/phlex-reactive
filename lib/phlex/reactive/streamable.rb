@@ -44,7 +44,8 @@ module Phlex
       # and close_dialog (issue #365) would open or close a modal, and move
       # focus, on every screen at once; set_value (issue #374) would overwrite
       # every subscriber's field; preview_file (issue #375) would read every
-      # subscriber's file input. They
+      # subscriber's file input; click (issue #471) would follow a link or
+      # submit a form on every subscriber's page. They
       # belong to the actor's own reply (reply.js) or gesture (on_client / a
       # reducer's $ops), never a broadcast. Names mirror Phlex::Reactive::JS's verbs.
       BROADCAST_REFUSED_OPS = %w[
@@ -52,6 +53,7 @@ module Phlex
         show_modal close_dialog
         preview_file
         set_value
+        click
       ].freeze
       # Refused as a FLAG, on any op (issue #369): keep: records client state in
       # the tab that ran the op, so a broadcast carrying it would plant that
@@ -241,6 +243,7 @@ module Phlex
               "broadcasting show_modal or close_dialog opens or closes a modal (and moves focus) on " \
               "every screen — render the dialog open or closed, with data: { reactive_modal: true }, instead. " \
               "Broadcasting preview_file reads every subscriber's chosen file onto their page. " \
+              "Broadcasting click follows a link or submits a form on every subscriber's page. " \
               "These are actor concerns (reply.js / on_client / $ops)."
           end
           refuse_kept_broadcast_ops!(pairs)

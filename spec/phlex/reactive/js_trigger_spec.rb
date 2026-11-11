@@ -28,7 +28,7 @@ RSpec.describe Phlex::Reactive::JS do
         js.focus(:trigger), js.focus_first(:trigger), js.blur(:trigger),
         js.show_modal(:trigger), js.close_dialog(:trigger),
         js.text(:trigger, "x"), js.dispatch("app:picked", to: :trigger), js.submit(:trigger),
-        js.copy_media(:trigger, from: "#logo")
+        js.copy_media(:trigger, from: "#logo"), js.click(:trigger)
       ]
       expect(chains.map { args_of(it)["to"] }).to all(eq("@trigger"))
     end

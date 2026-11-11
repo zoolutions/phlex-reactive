@@ -426,6 +426,16 @@ RSpec.describe Phlex::Reactive::Response do
       expect(stream).to include("&quot;show_modal&quot;", "&quot;close_dialog&quot;")
     end
 
+    # Issue #471: click is stricter than focus — it activates an element (a
+    # link visit, a form submit), so it runs only inside the user's own
+    # gesture, never from a reply that lands later.
+    it "refuses a click op in reply.js, as a chain or a raw pair" do
+      expect { counter.reply.with.js(CounterComponent.new(count: 0).js.click("#next")) }
+        .to raise_error(ArgumentError, /click.*user's own gesture/m)
+      expect { counter.reply.with.js([["click", { "to" => "#next" }]]) }
+        .to raise_error(ArgumentError, /click/)
+    end
+
     it "enforces the attr allowlist on a raw op array (escape hatch can't bypass it)" do
       hostile = [["set_attr", { "to" => "#x", "name" => "onclick", "value" => "alert(1)" }]]
       expect { counter.reply.with.js(hostile) }.to raise_error(ArgumentError, /onclick/)

@@ -63,11 +63,12 @@ module Views
               (`toggle_attr` also flips between two values, and `show`/`hide`/`toggle`
               take `expanded:` to keep a trigger's `aria-expanded` in sync — #271),
               `focus`/`focus_first`/`blur`, `show_modal`/`close_dialog`, `copy_media`, `text`, `set_value`,
-              `dispatch`, `submit`, `paste_into`, `preview_file` —
-              each a local DOM mutation, with three deliberate exceptions. `submit`
+              `dispatch`, `submit`, `click`, `paste_into`, `preview_file` —
+              each a local DOM mutation, with four deliberate exceptions. `submit`
               hands the form to its own native/intercepted submit path — the form
               may POST or navigate from there, but that is the form's contract,
-              not the op's. `paste_into` (#228) **reads** the clipboard, behind
+              not the op's. `click` (#471) runs the target's own activation the
+              same way: a link visits, a submit button submits. `paste_into` (#228) **reads** the clipboard, behind
               the browser's own gesture and permission gates, and still only
               writes locally. `preview_file` (#375) **reads** the chosen `File`
               from the input's `files` and paints it through an object URL it
@@ -852,6 +853,9 @@ module Views
               in every subscriber's tab, opening a modal on every subscriber's screen,
               force-submitting every subscriber's form, reading every
               subscriber's clipboard, or overwriting every subscriber's field, would be hostile.
+              `click` is stricter still: it is rejected from **every** server-pushed op
+              (`reply.js` too), since a reply that lands later would navigate without
+              a gesture.
 
               `text(to, value)` (#159) sets the target's `textContent` — stringified,
               `nil` clears, **never `innerHTML`** — so a chain can paint a label or a
@@ -917,6 +921,27 @@ module Views
               For "submit when a **text** value becomes complete", see the
               conditional forms below and the compute reducer's `$ops` output on
               the [payment-split example](/docs/example-payment-split).
+
+              `click(to = :trigger)` (#471) calls `HTMLElement#click()` on the
+              **first** match — the browser's own activation, as a user click runs
+              it. A link follows its `href` (through Turbo Drive, with its own
+              `data-turbo-frame` and prefetch attributes), a submit button submits
+              its form, a checkbox toggles. `js.dispatch("click")` cannot do this: a
+              `CustomEvent` carries no activation behaviour. The default target is
+              the trigger, so a link that answers Space reads:
+
+              ```ruby
+              a(**mix(on_client("keydown.space", js.click), href: item_path(item))) { item.name }
+              button(type: "button", **on_client(:click, js.click("#export-link"))) { "Export" }
+              ```
+
+              The synthetic click bubbles like a real one, so a `:click` binding on
+              the target or an ancestor prevents its default — and the activation
+              with it — unless that binding has `prevent: false`. For the same
+              reason `on_client(:click, js.click)` on its own trigger raises at
+              render. `click` runs only inside the user's gesture: `reply.js`,
+              a settle's `js` and `broadcast_to(js:)` refuse it (answer with
+              `reply.redirect` for a visit).
 
               `paste_into(to)` (#228) reads the clipboard into a field on a
               **user gesture** — built for fields whose real `<input>` is

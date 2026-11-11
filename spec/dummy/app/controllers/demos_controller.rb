@@ -688,6 +688,13 @@ class DemosController < ActionController::Base
     render html: render_to_string(BlurMenuComponent.new, layout: false).html_safe, layout: true
   end
 
+  # Issue #471: js.click — Space follows a link, a button clicks a form's
+  # submit button. ?arrived= names which one landed. No actions.
+  def click_op
+    arrived = params[:arrived].presence_in(%w[link form])
+    render html: render_to_string(ClickOpComponent.new(arrived:), layout: false).html_safe, layout: true
+  end
+
   # Issue #433: on_client(:drop, ..., prevent: false) and on(:track, event:
   # "drop", prevent: false) — a dropped file still reaches the native file
   # input inside the bound zone.

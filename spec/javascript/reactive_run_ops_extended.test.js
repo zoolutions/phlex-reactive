@@ -443,6 +443,77 @@ test("a missing blur target is skipped, and the rest of the chain still runs", (
   expect(panel.hidden).toBe(true)
 })
 
+// --- click (issue #471) -------------------------------------------------------
+
+// A node whose click() counts, the stand-in for HTMLElement#click() (the
+// browser's activation: a link visit, a form submit). Real activation is the
+// system spec's job.
+function makeClickable({ owner } = {}) {
+  const el = makeEl({ owner })
+  el.clicked = 0
+  el.click = () => {
+    el.clicked += 1
+  }
+  return el
+}
+
+test("click calls click() on the target", () => {
+  const root = makeRoot()
+  const save = makeClickable({ owner: root })
+  root.querySelectorAll = (sel) => (sel === "#save" ? [save] : [])
+  const controller = buildController(root)
+
+  fire(controller, { ops: [["click", { to: "#save" }]] })
+
+  expect(save.clicked).toBe(1)
+})
+
+test("click activates only the FIRST match (never several links or forms)", () => {
+  const root = makeRoot()
+  const first = makeClickable({ owner: root })
+  const second = makeClickable({ owner: root })
+  root.querySelectorAll = (sel) => (sel === "a.row" ? [first, second] : [])
+  const controller = buildController(root)
+
+  fire(controller, { ops: [["click", { to: "a.row" }]] })
+
+  expect(first.clicked).toBe(1)
+  expect(second.clicked).toBe(0)
+})
+
+test("click on @trigger clicks the element whose binding fired", () => {
+  const root = makeRoot()
+  const link = makeClickable({ owner: root })
+  link.nodeType = 1
+  const controller = buildController(root)
+  const event = {
+    params: { ops: [["click", { to: "@trigger" }]] },
+    currentTarget: link,
+    target: link,
+    defaultPrevented: false,
+    preventDefault() {
+      this.defaultPrevented = true
+    },
+  }
+
+  controller.runOps(event)
+
+  expect(link.clicked).toBe(1)
+  // The binding prevents the trigger's default (Space must not scroll).
+  expect(event.defaultPrevented).toBe(true)
+})
+
+test("a missing click target is skipped, and the rest of the chain still runs", () => {
+  const root = makeRoot()
+  const panel = makeEl({ owner: root })
+  root.querySelectorAll = (sel) => (sel === "#panel" ? [panel] : [])
+  const controller = buildController(root)
+
+  fire(controller, { ops: [["click", { to: "#gone" }], ["hide", { to: "#panel" }]] })
+
+  expect(panel.hidden).toBe(true)
+})
+
 // --- dispatch ---------------------------------------------------------------
 
 test("dispatch emits a bubbling CustomEvent on the root by default, with detail", () => {

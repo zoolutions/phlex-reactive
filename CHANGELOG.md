@@ -8,6 +8,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`js.click(to = :trigger)` (#471).** A client op that activates an element
+  the way a user click does: `HTMLElement#click()` on the first match, so a link
+  follows its `href` (through Turbo Drive, with its own `data-turbo-*`
+  attributes), a submit button submits its form and a checkbox toggles.
+  `js.dispatch("click")` sends a `CustomEvent`, which carries no activation. A
+  list row drawn as one link now answers Space with
+  `on_client("keydown.space", js.click)`. Gesture-only: `reply.js`, a settle's
+  `js` and `broadcast_to(js:)` refuse it, and `on_client(:click, js.click)` on
+  its own trigger raises at render (the synthetic click re-enters the binding,
+  which prevents its default).
 - **`:strict_integer` and `:strict_float` param types (#460).** `:integer` and
   `:float` cast with `to_i`/`to_f`, so a cleared number field reaches the action
   as `0` and `"12abc"` as `12`, and an action cannot tell a blank field from a
