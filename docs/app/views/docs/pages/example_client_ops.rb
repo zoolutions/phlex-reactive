@@ -941,8 +941,8 @@ module Views
               with it — unless that binding has `prevent: false`. For the same
               reason `on_client(:click, js.click)` on its own trigger raises at
               render. The server never pushes `click`: `reply.js`, a settle's `js`
-              and `broadcast_to(js:)` refuse it, and a pushed `dispatch("click")`
-              too (answer with `reply.redirect` for a visit). A held key repeats its `keydown`, and each repeat clicks
+              and `broadcast_to(js:)` refuse it (answer with `reply.redirect` for
+              a visit). A held key repeats its `keydown`, and each repeat clicks
               again.
 
               `paste_into(to)` (#228) reads the clipboard into a field on a

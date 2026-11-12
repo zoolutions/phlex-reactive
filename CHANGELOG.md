@@ -15,8 +15,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `js.dispatch("click")` sends a `CustomEvent`, which carries no activation. A
   list row drawn as one link now answers Space with
   `on_client("keydown.space", js.click)`. The server never pushes it:
-  `reply.js`, a settle's `js` and `broadcast_to(js:)` refuse it, and a pushed
-  `dispatch("click")` too.
+  `reply.js`, a settle's `js` and `broadcast_to(js:)` refuse it.
   `on_client(:click, js.click)` on its own trigger raises at render (the
   synthetic click re-enters its own binding, which prevents its default).
 - **`:strict_integer` and `:strict_float` param types (#460).** `:integer` and

@@ -152,17 +152,14 @@ module Phlex
       GESTURE_OPS = %w[click].freeze
 
       # Raise when `list` (a JS chain or a raw [[op, args]] list) carries a
-      # gesture-only op, or a dispatch of a `click` event (it would run any
-      # :click binding, which may hold js.click). Called for every op the
-      # server pushes (Response.js_ops_json: reply.js, a settle's js and
-      # broadcast_to(js:)).
+      # gesture-only op. Called for every op the server pushes
+      # (Response.js_ops_json: reply.js, a settle's js and broadcast_to(js:)).
+      # A pushed dispatch("click") stays allowed (it may run an on(:action)
+      # click binding, as it always could), so it can reach a :click binding
+      # that holds js.click — the developer's wiring, like set_value's input.
       def self.refuse_gesture_ops!(list)
         pairs = list.is_a?(JS) ? list.ops : Array(list)
-        refused = pairs.filter_map do |op, args|
-          next op.to_s if GESTURE_OPS.include?(op.to_s)
-
-          'dispatch("click")' if op.to_s == "dispatch" && args.is_a?(::Hash) && arg(args, "name").to_s == "click"
-        end.uniq
+        refused = pairs.filter_map { |op, _| op.to_s if GESTURE_OPS.include?(op.to_s) }.uniq
         return if refused.empty?
 
         raise ArgumentError,
@@ -365,12 +362,11 @@ module Phlex
       #
       # NEVER SERVER-PUSHED, stricter than focus: refused in every server-pushed
       # op (reply.js, a settle's js, broadcast_to(js:)) — a reply that lands
-      # later would navigate without a gesture; so is a pushed
-      # dispatch("click"), which would run a :click binding holding it.
-      # on_client, a raw ["click", …] pair in a reducer's $ops and
+      # later would navigate without a gesture. on_client, a raw ["click", …] pair in a reducer's $ops and
       # reactive_on_complete may carry it. The last two run on an input event,
       # and a reply's set_value fires one too, so a reply can reach a click
-      # there — the same exposure submit has. A held key repeats its keydown,
+      # there — the same exposure submit has; so can a pushed
+      # dispatch("click") reaching a :click binding that holds it. A held key repeats its keydown,
       # and each repeat clicks again.
 
       def click(to = :trigger, global: false)

@@ -1491,8 +1491,8 @@ button(**on_client(:click, js
   click bubbles, so a `:click` binding on the target or an ancestor prevents its
   default unless bound with `prevent: false`, and `on_client(:click, js.click)` on
   its own trigger raises at render. **Never server-pushed**: `reply.js`, a
-  settle's `js` and `broadcast_to(js:)` all refuse it, and a pushed
-  `dispatch("click")` too (use `reply.redirect` for a visit). A held key repeats its `keydown`, and each repeat clicks again.
+  settle's `js` and `broadcast_to(js:)` all refuse it (use `reply.redirect` for a
+  visit). A held key repeats its `keydown`, and each repeat clicks again.
 - **`show_modal(to)`** / **`close_dialog(to)`** (#365) call
   `HTMLDialogElement#showModal()` / `#close()`: the top layer, a focus trap,
   `::backdrop`, Escape to close and focus back on the opener — all the

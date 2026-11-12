@@ -150,8 +150,9 @@ module Views
               `on_client` carries it (never on its own trigger's `:click`, which raises at render), and
               so can `reactive_on_complete` and a raw `["click", …]` pair in a reducer's `$ops` (the
               `$ops` builder has no `click` verb). Both run on an `input` event, and a reply's `set_value`
-              fires one, so a reply can reach a click there — the same exposure `submit` has. A pushed
-              `dispatch("click")` is refused too: it would run a `:click` binding holding `js.click`. The `keep: true`
+              fires one, so a reply can reach a click there — the same exposure `submit` has. So can a
+              pushed `dispatch("click")` that reaches a `:click` binding holding `js.click`: the
+              dispatch stays allowed, as it always was. The `keep: true`
               flag (#369) is refused in broadcasts on any op for the same reason: what
               it records is one tab's client state.
 
