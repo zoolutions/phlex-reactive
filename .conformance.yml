@@ -17,6 +17,23 @@ ractor:
 probes:
   gem_name: phlex-reactive
   roundhouse_app: spec/dummy
+ractorize:
+  # Report-only (conformance-kit 0.5): the dummy booted in production on Rails
+  # main, `Rails.application.ractorize!`, then each request served inside a
+  # non-main Ractor and the audit run again. Locally:
+  #   cp "$(bundle exec ruby -e 'print Gem.loaded_specs["conformance-kit"].full_gem_path')/config/ractorize.gemfile" Gemfile.ractorize
+  #   BUNDLE_GEMFILE=Gemfile.ractorize bundle install
+  #   BUNDLE_GEMFILE=Gemfile.ractorize bundle exec conformance-kit check --ractorize
+  app: spec/dummy
+  # Rails alone (the health check), then a page that renders a reactive component.
+  requests: ["/up", "/counter"]
+  # Runs in spec/dummy. Its own CI job (a fresh postgres:18, and ractor.setup
+  # does not run first), so it prepares the same database. No schema cache:
+  # with one, Rails main defines every model's attributes at boot and
+  # ActiveStorage::Blob's `serialize :metadata` Proc stops ractorize!. So the
+  # requests above must stay query-free (a model's first query inside a Ractor
+  # needs that cache) until Rails main can make that Proc shareable.
+  setup: cd ../.. && bin/conformance-db
 main_only:
   # Framework class state on the gem's own subclasses, narrowed to the
   # framework's ivars so anything the gem keeps on the same classes is
@@ -25,8 +42,8 @@ main_only:
     ivars: ["@called_from", "@initializers", "@instance", "@railtie_name"]
     reason: Rails::Engine's own class state, set by Rails at boot on the main Ractor
   - ancestor: ActionController::Base
-    ivars: ["@_parameter_encodings", "@controller_path", "@renderer"]
-    reason: ActionController's own class state of the gem's controllers, set by Rails on the main Ractor (when the class is defined, or by the engine's boot-time route check for @controller_path); serving the endpoint from a non-main Ractor waits on Rails
+    ivars: ["@_parameter_encodings", "@controller_path", "@renderer", "@__class_attr_helpers_path"]
+    reason: ActionController's own class state of the gem's controllers, set by Rails on the main Ractor (when the class is defined, or by the engine's boot-time route check for @controller_path; helpers_path only in an eager-loaded app, which the ractorize job boots); serving the endpoint from a non-main Ractor waits on Rails
   # The optional MCP diagnostic server's tools (bin/rails phlex_reactive:mcp).
   - ancestor: MCP::Tool
     ivars: ["@annotations_value", "@input_schema_value"]
