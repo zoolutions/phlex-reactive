@@ -144,7 +144,15 @@ module Views
               reducer builder deliberately omits `paste_into` and `check_group`, and has no
               `show_modal` / `close_dialog` verbs — the raw pairs still interpret) but **refused in
               broadcasts**: a broadcast op must never steal focus in, force-submit a form
-              from, read the clipboard of, or overwrite a field in, every subscriber's tab. The `keep: true`
+              from, read the clipboard of, or overwrite a field in, every subscriber's tab. `click` (#471)
+              is a **never-server-pushed** tier above it: it follows a link or submits a form, so
+              every server-pushed op — `reply.js`, a settle's `js` and broadcasts — refuses it.
+              `on_client` carries it (never on its own trigger's `:click`, which raises at render), and
+              so can `reactive_on_complete` and a raw `["click", …]` pair in a reducer's `$ops` (the
+              `$ops` builder has no `click` verb). Both run on an `input` event, and a reply's `set_value`
+              fires one, so a reply can reach a click there — the same exposure `submit` has. So can a
+              pushed `dispatch("click")` that reaches a `:click` binding holding `js.click`: the
+              dispatch stays allowed, as it always was. The `keep: true`
               flag (#369) is refused in broadcasts on any op for the same reason: what
               it records is one tab's client state.
 

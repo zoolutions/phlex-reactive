@@ -229,6 +229,44 @@ RSpec.describe Phlex::Reactive::JS do
     end
   end
 
+  # --- Issue #471: click — activate the target as a user click would ---
+
+  describe "#click" do
+    it "defaults to the trigger (the element whose binding fired)" do
+      expect(JSON.parse(js.click.to_json)).to eq([["click", { "to" => "@trigger" }]])
+    end
+
+    it "serializes a selector target" do
+      expect(js.click("#save").to_json).to eq('[["click",{"to":"#save"}]]')
+    end
+
+    it "accepts :root and global:" do
+      expect(JSON.parse(js.click(:root).to_json).dig(0, 1, "to")).to eq("@root")
+      expect(JSON.parse(js.click("#x", global: true).to_json).dig(0, 1)).to eq("to" => "#x", "global" => true)
+    end
+
+    it "rejects a target that is neither :trigger, :root nor a CSS selector string" do
+      expect { js.click(:self) }.to raise_error(ArgumentError, /:trigger, :root or a CSS selector/)
+    end
+
+    it "takes no keep: (it records no state)" do
+      expect { js.click("#a", keep: true) }.to raise_error(ArgumentError, /keep/)
+    end
+
+    it "is refused in a server-pushed op list, as a chain or a raw pair" do
+      expect { described_class.refuse_gesture_ops!(js.add_class("#a", "x").click("#a")) }
+        .to raise_error(ArgumentError, /click/)
+      expect { described_class.refuse_gesture_ops!([[:click, { to: "#a" }]]) }
+        .to raise_error(ArgumentError, /click/)
+      expect { described_class.refuse_gesture_ops!(js.focus("#a")) }.not_to raise_error
+    end
+
+    # A pushed dispatch("click") already runs on(:action) click bindings; it stays allowed.
+    it "leaves a server-pushed dispatch of a click event alone" do
+      expect { described_class.refuse_gesture_ops!(js.dispatch("click", to: "#row")) }.not_to raise_error
+    end
+  end
+
   # --- Issue #226: submit — commit the target's own form ---
 
   describe "submit op (#submit) — requestSubmit the target's own form" do

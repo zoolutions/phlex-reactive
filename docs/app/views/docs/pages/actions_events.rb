@@ -254,6 +254,18 @@ module Views
               `down`, a bare letter, …). A keyboard trigger isn't a click, so it gets
               **no** forced `type="button"`. Folding the key into `event:` keeps `key`
               free as an ordinary action-param name.
+
+              A list row drawn as one link should answer **Space** as well as
+              Enter. Space does not follow a link natively, so bind it to the
+              `js.click` client op (#471): `HTMLElement#click()` on the link, the
+              browser's own activation, so Turbo Drive makes the visit with the
+              link's own `data-turbo-*` attributes. The binding prevents the
+              keydown's default, so the page does not scroll. A held Space repeats
+              its `keydown`, and each repeat clicks again.
+
+              ```ruby
+              a(**mix(on_client("keydown.space", js.click), href: item_path(item))) { item.name }
+              ```
             MD
 
             DocsUI::Callout(:note, title: 'One action per element') do

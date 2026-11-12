@@ -547,6 +547,15 @@ module Phlex
               "submit event this trigger is bound to. Bind the submit op to another event " \
               "(change/input), or gate it behind a reducer's $ops / reactive_on_complete."
           end
+          # Issue #471: el.click() dispatches the very click this trigger is
+          # bound to, and the binding prevents its default — the activation
+          # would be lost.
+          if event == "click" && self_click?(ops)
+            raise ArgumentError,
+              "on_client(:click, js.click) on its own trigger cancels itself — the synthetic click " \
+              "re-enters this binding, which prevents its default. Bind it to another event " \
+              "(\"keydown.space\"), or click another element (js.click(\"#target\"))."
+          end
           shortcut = client_shortcut!(event, shortcut, window:, outside:)
           keeps_default!("on_client(#{event.inspect})", prevent, shortcut) unless prevent == true
           window_bound = window || outside || !shortcut.nil?
@@ -1658,6 +1667,15 @@ module Phlex
           end
           record["ops"] = ops.ops
           record
+        end
+
+        # Issue #471: a click op aimed at the trigger. A hand-built chain may
+        # carry Symbol names and keys, or no args Hash.
+        def self_click?(ops)
+          ops.ops.any? do |name, args|
+            name.to_s == "click" && args.is_a?(Hash) &&
+              (args["to"] || args[:to]) == Phlex::Reactive::JS::TRIGGER_SENTINEL
+          end
         end
 
         # Issue #442: validate on_client's within: — a non-empty CSS selector,

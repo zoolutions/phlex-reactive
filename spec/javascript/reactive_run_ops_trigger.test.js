@@ -483,3 +483,30 @@ test("a reactive:js stream op naming @trigger resolves to nothing and warns (ver
   expect(warns.some((w) => w.includes("@trigger") && w.includes("server-pushed op has no trigger element"))).toBe(true)
   delete window.Turbo
 })
+
+// --- click (issue #471) -------------------------------------------------------
+
+test("click on @trigger calls the bound element's own click(), once", () => {
+  const { root, controller } = mount(`<a id="row-link" href="#row">Row</a>`)
+  const link = root.querySelector("#row-link")
+  bind(link, controller, { on: "keydown", ops: [["click", { to: "@trigger" }]] })
+  const clicks = []
+  link.addEventListener("click", (event) => clicks.push(event.target.id))
+
+  link.dispatchEvent(new window.KeyboardEvent("keydown", { key: " ", bubbles: true, cancelable: true }))
+
+  expect(clicks).toEqual(["row-link"])
+})
+
+test("click with a target that matches nothing warns under verbose_errors, and the rest of the chain runs", () => {
+  const { root, controller } = mount(`<button id="go">Go</button>`, 'data-reactive-verbose="true"')
+  bind(root.querySelector("#go"), controller, {
+    on: "click",
+    ops: [["click", { to: "#gone" }], ["set_attr", { to: "#item-label", name: "data-ran", value: "yes" }]],
+  })
+
+  const warns = captureWarns(() => click(root.querySelector("#go")))
+
+  expect(warns.some((w) => w.includes('"click"') && w.includes("#gone"))).toBe(true)
+  expect(root.querySelector("#item-label").getAttribute("data-ran")).toBe("yes")
+})

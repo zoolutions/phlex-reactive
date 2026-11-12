@@ -1737,6 +1737,24 @@ RSpec.describe Phlex::Reactive::Component do
         .to raise_error(ArgumentError, /re-fire/)
     end
 
+    # Issue #471: el.click() dispatches the click this trigger is bound to;
+    # the binding prevents that click's default, so the activation is lost.
+    it "rejects a click op on its own trigger bound to the click event" do
+      expect { instance.send(:on_client, :click, instance.js.add_class(:root, "x").click) }
+        .to raise_error(ArgumentError, /on_client\(:click, js\.click\)/)
+    end
+
+    it "rejects the self-click in a hand-built chain with Symbol names and keys" do
+      chain = Phlex::Reactive::JS.new([[:click, { to: "@trigger" }]])
+      expect { instance.send(:on_client, :click, chain) }.to raise_error(ArgumentError, /on_client\(:click, js\.click\)/)
+    end
+
+    it "allows a click op on its own trigger from any other event, and on another element from click" do
+      attrs = instance.send(:on_client, "keydown.space", instance.js.click)
+      expect(binding_record(attrs)["ops"]).to eq([["click", { "to" => "@trigger" }]])
+      expect { instance.send(:on_client, :click, instance.js.click("#other")) }.not_to raise_error
+    end
+
     it "allows a submit op on any other event (the general autosubmit story)" do
       attrs = instance.send(:on_client, :change, instance.js.submit)
 

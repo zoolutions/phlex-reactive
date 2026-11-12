@@ -145,6 +145,29 @@ module Phlex
         end
       end
 
+      # Ops the server never pushes (issue #471): click activates an element
+      # (follows a link, submits a form), so a reply or a broadcast that lands
+      # later must not carry it. Stricter than the broadcast-only refusal of
+      # focus/submit (Streamable::BROADCAST_REFUSED_OPS).
+      GESTURE_OPS = %w[click].freeze
+
+      # Raise when `list` (a JS chain or a raw [[op, args]] list) carries a
+      # gesture-only op. Called for every op the server pushes
+      # (Response.js_ops_json: reply.js, a settle's js and broadcast_to(js:)).
+      # A pushed dispatch("click") stays allowed (it may run an on(:action)
+      # click binding, as it always could), so it can reach a :click binding
+      # that holds js.click — the developer's wiring, like set_value's input.
+      def self.refuse_gesture_ops!(list)
+        pairs = list.is_a?(JS) ? list.ops : Array(list)
+        refused = pairs.filter_map { |op, _| op.to_s if GESTURE_OPS.include?(op.to_s) }.uniq
+        return if refused.empty?
+
+        raise ArgumentError,
+          "#{self}: a server-pushed op (reply.js, broadcast_to(js:)) refuses #{refused.join(", ")} — " \
+          "click activates an element (follows a link, submits a form), so the server never pushes " \
+          "it. Answer with reply.redirect for a visit, or bind js.click with on_client."
+      end
+
       # Raise when an op in `list` (a JS chain or a raw [[op, args]] list)
       # names @trigger (a target, from:, or dispatch's detail_from:, which
       # reads off it). Called for every op the server pushes
@@ -320,6 +343,34 @@ module Phlex
 
       def blur(to, global: false)
         append("blur", target_args(to, global:))
+      end
+
+      # --- Click (issue #471) ---
+      #
+      # click(to = :trigger) — HTMLElement#click() on the FIRST match: the
+      # browser's own activation, as a user click would run it. A link follows
+      # its href (through Turbo Drive, with its own data-turbo-* attributes), a
+      # submit button submits its form, a checkbox toggles. The default target
+      # is the trigger, so a link that should also answer Space reads
+      #   a(href: item_path(item), **on_client("keydown.space", js.click)) { item.name }
+      # (the binding prevents the keydown's default, so Space does not scroll).
+      #
+      # The synthetic click bubbles like a real one: a click binding on the
+      # target or an ancestor prevents its default (and so the activation)
+      # unless it was bound with prevent: false. on_client(:click, js.click) on
+      # its own trigger is refused at render for that reason.
+      #
+      # NEVER SERVER-PUSHED, stricter than focus: refused in every server-pushed
+      # op (reply.js, a settle's js, broadcast_to(js:)) — a reply that lands
+      # later would navigate without a gesture. on_client, a raw ["click", …] pair in a reducer's $ops and
+      # reactive_on_complete may carry it. The last two run on an input event,
+      # and a reply's set_value fires one too, so a reply can reach a click
+      # there — the same exposure submit has; so can a pushed
+      # dispatch("click") reaching a :click binding that holds it. A held key repeats its keydown,
+      # and each repeat clicks again.
+
+      def click(to = :trigger, global: false)
+        append("click", target_args(to, global:))
       end
 
       # --- Modal dialogs (issue #365) ---

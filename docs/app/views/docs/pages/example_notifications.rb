@@ -162,10 +162,11 @@ module Views
             DocsUI::Callout(:note) do
               md <<~MD
                 `broadcast_to(..., js: ops)` **refuses the actor-only ops** (`focus` /
-                `focus_first` / `blur` / `submit` / `paste_into` / `check_group` / `set_value` raise `ArgumentError`) —
+                `focus_first` / `blur` / `submit` / `click` / `paste_into` / `check_group` / `set_value` raise `ArgumentError`) —
                 broadcasting focus would steal it in every subscriber's tab, a broadcast
                 submit would force-submit every form, and a broadcast clipboard read
-                would be hostile; those stay actor-reply concerns (`reply.js`).
+                would be hostile; those stay actor-reply concerns (`reply.js`), except
+                `click`, which `reply.js` refuses too (bind it with `on_client`).
                 Class and attribute toggles and `dispatch` broadcast fine. Like all
                 client ops, these are **ephemeral**: the next full re-render of the
                 component resets whatever they toggled, so use a signed `action` for
