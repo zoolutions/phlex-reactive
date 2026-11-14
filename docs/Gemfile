@@ -87,7 +87,7 @@ group :development do
   gem "rubocop-thread_safety", require: false
   # ...and the ancestor .rubocop.yml inherits conformance-kit's config
   # (inherit_gem), so the gem must resolve here too.
-  gem "conformance-kit", "~> 0.4", require: false
+  gem "conformance-kit", "~> 0.5", require: false
 end
 
 group :test do
