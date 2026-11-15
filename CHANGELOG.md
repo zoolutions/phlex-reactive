@@ -46,7 +46,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   build. As of phlex-rails 2.4.0, `/counter` stops in its `render_in`, which
   does not take Rails main's `locals:` (fixed on phlex-rails main,
   yippee-fun/phlex-rails#332, unreleased). The dummy gains a production
-  environment for it and skips its test-only `Viewer` gate there.
+  environment for it and skips its test-only `Viewer` gate there. 0.5.1 caps
+  prism below 2 in that job's bundle: with prism 2, refract 1.1.0 (which Phlex
+  loads) fails at boot on `Prism::MissingNode` (yippee-fun/refract#6).
 
 ### Changed
 
