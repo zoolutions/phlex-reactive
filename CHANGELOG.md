@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-16
+
 ### Added
 
 - **`reactive_subscribe` catches up on a broadcast sent before its source
@@ -4656,7 +4658,8 @@ room for dogfood fixes.
   scaffolds a reactive component (and an RSpec spec when the app uses RSpec),
   state-backed by default or record-backed with `--record`.
 
-[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/mhenrixon/phlex-reactive/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.14...v0.17.0
 [0.16.14]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.13...v0.16.14
 [0.16.13]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.12...v0.16.13
