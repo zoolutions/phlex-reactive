@@ -391,13 +391,14 @@ test("a root that joins a source already connected gets no event on joining", ()
   expect(seen).toEqual([])
 })
 
-test("a source minted again after a page render resumes from the last frame it applied, as a reconnect", () => {
+test("a source minted again after a page render opens from what its root renders now, as a reconnect", () => {
   const [controller] = mount(widget("widget", "/pgbus/streams/signed-item:widget", 42))
   const seen = record(controller.element)
   const before = sources()[0]
   connected(before, "conn-1")
   before.dispatchEvent(new CustomEvent("pgbus:message", { detail: { msgId: 57, data: "" } }))
-  before.dispatchEvent(new CustomEvent("pgbus:message", { detail: { msgId: -3, data: "" } })) // ephemeral frame
+  // The page refresh by morph rewrote the root as rendered at 55, and dropped the source.
+  controller.element.setAttribute("data-reactive-subscribe-since", "55")
   before.remove()
 
   document.dispatchEvent(new CustomEvent("turbo:morph"))
@@ -405,7 +406,7 @@ test("a source minted again after a page render resumes from the last frame it a
   connected(after, "conn-2")
 
   expect(after).not.toBe(before)
-  expect(after.sinceAtConnect).toBe("57")
+  expect(after.sinceAtConnect).toBe("55")
   expect(seen.map((event) => event.reconnect)).toEqual([false, true])
 })
 
