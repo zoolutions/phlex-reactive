@@ -2415,12 +2415,25 @@ Imports::Status.broadcast_self(import, js: Phlex::Reactive::JS.new.add_class("#b
   render (`data-reactive-subscribe-since`, read as `pgbus_stream_from` reads it,
   one query per render), and the source replays from it: a broadcast sent
   between the render and the connection still arrives, and nothing older does.
+  A source minted again after a page render (a Drive render, a morph that
+  dropped it, every Drive visit of a `data-turbo-permanent` root) opens from
+  its roots' watermarks then: it never skips a frame, but it may replay one a
+  root already shows, so a `js:` or append frame can apply twice.
   An ephemeral stream (pgbus's default) has nothing to replay. Each time a
   root's source connects, the root gets `reactive:subscribed`
   (`detail: { connectionId, reconnect }`, not bubbling), so a component that
   must not miss a change refetches on it:
-  `div(**mix(reactive_root, on(:refresh, event: "reactive:subscribed")))`. A
-  root that joins a source already connected gets no event.
+
+  ```ruby
+  action :refresh
+  def refresh = reply.morph
+
+  def view_template
+    div(**mix(reactive_root, on(:refresh, event: "reactive:subscribed"))) { @import.state }
+  end
+  ```
+
+  A root that joins a source already connected gets no event.
 - **Refused at render**: a stream name over pgbus's stream-name budget (a
   UUID-keyed record always is: use `key: -> { [Pgbus.stream_key(@record), :status] }`),
   a nil record or key part, and any subscribing root on Action Cable, where you
