@@ -1,0 +1,21 @@
+app/javascript/phlex/reactive/features/subscribe.js
+  s_b858c0176677f5::t_15def31cbc88f6 25-35
+spec/phlex/reactive/subscribe_spec.rb
+  s_b858c0176677f5::t_da2cd36f0574c1 112-163
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "eb46a62c1f3ad7c8b9893d0f57550ad4460398b4",
+  "prompts": {},
+  "sessions": {
+    "s_b858c0176677f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6ce57160-19c8-4e91-a797-08bec39b53b9",
+        "model": "unknown"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
