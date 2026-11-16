@@ -142,7 +142,10 @@ module Views
 
                 ```ruby
                 action :refresh
-                def refresh = reply.morph
+                def refresh
+                  authorize! @import, :show?   # verify_authorized is on by default
+                  reply.morph
+                end
 
                 def view_template
                   div(**mix(reactive_root, on(:refresh, event: "reactive:subscribed"))) { @import.state }
