@@ -429,3 +429,20 @@ test("a source that was replaced dispatches nothing more", () => {
 
   expect(seen).toEqual([])
 })
+
+test("a root re-rendered under the same id (a Drive render) resumes from its own watermark, not the old page's last frame", async () => {
+  const [controller] = mount(widget("widget", "/pgbus/streams/signed-item:widget", 42))
+  const before = sources()[0]
+  connected(before, "conn-1")
+  // The next page rendered at 50; frame 57 then landed on the old page's source.
+  before.dispatchEvent(new CustomEvent("pgbus:message", { detail: { msgId: 57, data: "" } }))
+
+  // Turbo swaps <body>: the box and the old root go, the new root (same id, its own watermark) comes in.
+  document.body.innerHTML = widget("widget", "/pgbus/streams/signed-item:widget", 50)
+  disconnect(controller)
+  connect(document.getElementById("widget"))
+  await flush()
+
+  expect(sources().length).toBe(1)
+  expect(sources()[0].sinceAtConnect).toBe("50")
+})

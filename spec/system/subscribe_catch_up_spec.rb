@@ -27,6 +27,27 @@ RSpec.describe "reactive_subscribe catch-up (issue #478)", :pgbus, type: :system
     expect(page).to have_css("#{subscribe_source}[since-id]", visible: :all, count: 1)
   end
 
+  # A Drive render of the same page brings the root back under the same id,
+  # rendered at a new watermark. The old page's source applied a later frame;
+  # the new source must still open from the new root's own watermark.
+  it "opens a Drive-rendered root's source from that root's watermark, not the old page's last frame" do
+    visit "/subscribe/#{todo.id}/catch_up?mode=replay"
+    expect(page).to have_css("#{subscribe_source}[connection-id]", visible: :all, wait: 10)
+    first_since = find("[data-testid='todo-replay']")["data-reactive-subscribe-since"]
+    page.execute_script(<<~JS)
+      window.__noReload = true
+      document.querySelector("#{subscribe_source}")
+        .dispatchEvent(new CustomEvent("pgbus:message", { detail: { msgId: 999999999, data: "" } }))
+      window.Turbo.visit(location.href, { action: "replace" })
+    JS
+
+    # The new page: its root rendered at a later watermark (the demo broadcasts on every render).
+    root = find("[data-testid='todo-replay']:not([data-reactive-subscribe-since='#{first_since}'])", wait: 10)
+    expect(page.evaluate_script("window.__noReload")).to be(true)
+    expect(page).to have_css("#{subscribe_source}[since-id='#{root["data-reactive-subscribe-since"]}']",
+      visible: :all, count: 1)
+  end
+
   it "dispatches reactive:subscribed on the root, which refetches what an ephemeral stream lost" do
     visit "/subscribe/#{todo.id}/catch_up"
 

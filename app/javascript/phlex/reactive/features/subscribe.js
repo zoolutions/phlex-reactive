@@ -25,7 +25,8 @@
 // Catching up (issue #478). A source opens with since-id set to the lowest
 // watermark of the roots on its src, so pgbus replays a durable broadcast
 // sent between the render and the connection. A source minted again after a
-// page render resumes from the last frame the dropped one applied. Each time
+// page render resumes from the last frame the dropped one applied, for a root
+// that was on the page then (a re-rendered root keeps its own). Each time
 // a source connects (its pgbus:connected), every root on it gets
 // reactive:subscribed (detail { connectionId, reconnect }; reconnect is false
 // on the stream's first connection), not bubbling, so a component can refetch
@@ -39,8 +40,9 @@ const ATTR = "data-reactive-subscribe"
 const SINCE = "data-reactive-subscribe-since"
 const MARK = "data-reactive-subscribe-source"
 
-// src -> { source, ids, connected, lastId }: one source per stream, the root
-// ids on it, whether it ever connected, and the last durable frame it applied.
+// src -> { source, ids, connected, lastId, seen }: one source per stream, the
+// root ids on it, whether it ever connected, the last durable frame it
+// applied, and the root elements that were on the page when it did.
 const streams = new Map()
 // root id -> { id, root, src, removing, observer }: kept across a replace.
 // The id is the one the root had at connect: a root whose id changes while
@@ -104,7 +106,7 @@ function rejoin() {
 
 function join(src, id) {
   let stream = streams.get(src)
-  if (!stream) streams.set(src, (stream = { source: null, ids: new Set(), connected: false, lastId: null }))
+  if (!stream) streams.set(src, (stream = { source: null, ids: new Set(), connected: false, lastId: null, seen: null }))
   stream.ids.add(id)
   if (!stream.source?.isConnected) stream.source = mint(src, stream)
 }
@@ -142,7 +144,13 @@ function mint(src, stream) {
   const applied = (event) => {
     const id = event.detail?.msgId
     // A negative id is an ephemeral frame, never persisted: nothing to resume from.
-    if (typeof id === "number" && id > 0 && !(stream.lastId >= id)) stream.lastId = id
+    if (typeof id !== "number" || id <= 0 || stream.lastId >= id) return
+    stream.lastId = id
+    stream.seen = new WeakSet()
+    for (const rootId of stream.ids) {
+      const root = roots.get(rootId)?.root
+      if (root?.isConnected) stream.seen.add(root)
+    }
   }
   source.addEventListener("pgbus:message", applied)
   source.addEventListener("pgbus:event", applied)
@@ -162,19 +170,22 @@ function mint(src, stream) {
   return source
 }
 
-// Where a durable stream's source replays from: the lowest watermark of the
-// roots on its src (two roots rendered apart share the source), or the last
-// frame a dropped source applied, when that is further. null for an
-// ephemeral stream (no root carries a watermark).
+// Where a durable stream's source replays from: the lowest of what each root
+// on its src still needs (two roots rendered apart share the source). A root
+// needs what came after its watermark, or after the last frame a dropped
+// source applied when that root was on the page then. A root rendered again
+// (a Drive render under the same id) is a new element: its own watermark
+// wins. null for an ephemeral stream (no root carries a watermark).
 function resumeFrom(src, stream) {
   let since = null
   for (const root of document.querySelectorAll(`[${SINCE}]`)) {
     if (root.getAttribute(ATTR) !== src) continue
-    const value = Number(root.getAttribute(SINCE))
-    if (Number.isFinite(value) && value >= 0 && (since == null || value < since)) since = value
+    let value = Number(root.getAttribute(SINCE))
+    if (!Number.isFinite(value) || value < 0) continue
+    if (stream.lastId > value && stream.seen?.has(root)) value = stream.lastId
+    if (since == null || value < since) since = value
   }
-  if (since == null) return null
-  return stream.lastId > since ? stream.lastId : since
+  return since
 }
 
 // The minted sources live in one hidden <reactive-stream-sources> at the end
