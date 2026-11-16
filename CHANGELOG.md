@@ -8,6 +8,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`reactive_subscribe` — a component that subscribes to its own broadcast
+  stream (#474, pgbus).** `reactive_subscribe :status` (the stream
+  `[record, :status]`) or `reactive_subscribe key: [...]` / `key: -> { [...] }`
+  puts the stream's signed pgbus source on the root. The new `subscribe` client
+  feature keeps one `<pgbus-stream-source>` for it while the root is on the
+  page. A morph that keeps the key keeps the connection, and roots on the same
+  key share one source. `Widget.broadcast_self(replace: record)` broadcasts to
+  the declared stream, so no view repeats the key in a `turbo_stream_from`. An
+  action on a subscribing root sends that root's own connection id as
+  `X-Pgbus-Connection`, so `exclude: reactive_connection_id` skips the actor on
+  that stream but no longer on another page-level stream. On Action Cable a subscribing root raises
+  `ConfigurationError` at render, naming `turbo_stream_from`. A stream name over
+  pgbus's budget is refused at render. The doctor checks for pgbus and for an
+  import of its client element.
 - **`js.click(to = :trigger)` (#471).** A client op that activates an element
   the way a user click does: `HTMLElement#click()` on the first match, so a link
   follows its `href` (through Turbo Drive, with its own `data-turbo-*`
@@ -99,6 +113,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A per-render dormant presence roster raised nothing and never joined (#474's
+  review).** `reactive_root(dormant: true)` on a `reactive_presence` root (or a
+  `reactive_subscribe` one) rendered a root that never connects, so the tab never
+  joined. That render now raises the `ArgumentError` a class-level
+  `reactive_dormant` already raises when the class loads. An app that rendered
+  the combination gets the error on that page and drops `dormant: true` for that
+  root.
+- **A page refresh by morph dropped a presence root's subscription (#474's
+  review).** Turbo 8's page morph removes the `<pgbus-stream-source>` the client
+  minted in `<body>` while the roster root stays connected, so the tab left the
+  roster for good. The minted sources now sit in one hidden,
+  `data-turbo-permanent` `<reactive-stream-sources>` box at the end of `<body>`,
+  so the morph keeps them (and never pairs the box with a source the refreshed
+  page adds) and the tab keeps its seat. Should a render drop it anyway, the client
+  mints a fresh source for every presence root still on the page, and its
+  `pgbus:connected` announces the tab again. `reactive_subscribe` sources do the
+  same.
 - **`reactive:idle` fired before the reply rendered (#464).** The dispatch lane
   left the activity counter when the fetch settled, at least one animation frame
   before Turbo applied the reply's streams, so a one-shot read after

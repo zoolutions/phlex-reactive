@@ -72,6 +72,34 @@ RSpec.describe "Presence (issue #358)", :pgbus, type: :system do
     end
   end
 
+  # Turbo 8's page refresh by morph drops what the server did not render from
+  # <body> while the roster root stays connected (#474's review). The minted
+  # source is data-turbo-permanent: it stays, and the tab keeps its seat.
+  it "keeps the tab on the roster through a page refresh by morph" do
+    Capybara.using_session(:a) do
+      open_roster
+      before = find("pgbus-stream-source[presence]", visible: :all)["connection-id"]
+
+      page.execute_script(<<~JS)
+        const meta = document.createElement("meta")
+        meta.name = "turbo-refresh-method"
+        meta.content = "morph"
+        document.head.appendChild(meta)
+        document.addEventListener("turbo:morph", () => { document.documentElement.dataset.morphed = "" }, { once: true })
+        window.Turbo.visit(location.href, { action: "replace" })
+      JS
+
+      expect(page).to have_css("html[data-morphed]", visible: :all, wait: 10)
+      expect(page).to have_css("pgbus-stream-source[presence][connection-id='#{before}']", visible: :all, count: 1)
+      expect(page).to have_css("[data-reactive-presence-me]", visible: :all, wait: 10)
+    end
+
+    Capybara.using_session(:b) do
+      open_roster
+      expect(page).to have_css("[data-testid='seats']", text: "2", wait: 10)
+    end
+  end
+
   it "fires reactive:presence with the seat that joined" do
     Capybara.using_session(:a) do
       open_roster

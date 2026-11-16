@@ -85,6 +85,7 @@ module Phlex
           id_check(components),
           authorization_check(components),
           dormant_check(components),
+          subscribe_check(components),
           *early_pin_check(components)
         ].compact
       end
@@ -286,6 +287,32 @@ module Phlex
                "your entrypoint, before any controller loads:\n  import \"phlex/reactive/early\"")
       end
 
+      # Subscribing components (issue #474): reactive_subscribe needs pgbus with
+      # reactive Streams (a hard failure: the root raises at render without it)
+      # and pgbus's client element on the page — nothing else imports
+      # pgbus/stream_source_element when no view renders pgbus_stream_from. The
+      # client half is ADVISORY: the import may live in a file not scanned. No
+      # line at all when nothing subscribes.
+      def subscribe_check(components, capable: Phlex::Reactive::Subscribe.capable?, client: imports_pgbus_client?)
+        subscribing = components.select do
+          it.respond_to?(:reactive_subscribe_declaration) && it.reactive_subscribe_declaration
+        end
+        return if subscribing.empty?
+
+        label = "#{subscribing.size} subscribing #{subscribing.one? ? "component" : "components"} " \
+                "(#{subscribing.map(&:name).join(", ")})"
+        unless capable
+          return Check.new(:fail, "#{label}, but pgbus with reactive Streams is not loaded", name: :subscribe,
+            fix: "reactive_subscribe needs pgbus (its roots raise at render without it). Add pgbus, or drop the " \
+                 "declaration and render turbo_stream_from with the same key next to the component.")
+        end
+        return Check.new(:ok, "#{label}; pgbus's client is imported", name: :subscribe) if client
+
+        Check.new(:unknown, "#{label}, but no import of pgbus/stream_source_element was found", name: :subscribe,
+          fix: "A subscribing root mints a <pgbus-stream-source>, which connects only once pgbus's client " \
+               "element is defined. Add to your entrypoint:\n  import \"pgbus/stream_source_element\"")
+      end
+
       # Every import map the app registers must pin phlex/reactive/early when a
       # dormant root exists (issue #307): a map without the pin cannot resolve
       # the specifier, so the import fails on the pages that map serves. One
@@ -334,18 +361,28 @@ module Phlex
         app/javascript/application.js
       ].freeze
       EARLY_IMPORT = %r{import\s+["']phlex/reactive/early["']}
+      # pgbus's client element, imported (statically or dynamically), or a
+      # helper that emits the import (issue #474). A bare mention (an import
+      # map pin) is not an import.
+      PGBUS_CLIENT = %r{\bimport\b[^;\n]*?["']pgbus/stream_source_element["']|\b(?:pgbus|turbo)_stream_from\b}
       # Closed comments, which may span lines: HTML, JS block and ERB.
       BLOCK_COMMENT = %r{<!--.*?-->|/\*.*?\*/|<%#.*?%>}m
       # What precedes the import on its line when it is commented out: a //
-      # (not the one in a URL), an unclosed /*, or a block-comment's leading *.
-      COMMENT_BEFORE = %r{(?<!:)//|/\*|\A\s*\*}
+      # (not the one in a URL: after a scheme's colon, or a protocol-relative
+      # one opening a quoted value), an unclosed /*, or a block-comment's
+      # leading *.
+      COMMENT_BEFORE = %r{(?<![:"'=])//|/\*|\A\s*\*}
 
       # Is there an `import "phlex/reactive/early"` in `source` that actually
       # runs? Closed comments are dropped first, then each line is read, so a
       # commented-out import doesn't count.
-      def self.imports_early_source?(source)
+      def self.imports_early_source?(source) = imports_source?(source, EARLY_IMPORT)
+
+      # Is there a match for `pattern` in `source` that is not commented out?
+      # Closed comments are dropped first, then each line is read.
+      def self.imports_source?(source, pattern)
         source.gsub(BLOCK_COMMENT, "").each_line.any? do
-          (match = EARLY_IMPORT.match(it)) && !match.pre_match.match?(COMMENT_BEFORE)
+          (match = pattern.match(it)) && !match.pre_match.match?(COMMENT_BEFORE)
         end
       end
 
@@ -500,6 +537,16 @@ module Phlex
         return "" if STIMULUS_ENTRYPOINTS.include?(early)
 
         " (#{early})"
+      end
+
+      # Does any app JavaScript, view or component import pgbus's client
+      # element (or render a helper that emits that import)?
+      def imports_pgbus_client?
+        (stimulus_registration_files | early_import_candidates).any? do
+          Doctor.imports_source?(early_source(it), PGBUS_CLIENT)
+        rescue StandardError
+          false
+        end
       end
 
       def dormant_components(components)

@@ -99,7 +99,7 @@ function persistRoot() {
 }
 
 test("the entry hands every feature in the core's table to the core", () => {
-  expect(entry.reactiveFeatureNames()).toEqual(["persist", "defer", "form", "bindings", "compute", "sortable", "drag", "presence", "countdown", "effects", "hints", "devtools"])
+  expect(entry.reactiveFeatureNames()).toEqual(["persist", "defer", "form", "bindings", "compute", "sortable", "drag", "presence", "subscribe", "countdown", "effects", "hints", "devtools"])
   expect(typeof entry.registerReactiveFeature).toBe("function")
 })
 

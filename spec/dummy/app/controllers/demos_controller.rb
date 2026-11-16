@@ -602,6 +602,11 @@ class DemosController < ActionController::Base
     render_component PresencePageComponent.new(todo: Todo.first || Todo.create!(title: "Presence"))
   end
 
+  # Issue #474: a component subscribed to its own stream (see SubscribePageComponent).
+  def subscribe
+    render_component SubscribePageComponent.new(todo: Todo.find(params[:todo_id]))
+  end
+
   # Issue #346: the success reply only swaps #flash (the rows stay); op=fail
   # answers 422 with a flash, which Turbo renders but reports as unsuccessful.
   def bulk_outcome

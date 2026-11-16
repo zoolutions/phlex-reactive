@@ -37,6 +37,7 @@ const FEATURE_MARKS = {
   sortable: "data-reactive-sortable-placeholder",
   drag: "data-reactive-drag-live",
   presence: "data-reactive-presence-same-member",
+  subscribe: "reactive_subscribe needs the pgbus client",
   countdown: "reactive:countdown-done",
 }
 const DYNAMIC_IMPORT = /import\(\s*["'][^"']+["']\s*\)/g

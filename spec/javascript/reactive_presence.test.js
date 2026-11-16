@@ -114,7 +114,10 @@ async function morph(inner, id = "viewers") {
 test("a presence root mints one hidden presence source in <body> (pgbus's element adds the seat)", () => {
   mount(roster(""))
   const el = source()
-  expect(el.parentElement).toBe(document.body)
+  // In the permanent sources box, kept by Turbo 8's page morph (#474's review).
+  expect(el.parentElement.localName).toBe("reactive-stream-sources")
+  expect(el.parentElement.parentElement).toBe(document.body)
+  expect(el.parentElement.hasAttribute("data-turbo-permanent")).toBe(true)
   expect(el.hasAttribute("presence")).toBe(true)
   expect(el.hidden).toBe(true)
   expect(el.getAttribute("src")).toBe("/pgbus/streams/signed-board")
@@ -398,4 +401,21 @@ test("a replace of the root keeps its source; a root that goes away removes it",
   controllers.pop().disconnect()
   await flush()
   expect(source()).toBe(null)
+})
+
+test("a page render that drops the presence source anyway mints a fresh one, which announces again", async () => {
+  mount(roster(""))
+  connected()
+  await flush()
+  const sent = requests.length
+  source().remove() // Turbo 8's page morph drops <body>'s minted children
+
+  document.dispatchEvent(new CustomEvent("turbo:morph"))
+  expect(source()).not.toBeNull()
+  expect(source().hasAttribute("presence")).toBe(true)
+
+  connected("viewers", "conn-2")
+  await flush()
+  expect(requests.length).toBe(sent + 1)
+  expect(requests.at(-1).body.act).toBe("presence_set")
 })

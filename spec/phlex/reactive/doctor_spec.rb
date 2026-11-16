@@ -29,7 +29,13 @@ RSpec.describe Phlex::Reactive::Doctor do
   end
 
   describe "#checks (happy path against the dummy app)" do
-    before { Rails.application.eager_load! }
+    before do
+      Rails.application.eager_load!
+      # The dummy's subscribe demo (TodoStatusComponent, issue #474) is pgbus-
+      # only, and wired in the pgbus cells; this suite runs on Action Cable.
+      # The check's own failure case is specified below.
+      allow(Phlex::Reactive::Subscribe).to receive(:capable?).and_return(true)
+    end
 
     it "returns a check for every section" do
       names = doctor.checks.map(&:name)
@@ -385,6 +391,111 @@ RSpec.describe Phlex::Reactive::Doctor do
   # import it never mounts. The doctor counts the components declared dormant
   # and looks for the import in the Stimulus entrypoints. ADVISORY (never a
   # fail): the import may live in a file the doctor doesn't scan.
+  describe "the subscribing-components check (issue #474)" do
+    let(:subscriber) do
+      Class.new(ApplicationComponent) do
+        include Phlex::Reactive::Component
+
+        def self.name = "LiveFeed"
+        reactive_subscribe key: [:feed]
+        def id = "feed"
+      end
+    end
+
+    let(:plain) do
+      Class.new(ApplicationComponent) do
+        include Phlex::Reactive::Component
+
+        reactive_state :n
+        def initialize(n: 0) = (@n = n)
+        def id = "plain"
+      end
+    end
+
+    it "is absent when nothing subscribes" do
+      expect(doctor.subscribe_check([plain], capable: false, client: false)).to be_nil
+    end
+
+    it "fails without pgbus, with turbo_stream_from as the alternative" do
+      check = doctor.subscribe_check([subscriber, plain], capable: false, client: false)
+
+      expect(check.status).to eq(:fail)
+      expect(check.name).to eq(:subscribe)
+      expect(check.message).to include("1 subscribing component (LiveFeed)")
+      expect(check.fix).to include("turbo_stream_from")
+    end
+
+    it "passes with pgbus and its client imported" do
+      expect(doctor.subscribe_check([subscriber], capable: true, client: true)).to be_ok
+    end
+
+    it "is advisory, with the import as the fix, when the client import is not found" do
+      check = doctor.subscribe_check([subscriber], capable: true, client: false)
+
+      expect(check.status).to eq(:unknown)
+      expect(check.fix).to include('import "pgbus/stream_source_element"')
+    end
+
+    # Scratch app roots, NOT the dummy's app/ (which already has several
+    # matches, and where a new file would trip Rails' reloader).
+    describe "finding the client import" do
+      let(:app_root) { Pathname(Dir.mktmpdir("doctor-pgbus-client")) }
+
+      after { FileUtils.rm_rf(app_root) }
+
+      def client_found_with(path, source)
+        file = app_root.join(path)
+        FileUtils.mkdir_p(file.dirname)
+        File.write(file, source)
+        allow(Rails).to receive(:root).and_return(app_root)
+        doctor.send(:imports_pgbus_client?)
+      end
+
+      it "finds an inline module import in a component" do
+        source = %(script(type: "module") { raw safe(%(import "pgbus/stream_source_element")) }\n)
+        expect(client_found_with("app/components/page.rb", source)).to be(true)
+      end
+
+      it "finds the import in a JavaScript entrypoint" do
+        expect(client_found_with("app/javascript/application.js", %(import "pgbus/stream_source_element"\n))).to be(true)
+      end
+
+      it "does not count a Ruby comment" do
+        expect(client_found_with("app/components/page.rb", %(# import "pgbus/stream_source_element"\n))).to be(false)
+      end
+
+      it "does not count a JavaScript or ERB comment, or a bare mention such as a pin" do
+        source = <<~JS
+          // import "pgbus/stream_source_element"
+          /* import "pgbus/stream_source_element" */
+          pin "pgbus/stream_source_element", to: "pgbus/stream_source_element.min.js"
+        JS
+        expect(client_found_with("app/javascript/application.js", source)).to be(false)
+        expect(client_found_with("app/views/layouts/application.html.erb",
+          %(<%# turbo_stream_from @room %>\n<!-- import "pgbus/stream_source_element" -->\n))).to be(false)
+      end
+
+      it "counts a helper after a protocol-relative URL on the same line" do
+        source = %(<link href="//cdn.example.com/a.css"><%= turbo_stream_from @room %>\n)
+        expect(client_found_with("app/views/layouts/application.html.erb", source)).to be(true)
+      end
+
+      it "finds nothing in an app with no import" do
+        expect(client_found_with("app/components/page.rb", %(class Page < Phlex::HTML; end\n))).to be(false)
+      end
+    end
+
+    it "matches a direct import and the helpers that emit it, not a plain mention" do
+      pattern = Phlex::Reactive::Doctor::PGBUS_CLIENT
+      matches = [%(import "pgbus/stream_source_element"), %(import("pgbus/stream_source_element")),
+                 %(import Source from "pgbus/stream_source_element"),
+                 "<%= turbo_stream_from @room %>", "pgbus_stream_from(@room)",
+                 "pgbus/stream_source_element.min.js", %(pin "pgbus/stream_source_element")].map { pattern.match?(it) }
+
+      expect(matches).to eq([true, true, true, true, true, false, false])
+    end
+  end
+
   describe "the dormant-roots check" do
     let(:dormant) do
       Class.new(ApplicationComponent) do

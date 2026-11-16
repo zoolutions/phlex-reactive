@@ -372,6 +372,9 @@ module Phlex
             # A ClientBindings-only class has no presence declaration to refuse.
             refuse_dormant_presence! if dormant && respond_to?(:reactive_presence_declaration) &&
                                         reactive_presence_declaration
+            # Issue #474: nor subscribe to its stream.
+            refuse_dormant_subscribe! if dormant && respond_to?(:reactive_subscribe_declaration) &&
+                                         reactive_subscribe_declaration
 
             Phlex::Reactive::Dormant.reject_visible_lazy!(self) if dormant
 

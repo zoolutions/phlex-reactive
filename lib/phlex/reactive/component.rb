@@ -147,6 +147,7 @@ module Phlex
       include Identity
       include Lazy
       include PresenceDeclaration
+      include SubscribeDeclaration
 
       # ActiveSupport::Concern's bookkeeping on this module, sealed now that
       # the body has loaded (zoolutions/phlex-reactive#364).

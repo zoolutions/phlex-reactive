@@ -109,7 +109,8 @@ module Phlex
           def refuse_dormant_presence!
             raise ArgumentError,
               "#{name}: reactive_presence cannot be dormant — a dormant root never connects, so its tab " \
-              "would never join the stream. Drop reactive_dormant on this component."
+              "would never join the stream. Drop reactive_dormant (or reactive_root(dormant: true)) on this " \
+              "component."
           end
         end
 

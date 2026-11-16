@@ -19,7 +19,8 @@
 // cannot say which row is "me": the module does, from the tab's seat.
 //
 // The subscription. The root carries its presence stream's signed src; the
-// module mints a <pgbus-stream-source presence> for it in <body>, with a
+// module mints a <pgbus-stream-source presence> for it in a hidden box at the
+// end of <body>, with a
 // deterministic id (reactive-presence-src-<root id>), as the defer push lane
 // mints its one-shot source. pgbus's element mints the tab's seat (one per
 // document), sends it as ?seat= and exposes it as element.pgbusSeat: the
@@ -27,7 +28,11 @@
 // connection id) keeps it, and this module reads it to find "me". A plain
 // replace of the root disconnects and
 // reconnects the controller: the source is removed only a microtask after a
-// disconnect, and kept when the same root id comes back.
+// disconnect, and kept when the same root id comes back. A page refresh by
+// morph (Turbo 8) keeps the source and the tab keeps its seat (#474's review;
+// see box). Should a render drop it anyway while
+// the root stays connected, the module mints a fresh one, whose
+// pgbus:connected announces the tab again.
 //
 // Announcing. On every pgbus:connected (the first one and each reconnect) the
 // module sends presence_set with the tab's last state ({} at first), through
@@ -56,8 +61,14 @@ const roots = new Map()
 // The sources this module minted and listens to (a Turbo cache restore brings
 // back a clone without the listener).
 const minted = new WeakSet()
+let listening = false
 
 export function connect(controller, core) {
+  if (!listening) {
+    listening = true
+    document.addEventListener("turbo:morph", resubscribe)
+    document.addEventListener("turbo:render", resubscribe)
+  }
   const root = controller.element
   let entry = roots.get(root.id)
   if (!entry) roots.set(root.id, (entry = { state: null, seats: null }))
@@ -107,6 +118,14 @@ export function set(root, state) {
   send(entry)
 }
 
+// After a page render: a root still on the page whose source the render
+// dropped subscribes again (subscribe keeps a source that is still there).
+function resubscribe() {
+  for (const entry of roots.values()) {
+    if (entry.core && !entry.removing && entry.root.isConnected) subscribe(entry.root)
+  }
+}
+
 function subscribe(root) {
   const id = SOURCE + root.id
   const found = document.getElementById(id)
@@ -138,7 +157,22 @@ function subscribe(root) {
     check(entry)
   })
   minted.add(source)
-  document.body.appendChild(source)
+  box().appendChild(source)
+}
+
+// The minted sources live in one hidden <reactive-stream-sources> at the end
+// of <body>, data-turbo-permanent: a page refresh by morph (Turbo 8) keeps
+// it, sources and connections included. A tag no server page renders, so
+// Idiomorph never pairs it with (and drops) a node the refreshed page adds.
+function box() {
+  let el = [...document.body.children].find((child) => child.localName === "reactive-stream-sources")
+  if (!el) {
+    el = document.createElement("reactive-stream-sources")
+    el.hidden = true
+    el.setAttribute("data-turbo-permanent", "")
+    document.body.appendChild(el)
+  }
+  return el
 }
 
 const defined = () => !!globalThis.customElements?.get?.("pgbus-stream-source")

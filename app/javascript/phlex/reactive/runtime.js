@@ -38,6 +38,7 @@ import * as deferFeature from "phlex/reactive/features/defer"
 import * as sortableFeature from "phlex/reactive/features/sortable"
 import * as dragFeature from "phlex/reactive/features/drag"
 import * as presenceFeature from "phlex/reactive/features/presence"
+import * as subscribeFeature from "phlex/reactive/features/subscribe"
 import * as countdownFeature from "phlex/reactive/features/countdown"
 
 // phlex/reactive/runtime — the reactive controller WITHOUT its feature
@@ -2414,6 +2415,11 @@ function presenceNeeded(root) {
   return root.getAttribute?.("data-reactive-presence") != null
 }
 
+// Subscribe (issue #474): the root subscribes to its own broadcast stream.
+function subscribeNeeded(root) {
+  return root.getAttribute?.("data-reactive-subscribe") != null
+}
+
 // Countdowns (issue #400): the root is, or holds, a reactive_countdown.
 function countdownNeeded(root) {
   return Boolean(root.matches?.("[data-reactive-countdown]") || root.querySelector?.("[data-reactive-countdown]"))
@@ -2436,6 +2442,9 @@ const PRODUCTION_FEATURES = [
   // Its announce is a request of its own; nothing it does at connect is read
   // by another request: it never gates.
   ["presence", [presenceNeeded, null]],
+  // Its source is a connection of its own; nothing it does at connect is read
+  // by a request: it never gates.
+  ["subscribe", [subscribeNeeded, null]],
   // A countdown writes only its own text and visibility: it never gates.
   ["countdown", [countdownNeeded, null]],
   [
@@ -2601,7 +2610,7 @@ function featureTimeoutMs() {
 export function reactiveFeatureNames() {
   return __SPLIT__
     ? [...FEATURES.keys()]
-    : ["persist", "defer", "form", "bindings", "compute", "sortable", "drag", "presence", "countdown", "effects", "hints", "devtools"]
+    : ["persist", "defer", "form", "bindings", "compute", "sortable", "drag", "presence", "subscribe", "countdown", "effects", "hints", "devtools"]
 }
 
 export function __setReactiveFeatureForTest(name, needs, load, waiting, gates) {
@@ -2626,6 +2635,7 @@ export function __loadReactiveFeatureForTest(name) {
     sortable: sortableFeature,
     drag: dragFeature,
     presence: presenceFeature,
+    subscribe: subscribeFeature,
     countdown: countdownFeature,
     effects: effectsFeature,
     hints: hintsFeature,
@@ -2690,6 +2700,7 @@ const SORTABLE = 32
 const PRESENCE = 64
 const COUNTDOWN = 128
 const DRAG = 256
+const SUBSCRIBE = 512
 
 // The default entry's features are part of this file: install them now, as
 // the opt-in entry does when one arrives.
@@ -3022,6 +3033,7 @@ export default class extends Controller {
       this.#connectFeatureNow(SORTABLE, "sortable", sortableNeeded, (core) => sortableFeature.connect(this, core))
       this.#connectFeatureNow(DRAG, "drag", dragNeeded, (core) => dragFeature.connect(this, core))
       this.#connectFeatureNow(PRESENCE, "presence", presenceNeeded, (core) => presenceFeature.connect(this, core))
+      this.#connectFeatureNow(SUBSCRIBE, "subscribe", subscribeNeeded, () => subscribeFeature.connect(this))
       this.#connectFeatureNow(COUNTDOWN, "countdown", countdownNeeded, (core) => countdownFeature.connect(this, core))
     }
   }
@@ -3062,6 +3074,7 @@ export default class extends Controller {
       if (on & SORTABLE) this.#disconnectFeatureNow("sortable", () => sortableFeature.disconnect(this, core))
       if (on & DRAG) this.#disconnectFeatureNow("drag", () => dragFeature.disconnect(this, core))
       if (on & PRESENCE) this.#disconnectFeatureNow("presence", () => presenceFeature.disconnect(this, core))
+      if (on & SUBSCRIBE) this.#disconnectFeatureNow("subscribe", () => subscribeFeature.disconnect(this))
       if (on & COUNTDOWN) this.#disconnectFeatureNow("countdown", () => countdownFeature.disconnect(this, core))
     }
   }
@@ -5243,7 +5256,18 @@ export default class extends Controller {
   // when not present (e.g. no pgbus, or no active subscription) — the header
   // is then simply omitted.
   #connectionId() {
+    // A subscribing root (issue #474) sends its own stream's connection, so
+    // exclude: reactive_connection_id on a broadcast to that stream skips the
+    // actor — whatever source comes first on the page.
+    const src = this.element.getAttribute?.("data-reactive-subscribe")
+    let own
+    if (src) {
+      for (const source of document.querySelectorAll("pgbus-stream-source[data-reactive-subscribe-source][connection-id]")) {
+        if (source.getAttribute("src") === src) own = source.getAttribute("connection-id")
+      }
+    }
     return (
+      own ||
       document.querySelector("pgbus-stream-source[connection-id]")?.getAttribute("connection-id") ||
       document.querySelector('meta[name="pgbus-connection-id"]')?.content ||
       null

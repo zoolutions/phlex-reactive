@@ -343,6 +343,17 @@ RSpec.describe Phlex::Reactive::Presence, "reactive_presence (issue #358)" do
         .to raise_error(ArgumentError, /dormant/)
     end
 
+    it "refuses a per-render dormant presence root (#474's review)" do
+      klass = declare do
+        reactive_presence :viewers
+        define_method(:initialize) { |board:| @board = board }
+        def id = "roster"
+        def view_template = div(**reactive_root(dormant: true))
+      end
+
+      expect { Phlex::Reactive.render(klass.new(board: todo)) }.to raise_error(ArgumentError, /Roster.*cannot be dormant/)
+    end
+
     it "lets a client-only component declare reactive_dormant (it has no presence to refuse)" do
       expect do
         Class.new(Phlex::HTML) do
