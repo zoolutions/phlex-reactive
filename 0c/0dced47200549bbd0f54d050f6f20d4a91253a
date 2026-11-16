@@ -1,0 +1,29 @@
+lib/phlex/reactive/component/subscribe_declaration.rb
+  s_b858c0176677f5::t_0f18653b829c23 1-116
+app/javascript/phlex/reactive/features/subscribe.js
+  s_b858c0176677f5::t_5ccdaeaf4a080d 1-106
+spec/javascript/reactive_subscribe.test.js
+  s_b858c0176677f5::t_fc6c81c16523ae 1-240
+spec/phlex/reactive/subscribe_spec.rb
+  s_b858c0176677f5::t_ce0adc6df87901 1-55,58-71,75-90,92-110,112-135,137-189,191-193
+lib/phlex/reactive/subscribe.rb
+  s_b858c0176677f5::t_438a5840acd38d 1-40,42-107,114-118
+spec/system/subscribe_spec.rb
+  s_b858c0176677f5::t_4d7cb8c78942dd 1-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "0c0dced47200549bbd0f54d050f6f20d4a91253a",
+  "prompts": {},
+  "sessions": {
+    "s_b858c0176677f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6ce57160-19c8-4e91-a797-08bec39b53b9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "mhenrixon <mikael@mhenrixon.com>"
+    }
+  }
+}
