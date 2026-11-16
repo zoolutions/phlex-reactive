@@ -28,5 +28,9 @@ if ENV["TRANSPORT"] == "pgbus"
     # dummy has no sign-in, so every connection is the same guest; an app
     # returns its user, and only when that user may read the stream.
     it.streams_authorize = ->(_env, _stream_name) { { id: "guest", metadata: { name: "Guest" } } }
+    # Issue #478: TodoReplayComponent's stream ([todo, :replay]) is durable, so
+    # its source replays from the watermark the root rendered. Every other
+    # dummy stream stays ephemeral (pgbus's default).
+    it.streams_durable_patterns = [/:replay\z/]
   end
 end

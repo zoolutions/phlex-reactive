@@ -607,6 +607,26 @@ class DemosController < ActionController::Base
     render_component SubscribePageComponent.new(todo: Todo.find(params[:todo_id]))
   end
 
+  # Issue #478: render the page (reading the watermark), THEN finish the todo
+  # and broadcast it: the broadcast always lands after the render and before
+  # the browser's source can connect. ?mode=replay is the durable stream
+  # (replayed from the watermark); otherwise the ephemeral one (lost, and
+  # caught up by the root's refresh on reactive:subscribed). The durable
+  # stream also gets a frame BEFORE the render, which the page must not
+  # replay: it marks the rendered-state paragraph.
+  def subscribe_catch_up
+    todo = Todo.find(params[:todo_id])
+    replay = params[:mode] == "replay"
+    if replay
+      stale = Phlex::Reactive::JS.new.add_class("[data-testid='rendered-state']", "replayed-stale", global: true)
+      TodoReplayComponent.broadcast_self(todo, js: stale)
+    end
+    html = render_to_string(SubscribeCatchUpPageComponent.new(todo:, replay:), layout: false)
+    todo.update!(done: true)
+    (replay ? TodoReplayComponent : TodoCatchUpComponent).broadcast_self(replace: todo)
+    render html: html.html_safe, layout: true
+  end
+
   # Issue #346: the success reply only swaps #flash (the rows stay); op=fail
   # answers 422 with a flash, which Turbo renders but reports as unsuccessful.
   def bulk_outcome

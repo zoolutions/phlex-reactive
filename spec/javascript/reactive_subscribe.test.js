@@ -18,7 +18,16 @@ let ReactiveController
 const SAVED = {}
 const GLOBALS = ["document", "window", "Event", "CustomEvent", "MutationObserver", "fetch", "location", "customElements"]
 
-window.customElements.define("pgbus-stream-source", class extends window.HTMLElement {})
+// It records the since-id it had when it connected: pgbus's element reads the
+// attribute once, in connectedCallback (issue #478).
+window.customElements.define(
+  "pgbus-stream-source",
+  class extends window.HTMLElement {
+    connectedCallback() {
+      this.sinceAtConnect = this.getAttribute("since-id")
+    }
+  },
+)
 
 beforeAll(async () => {
   mock.module("@hotwired/stimulus", () => ({ Controller: class {} }))
@@ -63,9 +72,9 @@ const flush = async () => {
   for (let i = 0; i < 5; i++) await new Promise((resolve) => setTimeout(resolve, 0))
 }
 
-const widget = (id = "widget", src = "/pgbus/streams/signed-item:widget") =>
+const widget = (id = "widget", src = "/pgbus/streams/signed-item:widget", since = null) =>
   `<div id="${id}" data-controller="reactive" data-reactive-token-value="tok-${id}"
-        data-reactive-subscribe="${src}">${id}</div>`
+        data-reactive-subscribe="${src}"${since == null ? "" : ` data-reactive-subscribe-since="${since}"`}>${id}</div>`
 
 function connect(root) {
   const controller = new ReactiveController()
@@ -288,4 +297,135 @@ test("a page render mints nothing for a root that left the page with it", async 
   disconnect(controller)
   await flush()
   expect(sources().length).toBe(0)
+})
+
+// Issue #478: catching up on what the root could have missed.
+
+// Plays pgbus: the server's pgbus:connected frame, re-dispatched on the element.
+const connected = (source, connectionId) =>
+  source.dispatchEvent(new CustomEvent("pgbus:connected", { detail: { connectionId } }))
+
+function record(root) {
+  const seen = []
+  root.addEventListener("reactive:subscribed", (event) => seen.push({ ...event.detail, bubbles: event.bubbles }))
+  return seen
+}
+
+test("a durable root's watermark is the source's since-id before it connects; the src stays bare", () => {
+  mount(widget("widget", "/pgbus/streams/signed-item:widget", 42))
+  const [el] = sources()
+  expect(el.sinceAtConnect).toBe("42")
+  expect(el.getAttribute("src")).toBe("/pgbus/streams/signed-item:widget")
+})
+
+test("a watermark of 0 (a stream nothing was published to yet) is a watermark", () => {
+  mount(widget("widget", "/pgbus/streams/signed-item:widget", 0))
+  expect(sources()[0].sinceAtConnect).toBe("0")
+})
+
+test("an ephemeral root (no watermark) opens its source with no since-id", () => {
+  mount(widget())
+  expect(sources()[0].hasAttribute("since-id")).toBe(false)
+})
+
+test("two roots on one src share one source, opened from the lowest watermark", () => {
+  mount(widget("a", "/pgbus/streams/signed-item:widget", 50) + widget("b", "/pgbus/streams/signed-item:widget", 42))
+  expect(sources().length).toBe(1)
+  expect(sources()[0].sinceAtConnect).toBe("42")
+})
+
+test("each pgbus:connected dispatches reactive:subscribed on every root on the src, reconnect false then true", () => {
+  const [a, b] = mount(widget("a") + widget("b"))
+  const [other] = mount(widget("c", "/pgbus/streams/signed-other"))
+  const seenA = record(a.element)
+  const seenB = record(b.element)
+  const seenOther = record(other.element)
+  const [source] = sources()
+
+  connected(source, "conn-1")
+  connected(source, "conn-2")
+
+  const expected = [
+    { connectionId: "conn-1", reconnect: false, bubbles: false },
+    { connectionId: "conn-2", reconnect: true, bubbles: false },
+  ]
+  expect(seenA).toEqual(expected)
+  expect(seenB).toEqual(expected)
+  expect(seenOther).toEqual([])
+})
+
+test("reactive:subscribed does not bubble to an enclosing root", () => {
+  document.body.innerHTML = `<div id="outer">${widget()}</div>`
+  connect(document.getElementById("widget"))
+  const outer = []
+  document.getElementById("outer").addEventListener("reactive:subscribed", () => outer.push(true))
+
+  connected(sources()[0], "conn-1")
+
+  expect(outer).toEqual([])
+})
+
+test("a replace that brings the same root id back dispatches nothing (a refresh on it cannot loop)", async () => {
+  const [controller] = mount(widget())
+  const old = controller.element
+  old.insertAdjacentHTML("afterend", widget())
+  const fresh = old.nextElementSibling
+  const seen = record(fresh)
+  old.remove()
+  disconnect(controller)
+  connect(fresh)
+  await flush()
+
+  expect(seen).toEqual([])
+  connected(sources()[0], "conn-1")
+  expect(seen).toEqual([{ connectionId: "conn-1", reconnect: false, bubbles: false }])
+})
+
+test("a root that joins a source already connected gets no event on joining", () => {
+  mount(widget("a"))
+  connected(sources()[0], "conn-1")
+  const [late] = mount(widget("late"))
+  const seen = record(late.element)
+
+  expect(sources().length).toBe(1)
+  expect(seen).toEqual([])
+})
+
+test("a source minted again after a page render resumes from the last frame it applied, as a reconnect", () => {
+  const [controller] = mount(widget("widget", "/pgbus/streams/signed-item:widget", 42))
+  const seen = record(controller.element)
+  const before = sources()[0]
+  connected(before, "conn-1")
+  before.dispatchEvent(new CustomEvent("pgbus:message", { detail: { msgId: 57, data: "" } }))
+  before.dispatchEvent(new CustomEvent("pgbus:message", { detail: { msgId: -3, data: "" } })) // ephemeral frame
+  before.remove()
+
+  document.dispatchEvent(new CustomEvent("turbo:morph"))
+  const [after] = sources()
+  connected(after, "conn-2")
+
+  expect(after).not.toBe(before)
+  expect(after.sinceAtConnect).toBe("57")
+  expect(seen.map((event) => event.reconnect)).toEqual([false, true])
+})
+
+test("a source minted again before any frame arrived resumes from the render watermark", () => {
+  mount(widget("widget", "/pgbus/streams/signed-item:widget", 42))
+  sources()[0].remove()
+
+  document.dispatchEvent(new CustomEvent("turbo:render"))
+
+  expect(sources()[0].sinceAtConnect).toBe("42")
+})
+
+test("a source that was replaced dispatches nothing more", () => {
+  const [controller] = mount(widget())
+  const seen = record(controller.element)
+  const before = sources()[0]
+  before.remove()
+  document.dispatchEvent(new CustomEvent("turbo:morph"))
+
+  connected(before, "stale")
+
+  expect(seen).toEqual([])
 })

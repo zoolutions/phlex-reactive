@@ -25,9 +25,16 @@ module Phlex
     # pgbus only: the src is a pgbus signed stream name, the one
     # pgbus_stream_from (and turbo_stream_from under pgbus) renders. Without
     # pgbus (Action Cable) a subscribing root raises ConfigurationError at
-    # render, naming turbo_stream_from as the alternative. There is no replay:
-    # a broadcast sent before the source connects is missed (pgbus streams are
-    # ephemeral by default), as with any live subscription.
+    # render, naming turbo_stream_from as the alternative.
+    #
+    # Catching up (issue #478). A durable stream's root also carries the
+    # stream's watermark at render (data-reactive-subscribe-since, read the
+    # way pgbus_stream_from reads it), and its source replays from there: a
+    # broadcast sent between the render and the connection still arrives. An
+    # ephemeral stream (pgbus's default) has no archive to replay, so it gets
+    # no watermark; the client dispatches reactive:subscribed on the root each
+    # time its source connects, and a component that must not miss a change
+    # refetches on it.
     module Subscribe
       # What reactive_subscribe declared: the stream name's last part (nil
       # with key:), and key: — the stream's parts as an Array, or a callable
@@ -70,6 +77,20 @@ module Phlex
 
         # The signed SSE URL a <pgbus-stream-source> subscribes with.
         def source_src(stream_name) = Phlex::Reactive::Defer.stream_src(stream_name)
+
+        # The since-id the source replays from: a durable stream's watermark
+        # (MAX msg_id, 0 for a stream nothing was published to yet), read live
+        # like pgbus_stream_from reads it. nil for an ephemeral stream (no
+        # archive to replay) or a pgbus that cannot tell. One query per render
+        # of a durable subscribing root, never cached: pgbus's own cache is
+        # cleared only between Rack requests, and a broadcast renders in a job.
+        def since_id(stream_name)
+          config = ::Pgbus.configuration if ::Pgbus.respond_to?(:configuration)
+          return unless config.respond_to?(:stream_durable?) && config.stream_durable?(stream_name)
+
+          stream = ::Pgbus.stream(stream_name)
+          stream.current_msg_id if stream.respond_to?(:current_msg_id)
+        end
       end
 
       # What reactive_subscribe adds to a component's instances. Included only
@@ -95,11 +116,15 @@ module Phlex
         end
 
         # The root's subscription marker (reactive_attrs): the signed src the
-        # client mints its <pgbus-stream-source> from.
+        # client mints its <pgbus-stream-source> from, and for a durable stream
+        # the watermark it replays from (issue #478).
         def reactive_subscribe_data
           Subscribe.require_capable!(self.class)
           name = Subscribe.stream_name(self.class, reactive_subscribe_parts)
-          { reactive_subscribe: Subscribe.source_src(name) }
+          data = { reactive_subscribe: Subscribe.source_src(name) }
+          since = Subscribe.since_id(name)
+          data[:reactive_subscribe_since] = since unless since.nil?
+          data
         end
 
         private

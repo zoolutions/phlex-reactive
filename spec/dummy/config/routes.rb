@@ -128,6 +128,8 @@ Rails.application.routes.draw do
   get "presence" => "demos#presence"
   # Issue #474: a component subscribed to its own broadcast stream (needs pgbus).
   get "subscribe/:todo_id" => "demos#subscribe"
+  # Issue #478: the page renders, then a broadcast goes out before its source connects.
+  get "subscribe/:todo_id/catch_up" => "demos#subscribe_catch_up"
   post "bulk_outcome" => "demos#bulk_outcome_submit"
   # Issue #241: reactive_persist over rich editors (real Trix + Lexxy + a bare
   # contenteditable); ?late=1 defers the editor definitions past connect.
