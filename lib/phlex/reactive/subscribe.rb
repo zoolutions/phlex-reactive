@@ -38,7 +38,8 @@ module Phlex
         # Streams-capable pgbus that signs stream names: what the src needs.
         # Signatures only, no query.
         def capable?
-          Phlex::Reactive.pgbus_streams? && defined?(::Pgbus::Streams::SignedName) == "constant"
+          Phlex::Reactive.pgbus_streams? && defined?(::Pgbus::Streams::SignedName) == "constant" &&
+            ::Pgbus::Streams::SignedName.respond_to?(:sign)
         end
 
         # Raise unless pgbus can carry the subscription — at render of a

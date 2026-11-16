@@ -361,9 +361,10 @@ module Phlex
         app/javascript/application.js
       ].freeze
       EARLY_IMPORT = %r{import\s+["']phlex/reactive/early["']}
-      # pgbus's client element, imported directly or through a helper that
-      # emits the import (issue #474).
-      PGBUS_CLIENT = %r{["']pgbus/stream_source_element["']|\b(?:pgbus|turbo)_stream_from\b}
+      # pgbus's client element, imported (statically or dynamically), or a
+      # helper that emits the import (issue #474). A bare mention (an import
+      # map pin) is not an import.
+      PGBUS_CLIENT = %r{import\s*\(?\s*["']pgbus/stream_source_element["']|\b(?:pgbus|turbo)_stream_from\b}
       # Closed comments, which may span lines: HTML, JS block and ERB.
       BLOCK_COMMENT = %r{<!--.*?-->|/\*.*?\*/|<%#.*?%>}m
       # What precedes the import on its line when it is commented out: a //
@@ -373,9 +374,13 @@ module Phlex
       # Is there an `import "phlex/reactive/early"` in `source` that actually
       # runs? Closed comments are dropped first, then each line is read, so a
       # commented-out import doesn't count.
-      def self.imports_early_source?(source)
+      def self.imports_early_source?(source) = imports_source?(source, EARLY_IMPORT)
+
+      # Is there a match for `pattern` in `source` that is not commented out?
+      # Closed comments are dropped first, then each line is read.
+      def self.imports_source?(source, pattern)
         source.gsub(BLOCK_COMMENT, "").each_line.any? do
-          (match = EARLY_IMPORT.match(it)) && !match.pre_match.match?(COMMENT_BEFORE)
+          (match = pattern.match(it)) && !match.pre_match.match?(COMMENT_BEFORE)
         end
       end
 
@@ -536,7 +541,7 @@ module Phlex
       # element (or render a helper that emits that import)?
       def imports_pgbus_client?
         (stimulus_registration_files | early_import_candidates).any? do
-          early_source(it).match?(PGBUS_CLIENT)
+          Doctor.imports_source?(early_source(it), PGBUS_CLIENT)
         rescue StandardError
           false
         end

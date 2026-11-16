@@ -5262,7 +5262,7 @@ export default class extends Controller {
     const src = this.element.getAttribute?.("data-reactive-subscribe")
     let own
     if (src) {
-      for (const source of document.querySelectorAll("pgbus-stream-source[connection-id]")) {
+      for (const source of document.querySelectorAll("pgbus-stream-source[data-reactive-subscribe-source][connection-id]")) {
         if (source.getAttribute("src") === src) own = source.getAttribute("connection-id")
       }
     }

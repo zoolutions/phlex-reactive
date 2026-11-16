@@ -2392,7 +2392,7 @@ end
 
 # In the job — the key comes from the declaration:
 Imports::Status.broadcast_self(replace: import)    # = broadcast_to(import, :status, replace: import)
-Imports::Status.broadcast_self(import, js: js.add_class("#bell", "ring"))  # js: names its subject
+Imports::Status.broadcast_self(import, js: Phlex::Reactive::JS.new.add_class("#bell", "ring"))  # js: names its subject
 ```
 
 - **The root** carries the stream's signed pgbus src (`data-reactive-subscribe`),

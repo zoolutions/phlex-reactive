@@ -460,17 +460,33 @@ RSpec.describe Phlex::Reactive::Doctor do
         expect(client_found_with("app/javascript/application.js", %(import "pgbus/stream_source_element"\n))).to be(true)
       end
 
-      it "does not count a Ruby comment, or an app with no import" do
+      it "does not count a Ruby comment" do
         expect(client_found_with("app/components/page.rb", %(# import "pgbus/stream_source_element"\n))).to be(false)
+      end
+
+      it "does not count a JavaScript or ERB comment, or a bare mention such as a pin" do
+        source = <<~JS
+          // import "pgbus/stream_source_element"
+          /* import "pgbus/stream_source_element" */
+          pin "pgbus/stream_source_element", to: "pgbus/stream_source_element.min.js"
+        JS
+        expect(client_found_with("app/javascript/application.js", source)).to be(false)
+        expect(client_found_with("app/views/layouts/application.html.erb",
+          %(<%# turbo_stream_from @room %>\n<!-- import "pgbus/stream_source_element" -->\n))).to be(false)
+      end
+
+      it "finds nothing in an app with no import" do
+        expect(client_found_with("app/components/page.rb", %(class Page < Phlex::HTML; end\n))).to be(false)
       end
     end
 
     it "matches a direct import and the helpers that emit it, not a plain mention" do
       pattern = Phlex::Reactive::Doctor::PGBUS_CLIENT
-      matches = [%(import "pgbus/stream_source_element"), "<%= turbo_stream_from @room %>",
-                 "pgbus_stream_from(@room)", "pgbus/stream_source_element.min.js"].map { pattern.match?(it) }
+      matches = [%(import "pgbus/stream_source_element"), %(import("pgbus/stream_source_element")),
+                 "<%= turbo_stream_from @room %>", "pgbus_stream_from(@room)",
+                 "pgbus/stream_source_element.min.js", %(pin "pgbus/stream_source_element")].map { pattern.match?(it) }
 
-      expect(matches).to eq([true, true, true, false])
+      expect(matches).to eq([true, true, true, true, false, false])
     end
   end
 

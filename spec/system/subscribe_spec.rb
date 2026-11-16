@@ -28,10 +28,10 @@ RSpec.describe "reactive_subscribe (issue #474)", :pgbus, type: :system do
   it "receives the job's broadcast on the declared stream, with no other markup on the page" do
     visit "/subscribe/#{todo.id}"
     expect(page).to have_css("[data-testid='todo-status-state']", text: "Open")
-    expect(page).to have_no_css("turbo-cable-stream-source, pgbus-stream-source:not([data-reactive-subscribe-source])",
-      visible: :all)
     page.execute_script("window.__noReload = true")
     wait_for_subscription
+    expect(page).to have_no_css("turbo-cable-stream-source, pgbus-stream-source:not([data-reactive-subscribe-source])",
+      visible: :all)
 
     FinishTodoJob.perform_now(todo.id)
 

@@ -200,6 +200,28 @@ test("a Turbo cache restore's clone of a source is replaced by a fresh one", asy
   expect(clone.isConnected).toBe(false)
 })
 
+test("a root whose id changes while connected still releases its source", async () => {
+  const [controller] = mount(widget())
+  controller.element.id = "renamed"
+  controller.element.remove()
+  disconnect(controller)
+  await flush()
+  expect(sources().length).toBe(0)
+})
+
+test("an action ignores another source of the same src the page renders itself", async () => {
+  // A server-rendered source for the same stream (no subscribe mark), connected first.
+  document.body.innerHTML =
+    '<pgbus-stream-source src="/pgbus/streams/signed-item:widget" connection-id="page-conn"></pgbus-stream-source>'
+  const [controller] = mount(widget())
+  sources()[0].setAttribute("connection-id", "own-conn")
+
+  await fireAction(controller)
+  await flush()
+
+  expect(requests[0].headers["X-Pgbus-Connection"]).toBe("own-conn")
+})
+
 test("an action from a subscribing root sends its own source's connection id", async () => {
   // Another stream's source comes first on the page.
   document.body.innerHTML = '<pgbus-stream-source id="app" connection-id="app-conn"></pgbus-stream-source>'

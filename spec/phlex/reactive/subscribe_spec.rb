@@ -96,6 +96,15 @@ RSpec.describe Phlex::Reactive::Subscribe, "reactive_subscribe (issue #474)" do
       expect { render_html(klass.new) }.to raise_error(ArgumentError, /Recordless.*needs reactive_record.*key:/m)
     end
 
+    it "refuses a per-render dormant root (it never connects, so it would never subscribe)" do
+      klass = declare("SleepyWatcher") do
+        reactive_subscribe :status
+        def view_template = div(**reactive_root(dormant: true))
+      end
+
+      expect { render_html(klass.new(todo:)) }.to raise_error(ArgumentError, /SleepyWatcher.*cannot be dormant/)
+    end
+
     it "keeps every other root free of the attribute" do
       expect(render_html(CounterComponent.new(count: 0))).not_to include("data-reactive-subscribe")
     end
@@ -184,6 +193,16 @@ RSpec.describe Phlex::Reactive::Subscribe, "reactive_subscribe (issue #474)" do
       expect(described_class.capable?).to be(false)
       expect { render_html(TodoStatusComponent.new(todo:)) }
         .to raise_error(Phlex::Reactive::ConfigurationError, /TodoStatusComponent.*turbo_stream_from/m)
+    end
+  end
+
+  context "with a pgbus whose SignedName cannot sign" do
+    it "is not capable, so the render raises the ConfigurationError" do
+      FakePgbusPresence.install!(self)
+      stub_const("Pgbus::Streams::SignedName", Module.new)
+
+      expect(described_class.capable?).to be(false)
+      expect { render_html(TodoStatusComponent.new(todo:)) }.to raise_error(Phlex::Reactive::ConfigurationError)
     end
   end
 

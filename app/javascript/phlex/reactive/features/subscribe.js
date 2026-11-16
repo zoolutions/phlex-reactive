@@ -27,8 +27,11 @@ const MARK = "data-reactive-subscribe-source"
 
 // src -> { source, ids }: one source per stream, and the root ids on it.
 const streams = new Map()
-// root id -> { root, src, removing, observer }: kept across a replace.
+// root id -> { id, root, src, removing, observer }: kept across a replace.
+// The id is the one the root had at connect: a root whose id changes while
+// connected still releases what it holds (byRoot finds its entry).
 const roots = new Map()
+const byRoot = new WeakMap()
 // The sources this module minted (a Turbo cache restore brings back clones).
 const minted = new WeakSet()
 let listening = false
@@ -41,7 +44,8 @@ export function connect(controller) {
   }
   const root = controller.element
   let entry = roots.get(root.id)
-  if (!entry) roots.set(root.id, (entry = { src: null }))
+  if (!entry) roots.set(root.id, (entry = { id: root.id, src: null }))
+  byRoot.set(root, entry)
   entry.observer?.disconnect()
   entry.root = root
   entry.removing = false
@@ -55,13 +59,13 @@ export function connect(controller) {
 
 export function disconnect(controller) {
   const root = controller.element
-  const entry = roots.get(root.id)
+  const entry = byRoot.get(root)
   if (!entry || entry.root !== root) return
   entry.observer.disconnect()
   entry.removing = true
   queueMicrotask(() => {
     if (!entry.removing) return
-    roots.delete(root.id)
+    roots.delete(entry.id)
     follow(entry, null)
   })
 }
@@ -71,15 +75,15 @@ export function disconnect(controller) {
 function follow(entry, src) {
   const previous = entry.src
   entry.src = src || null
-  if (entry.src) join(entry.src, entry.root.id)
-  if (previous && previous !== entry.src) leave(previous, entry.root.id)
+  if (entry.src) join(entry.src, entry.id)
+  if (previous && previous !== entry.src) leave(previous, entry.id)
 }
 
 // After a page render, re-mint each source the page lost while a root on its
 // stream is still on the page (a root that left releases it on its own).
 function rejoin() {
   for (const entry of roots.values()) {
-    if (entry.src && !entry.removing && entry.root.isConnected) join(entry.src, entry.root.id)
+    if (entry.src && !entry.removing && entry.root.isConnected) join(entry.src, entry.id)
   }
 }
 

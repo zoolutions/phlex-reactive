@@ -111,6 +111,10 @@ module Phlex
               # The lazy SHELL (not the real render) of an on: :visible component
               # can never wake — refuse it rather than ship a dead placeholder.
               Phlex::Reactive::Dormant.reject_visible_lazy!(self.class) unless Phlex::Reactive::Defer.real_render?
+              # Nor a per-render dormant root that subscribes (issue #474) or
+              # is a presence roster: it never connects, so it never would.
+              self.class.send(:refuse_dormant_subscribe!) if respond_to?(:reactive_subscribe_data)
+              self.class.send(:refuse_dormant_presence!) if respond_to?(:reactive_presence_data)
               { reactive_dormant: "reactive" }
             else
               { controller: "reactive" }

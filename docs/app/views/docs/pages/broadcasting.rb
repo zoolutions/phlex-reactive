@@ -110,8 +110,9 @@ module Views
               - `reactive_subscribe key: [:lobby, :feed]` subscribes to fixed parts;
                 `key: -> { [@board, :cards] }` runs on the component. Give either a
                 name or `key:`. `broadcast_self` takes the same keywords as
-                `broadcast_to`. For `js:`, which has no component, pass the subject
-                first: `broadcast_self(import, js: ...)`.
+                `broadcast_to` except `each:` (its stream is the declared one).
+                For `js:`, which has no component, pass the subject first:
+                `broadcast_self(import, js: ...)`.
               - Import pgbus's client on the page: `import "pgbus/stream_source_element"`.
                 `bin/rails phlex_reactive:doctor` checks for that import.
               - An action on a subscribing root sends that root's own connection

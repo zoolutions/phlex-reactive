@@ -236,8 +236,9 @@ const SLACK = 250
 // X-Pgbus-Connection, in the runtime) adds 447 B: 43,223 B; its validation fix (subscribe and
 // presence mint their source again after a page refresh by morph) 100 B: 43,323 B; the sources
 // made data-turbo-permanent, 22 B: 43,345 B; moved into one permanent <reactive-stream-sources>
-// box (a tag Idiomorph never pairs with a new node), 60 B: 43,405 B.
-const BUNDLE_GZIP_CEILING = 43_405
+// box (a tag Idiomorph never pairs with a new node), 60 B: 43,405 B; its review fixes (a root
+// whose id changes keeps its entry; only a minted source's connection id counts) 31 B: 43,436 B.
+const BUNDLE_GZIP_CEILING = 43_436
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -327,8 +328,9 @@ const TARGET_BUNDLE_GZIP = 22_700
 // that throws while rendering is an apply failure) 47 B: 19,957 B.
 // Issue #471 (js.click, first match only) adds 28 B: 19,985 B.
 // Issue #474 (the subscribe marker, table entry and loader, and a subscribing root's own
-// X-Pgbus-Connection) adds 61 B: 20,046 B.
-const CORE_GZIP_CEILING = 20_046
+// X-Pgbus-Connection) adds 61 B: 20,046 B; its review fix (only a minted source's connection
+// id counts) 7 B: 20,053 B.
+const CORE_GZIP_CEILING = 20_053
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -391,8 +393,9 @@ const FEATURE_GZIP_CEILINGS = {
   "features/presence": 1_507,
   // Issue #474: subscribe (a shared, refcounted source per signed src), 759 B; its validation
   // fix (a fresh source after a page refresh by morph) 830 B; data-turbo-permanent 842 B; the
-  // permanent sources box instead 907 B.
-  "features/subscribe": 907,
+  // permanent sources box instead 907 B; its review fix (a root whose id changes keeps its
+  // entry) 930 B.
+  "features/subscribe": 930,
   // Issue #400: countdown, 914 B; its review fixes (every fired deadline kept, an
   // id-less root's own key) take it to 966 B.
   "features/countdown": 966,
@@ -499,8 +502,9 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #471 (js.click, +28 B core): 51,932 B.
 // Issue #474 (+61 B core, the 759 B subscribe feature) adds 820 B: 52,752 B; its validation fix
 // (+71 B subscribe, +66 B presence) 52,889 B; data-turbo-permanent (+12 B, +13 B) 52,914 B;
-// the permanent sources box instead (+65 B, +66 B) 53,045 B.
-const SPLIT_TOTAL_GZIP_CEILING = 53_045
+// the permanent sources box instead (+65 B, +66 B) 53,045 B; its review fixes (+7 B core,
+// +23 B subscribe) 53,075 B.
+const SPLIT_TOTAL_GZIP_CEILING = 53_075
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 
