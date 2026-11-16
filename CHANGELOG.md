@@ -15,9 +15,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   subscribing root), and the minted `<pgbus-stream-source>` opens with it as
   `since-id`. A broadcast sent between the render and the connection now
   arrives. Roots sharing a source take the lowest watermark, and a source minted
-  again after a page render opens from its roots' watermarks then (it may
-  replay a frame a root already shows, so a `js:` or append frame can apply
-  twice in that rare case, but it never skips one). Each time a
+  again after a page render opens from its roots' watermarks then: it never
+  skips a frame, but it may replay one a root already shows, so a `js:` or
+  append frame can apply twice. A `data-turbo-permanent` subscribing root hits
+  this on every Drive visit (its source is minted again each time, from the
+  root's first render). Each time a
   root's source connects, the root gets `reactive:subscribed`
   (`detail: { connectionId, reconnect }`, not bubbling), so
   `on(:refresh, event: "reactive:subscribed")` refetches what an ephemeral

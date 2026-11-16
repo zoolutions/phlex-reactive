@@ -128,7 +128,11 @@ module Views
                 still arrives, and nothing older does. That costs one query per
                 render of a durable subscribing root. An ephemeral stream (the
                 default) has nothing to replay, so a broadcast sent before its
-                source connects is lost.
+                source connects is lost. A source minted again after a page
+                render opens from its roots' watermarks then, so it never skips a
+                frame but may replay one a root already shows: a `js:` or append
+                frame can apply twice. A `data-turbo-permanent` subscribing root
+                gets that on every Drive visit, replaying from its first render.
               - **`reactive:subscribed`.** Each time a root's source connects, the
                 root gets a `reactive:subscribed` event (`detail: { connectionId,
                 reconnect }`; `reconnect` is false on the first connection). It
