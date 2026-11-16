@@ -119,7 +119,7 @@ module Phlex
           def refuse_dormant_subscribe!
             raise ArgumentError,
               "#{name}: reactive_subscribe cannot be dormant — a dormant root never connects, so it would " \
-              "never subscribe. Drop reactive_dormant on this component."
+              "never subscribe. Drop reactive_dormant (or reactive_root(dormant: true)) on this component."
           end
         end
 

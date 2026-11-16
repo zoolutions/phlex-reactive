@@ -113,6 +113,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A per-render dormant presence roster raised nothing and never joined (#474's
+  review).** `reactive_root(dormant: true)` on a `reactive_presence` root (or a
+  `reactive_subscribe` one) rendered a root that never connects, so the tab never
+  joined. It now raises the same `ArgumentError` as a class-level
+  `reactive_dormant` at render. An app that rendered that combination gets the
+  error on the page and drops `dormant: true` for that root.
 - **A page refresh by morph dropped a presence root's subscription (#474's
   review).** Turbo 8's page morph removes the `<pgbus-stream-source>` the client
   minted in `<body>` while the roster root stays connected, so the tab left the

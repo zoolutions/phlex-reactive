@@ -475,6 +475,11 @@ RSpec.describe Phlex::Reactive::Doctor do
           %(<%# turbo_stream_from @room %>\n<!-- import "pgbus/stream_source_element" -->\n))).to be(false)
       end
 
+      it "counts a helper after a protocol-relative URL on the same line" do
+        source = %(<link href="//cdn.example.com/a.css"><%= turbo_stream_from @room %>\n)
+        expect(client_found_with("app/views/layouts/application.html.erb", source)).to be(true)
+      end
+
       it "finds nothing in an app with no import" do
         expect(client_found_with("app/components/page.rb", %(class Page < Phlex::HTML; end\n))).to be(false)
       end
@@ -483,10 +488,11 @@ RSpec.describe Phlex::Reactive::Doctor do
     it "matches a direct import and the helpers that emit it, not a plain mention" do
       pattern = Phlex::Reactive::Doctor::PGBUS_CLIENT
       matches = [%(import "pgbus/stream_source_element"), %(import("pgbus/stream_source_element")),
+                 %(import Source from "pgbus/stream_source_element"),
                  "<%= turbo_stream_from @room %>", "pgbus_stream_from(@room)",
                  "pgbus/stream_source_element.min.js", %(pin "pgbus/stream_source_element")].map { pattern.match?(it) }
 
-      expect(matches).to eq([true, true, true, true, false, false])
+      expect(matches).to eq([true, true, true, true, true, false, false])
     end
   end
 

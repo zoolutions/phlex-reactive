@@ -364,12 +364,14 @@ module Phlex
       # pgbus's client element, imported (statically or dynamically), or a
       # helper that emits the import (issue #474). A bare mention (an import
       # map pin) is not an import.
-      PGBUS_CLIENT = %r{import\s*\(?\s*["']pgbus/stream_source_element["']|\b(?:pgbus|turbo)_stream_from\b}
+      PGBUS_CLIENT = %r{\bimport\b[^;\n]*?["']pgbus/stream_source_element["']|\b(?:pgbus|turbo)_stream_from\b}
       # Closed comments, which may span lines: HTML, JS block and ERB.
       BLOCK_COMMENT = %r{<!--.*?-->|/\*.*?\*/|<%#.*?%>}m
       # What precedes the import on its line when it is commented out: a //
-      # (not the one in a URL), an unclosed /*, or a block-comment's leading *.
-      COMMENT_BEFORE = %r{(?<!:)//|/\*|\A\s*\*}
+      # (not the one in a URL: after a scheme's colon, or a protocol-relative
+      # one opening a quoted value), an unclosed /*, or a block-comment's
+      # leading *.
+      COMMENT_BEFORE = %r{(?<![:"'=])//|/\*|\A\s*\*}
 
       # Is there an `import "phlex/reactive/early"` in `source` that actually
       # runs? Closed comments are dropped first, then each line is read, so a
