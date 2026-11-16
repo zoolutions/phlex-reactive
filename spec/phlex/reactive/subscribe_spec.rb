@@ -109,6 +109,58 @@ RSpec.describe Phlex::Reactive::Subscribe, "reactive_subscribe (issue #474)" do
       expect(render_html(CounterComponent.new(count: 0))).not_to include("data-reactive-subscribe")
     end
 
+    # Issue #478: a durable stream's source replays from the watermark read at
+    # render, so a broadcast sent before the source connects still arrives.
+    describe "the replay watermark" do
+      def subscribe_since(html) = html[/data-reactive-subscribe-since="([^"]*)"/, 1]
+
+      let(:stream_name) { Pgbus::Streams::Stream.name_from([todo, :status]) }
+
+      it "puts a durable stream's watermark at render on the root, beside the bare src" do
+        store, config = FakePgbusPresence.install!(self)
+        config.streams_durable_patterns = [stream_name]
+        store.watermarks[stream_name] = 42
+
+        html = render_html(TodoStatusComponent.new(todo:))
+
+        expect(subscribe_since(html)).to eq("42")
+        expect(subscribe_src(html)).to eq("/pgbus/streams/signed-#{stream_name}")
+      end
+
+      it "puts 0 on a durable stream nothing was published to yet (replay all it gets)" do
+        _, config = FakePgbusPresence.install!(self)
+        config.streams_durable_patterns = [/:status\z/]
+
+        expect(subscribe_since(render_html(TodoStatusComponent.new(todo:)))).to eq("0")
+      end
+
+      it "reads the watermark live on every render (no cache to go stale in a job)" do
+        store, config = FakePgbusPresence.install!(self)
+        config.streams_durable_patterns = [stream_name]
+        store.watermarks[stream_name] = 7
+        first = subscribe_since(render_html(TodoStatusComponent.new(todo:)))
+        store.watermarks[stream_name] = 9
+
+        expect([first, subscribe_since(render_html(TodoStatusComponent.new(todo:)))]).to eq(%w[7 9])
+      end
+
+      it "puts nothing on an ephemeral stream (no archive to replay)" do
+        store, = FakePgbusPresence.install!(self)
+        store.watermarks[stream_name] = 42
+
+        expect(render_html(TodoStatusComponent.new(todo:))).not_to include("data-reactive-subscribe-since")
+      end
+
+      it "puts nothing when pgbus cannot tell a durable stream (no stream_durable?), and still subscribes" do
+        FakePgbusPresence.install!(self, shape: :v017)
+
+        html = render_html(TodoStatusComponent.new(todo:))
+
+        expect(html).not_to include("data-reactive-subscribe-since")
+        expect(subscribe_src(html)).to eq("/pgbus/streams/signed-#{stream_name}")
+      end
+    end
+
     describe ".broadcast_self" do
       before { allow(Phlex::Reactive::Streamable).to receive(:broadcast_component) }
 

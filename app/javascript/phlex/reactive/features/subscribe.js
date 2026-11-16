@@ -5,6 +5,8 @@
 // The markup is the Ruby side's (reactive_subscribe):
 //
 //   data-reactive-subscribe="<signed src>"   the stream's signed SSE src
+//   data-reactive-subscribe-since="<id>"     a durable stream's watermark at
+//                                            render (issue #478)
 //
 // While the root is on the page, the module keeps a <pgbus-stream-source> for
 // that src in a hidden box at the end of <body> (marked
@@ -20,12 +22,27 @@
 // the roots stay connected, the module mints a fresh source for every stream
 // a live root still needs.
 //
+// Catching up (issue #478). A source opens with since-id set to the lowest
+// watermark of the roots on its src, so pgbus replays a durable broadcast
+// sent between the render and the connection. A source minted again (after a
+// page render dropped it) opens from what its roots render now, their
+// watermarks: it may replay a frame a root already shows, never skip one.
+// Each time
+// a source connects (its pgbus:connected), every root on it gets
+// reactive:subscribed (detail { connectionId, reconnect }; reconnect is false
+// on the stream's first connection), not bubbling, so a component can refetch
+// what an ephemeral stream could not replay. A root that joins a source
+// already connected gets no event: the source is live, and a root that comes
+// back under the same id (a replace) must not refresh again and again.
+//
 // This module never imports the core.
 
 const ATTR = "data-reactive-subscribe"
+const SINCE = "data-reactive-subscribe-since"
 const MARK = "data-reactive-subscribe-source"
 
-// src -> { source, ids }: one source per stream, and the root ids on it.
+// src -> { source, ids, connected }: one source per stream, the root ids on
+// it, and whether it ever connected.
 const streams = new Map()
 // root id -> { id, root, src, removing, observer }: kept across a replace.
 // The id is the one the root had at connect: a root whose id changes while
@@ -89,8 +106,9 @@ function rejoin() {
 
 function join(src, id) {
   let stream = streams.get(src)
-  if (!stream?.source.isConnected) streams.set(src, (stream = { source: mint(src), ids: stream?.ids ?? new Set() }))
+  if (!stream) streams.set(src, (stream = { source: null, ids: new Set(), connected: false }))
   stream.ids.add(id)
+  if (!stream.source?.isConnected) stream.source = mint(src, stream)
 }
 
 function leave(src, id) {
@@ -102,7 +120,7 @@ function leave(src, id) {
   stream.source.remove()
 }
 
-function mint(src) {
+function mint(src, stream) {
   // pgbus's client is an async module script: mint the element anyway (it
   // upgrades when pgbus defines it), and call a still-missing client a
   // misconfiguration only after a grace period.
@@ -120,9 +138,36 @@ function mint(src) {
   source.setAttribute("src", src)
   source.setAttribute(MARK, "")
   source.hidden = true
+  // Before the append: pgbus reads since-id once, when the element connects.
+  const since = lowestWatermark(src)
+  if (since != null) source.setAttribute("since-id", String(since))
+  source.addEventListener("pgbus:connected", (event) => {
+    if (stream.source !== source) return
+    const reconnect = stream.connected
+    stream.connected = true
+    const connectionId = event.detail?.connectionId ?? null
+    for (const id of stream.ids) {
+      const entry = roots.get(id)
+      if (!entry || entry.removing || entry.src !== src || !entry.root.isConnected) continue
+      entry.root.dispatchEvent(new CustomEvent("reactive:subscribed", { detail: { connectionId, reconnect } }))
+    }
+  })
   minted.add(source)
   box().appendChild(source)
   return source
+}
+
+// Where a durable stream's source replays from: the lowest watermark of the
+// roots on its src (two roots rendered apart share the source). null for an
+// ephemeral stream (no root carries a watermark).
+function lowestWatermark(src) {
+  let since = null
+  for (const root of document.querySelectorAll(`[${SINCE}]`)) {
+    if (root.getAttribute(ATTR) !== src) continue
+    const value = Number(root.getAttribute(SINCE))
+    if (Number.isFinite(value) && value >= 0 && (since == null || value < since)) since = value
+  }
+  return since
 }
 
 // The minted sources live in one hidden <reactive-stream-sources> at the end

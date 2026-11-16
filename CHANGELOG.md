@@ -6,6 +6,32 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`reactive_subscribe` catches up on a broadcast sent before its source
+  connected (#478, pgbus).** On a durable stream the root carries the stream's
+  watermark at render (`data-reactive-subscribe-since`, read as
+  `pgbus_stream_from` reads it: one `MAX(msg_id)` query per render of a durable
+  subscribing root), and the minted `<pgbus-stream-source>` opens with it as
+  `since-id`. A broadcast sent between the render and the connection now
+  arrives. Roots sharing a source take the lowest watermark, and a source minted
+  again after a page render opens from its roots' watermarks then: it never
+  skips a frame, but it may replay one a root already shows, so a `js:` or
+  append frame can apply twice. A `data-turbo-permanent` subscribing root hits
+  this on every Drive visit (its source is minted again each time, from the
+  root's first render). Each time a
+  root's source connects, the root gets `reactive:subscribed`
+  (`detail: { connectionId, reconnect }`, not bubbling), so
+  `on(:refresh, event: "reactive:subscribed")` refetches what an ephemeral
+  stream cannot replay.
+
+### Fixed
+
+- **A `reactive_subscribe` stream durable by configuration no longer replays
+  frames older than the render (#478).** The source opened with no `since`, which pgbus reads as
+  0, so it replayed every retained frame: a `js:` broadcast sent before the
+  page rendered ran again on load.
+
 ## [0.17.0] - 2026-11-16
 
 ### Added

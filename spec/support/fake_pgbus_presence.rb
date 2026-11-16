@@ -11,9 +11,10 @@ module FakePgbusPresence
   # pgbus's stream-name budget with the default queue prefix ("pgbus").
   BUDGET = 41
 
-  # One process-wide table: { stream_name => { connection_id => row } }.
-  Store = Struct.new(:rows, :order) do
-    def initialize = super({}, 0)
+  # One process-wide table: { stream_name => { connection_id => row } }, and
+  # each stream's watermark (issue #478): { stream_name => msg_id }.
+  Store = Struct.new(:rows, :order, :watermarks) do
+    def initialize = super({}, 0, {})
 
     def next_order = (self.order += 1)
   end
@@ -69,10 +70,15 @@ module FakePgbusPresence
   class Stream
     attr_reader :name, :presence
 
-    def initialize(name, presence)
+    def initialize(name, presence, store = Store.new)
       @name = name
       @presence = presence
+      @store = store
     end
+
+    # Like pgbus: MAX(msg_id) of the stream's queue, 0 for a stream nothing
+    # was published to yet (issue #478).
+    def current_msg_id = @store.watermarks.fetch(@name, 0)
 
     def self.name_from(streamables)
       return streamables.map { name_from(it) }.join(":") if streamables.is_a?(Array)
@@ -88,7 +94,11 @@ module FakePgbusPresence
 
   # pgbus 0.18 (the shape presence needs): #516 seats plus streams_authorize (#524).
   Configuration = Struct.new(:streams_presence_patterns, :streams_presence_on_change, :streams_presence_ttl,
-    :streams_path, :streams_heartbeat_interval, :streams_authorize)
+    :streams_path, :streams_heartbeat_interval, :streams_authorize, :streams_durable_patterns) do
+    # Like pgbus: a stream is durable when a pattern matches its name (issue
+    # #478; the default broadcast mode is ephemeral).
+    def stream_durable?(name) = Array(streams_durable_patterns).any? { it.is_a?(Regexp) ? it.match?(name) : it == name }
+  end
   # pgbus 0.17.3: seats and the change hook, but no streams_authorize, and
   # pgbus:connected fires before the seat joins.
   Configuration017 = Struct.new(:streams_presence_patterns, :streams_presence_on_change, :streams_presence_ttl,
@@ -110,7 +120,7 @@ module FakePgbusPresence
       # Like pgbus: a stream name over the queue-name budget raises.
       raise ArgumentError, "stream name #{name.inspect} is #{name.length} chars, over #{BUDGET}" if name.length > BUDGET
 
-      Stream.new(name, presence_class.new(store, name))
+      Stream.new(name, presence_class.new(store, name), store)
     end
     # Like pgbus: a pre-built key, accepted verbatim within the budget.
     pgbus.define_singleton_method(:stream_key!) do

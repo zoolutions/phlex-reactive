@@ -120,10 +120,40 @@ module Views
                 root's own stream. A broadcast from that action to another
                 stream, a page-level `turbo_stream_from`, reaches the actor
                 too: each `<pgbus-stream-source>` is its own connection.
-              - A broadcast sent before the source has connected is not delivered.
-                pgbus streams are live-only by default, and a durable stream gets
-                no replay here either (`pgbus_stream_from` replays from a
-                watermark it reads at render).
+              - **Catching up.** On a durable stream (pgbus's
+                `streams_durable_patterns`, or `streams_default_broadcast_mode =
+                :durable`) the root also carries the stream's watermark at render,
+                read as `pgbus_stream_from` reads it, and the source replays from
+                there: a broadcast sent between the render and the connection
+                still arrives, and nothing older does. That costs one query per
+                render of a durable subscribing root. An ephemeral stream (the
+                default) has nothing to replay, so a broadcast sent before its
+                source connects is lost. A source minted again after a page
+                render opens from its roots' watermarks then, so it never skips a
+                frame but may replay one a root already shows: a `js:` or append
+                frame can apply twice. A `data-turbo-permanent` subscribing root
+                gets that on every Drive visit, replaying from its first render.
+              - **`reactive:subscribed`.** Each time a root's source connects, the
+                root gets a `reactive:subscribed` event (`detail: { connectionId,
+                reconnect }`; `reconnect` is false on the first connection). It
+                does not bubble. A component that must not miss a one-shot change
+                refetches on it, which covers an ephemeral stream and a reconnect
+                after the archive was swept:
+
+                ```ruby
+                action :refresh
+                def refresh
+                  authorize! @import, :show?   # verify_authorized is on by default
+                  reply.morph
+                end
+
+                def view_template
+                  div(**mix(reactive_root, on(:refresh, event: "reactive:subscribed"))) { @import.state }
+                end
+                ```
+
+                A root that joins a source already connected (a second root on the
+                key, or the same root back after a replace) gets no event.
               - The stream name must fit pgbus's stream-name budget (41 characters
                 with the default queue prefix). A long record key, such as any
                 UUID-keyed record, is refused at render; declare

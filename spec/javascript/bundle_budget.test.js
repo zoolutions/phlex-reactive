@@ -238,7 +238,10 @@ const SLACK = 250
 // made data-turbo-permanent, 22 B: 43,345 B; moved into one permanent <reactive-stream-sources>
 // box (a tag Idiomorph never pairs with a new node), 60 B: 43,405 B; its review fixes (a root
 // whose id changes keeps its entry; only a minted source's connection id counts) 31 B: 43,436 B.
-const BUNDLE_GZIP_CEILING = 43_436
+// Issue #478 (subscribe catches up: since-id from the roots' watermark, the resume point after a
+// re-mint, and reactive:subscribed on each connect) adds 271 B: 43,707 B; its validation fixes
+// (a re-mint opens from the roots' watermarks, no resume point) 43,632 B.
+const BUNDLE_GZIP_CEILING = 43_632
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -394,8 +397,9 @@ const FEATURE_GZIP_CEILINGS = {
   // Issue #474: subscribe (a shared, refcounted source per signed src), 759 B; its validation
   // fix (a fresh source after a page refresh by morph) 830 B; data-turbo-permanent 842 B; the
   // permanent sources box instead 907 B; its review fix (a root whose id changes keeps its
-  // entry) 930 B.
-  "features/subscribe": 930,
+  // entry) 930 B; #478's catch-up (since-id, resume point, reactive:subscribed) 1,262 B;
+  // its validation fixes (a re-mint opens from the roots' watermarks, no resume point) 1,177 B.
+  "features/subscribe": 1_177,
   // Issue #400: countdown, 914 B; its review fixes (every fired deadline kept, an
   // id-less root's own key) take it to 966 B.
   "features/countdown": 966,
@@ -503,8 +507,9 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #474 (+61 B core, the 759 B subscribe feature) adds 820 B: 52,752 B; its validation fix
 // (+71 B subscribe, +66 B presence) 52,889 B; data-turbo-permanent (+12 B, +13 B) 52,914 B;
 // the permanent sources box instead (+65 B, +66 B) 53,045 B; its review fixes (+7 B core,
-// +23 B subscribe) 53,075 B.
-const SPLIT_TOTAL_GZIP_CEILING = 53_075
+// +23 B subscribe) 53,075 B. Issue #478 (+332 B subscribe: the catch-up) 53,407 B;
+// its validation fixes (-85 B subscribe) 53,322 B.
+const SPLIT_TOTAL_GZIP_CEILING = 53_322
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 
