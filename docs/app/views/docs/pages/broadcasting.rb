@@ -17,6 +17,7 @@ module Views
           pattern
           transports
           stream_keys
+          self_subscribe
           methods_table
           model_mapping
           module_level_broadcast
@@ -75,6 +76,53 @@ module Views
               `remove:` / `js:` as the verb kwarg) is identical on both. What pgbus adds
               are the *guarantees* — the transactional deferral, actor-echo suppression,
               and presence — noted inline where they apply.
+            MD
+          end
+        end
+
+        def self_subscribe
+          DocsUI::Section('A component that subscribes itself (reactive_subscribe, pgbus)') do
+            md <<~MD
+              With pgbus, a component can declare the stream it listens to, so no
+              view repeats the key in a `turbo_stream_from`:
+
+              ```ruby
+              class Imports::Status < ApplicationComponent
+                include Phlex::Reactive::Component
+
+                reactive_record :import
+                reactive_subscribe :status            # the stream [import, :status]
+
+                def view_template = div(**reactive_root) { @import.state }
+              end
+
+              # A job, later — the key comes from the declaration:
+              Imports::Status.broadcast_self(replace: import)
+              # the same as Imports::Status.broadcast_to(import, :status, replace: import)
+              ```
+
+              Rendering puts the stream's signed source on the root. While the root
+              is on the page the client keeps one `<pgbus-stream-source>` for it,
+              and closes it when the root goes. A morph that keeps the key keeps the
+              connection, and two roots on the same key share one.
+
+              - `reactive_subscribe key: [:lobby, :feed]` subscribes to fixed parts;
+                `key: -> { [@board, :cards] }` runs on the component. Give either a
+                name or `key:`. `broadcast_self` takes the same keywords as
+                `broadcast_to`. For `js:`, which has no component, pass the subject
+                first: `broadcast_self(import, js: ...)`.
+              - Import pgbus's client on the page: `import "pgbus/stream_source_element"`.
+                `bin/rails phlex_reactive:doctor` checks for that import.
+              - An action on a subscribing root sends that root's own connection
+                id, so `exclude: reactive_connection_id` skips the actor on the
+                root's own stream.
+              - A broadcast sent before the source has connected is not delivered.
+                pgbus streams are live-only by default.
+              - The stream name must fit pgbus's stream-name budget. A long record
+                key is refused at render; declare `key:` with
+                `Pgbus.stream_key(record)` instead.
+              - On Action Cable a subscribing root raises at render. Render
+                `turbo_stream_from` with the same key next to the component instead.
             MD
           end
         end

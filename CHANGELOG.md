@@ -8,6 +8,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`reactive_subscribe` — a component that subscribes to its own broadcast
+  stream (#474, pgbus).** `reactive_subscribe :status` (the stream
+  `[record, :status]`) or `reactive_subscribe key: [...]` / `key: -> { [...] }`
+  puts the stream's signed pgbus source on the root. The new `subscribe` client
+  feature keeps one `<pgbus-stream-source>` for it while the root is on the
+  page. A morph that keeps the key keeps the connection, and roots on the same
+  key share one source. `Widget.broadcast_self(replace: record)` broadcasts to
+  the declared stream, so no view repeats the key in a `turbo_stream_from`. An
+  action on a subscribing root sends that root's own connection id as
+  `X-Pgbus-Connection`. On Action Cable a subscribing root raises
+  `ConfigurationError` at render, naming `turbo_stream_from`. A stream name over
+  pgbus's budget is refused at render. The doctor checks for pgbus and for an
+  import of its client element.
 - **`js.click(to = :trigger)` (#471).** A client op that activates an element
   the way a user click does: `HTMLElement#click()` on the first match, so a link
   follows its `href` (through Turbo Drive, with its own `data-turbo-*`

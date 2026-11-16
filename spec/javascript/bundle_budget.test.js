@@ -232,7 +232,9 @@ const SLACK = 250
 // (a stream that throws while rendering is an apply failure) 37 B: 42,636 B; recorded inline after the
 // draw, with no revert, 5 B: 42,641 B (those sizes before #466); on top of #466: 42,745 B.
 // Issue #471 (js.click, first match only, in the runtime) adds 31 B: 42,776 B.
-const BUNDLE_GZIP_CEILING = 42_776
+// Issue #474 (reactive_subscribe: the subscribe feature, its marker, and a subscribing root's own
+// X-Pgbus-Connection, in the runtime) adds 447 B: 43,223 B.
+const BUNDLE_GZIP_CEILING = 43_223
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -321,7 +323,9 @@ const TARGET_BUNDLE_GZIP = 22_700
 // its validation fix (the busy state reverts at hand-off) 29 B: 19,910 B; its review fix (a stream
 // that throws while rendering is an apply failure) 47 B: 19,957 B.
 // Issue #471 (js.click, first match only) adds 28 B: 19,985 B.
-const CORE_GZIP_CEILING = 19_985
+// Issue #474 (the subscribe marker, table entry and loader, and a subscribing root's own
+// X-Pgbus-Connection) adds 61 B: 20,046 B.
+const CORE_GZIP_CEILING = 20_046
 const FEATURE_GZIP_CEILINGS = {
   // Issue #319 (bulk selection) took it from 5,360 B to 5,967 B; its review
   // fixes to 6,015 B. Issue #310 (listeners and seeds as closures, no
@@ -380,6 +384,8 @@ const FEATURE_GZIP_CEILINGS = {
   // fixes (the late-defined source, the re-announce, the root seat list) take it to 1,353 B;
   // on pgbus 0.18 the re-announce becomes one check: 1,297 B; logging a failed announce: 1,362 B.
   "features/presence": 1_362,
+  // Issue #474: subscribe (a shared, refcounted source per signed src), 759 B.
+  "features/subscribe": 759,
   // Issue #400: countdown, 914 B; its review fixes (every fired deadline kept, an
   // id-less root's own key) take it to 966 B.
   "features/countdown": 966,
@@ -484,7 +490,8 @@ const FEATURE_GZIP_CEILINGS = {
 // Issue #464 (+356 B core, +21 B defer) adds 377 B: 51,687 B; its validation fix (+29 B core) 51,716 B;
 // its review fix (+47 B core) 51,763 B (those sizes before #466); with #466's +141 B: 51,904 B.
 // Issue #471 (js.click, +28 B core): 51,932 B.
-const SPLIT_TOTAL_GZIP_CEILING = 51_932
+// Issue #474 (+61 B core, the 759 B subscribe feature) adds 820 B: 52,752 B.
+const SPLIT_TOTAL_GZIP_CEILING = 52_752
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 

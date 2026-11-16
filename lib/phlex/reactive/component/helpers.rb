@@ -155,6 +155,10 @@ module Phlex
           # stream, from which the client mints its subscription. Only a class
           # that declares reactive_presence has the method.
           data.merge!(reactive_presence_data) if respond_to?(:reactive_presence_data)
+          # Subscribe (issue #474): the signed src of the component's own
+          # broadcast stream. Only a class that declares reactive_subscribe has
+          # the method.
+          data.merge!(reactive_subscribe_data) if respond_to?(:reactive_subscribe_data)
           { data: }
         end
 

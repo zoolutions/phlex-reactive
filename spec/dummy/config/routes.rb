@@ -126,6 +126,8 @@ Rails.application.routes.draw do
   get "drag_shortcut" => "demos#drag_shortcut"
   # Issue #358: a presence roster (needs pgbus with per-connection presence).
   get "presence" => "demos#presence"
+  # Issue #474: a component subscribed to its own broadcast stream (needs pgbus).
+  get "subscribe/:todo_id" => "demos#subscribe"
   post "bulk_outcome" => "demos#bulk_outcome_submit"
   # Issue #241: reactive_persist over rich editors (real Trix + Lexxy + a bare
   # contenteditable); ?late=1 defers the editor definitions past connect.

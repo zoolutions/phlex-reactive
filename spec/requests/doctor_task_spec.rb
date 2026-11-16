@@ -25,6 +25,10 @@ RSpec.describe "phlex_reactive:doctor rake task" do
 
   it "prints the ✓ report and does not abort on the correctly-wired dummy app" do
     Rails.application.eager_load!
+    # The dummy's subscribe demo (TodoStatusComponent, issue #474) is pgbus-
+    # only and wired in the pgbus cells; this suite runs on Action Cable, where
+    # the doctor rightly fails it (spec/phlex/reactive/doctor_spec.rb).
+    allow(Phlex::Reactive::Subscribe).to receive(:capable?).and_return(true)
     expect { rake["phlex_reactive:doctor"].invoke }
       .to output(/phlex-reactive doctor.*✓.*passed/m).to_stdout
   end

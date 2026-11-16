@@ -35,6 +35,7 @@ import * as compute from "phlex/reactive/features/compute"
 import * as sortable from "phlex/reactive/features/sortable"
 import * as drag from "phlex/reactive/features/drag"
 import * as presence from "phlex/reactive/features/presence"
+import * as subscribe from "phlex/reactive/features/subscribe"
 import * as countdown from "phlex/reactive/features/countdown"
 import * as effects from "phlex/reactive/features/effects"
 import * as hints from "phlex/reactive/features/hints"
@@ -70,6 +71,7 @@ if (__SPLIT__) {
   registerReactiveFeature("sortable", { connect: sortable.connect, disconnect: sortable.disconnect })
   registerReactiveFeature("drag", { connect: drag.connect, disconnect: drag.disconnect })
   registerReactiveFeature("presence", { connect: presence.connect, disconnect: presence.disconnect, set: presence.set })
+  registerReactiveFeature("subscribe", { connect: subscribe.connect, disconnect: subscribe.disconnect })
   registerReactiveFeature("countdown", { connect: countdown.connect, disconnect: countdown.disconnect })
   registerReactiveFeature("effects", { wrap: effects.wrap, sweep: effects.sweep })
   registerReactiveFeature("hints", { optimistic: hints.optimistic, busy: hints.busy, resurrection: hints.resurrection })

@@ -68,7 +68,9 @@ module Phlex
           skip_all: :@reactive_own_skip_all,
           skip_actions: :@reactive_own_skip_actions,
           # Presence roster — reactive_presence (issue #358).
-          presence: :@reactive_own_presence
+          presence: :@reactive_own_presence,
+          # Own broadcast stream — reactive_subscribe (issue #474).
+          subscribe: :@reactive_own_subscribe
         }.freeze
 
         # The identity-side hot-path memos swept by bump! (see the contract
@@ -92,7 +94,8 @@ module Phlex
           effects: :reactive_effects_config,
           skip_all: :reactive_skip_all_authorization?,
           skip_actions: :reactive_skip_authorization_actions,
-          presence: :reactive_presence_declaration
+          presence: :reactive_presence_declaration,
+          subscribe: :reactive_subscribe_declaration
         }.freeze
 
         # The per-class memos the render path reads (Identity's token memos,
