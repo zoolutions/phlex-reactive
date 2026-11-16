@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-16
+
 ### Added
 
 - **`reactive_subscribe` — a component that subscribes to its own broadcast
@@ -22,36 +24,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `ConfigurationError` at render, naming `turbo_stream_from`. A stream name over
   pgbus's budget is refused at render. The doctor checks for pgbus and for an
   import of its client element.
-- **`js.click(to = :trigger)` (#471).** A client op that activates an element
-  the way a user click does: `HTMLElement#click()` on the first match, so a link
-  follows its `href` (through Turbo Drive, with its own `data-turbo-*`
-  attributes), a submit button submits its form and a checkbox toggles.
-  `js.dispatch("click")` sends a `CustomEvent`, which carries no activation. A
-  list row drawn as one link now answers Space with
-  `on_client("keydown.space", js.click)`. The server never pushes it:
-  `reply.js`, a settle's `js` and `broadcast_to(js:)` refuse it.
-  `on_client(:click, js.click)` on its own trigger raises at render (the
-  synthetic click re-enters its own binding, which prevents its default).
-- **`:strict_integer` and `:strict_float` param types (#460).** `:integer` and
-  `:float` cast with `to_i`/`to_f`, so a cleared number field reaches the action
-  as `0` and `"12abc"` as `12`, and an action cannot tell a blank field from a
-  typed `0`. The two new built-ins follow the drop contract instead: a blank or
-  unparsable value is dropped, so the keyword default applies. `:strict_integer`
-  is `Integer(value, 10)`, so `"1.5"`, a JSON `1.0` and `"0x10"` drop and `"010"`
-  is `10`; `:strict_float` reads decimal notation, so it also drops hex and a
-  string too large or too small for a Float (`"1e400"`, `"1e-400"`). Both take a JSON number
-  as well as a string,
-  and work in nested and array schemas, where a dropped element follows the
-  existing array rule. `:integer` and `:float` are unchanged.
-- **`reactive_nested_add(clear: :reset)` (#466).** `clear: true` empties every
-  fill-then-add source after an add, so a checkbox that renders ticked was
-  unticked for every row after the first. `clear: :reset` puts each source back
-  to what the server rendered, the way a form reset would: a checkbox to its
-  `checked` attribute, a text input or textarea to its `value`, a select to its
-  `selected` option (else a single select to its first enabled one; a multiple
-  select to exactly its `selected` options). Each reset source dispatches one
-  bubbling `input`, as `clear: true` does, and a source that several `from:`
-  keys name is cleared once. `clear: true` is otherwise unchanged.
 - **conformance-kit 0.5, with its report-only Ractorize job (#363).** CI's
   conformance workflow and the Gemfiles move to 0.5. `.conformance.yml` sets
   `ractorize:`: the dummy boots in production on Rails main,
@@ -64,6 +36,41 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   prism below 2 in that job's bundle: with prism 2, refract 1.1.0 (which Phlex
   loads) fails at boot on `Prism::MissingNode` (yippee-fun/refract#6).
 
+### Fixed
+
+- **A per-render dormant presence roster raised nothing and never joined (#474's
+  review).** `reactive_root(dormant: true)` on a `reactive_presence` root (or a
+  `reactive_subscribe` one) rendered a root that never connects, so the tab never
+  joined. That render now raises the `ArgumentError` a class-level
+  `reactive_dormant` already raises when the class loads. An app that rendered
+  the combination gets the error on that page and drops `dormant: true` for that
+  root.
+- **A page refresh by morph dropped a presence root's subscription (#474's
+  review).** Turbo 8's page morph removes the `<pgbus-stream-source>` the client
+  minted in `<body>` while the roster root stays connected, so the tab left the
+  roster for good. The minted sources now sit in one hidden,
+  `data-turbo-permanent` `<reactive-stream-sources>` box at the end of `<body>`,
+  so the morph keeps them (and never pairs the box with a source the refreshed
+  page adds) and the tab keeps its seat. Should a render drop it anyway, the client
+  mints a fresh source for every presence root still on the page, and its
+  `pgbus:connected` announces the tab again. `reactive_subscribe` sources do the
+  same.
+
+## [0.16.14] - 2026-11-12
+
+### Added
+
+- **`js.click(to = :trigger)` (#471).** A client op that activates an element
+  the way a user click does: `HTMLElement#click()` on the first match, so a link
+  follows its `href` (through Turbo Drive, with its own `data-turbo-*`
+  attributes), a submit button submits its form and a checkbox toggles.
+  `js.dispatch("click")` sends a `CustomEvent`, which carries no activation. A
+  list row drawn as one link now answers Space with
+  `on_client("keydown.space", js.click)`. The server never pushes it:
+  `reply.js`, a settle's `js` and `broadcast_to(js:)` refuse it.
+  `on_client(:click, js.click)` on its own trigger raises at render (the
+  synthetic click re-enters its own binding, which prevents its default).
+
 ### Changed
 
 - **BREAKING (minor release): `reactive_editable(on_enter:)` raises on an op
@@ -72,11 +79,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   nothing; it now raises `ArgumentError` at render. Name the element with a
   CSS selector.
 
+## [0.16.13] - 2026-11-08
+
+### Added
+
+- **`reactive_nested_add(clear: :reset)` (#466).** `clear: true` empties every
+  fill-then-add source after an add, so a checkbox that renders ticked was
+  unticked for every row after the first. `clear: :reset` puts each source back
+  to what the server rendered, the way a form reset would: a checkbox to its
+  `checked` attribute, a text input or textarea to its `value`, a select to its
+  `selected` option (else a single select to its first enabled one; a multiple
+  select to exactly its `selected` options). Each reset source dispatches one
+  bubbling `input`, as `clear: true` does, and a source that several `from:`
+  keys name is cleared once. `clear: true` is otherwise unchanged.
+
+### Changed
+
 - **`reactive_nested_add(clear:)` raises on an unknown value (#466).** It takes
   `true`, `false`, `nil` or `:reset`; anything else (a truthy string such as
   `clear: "yes"`, which used to act as `true`) now raises `ArgumentError` at
   render. Pass `clear: true`.
-
 - **`reactive:idle` reports what failed (#464).** Each busy window (from the
   `reactive:busy` edge to the `reactive:idle` edge) collects every failure raised
   inside it: a dispatch that failed (`http`, `timeout`, `network`, `offline`,
@@ -89,9 +111,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `apply` too (after `reactive:applied`; the drawn rest of the reply is not
   reverted). A render still running when the action timeout cuts the wait off
   is not recorded.
-
-### Changed
-
 - **BREAKING (minor release): `wait_for_reactive` raises when the round trip
   failed (#464).** It used to return after a 500, a timeout or a redirect just as
   after a rendered reply, and the next assertion failed a full Capybara wait
@@ -113,23 +132,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- **A per-render dormant presence roster raised nothing and never joined (#474's
-  review).** `reactive_root(dormant: true)` on a `reactive_presence` root (or a
-  `reactive_subscribe` one) rendered a root that never connects, so the tab never
-  joined. That render now raises the `ArgumentError` a class-level
-  `reactive_dormant` already raises when the class loads. An app that rendered
-  the combination gets the error on that page and drops `dormant: true` for that
-  root.
-- **A page refresh by morph dropped a presence root's subscription (#474's
-  review).** Turbo 8's page morph removes the `<pgbus-stream-source>` the client
-  minted in `<body>` while the roster root stays connected, so the tab left the
-  roster for good. The minted sources now sit in one hidden,
-  `data-turbo-permanent` `<reactive-stream-sources>` box at the end of `<body>`,
-  so the morph keeps them (and never pairs the box with a source the refreshed
-  page adds) and the tab keeps its seat. Should a render drop it anyway, the client
-  mints a fresh source for every presence root still on the page, and its
-  `pgbus:connected` announces the tab again. `reactive_subscribe` sources do the
-  same.
 - **`reactive:idle` fired before the reply rendered (#464).** The dispatch lane
   left the activity counter when the fetch settled, at least one animation frame
   before Turbo applied the reply's streams, so a one-shot read after
@@ -140,6 +142,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **A client-side apply failure now marks the root (#464).** The `kind: "apply"`
   error emitted `reactive:error` but never set `data-reactive-error`; it now sets
   `data-reactive-error="apply"` like every other failure kind.
+
+## [0.16.12] - 2026-10-31
+
+### Added
+
+- **`:strict_integer` and `:strict_float` param types (#460).** `:integer` and
+  `:float` cast with `to_i`/`to_f`, so a cleared number field reaches the action
+  as `0` and `"12abc"` as `12`, and an action cannot tell a blank field from a
+  typed `0`. The two new built-ins follow the drop contract instead: a blank or
+  unparsable value is dropped, so the keyword default applies. `:strict_integer`
+  is `Integer(value, 10)`, so `"1.5"`, a JSON `1.0` and `"0x10"` drop and `"010"`
+  is `10`; `:strict_float` reads decimal notation, so it also drops hex and a
+  string too large or too small for a Float (`"1e400"`, `"1e-400"`). Both take a JSON number
+  as well as a string,
+  and work in nested and array schemas, where a dropped element follows the
+  existing array rule. `:integer` and `:float` are unchanged.
+
+### Fixed
+
 - **The docs now say what `:integer` and `:float` do (#460).** The Actions &
   events guide and the counter example said a non-numeric value is dropped; it
   never was. Both pages, and the README, now describe `to_i`/`to_f` and point at
@@ -4609,7 +4630,11 @@ room for dogfood fixes.
   scaffolds a reactive component (and an RSpec spec when the app uses RSpec),
   state-backed by default or record-backed with `--record`.
 
-[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.11...HEAD
+[Unreleased]: https://github.com/mhenrixon/phlex-reactive/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.14...v0.17.0
+[0.16.14]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.13...v0.16.14
+[0.16.13]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.12...v0.16.13
+[0.16.12]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.11...v0.16.12
 [0.16.11]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.10...v0.16.11
 [0.16.10]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.9...v0.16.10
 [0.16.9]: https://github.com/mhenrixon/phlex-reactive/compare/v0.16.8...v0.16.9
