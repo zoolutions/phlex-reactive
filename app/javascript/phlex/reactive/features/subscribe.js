@@ -14,7 +14,9 @@
 // controller: the source is released only a microtask after a disconnect, so
 // the same root id coming back keeps the connection. A change of the src (a
 // morph that re-keys the root) moves the root to the new stream; a morph that
-// keeps it changes nothing.
+// keeps it changes nothing. A page refresh by morph (Turbo 8) drops the
+// minted source from <body> while the roots stay connected: after it the
+// module mints a fresh source for every stream a live root still needs.
 //
 // This module never imports the core.
 
@@ -27,8 +29,14 @@ const streams = new Map()
 const roots = new Map()
 // The sources this module minted (a Turbo cache restore brings back clones).
 const minted = new WeakSet()
+let listening = false
 
 export function connect(controller) {
+  if (!listening) {
+    listening = true
+    document.addEventListener("turbo:morph", rejoin)
+    document.addEventListener("turbo:render", rejoin)
+  }
   const root = controller.element
   let entry = roots.get(root.id)
   if (!entry) roots.set(root.id, (entry = { src: null }))
@@ -63,6 +71,14 @@ function follow(entry, src) {
   entry.src = src || null
   if (entry.src) join(entry.src, entry.root.id)
   if (previous && previous !== entry.src) leave(previous, entry.root.id)
+}
+
+// After a page render, re-mint each source the page lost while a root on its
+// stream is still on the page (a root that left releases it on its own).
+function rejoin() {
+  for (const entry of roots.values()) {
+    if (entry.src && !entry.removing && entry.root.isConnected) join(entry.src, entry.root.id)
+  }
 }
 
 function join(src, id) {

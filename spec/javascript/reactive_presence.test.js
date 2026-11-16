@@ -399,3 +399,20 @@ test("a replace of the root keeps its source; a root that goes away removes it",
   await flush()
   expect(source()).toBe(null)
 })
+
+test("a page refresh by morph that drops the presence source mints a fresh one, which announces again", async () => {
+  mount(roster(""))
+  connected()
+  await flush()
+  const sent = requests.length
+  source().remove() // Turbo 8's page morph drops <body>'s minted children
+
+  document.dispatchEvent(new CustomEvent("turbo:morph"))
+  expect(source()).not.toBeNull()
+  expect(source().hasAttribute("presence")).toBe(true)
+
+  connected("viewers", "conn-2")
+  await flush()
+  expect(requests.length).toBe(sent + 1)
+  expect(requests.at(-1).body.act).toBe("presence_set")
+})

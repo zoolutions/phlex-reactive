@@ -238,3 +238,26 @@ test("a root that connects before pgbus defines its element mints the source, an
     globalThis.setTimeout = savedTimeout
   }
 })
+
+test("a page refresh by morph that drops the source mints a fresh one for the root still on the page", () => {
+  mount(widget())
+  const before = sources()[0]
+  before.remove() // Turbo 8's page morph: <body>'s children the server did not render go
+
+  document.dispatchEvent(new CustomEvent("turbo:morph"))
+
+  expect(sources().length).toBe(1)
+  expect(sources()[0]).not.toBe(before)
+  expect(sources()[0].getAttribute("src")).toBe("/pgbus/streams/signed-item:widget")
+})
+
+test("a page render mints nothing for a root that left the page with it", async () => {
+  const [controller] = mount(widget())
+  document.body.innerHTML = "" // a full render swapped <body>; the controller disconnects after
+  document.dispatchEvent(new CustomEvent("turbo:render"))
+  expect(sources().length).toBe(0)
+
+  disconnect(controller)
+  await flush()
+  expect(sources().length).toBe(0)
+})

@@ -40,6 +40,48 @@ RSpec.describe "reactive_subscribe (issue #474)", :pgbus, type: :system do
     expect(page).to have_css(subscribe_source, visible: :all, count: 1)
   end
 
+  it "keeps the one connection across a replace of the root that keeps its id" do
+    visit "/subscribe/#{todo.id}"
+    wait_for_subscription
+    before = find(subscribe_source, visible: :all)["connection-id"]
+
+    # A plain (non-morph) replace: the controller disconnects and reconnects.
+    page.execute_script(<<~JS)
+      const root = document.querySelector("[data-testid='todo-status']")
+      root.replaceWith(root.cloneNode(true))
+    JS
+
+    expect(page).to have_css("[data-testid='todo-status']")
+    expect(page).to have_css("#{subscribe_source}[connection-id='#{before}']", visible: :all, count: 1)
+  end
+
+  # Turbo 8's page refresh by morph drops what the server did not render from
+  # <body> — the minted source included — while the root stays connected.
+  it "subscribes again after a page refresh by morph, and still receives the broadcast" do
+    visit "/subscribe/#{todo.id}"
+    wait_for_subscription
+    before = find(subscribe_source, visible: :all)["connection-id"]
+
+    page.execute_script(<<~JS)
+      const meta = document.createElement("meta")
+      meta.name = "turbo-refresh-method"
+      meta.content = "morph"
+      document.head.appendChild(meta)
+      window.__noReload = true
+      document.addEventListener("turbo:morph", () => { window.__morphed = true }, { once: true })
+      window.Turbo.visit(location.href, { action: "replace" })
+    JS
+
+    expect(page).to have_css("#{subscribe_source}[connection-id]:not([connection-id='#{before}'])",
+      visible: :all, count: 1, wait: 10)
+    expect(page.evaluate_script("window.__morphed && window.__noReload")).to be(true)
+    sleep 0.5
+
+    FinishTodoJob.perform_now(todo.id)
+
+    expect(page).to have_css("[data-testid='todo-status-state']", text: "Done", wait: 10)
+  end
+
   it "closes the source when the root leaves the page" do
     visit "/subscribe/#{todo.id}"
     wait_for_subscription
@@ -52,11 +94,11 @@ RSpec.describe "reactive_subscribe (issue #474)", :pgbus, type: :system do
   it "refuses a tampered src (pgbus verifies the signature)" do
     visit "/subscribe/#{todo.id}"
     src = find(subscribe_source, visible: :all)["src"]
-    status = page.evaluate_async_script(<<~JS, "#{src}x")
+    status, body = page.evaluate_async_script(<<~JS, "#{src}x")
       const done = arguments[arguments.length - 1]
-      fetch(arguments[0]).then((r) => done(r.status), () => done(0))
+      fetch(arguments[0]).then(async (r) => done([r.status, await r.text()]), () => done([0, ""]))
     JS
 
-    expect(status).to be_between(400, 499)
+    expect([status, body]).to eq([404, "pgbus: invalid signed stream name"])
   end
 end

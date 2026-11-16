@@ -46,22 +46,36 @@ module Phlex
           #   Widget.broadcast_self(item, js: js.add_class(...))   # js: has no component: name its subject
           #
           # The key resolves on a component of this class: `subject` (a record,
-          # an init-kwargs Hash or a built component), else the verb's payload.
-          # Every other keyword is broadcast_to's.
-          def broadcast_self(subject = nil, **)
+          # an init-kwargs Hash or a built component), else the verb's payload
+          # (built once: the same component is what gets rendered). Every other
+          # keyword is broadcast_to's, except each: (the stream is the
+          # declared one).
+          def broadcast_self(subject = nil, **opts)
             unless reactive_subscribe_declaration
               raise ArgumentError, "#{name}.broadcast_self needs a reactive_subscribe declaration"
             end
+            if opts.key?(:each)
+              raise ArgumentError, "#{name}.broadcast_self broadcasts to the declared stream: it takes no each: " \
+                                   "(use broadcast_to(each: ...) to fan out)"
+            end
 
-            broadcast_to(*subscribe_subject(subject, **).reactive_subscribe_parts, **)
+            verb = opts.slice(*Phlex::Reactive::Streamable::BROADCAST_VERBS.keys).keys.first
+            # No subject: the verb's payload is it — built here, and handed on
+            # built, so broadcast_to does not build it a second time.
+            if subject.nil? && verb && verb != :js
+              component = subscribe_component(opts[verb])
+              opts = opts.merge(verb => component)
+            else
+              component = subscribe_component(subject, javascript: verb == :js && subject.nil?)
+            end
+
+            broadcast_to(*component.reactive_subscribe_parts, **opts)
           end
 
           private
 
-          def subscribe_subject(subject, **opts)
-            subject = opts.slice(*Phlex::Reactive::Streamable::BROADCAST_VERBS.keys).except(:js).values.first if
-              subject.nil?
-            if subject.nil?
+          def subscribe_component(subject, javascript: false)
+            if javascript
               raise ArgumentError,
                 "#{name}.broadcast_self(js: ...) has no component to read the stream key from: pass its " \
                 "subject first, e.g. broadcast_self(record, js: ...)"

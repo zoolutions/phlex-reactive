@@ -68,6 +68,15 @@ RSpec.describe Phlex::Reactive::Subscribe, "reactive_subscribe (issue #474)" do
         .to raise_error(Phlex::Reactive::ConfigurationError, /LongWatcher.*47 chars.*budget of 41.*key:/m)
     end
 
+    it "refuses a key: callable that gives a nil part or no parts" do
+      nil_part = declare { reactive_subscribe key: -> { [todo_or_nil, :x] } }
+      nil_part.define_method(:todo_or_nil) { nil }
+      empty = declare { reactive_subscribe key: -> {} }
+
+      expect { render_html(nil_part.new) }.to raise_error(ArgumentError, /gave \[nil, :x\].*none of them nil/)
+      expect { render_html(empty.new) }.to raise_error(ArgumentError, /gave \[\]/)
+    end
+
     it "refuses a missing record instead of subscribing to a shared stream" do
       component = declare { reactive_subscribe :status }.new(todo: nil)
 
@@ -104,7 +113,8 @@ RSpec.describe Phlex::Reactive::Subscribe, "reactive_subscribe (issue #474)" do
         TodoStatusComponent.broadcast_self(replace: todo, morph: true)
 
         expect(Phlex::Reactive::Streamable).to have_received(:broadcast_component)
-          .with(TodoStatusComponent, :replace, todo, anything, [[todo, :status]], hash_including(morph: true))
+          .with(TodoStatusComponent, :replace, an_instance_of(TodoStatusComponent), anything, [[todo, :status]],
+            hash_including(morph: true))
       end
 
       it "reads a key: callable off the component it builds" do
@@ -130,6 +140,27 @@ RSpec.describe Phlex::Reactive::Subscribe, "reactive_subscribe (issue #474)" do
 
         expect { TodoStatusComponent.broadcast_self(replace: other) }
           .to raise_error(ArgumentError, /reads the stream key from a TodoStatusComponent/)
+      end
+
+      it "builds the payload's component once and hands it on built" do
+        allow(TodoStatusComponent).to receive(:new).and_call_original
+        TodoStatusComponent.broadcast_self(replace: todo)
+
+        expect(TodoStatusComponent).to have_received(:new).once
+        expect(Phlex::Reactive::Streamable).to have_received(:broadcast_component)
+          .with(TodoStatusComponent, :replace, an_instance_of(TodoStatusComponent), anything, [[todo, :status]], anything)
+      end
+
+      it "builds a state-backed default from a nil payload" do
+        klass = declare { reactive_subscribe key: -> { [:room, room] } }
+        klass.broadcast_self(update: nil)
+
+        expect(broadcast_keys).to eq([[:room, "lobby"]])
+      end
+
+      it "refuses each: (the stream is the declared one)" do
+        expect { TodoStatusComponent.broadcast_self(replace: todo, each: [[:other]]) }
+          .to raise_error(ArgumentError, /takes no each:/)
       end
 
       it "refuses a class without the declaration" do

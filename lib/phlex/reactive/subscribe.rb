@@ -84,7 +84,13 @@ module Phlex
             elsif key then key
             else [reactive_subscribe_record, declaration.name]
             end
-          Array(parts)
+          parts = Array(parts)
+          return parts unless parts.empty? || parts.any?(&:nil?)
+
+          # A nil part would put every such root on one shared stream.
+          raise ArgumentError,
+            "#{self.class.name}: reactive_subscribe key: gave #{parts.inspect}; the stream's parts must be " \
+            "non-empty and none of them nil"
         end
 
         # The root's subscription marker (reactive_attrs): the signed src the

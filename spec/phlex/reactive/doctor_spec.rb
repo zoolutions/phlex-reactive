@@ -436,8 +436,33 @@ RSpec.describe Phlex::Reactive::Doctor do
       expect(check.fix).to include('import "pgbus/stream_source_element"')
     end
 
-    it "finds the dummy's inline import of pgbus's client" do
-      expect(doctor.send(:imports_pgbus_client?)).to be(true)
+    # Scratch app roots, NOT the dummy's app/ (which already has several
+    # matches, and where a new file would trip Rails' reloader).
+    describe "finding the client import" do
+      let(:app_root) { Pathname(Dir.mktmpdir("doctor-pgbus-client")) }
+
+      after { FileUtils.rm_rf(app_root) }
+
+      def client_found_with(path, source)
+        file = app_root.join(path)
+        FileUtils.mkdir_p(file.dirname)
+        File.write(file, source)
+        allow(Rails).to receive(:root).and_return(app_root)
+        doctor.send(:imports_pgbus_client?)
+      end
+
+      it "finds an inline module import in a component" do
+        source = %(script(type: "module") { raw safe(%(import "pgbus/stream_source_element")) }\n)
+        expect(client_found_with("app/components/page.rb", source)).to be(true)
+      end
+
+      it "finds the import in a JavaScript entrypoint" do
+        expect(client_found_with("app/javascript/application.js", %(import "pgbus/stream_source_element"\n))).to be(true)
+      end
+
+      it "does not count a Ruby comment, or an app with no import" do
+        expect(client_found_with("app/components/page.rb", %(# import "pgbus/stream_source_element"\n))).to be(false)
+      end
     end
 
     it "matches a direct import and the helpers that emit it, not a plain mention" do

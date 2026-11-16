@@ -115,12 +115,17 @@ module Views
                 `bin/rails phlex_reactive:doctor` checks for that import.
               - An action on a subscribing root sends that root's own connection
                 id, so `exclude: reactive_connection_id` skips the actor on the
-                root's own stream.
+                root's own stream. A broadcast from that action to another
+                stream, a page-level `turbo_stream_from`, reaches the actor
+                too: each `<pgbus-stream-source>` is its own connection.
               - A broadcast sent before the source has connected is not delivered.
-                pgbus streams are live-only by default.
-              - The stream name must fit pgbus's stream-name budget. A long record
-                key is refused at render; declare `key:` with
-                `Pgbus.stream_key(record)` instead.
+                pgbus streams are live-only by default, and a durable stream gets
+                no replay here either (`pgbus_stream_from` replays from a
+                watermark it reads at render).
+              - The stream name must fit pgbus's stream-name budget (41 characters
+                with the default queue prefix). A long record key, such as any
+                UUID-keyed record, is refused at render; declare
+                `key: -> { [Pgbus.stream_key(@record), :status] }` instead.
               - On Action Cable a subscribing root raises at render. Render
                 `turbo_stream_from` with the same key next to the component instead.
             MD

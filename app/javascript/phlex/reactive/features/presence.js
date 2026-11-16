@@ -27,7 +27,10 @@
 // connection id) keeps it, and this module reads it to find "me". A plain
 // replace of the root disconnects and
 // reconnects the controller: the source is removed only a microtask after a
-// disconnect, and kept when the same root id comes back.
+// disconnect, and kept when the same root id comes back. A page refresh by
+// morph (Turbo 8) drops the source from <body> while the root stays
+// connected: after it the module mints a fresh one (issue #474's review),
+// whose pgbus:connected announces the tab again.
 //
 // Announcing. On every pgbus:connected (the first one and each reconnect) the
 // module sends presence_set with the tab's last state ({} at first), through
@@ -56,8 +59,14 @@ const roots = new Map()
 // The sources this module minted and listens to (a Turbo cache restore brings
 // back a clone without the listener).
 const minted = new WeakSet()
+let listening = false
 
 export function connect(controller, core) {
+  if (!listening) {
+    listening = true
+    document.addEventListener("turbo:morph", resubscribe)
+    document.addEventListener("turbo:render", resubscribe)
+  }
   const root = controller.element
   let entry = roots.get(root.id)
   if (!entry) roots.set(root.id, (entry = { state: null, seats: null }))
@@ -105,6 +114,14 @@ export function set(root, state) {
   if (!entry) roots.set(root.id, (entry = { root, state: null, seats: null }))
   entry.state = { ...entry.state, ...state }
   send(entry)
+}
+
+// After a page render: a root still on the page whose source the render
+// dropped subscribes again (subscribe keeps a source that is still there).
+function resubscribe() {
+  for (const entry of roots.values()) {
+    if (entry.core && !entry.removing && entry.root.isConnected) subscribe(entry.root)
+  }
 }
 
 function subscribe(root) {

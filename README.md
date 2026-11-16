@@ -2371,6 +2371,51 @@ end
   `Phlex::Reactive::PresenceRenderJob` (on `defer_job_queue`), so the app needs
   an ActiveJob adapter that runs jobs. A state change renders in the action.
 
+### A component that subscribes to its own stream (`reactive_subscribe`)
+
+With pgbus, a component declares the broadcast stream it listens to. A job's
+broadcast then reaches every open page that renders it, with no
+`turbo_stream_from` repeating the key in each view:
+
+```ruby
+class Imports::Status < ApplicationComponent
+  include Phlex::Reactive::Component
+
+  reactive_record :import
+  reactive_subscribe :status                       # the stream [import, :status]
+  # reactive_subscribe key: -> { [@import.account, :imports] }   parts, run on the component
+  # reactive_subscribe key: [:lobby, :feed]                       fixed parts
+
+  def initialize(import:) = @import = import
+  def view_template = div(**reactive_root) { @import.state }
+end
+
+# In the job — the key comes from the declaration:
+Imports::Status.broadcast_self(replace: import)    # = broadcast_to(import, :status, replace: import)
+Imports::Status.broadcast_self(import, js: js.add_class("#bell", "ring"))  # js: names its subject
+```
+
+- **The root** carries the stream's signed pgbus src (`data-reactive-subscribe`),
+  the name `broadcast_to(*parts)` publishes to, signed as `pgbus_stream_from`
+  signs it. While the root is on the page, the client's `subscribe` feature keeps
+  one `<pgbus-stream-source>` for it in `<body>`. Roots on the same key share
+  one, a morph or a same-id replace keeps it, a re-keyed root moves to its new
+  stream, and a page refresh by morph mints it again. The page must load pgbus's
+  client element (`import "pgbus/stream_source_element"`); the doctor looks for
+  that import.
+- **`broadcast_self`** takes `broadcast_to`'s keywords except `each:`. It reads
+  the key from the component it builds from the payload, or from a subject
+  passed first.
+- **The actor.** An action on a subscribing root sends that root's own
+  connection id, so `exclude: reactive_connection_id` skips the actor on that
+  stream, but not on another page-level stream.
+- **No replay**: a broadcast sent before the source connects is missed.
+- **Refused at render**: a stream name over pgbus's stream-name budget (a
+  UUID-keyed record always is: use `key: -> { [Pgbus.stream_key(@record), :status] }`),
+  a nil record or key part, and any subscribing root on Action Cable, where you
+  render `turbo_stream_from` with the same key instead. A dormant subscribing
+  root is refused when the class loads.
+
 ### Client-only drafts (`reactive_persist`)
 
 "Don't make me start over": a public application form, a multi-step wizard,
