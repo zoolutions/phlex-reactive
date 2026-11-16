@@ -23,9 +23,9 @@ module Phlex
       CLIENT_FEATURES = %w[
         persist defer form bindings compute sortable drag presence subscribe countdown effects hints devtools
       ].freeze
-      # (Gzipped, bun zlib level 9, KB = 1,024 B: the default file 42.3 KB; the core 19.6 KB;
+      # (Gzipped, bun zlib level 9, KB = 1,024 B: the default file 42.4 KB; the core 19.6 KB;
       # persist 3.2, defer 2.9, form 1.2, bindings 8.0, compute 2.0, sortable
-      # 3.1, drag 3.5, presence 1.4, subscribe 0.8, countdown 0.9, effects 1.7, hints 0.9, devtools 1.5 KB. spec/javascript/bundle_budget.test.js
+      # 3.1, drag 3.5, presence 1.5, subscribe 0.9, countdown 0.9, effects 1.7, hints 0.9, devtools 1.5 KB. spec/javascript/bundle_budget.test.js
       # is the source of truth and holds a ratchet on each.)
 
       # Mount POST /reactive/actions -> Phlex::Reactive::ActionsController#create

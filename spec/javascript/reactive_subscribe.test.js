@@ -103,17 +103,19 @@ function fireAction(controller) {
   })
 }
 
-test("a subscribing root mints one hidden source for its src in <body>, without presence", () => {
+test("a subscribing root mints one hidden source for its src in the sources box, without presence", () => {
   mount(widget())
   const [el] = sources()
   expect(sources().length).toBe(1)
-  expect(el.parentElement).toBe(document.body)
+  // The box: last in <body>, permanent (a page refresh by morph keeps it), in
+  // a tag no server page renders (Idiomorph cannot pair it with a new node).
+  expect(el.parentElement.localName).toBe("reactive-stream-sources")
+  expect(el.parentElement.parentElement).toBe(document.body)
+  expect(el.parentElement.hasAttribute("data-turbo-permanent")).toBe(true)
+  expect(el.parentElement.hidden).toBe(true)
   expect(el.hidden).toBe(true)
   expect(el.getAttribute("src")).toBe("/pgbus/streams/signed-item:widget")
   expect(el.hasAttribute("presence")).toBe(false)
-  // Kept by Turbo 8's page morph; no id, so a full render's permanent swap ignores it.
-  expect(el.hasAttribute("data-turbo-permanent")).toBe(true)
-  expect(el.id).toBe("")
 })
 
 test("a root without the attribute mints nothing", () => {
@@ -177,9 +179,10 @@ test("two roots with the same src share one source, closed when the last one goe
   expect(sources().length).toBe(0)
 })
 
-test("two roots with different srcs get one source each", () => {
+test("two roots with different srcs get one source each, in one box", () => {
   mount(widget("a", "/pgbus/streams/signed-one") + widget("b", "/pgbus/streams/signed-two"))
   expect(sources().map((s) => s.getAttribute("src")).sort()).toEqual(["/pgbus/streams/signed-one", "/pgbus/streams/signed-two"])
+  expect(document.querySelectorAll("reactive-stream-sources").length).toBe(1)
 })
 
 test("a Turbo cache restore's clone of a source is replaced by a fresh one", async () => {

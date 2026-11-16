@@ -114,10 +114,11 @@ async function morph(inner, id = "viewers") {
 test("a presence root mints one hidden presence source in <body> (pgbus's element adds the seat)", () => {
   mount(roster(""))
   const el = source()
-  expect(el.parentElement).toBe(document.body)
+  // In the permanent sources box, kept by Turbo 8's page morph (#474's review).
+  expect(el.parentElement.localName).toBe("reactive-stream-sources")
+  expect(el.parentElement.parentElement).toBe(document.body)
+  expect(el.parentElement.hasAttribute("data-turbo-permanent")).toBe(true)
   expect(el.hasAttribute("presence")).toBe(true)
-  // Kept by Turbo 8's page morph (#474's review).
-  expect(el.hasAttribute("data-turbo-permanent")).toBe(true)
   expect(el.hidden).toBe(true)
   expect(el.getAttribute("src")).toBe("/pgbus/streams/signed-board")
   expect(document.querySelectorAll("pgbus-stream-source").length).toBe(1)

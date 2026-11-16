@@ -82,6 +82,30 @@ RSpec.describe "reactive_subscribe (issue #474)", :pgbus, type: :system do
     expect(page).to have_css("[data-testid='todo-status-state']", text: "Done", wait: 10)
   end
 
+  # The refreshed page adds a server-rendered <pgbus-stream-source> at the end
+  # of <body>. Idiomorph (Turbo 8.0.12's ignores ids) pairs an old node with a
+  # new node of its tag; the minted sources sit in a permanent box whose tag no
+  # server page renders, so the new source is inserted and the minted one kept.
+  it "keeps a source the refreshed page adds beside the minted one" do
+    visit "/subscribe/#{todo.id}"
+    wait_for_subscription
+    before = find(subscribe_source, visible: :all)["connection-id"]
+    todo.update!(done: true) # no broadcast: the refresh renders the extra source
+
+    page.execute_script(<<~JS)
+      const meta = document.createElement("meta")
+      meta.name = "turbo-refresh-method"
+      meta.content = "morph"
+      document.head.appendChild(meta)
+      document.addEventListener("turbo:morph", () => { document.documentElement.dataset.morphed = "" }, { once: true })
+      window.Turbo.visit(location.href, { action: "replace" })
+    JS
+
+    expect(page).to have_css("html[data-morphed]", visible: :all, wait: 10)
+    expect(page).to have_css("pgbus-stream-source[data-testid='extra-source']", visible: :all, count: 1)
+    expect(page).to have_css("#{subscribe_source}[connection-id='#{before}']", visible: :all, count: 1)
+  end
+
   it "closes the source when the root leaves the page" do
     visit "/subscribe/#{todo.id}"
     wait_for_subscription

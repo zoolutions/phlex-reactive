@@ -2400,8 +2400,8 @@ Imports::Status.broadcast_self(import, js: js.add_class("#bell", "ring"))  # js:
   signs it. While the root is on the page, the client's `subscribe` feature keeps
   one `<pgbus-stream-source>` for it in `<body>`. Roots on the same key share
   one, a morph or a same-id replace keeps it, a re-keyed root moves to its new
-  stream, and the source is `data-turbo-permanent`, so a page refresh by morph
-  keeps its connection. The page must load pgbus's
+  stream, and the source sits in a `data-turbo-permanent` box, so a page refresh
+  by morph keeps its connection. The page must load pgbus's
   client element (`import "pgbus/stream_source_element"`); the doctor looks for
   that import.
 - **`broadcast_self`** takes `broadcast_to`'s keywords except `each:`. It reads

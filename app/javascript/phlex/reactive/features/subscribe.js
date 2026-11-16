@@ -7,18 +7,18 @@
 //   data-reactive-subscribe="<signed src>"   the stream's signed SSE src
 //
 // While the root is on the page, the module keeps a <pgbus-stream-source> for
-// that src in <body> (marked data-reactive-subscribe-source); pgbus's element
+// that src in a hidden box at the end of <body> (marked
+// data-reactive-subscribe-source); pgbus's element
 // applies what arrives as Turbo Stream actions. Two roots with the same src
 // share ONE source (an append lands once, not once per root): it closes when
 // the last of them goes. A replace of the root disconnects and reconnects the
 // controller: the source is released only a microtask after a disconnect, so
 // the same root id coming back keeps the connection. A change of the src (a
 // morph that re-keys the root) moves the root to the new stream; a morph that
-// keeps it changes nothing. The source is data-turbo-permanent (no id, so a
-// full render's permanent-element swap leaves it alone): a page refresh by
-// morph (Turbo 8) keeps it, connection and all. Should a render drop it
-// anyway while the roots stay connected, the module mints a fresh source for
-// every stream a live root still needs.
+// keeps it changes nothing. A page refresh by morph (Turbo 8) keeps the
+// source, connection and all (see box). Should a render drop it anyway while
+// the roots stay connected, the module mints a fresh source for every stream
+// a live root still needs.
 //
 // This module never imports the core.
 
@@ -115,11 +115,25 @@ function mint(src) {
   const source = document.createElement("pgbus-stream-source")
   source.setAttribute("src", src)
   source.setAttribute(MARK, "")
-  source.setAttribute("data-turbo-permanent", "")
   source.hidden = true
   minted.add(source)
-  document.body.appendChild(source)
+  box().appendChild(source)
   return source
+}
+
+// The minted sources live in one hidden <reactive-stream-sources> at the end
+// of <body>, data-turbo-permanent: a page refresh by morph (Turbo 8) keeps
+// it, sources and connections included. A tag no server page renders, so
+// Idiomorph never pairs it with (and drops) a node the refreshed page adds.
+function box() {
+  let el = [...document.body.children].find((child) => child.localName === "reactive-stream-sources")
+  if (!el) {
+    el = document.createElement("reactive-stream-sources")
+    el.hidden = true
+    el.setAttribute("data-turbo-permanent", "")
+    document.body.appendChild(el)
+  }
+  return el
 }
 
 const defined = () => !!globalThis.customElements?.get?.("pgbus-stream-source")

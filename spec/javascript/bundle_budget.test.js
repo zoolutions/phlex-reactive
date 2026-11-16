@@ -235,8 +235,9 @@ const SLACK = 250
 // Issue #474 (reactive_subscribe: the subscribe feature, its marker, and a subscribing root's own
 // X-Pgbus-Connection, in the runtime) adds 447 B: 43,223 B; its validation fix (subscribe and
 // presence mint their source again after a page refresh by morph) 100 B: 43,323 B; the sources
-// made data-turbo-permanent, 22 B: 43,345 B.
-const BUNDLE_GZIP_CEILING = 43_345
+// made data-turbo-permanent, 22 B: 43,345 B; moved into one permanent <reactive-stream-sources>
+// box (a tag Idiomorph never pairs with a new node), 60 B: 43,405 B.
+const BUNDLE_GZIP_CEILING = 43_405
 const TARGET_BUNDLE_GZIP = 22_700
 // The split core (the runtime + the import table). The monolith was 22,272 B;
 // phase 1 (the loader) brought it to 22,787 B, phase 2 (persist + editors
@@ -386,11 +387,12 @@ const FEATURE_GZIP_CEILINGS = {
   // fixes (the late-defined source, the re-announce, the root seat list) take it to 1,353 B;
   // on pgbus 0.18 the re-announce becomes one check: 1,297 B; logging a failed announce: 1,362 B.
   // #474's validation fix (a fresh source after a page refresh by morph): 1,428 B; the source
-  // made data-turbo-permanent: 1,441 B.
-  "features/presence": 1_441,
+  // made data-turbo-permanent: 1,441 B; in the permanent sources box instead: 1,507 B.
+  "features/presence": 1_507,
   // Issue #474: subscribe (a shared, refcounted source per signed src), 759 B; its validation
-  // fix (a fresh source after a page refresh by morph) 830 B; data-turbo-permanent 842 B.
-  "features/subscribe": 842,
+  // fix (a fresh source after a page refresh by morph) 830 B; data-turbo-permanent 842 B; the
+  // permanent sources box instead 907 B.
+  "features/subscribe": 907,
   // Issue #400: countdown, 914 B; its review fixes (every fired deadline kept, an
   // id-less root's own key) take it to 966 B.
   "features/countdown": 966,
@@ -496,8 +498,9 @@ const FEATURE_GZIP_CEILINGS = {
 // its review fix (+47 B core) 51,763 B (those sizes before #466); with #466's +141 B: 51,904 B.
 // Issue #471 (js.click, +28 B core): 51,932 B.
 // Issue #474 (+61 B core, the 759 B subscribe feature) adds 820 B: 52,752 B; its validation fix
-// (+71 B subscribe, +66 B presence) 52,889 B; data-turbo-permanent (+12 B, +13 B) 52,914 B.
-const SPLIT_TOTAL_GZIP_CEILING = 52_914
+// (+71 B subscribe, +66 B presence) 52,889 B; data-turbo-permanent (+12 B, +13 B) 52,914 B;
+// the permanent sources box instead (+65 B, +66 B) 53,045 B.
+const SPLIT_TOTAL_GZIP_CEILING = 53_045
 // The maintainer's target for the core. Asserted as the ratchet when met.
 const TARGET_CORE_GZIP = 10 * 1024
 
