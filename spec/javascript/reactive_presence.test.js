@@ -116,6 +116,8 @@ test("a presence root mints one hidden presence source in <body> (pgbus's elemen
   const el = source()
   expect(el.parentElement).toBe(document.body)
   expect(el.hasAttribute("presence")).toBe(true)
+  // Kept by Turbo 8's page morph (#474's review).
+  expect(el.hasAttribute("data-turbo-permanent")).toBe(true)
   expect(el.hidden).toBe(true)
   expect(el.getAttribute("src")).toBe("/pgbus/streams/signed-board")
   expect(document.querySelectorAll("pgbus-stream-source").length).toBe(1)
@@ -400,7 +402,7 @@ test("a replace of the root keeps its source; a root that goes away removes it",
   expect(source()).toBe(null)
 })
 
-test("a page refresh by morph that drops the presence source mints a fresh one, which announces again", async () => {
+test("a page render that drops the presence source anyway mints a fresh one, which announces again", async () => {
   mount(roster(""))
   connected()
   await flush()

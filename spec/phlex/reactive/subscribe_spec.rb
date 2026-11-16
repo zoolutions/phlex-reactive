@@ -158,6 +158,15 @@ RSpec.describe Phlex::Reactive::Subscribe, "reactive_subscribe (issue #474)" do
         expect(broadcast_keys).to eq([[:room, "lobby"]])
       end
 
+      it "refuses a call with no verb, or two, before building anything" do
+        allow(TodoStatusComponent).to receive(:new).and_call_original
+
+        expect { TodoStatusComponent.broadcast_self(todo) }.to raise_error(ArgumentError, /exactly ONE verb/)
+        expect { TodoStatusComponent.broadcast_self(replace: todo, update: todo) }
+          .to raise_error(ArgumentError, /exactly ONE verb/)
+        expect(TodoStatusComponent).not_to have_received(:new)
+      end
+
       it "refuses each: (the stream is the declared one)" do
         expect { TodoStatusComponent.broadcast_self(replace: todo, each: [[:other]]) }
           .to raise_error(ArgumentError, /takes no each:/)

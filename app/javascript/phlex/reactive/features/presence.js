@@ -27,10 +27,11 @@
 // connection id) keeps it, and this module reads it to find "me". A plain
 // replace of the root disconnects and
 // reconnects the controller: the source is removed only a microtask after a
-// disconnect, and kept when the same root id comes back. A page refresh by
-// morph (Turbo 8) drops the source from <body> while the root stays
-// connected: after it the module mints a fresh one (issue #474's review),
-// whose pgbus:connected announces the tab again.
+// disconnect, and kept when the same root id comes back. The source is
+// data-turbo-permanent, so a page refresh by morph (Turbo 8) keeps it and the
+// tab keeps its seat (#474's review). Should a render drop it anyway while
+// the root stays connected, the module mints a fresh one, whose
+// pgbus:connected announces the tab again.
 //
 // Announcing. On every pgbus:connected (the first one and each reconnect) the
 // module sends presence_set with the tab's last state ({} at first), through
@@ -147,6 +148,7 @@ function subscribe(root) {
   source.id = id
   source.setAttribute("src", root.getAttribute("data-reactive-presence"))
   source.setAttribute("presence", "")
+  source.setAttribute("data-turbo-permanent", "")
   source.hidden = true
   source.addEventListener("pgbus:connected", () => {
     const entry = roots.get(root.id)

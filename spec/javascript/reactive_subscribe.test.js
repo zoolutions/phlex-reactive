@@ -111,6 +111,9 @@ test("a subscribing root mints one hidden source for its src in <body>, without 
   expect(el.hidden).toBe(true)
   expect(el.getAttribute("src")).toBe("/pgbus/streams/signed-item:widget")
   expect(el.hasAttribute("presence")).toBe(false)
+  // Kept by Turbo 8's page morph; no id, so a full render's permanent swap ignores it.
+  expect(el.hasAttribute("data-turbo-permanent")).toBe(true)
+  expect(el.id).toBe("")
 })
 
 test("a root without the attribute mints nothing", () => {
@@ -239,7 +242,7 @@ test("a root that connects before pgbus defines its element mints the source, an
   }
 })
 
-test("a page refresh by morph that drops the source mints a fresh one for the root still on the page", () => {
+test("a page render that drops the source anyway mints a fresh one for the root still on the page", () => {
   mount(widget())
   const before = sources()[0]
   before.remove() // Turbo 8's page morph: <body>'s children the server did not render go

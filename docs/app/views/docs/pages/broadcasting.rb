@@ -104,7 +104,8 @@ module Views
               Rendering puts the stream's signed source on the root. While the root
               is on the page the client keeps one `<pgbus-stream-source>` for it,
               and closes it when the root goes. A morph that keeps the key keeps the
-              connection, and two roots on the same key share one.
+              connection, as does a page refresh by morph, and two roots on the same key
+              share one.
 
               - `reactive_subscribe key: [:lobby, :feed]` subscribes to fixed parts;
                 `key: -> { [@board, :cards] }` runs on the component. Give either a

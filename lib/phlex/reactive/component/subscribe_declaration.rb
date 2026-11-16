@@ -59,10 +59,12 @@ module Phlex
                                    "(use broadcast_to(each: ...) to fan out)"
             end
 
-            verb = opts.slice(*Phlex::Reactive::Streamable::BROADCAST_VERBS.keys).keys.first
+            # Exactly one verb, or broadcast_to's own error before a component
+            # is built for nothing.
+            verb, = send(:extract_broadcast_verb, opts.slice(*Phlex::Reactive::Streamable::BROADCAST_VERBS.keys))
             # No subject: the verb's payload is it — built here, and handed on
             # built, so broadcast_to does not build it a second time.
-            if subject.nil? && verb && verb != :js
+            if subject.nil? && verb != :js
               component = subscribe_component(opts[verb])
               opts = opts.merge(verb => component)
             else

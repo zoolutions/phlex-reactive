@@ -116,9 +116,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **A page refresh by morph dropped a presence root's subscription (#474's
   review).** Turbo 8's page morph removes the `<pgbus-stream-source>` the client
   minted in `<body>` while the roster root stays connected, so the tab left the
-  roster for good. After a page render, the client now mints a fresh source for
-  every presence root still on the page, and its `pgbus:connected` announces the
-  tab again. `reactive_subscribe` sources do the same.
+  roster for good. The source is now `data-turbo-permanent`, so the morph keeps
+  it and the tab keeps its seat. Should a render drop it anyway, the client
+  mints a fresh source for every presence root still on the page, and its
+  `pgbus:connected` announces the tab again. `reactive_subscribe` sources do the
+  same.
 - **`reactive:idle` fired before the reply rendered (#464).** The dispatch lane
   left the activity counter when the fetch settled, at least one animation frame
   before Turbo applied the reply's streams, so a one-shot read after

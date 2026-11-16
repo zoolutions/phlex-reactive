@@ -56,8 +56,9 @@ RSpec.describe "reactive_subscribe (issue #474)", :pgbus, type: :system do
   end
 
   # Turbo 8's page refresh by morph drops what the server did not render from
-  # <body> — the minted source included — while the root stays connected.
-  it "subscribes again after a page refresh by morph, and still receives the broadcast" do
+  # <body>, while the root stays connected. The minted source is
+  # data-turbo-permanent, so it stays, connection and all.
+  it "keeps the connection through a page refresh by morph, and still receives the broadcast" do
     visit "/subscribe/#{todo.id}"
     wait_for_subscription
     before = find(subscribe_source, visible: :all)["connection-id"]
@@ -68,14 +69,13 @@ RSpec.describe "reactive_subscribe (issue #474)", :pgbus, type: :system do
       meta.content = "morph"
       document.head.appendChild(meta)
       window.__noReload = true
-      document.addEventListener("turbo:morph", () => { window.__morphed = true }, { once: true })
+      document.addEventListener("turbo:morph", () => { document.documentElement.dataset.morphed = "" }, { once: true })
       window.Turbo.visit(location.href, { action: "replace" })
     JS
 
-    expect(page).to have_css("#{subscribe_source}[connection-id]:not([connection-id='#{before}'])",
-      visible: :all, count: 1, wait: 10)
-    expect(page.evaluate_script("window.__morphed && window.__noReload")).to be(true)
-    sleep 0.5
+    expect(page).to have_css("html[data-morphed]", visible: :all, wait: 10)
+    expect(page.evaluate_script("window.__noReload")).to be(true)
+    expect(page).to have_css("#{subscribe_source}[connection-id='#{before}']", visible: :all, count: 1)
 
     FinishTodoJob.perform_now(todo.id)
 

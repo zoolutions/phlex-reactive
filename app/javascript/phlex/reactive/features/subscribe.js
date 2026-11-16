@@ -14,9 +14,11 @@
 // controller: the source is released only a microtask after a disconnect, so
 // the same root id coming back keeps the connection. A change of the src (a
 // morph that re-keys the root) moves the root to the new stream; a morph that
-// keeps it changes nothing. A page refresh by morph (Turbo 8) drops the
-// minted source from <body> while the roots stay connected: after it the
-// module mints a fresh source for every stream a live root still needs.
+// keeps it changes nothing. The source is data-turbo-permanent (no id, so a
+// full render's permanent-element swap leaves it alone): a page refresh by
+// morph (Turbo 8) keeps it, connection and all. Should a render drop it
+// anyway while the roots stay connected, the module mints a fresh source for
+// every stream a live root still needs.
 //
 // This module never imports the core.
 
@@ -113,6 +115,7 @@ function mint(src) {
   const source = document.createElement("pgbus-stream-source")
   source.setAttribute("src", src)
   source.setAttribute(MARK, "")
+  source.setAttribute("data-turbo-permanent", "")
   source.hidden = true
   minted.add(source)
   document.body.appendChild(source)
